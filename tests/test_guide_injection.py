@@ -65,12 +65,25 @@ def test_multiple_named_guides(tmp_path, monkeypatch):
     assert "LAYERING" not in out                                  # layering not requested
 
 
-def test_real_three_guides_present_and_routed():
+def test_real_guides_present_and_routed():
     G._cache.clear()
-    # all three real guides load from repo root
+    # all four real guides load from repo root
     assert G.load_guide("sequencing") and G.load_guide("effects") and G.load_guide("layering")
+    assert G.load_guide("scenes")
     from xlights_orchestrator.agents import director, generator, visual_critic
-    gen = G.with_guides(generator._PROMPT, "sequencing", "effects", "layering")
-    assert "EFFECTS CATALOG" in gen and "LAYERING" in gen and "SEQUENCING" in gen   # generator: all 3
+    gen = G.with_guides(generator._PROMPT, "sequencing", "effects", "layering", "scenes")
+    assert "EFFECTS CATALOG" in gen and "LAYERING" in gen and "SEQUENCING" in gen   # generator: all
+    assert "SCENE COOKBOOK" in gen
     crit = G.with_guides(visual_critic._PROMPT, "sequencing", "layering")
     assert "LAYERING" in crit and "EFFECTS CATALOG" not in crit                     # critic: no catalog
+
+
+def test_scene_cookbook_routed_to_director_and_generator(tmp_path, monkeypatch):
+    f = tmp_path / "scenes.md"; f.write_text("SC_COOKBOOK_MARKER_XYZ")
+    monkeypatch.setenv("XLO_SCENE_COOKBOOK", str(f))
+    G._cache.clear()
+    from xlights_orchestrator.agents import director, generator, judge, visual_critic
+    assert "SC_COOKBOOK_MARKER_XYZ" in G.with_guides(director._PROMPT, "scenes")
+    # the director & generator factories actually request the scenes guide; critic/judge do not
+    for mod, wired in ((director, True), (generator, True), (visual_critic, False), (judge, False)):
+        assert ('"scenes"' in open(mod.__file__).read()) is wired

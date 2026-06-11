@@ -30,7 +30,15 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
             f"  issue: {revision.issue}\n  try: {revision.suggested_fix}\n"
             f"  do NOT repeat: {revision.do_not_repeat}"
         )
-    brief_note = ""                                  # the creative brief this section must realize
+    scene_note = ""
+    if getattr(section, "scene_id", ""):
+        scene_note = ("\n\nSCENE: realize cookbook scene " + section.scene_id
+                      + " — follow its stack table (rows top-to-bottom, layers, effects, render"
+                        " styles) cast onto the real groups per this adaptation: "
+                      + (section.scene_adaptation or "(cast sensibly)")
+                      + ". Multiple instructions on the same target are fine (layers are assigned"
+                        " automatically); blend modes are not settable — design for Normal.")
+    brief_note = scene_note                          # the creative brief this section must realize
     if concept:
         brief_note += "\n\nSHOW CONCEPT (keep the through-line):\n" + concept
     if motifs:

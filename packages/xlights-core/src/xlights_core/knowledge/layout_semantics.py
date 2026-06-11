@@ -164,6 +164,12 @@ def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
     for side, gname in (("LEFT", "SEM_SIDE_LEFT"), ("CENTER", "SEM_SIDE_CENTER"), ("RIGHT", "SEM_SIDE_RIGHT")):
         g[gname] = [p.name for p in props if p.side == side and p.role not in _NON_ENSEMBLE]
     g["SEM_ALL"] = [p.name for p in props if p.role not in _NON_ENSEMBLE]
+    # Subtractive ensembles (scene cookbook §2): the bed goes on ALL-LESS-* so the featured
+    # prop never receives it — no blending arithmetic, no bed ghosting through the feature.
+    focal = {p.name for p in props if p.focal}
+    rhythm = {p.name for p in props if p.role in ("ARCH", "CANE", "MINI_TREE")}
+    g["SEM_ALL_LESS_FOCAL"] = [n for n in g["SEM_ALL"] if n not in focal]
+    g["SEM_ALL_LESS_FOCAL_RHYTHM"] = [n for n in g["SEM_ALL"] if n not in focal | rhythm]
     g["SEM_FOCAL"] = [p.name for p in props if p.focal]
     g["SEM_ACCENTS"] = [p.name for p in props if not p.focal and p.role not in (("OUTLINE",) + _NON_ENSEMBLE)]
     g["SEM_HOUSE"] = [p.name for p in props if p.role in ("OUTLINE", "WINDOW", "ICICLES")]

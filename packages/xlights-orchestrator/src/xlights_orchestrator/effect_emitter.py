@@ -43,7 +43,11 @@ async def apply_instructions(
     except XLightsResponseError:
         pass  # nothing open / already closed
     try:
-        await client.new_sequence(duration_secs=duration_secs, frame_ms=50, force=True)
+        try:    # canonical render order when the SEM Master view is loaded (post-restart)
+            await client.new_sequence(duration_secs=duration_secs, frame_ms=50, force=True,
+                                      view="SEM Master")
+        except Exception:  # noqa: BLE001 — view not loaded yet → default view
+            await client.new_sequence(duration_secs=duration_secs, frame_ms=50, force=True)
     except XLightsResponseError as exc:
         if "already open" in (exc.message or "").lower():
             raise CleanSlateRequired(

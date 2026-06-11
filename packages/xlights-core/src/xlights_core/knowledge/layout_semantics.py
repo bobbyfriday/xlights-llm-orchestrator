@@ -259,3 +259,101 @@ def write_manifest(path, props: list[Prop], groups: dict[str, list[str]],
         "review": [p.name for p in review],
     }
     Path(path).write_text(json.dumps(manifest, indent=2))
+
+
+# -- render order (cookbook §2 / layering guide §7): later rows WIN overlaps --------------------
+
+_ORDER_TIERS = (
+    ("bed",     lambda n: n in ("SEM_ALL", "SEM_ALL_LESS_FOCAL", "SEM_ALL_LESS_FOCAL_RHYTHM")
+                          or n.startswith(("SEM_BAND_", "SEM_SIDE_"))),
+    ("frame",   lambda n: n in ("SEM_OUTLINE", "SEM_WINDOWS", "SEM_ICICLES", "SEM_PATH", "SEM_HOUSE",
+                                "SEM_YARD")),
+    ("rhythm",  lambda n: n.startswith(("SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"))),
+    ("other",   lambda n: True),                       # plain groups + individual models
+    ("focal",   lambda n: n == "SEM_FOCAL" or "matrix" in n.lower()),
+    ("accent",  lambda n: n.startswith(("SEM_SNOWFLAKES", "SEM_SPINNERS")) or "star" in n.lower()),
+)
+
+
+def _order_tier(name: str) -> int:
+    # later tiers checked first so focal/accent outrank the catch-all
+    for idx in (5, 4, 0, 1, 2):
+        if _ORDER_TIERS[idx][1](name):
+            return idx
+    return 3
+
+
+def canonical_order(names: list[str]) -> list[str]:
+    """Render order: beds at the TOP (painted over) → frame → rhythm → everything → focal →
+    accents at the BOTTOM (win overlaps). Stable within a tier; null placeholders excluded."""
+    live = [n for n in names if n and not is_null_model(n)]
+    return sorted(live, key=lambda n: (_order_tier(n), live.index(n)))
+
+
+def patch_view(rgb_path, view_name: str = "SEM Master") -> bool:
+    """Author/update a canonical-order view in rgbeffects.xml (idempotent, atomic, best-effort).
+    xLights loads views at startup — the view becomes usable on the next restart."""
+    import os
+    from pathlib import Path
+    try:
+        p = Path(rgb_path)
+        tree = ET.parse(p)
+        root = tree.getroot()
+        names: list[str] = []
+        mg = root.find("modelGroups")
+        for g in (mg.findall("modelGroup") if mg is not None else []):
+            names.append(g.get("name", ""))
+        models = root.find("models")
+        for m in (models.findall("model") if models is not None else []):
+            if m.get("LayoutGroup") in (None, "Default"):
+                names.append(m.get("name", ""))
+        ordered = canonical_order(names)
+        views = root.find("views")
+        if views is None:
+            views = ET.SubElement(root, "views")
+        for v in list(views.findall("view")):
+            if v.get("name") == view_name:
+                views.remove(v)                        # idempotent replace
+        ET.SubElement(views, "view", {"name": view_name, "models": ",".join(ordered)})
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+        os.replace(tmp, p)
+        return True
+    except Exception:  # noqa: BLE001 — best-effort
+        return False
+
+
+def patch_xsq_render_order(xsq_path) -> bool:
+    """Reorder a saved sequence's model rows canonically (timing rows keep their positions at the
+    top). Atomic, best-effort — the final file gets deliberate precedence even before the
+    canonical view is active in xLights."""
+    import os
+    from pathlib import Path
+    try:
+        p = Path(xsq_path)
+        tree = ET.parse(p)
+        root = tree.getroot()
+        changed = False
+        for tag in ("DisplayElements", "ElementEffects"):
+            parent = root.find(tag)
+            if parent is None:
+                continue
+            kids = list(parent)
+            timing = [k for k in kids if k.get("type") == "timing"]
+            model = [k for k in kids if k.get("type") == "model"]
+            other = [k for k in kids if k not in timing and k not in model]
+            order = {n: i for i, n in enumerate(canonical_order([k.get("name", "") for k in model]))}
+            model.sort(key=lambda k: order.get(k.get("name", ""), 10**6))
+            for k in kids:
+                parent.remove(k)
+            for k in timing + other + model:
+                parent.append(k)
+            changed = True
+        if not changed:
+            return False
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+        os.replace(tmp, p)
+        return True
+    except Exception:  # noqa: BLE001
+        return False

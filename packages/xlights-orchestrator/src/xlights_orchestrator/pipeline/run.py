@@ -43,6 +43,7 @@ from ..revision_log import (
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects, ShowPlan
 from ..creative_brief import render_creative_brief
 from ..song_description import render_description
+from xlights_core.knowledge.layout_semantics import patch_xsq_render_order
 from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
 
 from .beats import (
@@ -497,6 +498,8 @@ async def run_pipeline(
                 if xsq and media is not None and patch_xsq_media(xsq, media, st.song_analysis.duration_s):
                     log.info("audio attached to %s — open '%s' in xLights to play with sound",
                              xsq, save_as)
+                if xsq:
+                    patch_xsq_render_order(xsq)       # beds under, features/accents over
                 if xsq and timing_tracks:         # reference grid for hand-editing (best-effort)
                     tracks = build_timing_tracks(
                         st.song_analysis, st.music_brief,

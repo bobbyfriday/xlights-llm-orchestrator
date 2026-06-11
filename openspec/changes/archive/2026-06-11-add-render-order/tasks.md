@@ -7,4 +7,4 @@
 ## 3. Tests & verification
 - [x] 3.1 canonical_order precedence (bed < frame < rhythm < focal < accents); nulls dropped
 - [x] 3.2 view authored idempotently; xsq reorder sorts model rows, keeps timing, re-parses valid
-- [ ] 3.3 Live: after next restart, new sequences inherit the view order; finalized .xsq rows are canonical
+- [x] 3.3 Live: after next restart, new sequences inherit the view order; finalized .xsq rows are canonical

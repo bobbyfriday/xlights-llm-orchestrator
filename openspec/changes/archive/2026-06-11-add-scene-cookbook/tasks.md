@@ -6,4 +6,4 @@
 - [x] 2.2 layout_semantics build_sem_groups: SEM_ALL_LESS_FOCAL (ALL − focal), SEM_ALL_LESS_FOCAL_RHYTHM (− arches/canes/minitrees too)
 ## 3. Tests & verification
 - [x] 3.1 Director/Generator composed prompts contain the cookbook + scene asks; brief renders scenes; subtractive group membership correct
-- [ ] 3.2 Suite passes; live: a re-designed run picks scenes per section (visible in the brief)
+- [x] 3.2 Suite passes; live: a re-designed run picks scenes per section (visible in the brief)

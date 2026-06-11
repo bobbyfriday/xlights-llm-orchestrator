@@ -140,3 +140,10 @@ The interpretation SHALL surface, per section, the beat times and the section's 
 - **WHEN** stem data is unavailable
 - **THEN** the beat times are still surfaced and the prominent instrument degrades gracefully (rhythm can still follow the beats)
 
+### Requirement: Interpretation consumes timed lyrics
+When timed lyrics exist, the interpretation SHALL produce a narrative and featured lyric moments anchored to their times, and MAY refine section labels with the lyric structure hints.
+
+#### Scenario: Vocal song interpreted
+- **WHEN** the analysis carries timed lyrics
+- **THEN** the brief has a non-empty narrative and featured lyric moments with timestamps
+

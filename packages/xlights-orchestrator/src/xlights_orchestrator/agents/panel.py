@@ -56,9 +56,16 @@ def _segments(sa: SongAnalysis):
 
 
 def _structure_render(sa, lyrics):
+    hints = ""
+    sal = getattr(sa, "lyrics", None) or {}
+    if sal.get("repeated") or sal.get("sections"):
+        hints = ("\nLYRIC STRUCTURE HINTS (repeated lines = likely choruses; markers if any):\n"
+                 + json.dumps({"repeated": sal.get("repeated", [])[:8],
+                               "markers": sal.get("sections", [])}))
     return ("SEGMENTS (anchor your section times to these):\n" + json.dumps(_segments(sa))
             + f"\nENERGY (sampled): {_energy(sa)}"
             + f"\nKEY: {sa.key_overall}   #CHORDS: {len(sa.chords)}"
+            + hints
             + "\nLabel each segment (intro/verse/chorus/bridge/drop/outro), group recurring"
               " labels in repetition_map, and propose candidate show themes.")
 
@@ -78,12 +85,19 @@ def _harmony_render(sa, lyrics):
 
 
 def _lyric_render(sa, lyrics):
-    text = getattr(lyrics, "text", "") or ""
+    sal = getattr(sa, "lyrics", None) or {}
+    text = getattr(lyrics, "text", "") or sal.get("text", "") or ""
     if len(text) > 6000:
         text = text[:6000]
-    return ("LYRICS:\n" + text + "\n\nSECTION TIMES:\n" + json.dumps(_segments(sa))
+    timed = ""
+    if sal.get("lines"):
+        timed = ("\n\nTIMED LINES (start/end seconds — anchor featured lines to these):\n"
+                 + json.dumps(sal["lines"][:60]))
+        if sal.get("repeated"):
+            timed += "\nREPEATED LINES (chorus structure hints):\n" + json.dumps(sal["repeated"][:8])
+    return ("LYRICS:\n" + text + timed + "\n\nSECTION TIMES:\n" + json.dumps(_segments(sa))
             + "\nSummarize the narrative, give overall sentiment, list a few featured"
-              " 'money lines', and name lyric themes.")
+              " 'money lines' WITH their timestamps when timed lines are given, and name lyric themes.")
 
 
 _ANALYSTS = [

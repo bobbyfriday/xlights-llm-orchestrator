@@ -79,6 +79,27 @@ class AudioAnalyzer:
         cache_file.write_text(analysis.model_dump_json())
         return analysis
 
+    def attach_lyrics(self, analysis: SongAnalysis, path: str, *, text: str,
+                      title: str = "", artist: str = "") -> bool:
+        """Align lyric TEXT against the persisted vocal stem → timed lyrics on the analysis,
+        re-saving the cache (augment-and-resave, like stems). Graceful: False on any failure."""
+        from .lyrics_align import align_lyrics
+        key = _content_key(path)
+        stem = next((self.cache_dir / key / "stems" / f"vocals.{ext}"
+                     for ext in ("wav", "mp3")
+                     if (self.cache_dir / key / "stems" / f"vocals.{ext}").exists()), None)
+        if stem is None:
+            return False
+        aligned = align_lyrics(str(stem), text)
+        if not aligned:
+            return False
+        analysis.lyrics = {"title": title, "artist": artist, "text": text, **aligned}
+        try:
+            (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())
+        except Exception:  # noqa: BLE001 — cache write is best-effort
+            pass
+        return True
+
     def _attach_stems(self, analysis: SongAnalysis, path: str, key: str) -> None:
         """Separate, persist inspectable stem wavs, attach features + per-section prevalence.
 

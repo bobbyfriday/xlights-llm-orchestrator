@@ -73,7 +73,8 @@ STALL_LIMIT = 2      # consecutive no-objective-progress iterations → terminat
 async def _default_interpret(song_path: str, sa: SongAnalysis) -> MusicBrief:
     """Live interpret stage: fetch lyrics, build the panel, run it → MusicBrief."""
     lyrics = fetch_lyrics(song_path)
-    analysts, synthesizer = panel_mod.build_panel(lyrics_present=lyrics is not None)
+    have = lyrics is not None or bool((getattr(sa, "lyrics", None) or {}).get("lines"))
+    analysts, synthesizer = panel_mod.build_panel(lyrics_present=have)
     return await panel_mod.run_panel(sa, lyrics, analysts=analysts, synthesizer=synthesizer)
 
 
@@ -344,6 +345,19 @@ async def run_pipeline(
         st.song_analysis = analyze(song_path)
     else:
         st.song_analysis = AudioAnalyzer().analyze(song_path, stems=stems)
+    # timed lyrics as part of the INITIAL analysis: fetch text, align on the vocal stem (cached).
+    # This also flips the synthesizer's `instrumental` flag (it reads sa.lyrics) for vocal songs.
+    if not (getattr(st.song_analysis, "lyrics", None) or {}).get("lines"):
+        try:
+            _ld = fetch_lyrics(song_path)
+            if _ld and _ld.text:
+                if AudioAnalyzer().attach_lyrics(st.song_analysis, song_path, text=_ld.text,
+                                                 title=_ld.title or "", artist=_ld.artist or ""):
+                    log.info("timed lyrics attached (%d lines)",
+                             len(st.song_analysis.lyrics.get("lines", [])))
+        except Exception as exc:  # noqa: BLE001 — lyrics are enrichment
+            log.info("lyric attach skipped: %s", exc)
+
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
     st.placeable_types = placeable_effect_types()
 

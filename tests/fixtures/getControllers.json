@@ -1,0 +1,1 @@
+{"controllers": [{"name": "Controller 1", "ip": "192.168.1.50", "protocol": "E131", "active": true}, {"name": "Controller 2", "ip": "192.168.1.51", "protocol": "DDP", "active": true}]}

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xLights LLM Orchestrator — Plan</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --ink: #e7e9ee; --muted: #9aa3b2;
+    --accent: #6ea8fe; --accent2: #7ee0c0; --warn: #ffcf6e; --line: #262b36;
+    --code-bg: #11141a; --tag: #1f2733;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { display: grid; grid-template-columns: 260px 1fr; max-width: 1280px; margin: 0 auto; }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    padding: 28px 18px; border-right: 1px solid var(--line); font-size: 14px;
+  }
+  nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; }
+  nav a { display: block; color: var(--muted); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
+  nav a:hover { color: var(--ink); background: var(--tag); }
+  main { padding: 40px 48px 120px; min-width: 0; }
+  header.title { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 28px; }
+  header.title h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.01em; }
+  header.title .sub { color: var(--muted); }
+  h2.sec { font-size: 22px; margin: 44px 0 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+  h3 { font-size: 17px; margin: 26px 0 10px; color: var(--accent2); }
+  h4 { font-size: 15px; margin: 18px 0 8px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+  p, li { color: var(--ink); }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px; color: #d9e1ff; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  pre code { background: none; padding: 0; color: #c8d3e6; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .callout { border-left: 3px solid var(--warn); background: #1d1a12; border-radius: 8px; padding: 12px 18px; margin: 18px 0; }
+  .callout strong { color: var(--warn); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14px; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--tag); color: var(--ink); font-weight: 600; white-space: nowrap; }
+  tr:nth-child(even) td { background: #14171e; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 999px; background: var(--tag); color: var(--muted); border: 1px solid var(--line); margin-right: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .deliverable { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
+  .deliverable b { color: var(--accent2); }
+  .phase { display: flex; gap: 12px; margin: 10px 0; }
+  .phase .k { flex: 0 0 64px; font-weight: 700; color: var(--accent); }
+  .muted { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 32px 0; }
+  @media (max-width: 880px) { .wrap { grid-template-columns: 1fr; } nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); } main { padding: 24px; } .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <h2>Contents</h2>
+  <a href="#context">Context</a>
+  <a href="#findings">Research findings</a>
+  <a href="#decisions">Decisions</a>
+  <h2>Approach</h2>
+  <a href="#layout">Package layout</a>
+  <a href="#hardest">Valid settings strings</a>
+  <a href="#mcp-tools">MCP tools</a>
+  <a href="#engine">Orchestration engine</a>
+  <a href="#deterministic">Deterministic components</a>
+  <a href="#roster">Agent roster</a>
+  <a href="#parallel">Parallelism</a>
+  <a href="#loop">Test + iterate loop</a>
+  <a href="#contracts">Data contracts</a>
+  <h2>Execution</h2>
+  <a href="#phases">Build order</a>
+  <a href="#critical">Critical files</a>
+  <a href="#verify">Verification</a>
+  <a href="#risks">Risks</a>
+  <a href="#open">Open items</a>
+</nav>
+
+<main>
+<header class="title">
+  <h1>xLights LLM Orchestrator</h1>
+  <div class="sub">Multi-agent generation of xLights light-show sequences from a song · implementation plan</div>
+</header>
+
+<section id="context">
+<h2 class="sec">Context</h2>
+<p>A local tool that turns a song into a finished xLights light-show sequence using <strong>multiple LLM agents working in parallel</strong> — analyzing the song, generating effects per song-section/model-group, testing/critiquing the result, and iterating to a final sequence. Two deliverables:</p>
+<div class="grid2">
+  <div class="deliverable"><b>1 · MCP server</b><br>Wraps the xLights local automation API so any MCP client (Claude Code included) can drive xLights.</div>
+  <div class="deliverable"><b>2 · LLM orchestrator</b><br>Standalone Python CLI that fans out parallel agents over the MCP/REST surface to generate and refine a sequence.</div>
+</div>
+<p class="muted">Greenfield project (<code>/Users/rob/git/xlights_llm_orchestrator</code> is empty).</p>
+</section>
+
+<section id="findings">
+<h2 class="sec">Key research findings (drive the design)</h2>
+<ul>
+  <li>xLights exposes an HTTP REST automation API at <code>http://127.0.0.1:49913</code> (instance "A"; <code>49914</code> = "B"). Each command is <code>GET /&lt;cmd&gt;?param=val</code> or <code>POST /&lt;cmd&gt;</code> with a JSON body; responses are JSON with a <code>res</code>/status code. <span class="muted">(Source: <code>src-ui-wx/automation/xLightsAutomations.cpp</code> in the xLights repo.)</span></li>
+  <li>~75 commands exist. Load-bearing ones: <code>getModels</code>/<code>getModel</code>, <code>getViews</code>, <code>newSequence</code>/<code>openSequence</code>/<code>loadSequence</code>/<code>getOpenSequence</code>/<code>saveSequence</code>/<code>closeSequence</code>, <strong><code>addEffect</code></strong> (one effect → one target model/group, one layer, with a raw <code>settings</code> string + <code>palette</code> string, <code>startTime</code>/<code>endTime</code> in ms), <code>getEffectSettings</code>/<code>setEffectSettings</code>, <code>renderAll</code>/<code>batchRender</code>, <code>checkSequence</code>, <code>playSequence</code>, <strong><code>exportVideoPreview</code></strong> (renders a preview video → visual feedback loop), <code>getControllers</code>.</li>
+  <li><strong><code>prepareAudio</code>, <code>setAudioVolume</code>, <code>setAudioSpeed</code> are NOT implemented</strong> (return 504). So <strong>audio analysis must live in our tool</strong>, not be delegated to xLights.</li>
+  <li>A sequence = <code>.xsq</code> (editable XML) + <code>.fseq</code> (compiled output). Effects live on models/groups, on layers, with ms start/end. Timing tracks hold beat/bar/section marks.</li>
+</ul>
+</section>
+
+<section id="decisions">
+<h2 class="sec">Decisions (confirmed with user)</h2>
+<ul>
+  <li><strong>Python 3.11+</strong>; orchestration on <strong>PydanticAI</strong> (agent + model layer) + <strong>pydantic-graph</strong> (graph orchestration with state persistence). Standalone CLI.</li>
+  <li><strong>Provider-agnostic / multi-model.</strong> Each agent role maps to a model spec (provider + id + settings) in config, so Claude, Gemini, etc. are swappable per role without code changes. Provider-specific features are optional optimizations, never load-bearing.</li>
+  <li><strong>Monorepo, 3 separately-installable packages</strong> so the MCP server stays lightweight (no LLM/audio deps) and the shared REST client/preset library is single-sourced. The MCP server is independently useful/publishable.</li>
+  <li>The hardest correctness problem — emitting <strong>valid xLights <code>settings</code> strings</strong> — is solved by mining the user's <strong>existing <code>.xsq</code> corpus</strong> into a parameterized preset library.</li>
+  <li><strong>Build the MCP server first</strong>, then layer the orchestrator on top.</li>
+</ul>
+<div class="callout">
+  <strong>⚠️ Model usage is load-bearing but provider-specific</strong>, applied via PydanticAI per-model <code>ModelSettings</code>:
+  <ul>
+    <li><strong>Claude</strong> defaults: <code>claude-opus-4-8</code> (planner/critic), <code>claude-sonnet-4-6</code> (generators/tester), with <code>thinking={"type":"adaptive"}</code> + <code>output_config={"effort": …}</code>; do <strong>not</strong> pass <code>temperature</code>/<code>top_p</code>/<code>top_k</code>/<code>budget_tokens</code> (they 400). Re-verify against the <code>claude-api</code> skill at impl time.</li>
+    <li><strong>Gemini</strong> defaults: <code>gemini-2.5-pro</code> (planner/critic), <code>gemini-2.5-flash</code> (generators) with its own thinking-budget config (verify current IDs at impl time).</li>
+    <li>The registry holds these as per-provider settings so swapping a role's provider also swaps in the right knobs.</li>
+  </ul>
+</div>
+</section>
+
+<section id="layout">
+<h2 class="sec">Package layout (monorepo, 3 packages)</h2>
+<p>One repo, three installable packages under <code>packages/</code>. Dependency direction: <code>mcp → core</code>; <code>orchestrator → core</code>. <code>core</code> has no LLM deps; <code>mcp</code> adds only <code>mcp[cli]</code>; <code>orchestrator</code> adds <code>pydantic-ai</code>. Develop together via a uv workspace; publish independently.</p>
+<pre><code>xlights_llm_orchestrator/
+├── pyproject.toml                 # workspace root (uv workspace) + dev tooling
+├── README.md  .env.example
+├── packages/
+│   ├── xlights-core/              # SHARED — REST client + audio + knowledge (no LLM dep)
+│   │   ├── pyproject.toml         #   deps: httpx, pydantic, librosa, soundfile, numpy, vamp;
+│   │   │                          #     extras [full]: demucs, essentia, pyacoustid,
+│   │   │                          #     musicbrainzngs, lyricsgenius, syncedlyrics, whisperx|aeneas
+│   │   └── src/xlights_core/
+│   │       ├── client/            #   SHARED async REST client
+│   │       │   ├── client.py      #     httpx wrapper, GET/POST, retries, single write-lock
+│   │       │   ├── commands.py    #     one typed method per REST cmd (get_models, add_effect…)
+│   │       │   ├── models.py      #     pydantic: Model, Group, View, Effect, Sequence
+│   │       │   ├── settings_format.py  # encode/decode xLights E_/C_ settings & palette
+│   │       │   └── exceptions.py  #     XLightsError, XLightsNotImplemented (504), Timeout
+│   │       ├── audio/             #   feature extraction (xLights can't do it for us)
+│   │       │   ├── analyzer.py    #     AudioAnalyzer.analyze(path) -> SongAnalysis
+│   │       │   ├── extractors/
+│   │       │   │   ├── vamp_host.py   # native VAMP plugins (VAMP_PATH -> xLights' QM plugins)
+│   │       │   │   ├── librosa_ext.py # RMS/energy bands, spectral, MFCC, HPSS, self-similarity
+│   │       │   │   ├── stems.py       # demucs -> per-stem (vocals/drums/bass/other) + energy
+│   │       │   │   ├── essentia_ext.py# high-level ML models: mood, danceability, genre
+│   │       │   │   └── identify.py    # AcoustID -> MusicBrainz -> artist/title/genre
+│   │       │   ├── lyrics/
+│   │       │   │   ├── fetch.py       # lyricsgenius (text); syncedlyrics (LRC) fallback
+│   │       │   │   └── align.py       # forced-align text to vocal stem -> word timing
+│   │       │   ├── fusion.py      #     reconcile VAMP+librosa into one grid; confidences
+│   │       │   └── schema.py      #     SongAnalysis (TempoMap, BeatGrid, KeyMap, Chords,
+│   │       │                      #       Segments, EnergyArc, StemEnergies, TrackId, Lyrics…)
+│   │       └── knowledge/         #   valid effects + settings templates
+│   │           ├── xsq_extractor.py    # OFFLINE: mine user .xsq -> preset templates
+│   │           ├── presets/*.json #     curated templates
+│   │           ├── preset_library.py   # render(preset, params, palette) -> (settings, palette)
+│   │           ├── palettes.py    #     named palettes -> C_BUTTON_Palette strings
+│   │           └── validators.py  #     validate addEffect args (catalog, ranges, target, timing)
+│   │
+│   ├── xlights-mcp/               # DELIVERABLE 1 — FastMCP server (lightweight)
+│   │   ├── pyproject.toml         #   deps: xlights-core, mcp[cli]
+│   │   └── src/xlights_mcp/
+│   │       ├── server.py          #   FastMCP instance + entry
+│   │       ├── tools_layout.py    #   read tools
+│   │       ├── tools_sequence.py  #   lifecycle tools
+│   │       ├── tools_effects.py   #   preset-backed effect editing
+│   │       ├── tools_render.py    #   render/test/preview tools
+│   │       └── tools_audio.py     #   audio-analysis tools (wraps core.audio)
+│   │
+│   └── xlights-orchestrator/      # DELIVERABLE 2 — standalone LLM orchestrator
+│       ├── pyproject.toml         #   deps: xlights-core, pydantic-ai; [anthropic]/[google]; logfire
+│       └── src/xlights_orchestrator/
+│           ├── runner.py          #   builds initial State, runs the graph w/ persistence
+│           ├── models/
+│           │   ├── registry.py    #   role -> model spec; builds PydanticAI Models
+│           │   └── config.yaml     #   default per-role routing + per-provider knobs
+│           ├── graph/             #   pydantic-graph orchestration (the conductor)
+│           │   ├── state.py       #     State = typed blackboard
+│           │   ├── nodes.py       #     BaseNode per phase
+│           │   └── graph.py       #     Graph + StatePersistence (sqlite)
+│           ├── coordination.py    #   gather+Semaphore, write-queue, ProcessPoolExecutor
+│           ├── agents/            #   PydanticAI Agents (system prompt + output_type + tools)
+│           │   ├── factory.py     #     build_agent(role) -> pydantic_ai.Agent
+│           │   ├── analysis/{structure_theme,rhythm_dynamics,harmony_mood,lyric_narrative,synthesizer}.py
+│           │   ├── director.py    #     MusicBrief -> ShowPlan
+│           │   ├── generator.py   #     SectionPlan -> EffectInstruction[] (plan-then-apply)
+│           │   └── critics/{visual,sync,technical,judge}.py
+│           ├── show_plan.py       #   MusicBrief, ShowPlan, SectionPlan, EffectInstruction, RevisionBrief
+│           ├── effect_emitter.py  #   validate + serially apply EffectInstruction[] via write lock
+│           ├── prompts/*.md       #   frozen system prompts (for caching where supported)
+│           └── cli.py             #   `xlo analyze | generate | run`
+├── data/{songs,analyses,sequences,previews}/
+└── tests/</code></pre>
+<p class="muted">Both the MCP server and the orchestrator's tester/critic talk to xLights and need the preset library, so that shared code lives once in <code>xlights-core</code>. MCP tools are thin wrappers over <code>core.client</code>; the orchestrator depends on <code>core</code> directly.</p>
+</section>
+
+<section id="hardest">
+<h2 class="sec">The hardest problem — valid effect settings strings</h2>
+<p>Free-form generation of <code>E_TEXTCTRL_…</code>/<code>C_BUTTON_Palette1_…</code> strings will hallucinate keys and silently render wrong. Instead, a <strong>curated parameterized preset library mined from real <code>.xsq</code> files</strong>:</p>
+<ol>
+  <li><code>xsq_extractor.py</code> (offline): parse the user's <code>.xsq</code> corpus, extract each effect's exact <code>settings</code>+<code>palette</code> strings per effect type — <strong>valid by construction</strong>.</li>
+  <li>Template-ize: identify the keys that vary meaningfully (speed, scale, direction, palette slots), freeze the rest, store as JSON presets with typed params.</li>
+  <li><code>preset_library.render(name, params, palette)</code> does safe substitution; <code>validators.py</code> rejects out-of-range/unknown params <strong>before</strong> <code>addEffect</code>.</li>
+  <li>Agents only see the preset menu (<code>xl_list_effect_presets</code>) and call <code>xl_add_effect_from_preset</code> with typed params — never raw strings. A gated, validated <code>xl_add_effect_raw</code> exists as an escape hatch.</li>
+  <li>Validation layers: effect ∈ catalog → params ∈ ranges → target ∈ live <code>getModels</code> &amp; timing in bounds → <code>checkSequence</code> as the final server-side gate.</li>
+</ol>
+</section>
+
+<section id="mcp-tools">
+<h2 class="sec">MCP tools (thin wrappers over <code>XLightsClient</code>)</h2>
+<p><span class="pill">Layout/read</span> <code>xl_get_models</code>, <code>xl_get_model</code>, <code>xl_get_views</code>, <code>xl_get_controllers</code></p>
+<p><span class="pill">Lifecycle</span> <code>xl_new_sequence</code>, <code>xl_open_sequence</code>/<code>xl_load_sequence</code>, <code>xl_get_open_sequence</code>, <code>xl_save_sequence</code>, <code>xl_close_sequence</code></p>
+<p><span class="pill">Effects</span> <code>xl_list_effect_presets</code>, <code>xl_add_effect_from_preset</code> (primary), <code>xl_add_effects_batch</code>, <code>xl_add_effect_raw</code> (gated), <code>xl_get_effect_settings</code>/<code>xl_set_effect_settings</code></p>
+<p><span class="pill">Render/test</span> <code>xl_render_all</code>, <code>xl_batch_render</code>, <code>xl_check_sequence</code>, <code>xl_export_video_preview</code>, <code>xl_export_model_render</code>, <code>xl_play_sequence</code></p>
+<p><span class="pill">Audio (ours)</span> <code>xl_analyze_song</code>, <code>xl_list_vamp_plugins</code>, <code>xl_get_lyrics</code>, <code>xl_create_timing_track</code>, <code>xl_create_lyric_track</code>, <code>xl_get_preview_frames</code></p>
+</section>
+
+<section id="engine">
+<h2 class="sec">Orchestration engine (how the conductor runs the agents)</h2>
+<p>Two kinds of components: <strong>deterministic</strong> (code, cheap, no tokens) and <strong>agents</strong> (LLM, at decision points). Principle: <em>deterministic gates first, LLM judgment only on what passes</em> — never spend a vision-critic call on a sequence that fails <code>checkSequence</code>.</p>
+
+<h4>Topology — deterministic graph + LLM workers</h4>
+<p>Control flow is a <strong><code>pydantic-graph</code> <code>Graph</code></strong> of typed <code>BaseNode</code>s, <em>not</em> decided by a model. The dependency graph is known (analyze → interpret → design → generate → test → decide → finalize), giving reproducibility, cost control, debuggability, and built-in checkpoint/resume. An autonomous "Director decides next action" variant is out of scope for v1.</p>
+
+<h4>Agents — PydanticAI, provider-agnostic</h4>
+<p>Every agent is a <code>pydantic_ai.Agent</code> with a system prompt, an <code>output_type</code> (pydantic → validated structured output, no parsing), and its tools. The <strong>model is injected from <code>models/registry.py</code></strong> (role → provider model + per-provider <code>ModelSettings</code>). Two shapes: <strong>structured one-shot</strong> (analysts, synthesizer, director, generators, judge) and <strong>tool-using</strong> (visual critic — read-only tools only).</p>
+
+<h4>Execution substrate (used inside nodes)</h4>
+<ul>
+  <li><strong><code>asyncio.gather</code> + <code>Semaphore</code></strong> — a node fans out its agents concurrently, capped. Helper <code>run_panel(coros)</code> wraps gather+semaphore+<code>return_exceptions</code> so one failure doesn't sink the batch.</li>
+  <li><strong><code>ProcessPoolExecutor</code></strong> — blocking CPU/GPU DSP (demucs, whisperX, essentia, librosa, vamp) runs off the event loop.</li>
+  <li><strong><code>asyncio.Lock</code> write-queue</strong> — all xLights mutations pass through one lock in <code>core.client</code> (one shared open sequence).</li>
+</ul>
+
+<h4>Generation concurrency — "plan then apply" (the key safety pattern)</h4>
+<p>Generators do <strong>not</strong> call <code>addEffect</code> mid-reasoning. Each returns a validated <code>EffectInstruction[]</code> for its section (pure, parallel, no lock). The Generate node then <strong>validates and applies all instructions serially</strong> through the write lock. This separates <em>thinking</em> (parallel) from <em>writing</em> (serial, deterministic, retryable) — removing write races and making a failed section a cheap re-plan.</p>
+
+<h4>Shared state — pydantic-graph <code>State</code> as the typed blackboard</h4>
+<p>Holds the run's artifacts: <code>SongAnalysis → MusicBrief → ShowPlan → effects → findings → ledger</code>. Nodes read the slice they need and write structured results back via <code>GraphRunContext</code>. The refine loop is just nodes returning the next node (Decide → Generate), bounded by <code>MAX_ITERATIONS</code> + the anti-oscillation ledger.</p>
+
+<h4>Resilience &amp; observability</h4>
+<p>PydanticAI retries transient/validation errors; the semaphore bounds pressure. <code>StatePersistence</code> (sqlite) checkpoints state per node → <strong>resume mid-pipeline</strong> + step-through replay. Optional <strong>Pydantic Logfire</strong> captures model, tokens, tool calls, latency.</p>
+</section>
+
+<section id="deterministic">
+<h2 class="sec">Deterministic components (NOT agents)</h2>
+<h4><code>AudioAnalyzer</code> (VAMP + librosa) → <code>SongAnalysis</code> (raw features)</h4>
+<ul>
+  <li><strong>VAMP plugins</strong> (via the <code>vamp</code> module, <code>VAMP_PATH</code> → xLights' bundled <code>Vamp Plugins/</code> so timing matches xLights): QM Bar-and-Beat Tracker (downbeats/bars), QM Tempo/Beat, QM Key Detector, QM Onset Detector, QM Segmenter / Segmentino (structural sections), NNLS Chroma + Chordino (chords), QM Tonal Change (transition cues).</li>
+  <li><strong>librosa</strong>: per-band RMS/energy arc, spectral, MFCC/timbre, HPSS, self-similarity matrix (repetition).</li>
+  <li><strong>Track ID</strong>: AcoustID → MusicBrainz → artist/title/<strong>genre</strong> (style prior + lyric query).</li>
+  <li><strong>Stems</strong>: demucs → vocals/drums/bass/other → per-stem energy (instrument-reactive lighting) + clean vocal for alignment.</li>
+  <li><strong>High-level</strong>: Essentia ML → mood, danceability, genre.</li>
+  <li><strong>Lyrics</strong>: lyricsgenius text → forced-align to vocal stem (aeneas/whisperX) for word/line timing. Fallbacks: syncedlyrics → ASR → none. Feeds xLights phoneme/lyric timing tracks → singing-face / text displays.</li>
+  <li><strong><code>fusion.py</code></strong> reconciles all into one grid with per-feature <strong>confidence</strong>. Outputs <em>measurements only</em>; every extractor <strong>degrades gracefully</strong> (missing token/key/plugin/GPU → skip with a warning).</li>
+</ul>
+<h4>QA / metrics (run every iteration)</h4>
+<ul>
+  <li><strong>Validators</strong> — preset ∈ catalog, params ∈ ranges, target ∈ live <code>getModels</code>, timing in bounds. Before every <code>addEffect</code>.</li>
+  <li><strong>Static QA</strong> — <code>checkSequence</code> warnings/errors → structured list keyed to model/time.</li>
+  <li><strong>Render QA</strong> — per-model render data → activity level (dark props?), clipping, channel conflicts.</li>
+  <li><strong>Sync QA</strong> — every effect's start/end vs beat grid + section boundaries; % transitions on beat (no LLM needed).</li>
+  <li><strong>Variety metrics</strong> — effect histogram, % models used, energy dynamic range → numeric monotony detection.</li>
+</ul>
+</section>
+
+<section id="roster">
+<h2 class="sec">Agent roster</h2>
+<p class="muted">Model column = default <strong>tier</strong> (planner/critic vs faster worker). Actual model per role comes from <code>models/registry.py</code> and is swappable per provider — planner/critic = <code>claude-opus-4-8</code> <em>or</em> <code>gemini-2.5-pro</code>; workers = <code>claude-sonnet-4-6</code> <em>or</em> <code>gemini-2.5-flash</code>.</p>
+
+<h3>Analysis panel (parallel) — raw measurements → musical understanding</h3>
+<table>
+  <thead><tr><th>Agent</th><th>Tier</th><th>Input</th><th>Output</th></tr></thead>
+  <tbody>
+    <tr><td>Structure &amp; Theme Analyst</td><td>worker</td><td>segments + self-similarity + chords/energy</td><td>labeled sections + repetition map + candidate show themes</td></tr>
+    <tr><td>Rhythm &amp; Dynamics Analyst</td><td>worker</td><td>tempo + downbeats/bars + energy arc + onsets</td><td>groove/phrasing, energy envelope (climax), accent/hit list</td></tr>
+    <tr><td>Harmony &amp; Mood Analyst</td><td>worker</td><td>key/mode + chords + tonal-change + Essentia mood</td><td>emotional arc, tension/release, color-temperature/palette</td></tr>
+    <tr><td>Lyric &amp; Narrative Analyst</td><td>worker</td><td>timed lyrics + section labels + genre</td><td>narrative arc, sentiment, hook/"money line" list, lyric-driven effect ideas (skipped if instrumental)</td></tr>
+    <tr><td>Music Synthesizer</td><td>planner</td><td>all analysts + confidences</td><td><strong>MusicBrief</strong>: fused interpretation — sections, energy arc, key/mood, repetition map, themes, transition points</td></tr>
+  </tbody>
+</table>
+<p class="muted">Panel is configurable — collapse to one "Musicologist" for cheap runs, or expand.</p>
+
+<h3>Show-design + generation — MusicBrief → effects</h3>
+<table>
+  <thead><tr><th>Agent</th><th>Tier</th><th>Count</th><th>Output</th><th>Tools</th></tr></thead>
+  <tbody>
+    <tr><td>Director (show designer)</td><td>planner</td><td>1</td><td>ShowPlan: per-section intent + per-group motifs (reuses repetition map for reprises)</td><td>read-only</td></tr>
+    <tr><td>Choreographer / Generator</td><td>worker</td><td><strong>N, parallel</strong> (one/section)</td><td>EffectInstruction[] → writes via preset tools</td><td>preset list + effect-add</td></tr>
+    <tr><td>Visual Critic</td><td>planner (vision)</td><td>1 (parallel)</td><td>findings scoped to (section, group, time)</td><td>get_preview_frames</td></tr>
+    <tr><td>Sync Critic</td><td>worker</td><td>1 (parallel)</td><td>interpreted timing findings</td><td>none (reads report)</td></tr>
+    <tr><td>Technical Critic</td><td>worker</td><td>1 (parallel)</td><td>technical findings (dead props, clipping, monotony)</td><td>none (reads reports)</td></tr>
+    <tr><td>Judge / Synthesizer</td><td>planner</td><td>1</td><td>score (0–100) + scoped RevisionBrief[] + verdict</td><td>none</td></tr>
+  </tbody>
+</table>
+<p class="muted">The Refiner is <strong>not</strong> a separate agent — refinement re-invokes the section Generator with its <code>RevisionBrief</code> (what was wrong, what to try, what NOT to repeat).</p>
+</section>
+
+<section id="parallel">
+<h2 class="sec">Parallelism design</h2>
+<ul>
+  <li><strong>Primary axis = song section.</strong> A chorus should feel unified across all props at that moment; the Director's per-group motifs keep a group coherent across sections without a separate pass.</li>
+  <li><strong>Write serialization:</strong> generators reason in parallel but serialize writes through one async lock; sections write disjoint time-ranges, so order is irrelevant.</li>
+  <li><strong>Critics run fully parallel</strong> — read-only, no lock contention.</li>
+  <li><strong>Provider-aware prompt caching:</strong> where supported (Claude), cache the preset catalog + system prompt and warm it (fire one generator, then fan out as cache reads); skipped on providers without it.</li>
+</ul>
+</section>
+
+<section id="loop">
+<h2 class="sec">The test + iterate loop</h2>
+<p>"Testing a song" = the deterministic QA suite + the parallel critic panel, fused by the Judge into a score and a scoped work-list. The loop is <strong>scoped</strong> (only flagged sections regenerate) and <strong>bounded</strong> (<code>MAX_ITERATIONS≈3</code>), with an <strong>anti-oscillation ledger</strong>.</p>
+<pre><code>PLAN
+ 0  AudioAnalyzer -> SongAnalysis (raw features):              [CHECKPOINT: confirm tempo/sections]
+       identify -> stems -> VAMP ‖ librosa ‖ essentia ‖ lyrics(genius+align on vocal stem)
+ 0b Analysis panel (parallel): Structure&Theme ‖ Rhythm&Dynamics ‖ Harmony&Mood ‖ Lyric&Narrative
+       -> Music Synthesizer -> MusicBrief                       [CHECKPOINT: pick theme]
+ 1  Director -> ShowPlan                                        [CHECKPOINT: edit creative direction]
+ 2  new_sequence + create_timing_track  (marks from VAMP beats/bars/sections)
+
+DRAFT
+ 3  fan-out Generators (parallel reasoning, serialized writes) -> effects; save_sequence
+
+TEST  (cheap gates first, then LLM panel)
+ 4  renderAll + Static QA + Render QA + Sync QA + Variety metrics          [deterministic]
+       └─ HARD FAIL (render error / checkSequence errors)?
+            build RevisionBriefs -> scoped regen -> back to 3   (NO LLM critics spent)
+ 5  export_video_preview + sample frames (per section + per energy peak)
+ 6  parallel critic panel:  Visual ‖ Sync ‖ Technical                     [LLM]
+ 7  Judge fuses findings + metrics -> score + scoped RevisionBriefs + verdict
+
+DECIDE
+ 8  if score >= THRESHOLD or iter >= MAX or human approves -> finalize
+    else: record briefs in ledger; scoped regen -> back to 3   [CHECKPOINT: approve/redirect]
+
+FINALIZE
+ 9  save_sequence + batch_render (.fseq)                        [CHECKPOINT: approve final]</code></pre>
+<p><strong>Convergence &amp; stopping:</strong> score ≥ threshold, OR no net score gain, OR <code>MAX_ITERATIONS</code>, OR human approval. Each <code>RevisionBrief</code> carries scope <code>(section, group, layer, time-range)</code>, the issue, a suggested fix, and a "do-not-repeat" note. Checkpoints are interactive in the CLI; <code>--auto</code> skips them.</p>
+</section>
+
+<section id="contracts">
+<h2 class="sec">Data contracts (pydantic)</h2>
+<pre><code>SongAnalysis  (raw: tempo/beat/bar grid, key, chords, segments, energy arc,
+               per-stem energies, track-id/genre, mood descriptors, timed lyrics,
+               onsets, harmonic-change points — core/audio/schema.py)
+   ↓
+MusicBrief    { sections: LabeledSection[], repetition_map, energy_arc, key_mood,
+               genre, narrative_themes, featured_lines, candidate_themes,
+               transition_points }                          — orchestrator/show_plan.py
+   ↓
+ShowPlan      { sections: SectionPlan[], group_motifs: {group: Motif} }
+   ↓
+EffectInstruction { target, preset, params, palette, layer, start_ms, end_ms }
+   ↓ (validated)
+addEffect
+
+Critics → Finding { scope, severity, issue }
+Judge   → RevisionBrief { scope, issue, suggested_fix, do_not_repeat } + score</code></pre>
+</section>
+
+<section id="phases">
+<h2 class="sec">Phased build order</h2>
+<div class="panel">
+  <div class="phase"><div class="k">A</div><div><strong>Workspace scaffold + REST client + settings format.</strong> uv workspace + 3 package skeletons + <code>core.client</code>. Verify: <code>uv sync</code> resolves all three; <code>getModels</code> returns the layout; settings string round-trips.</div></div>
+  <div class="phase"><div class="k">B</div><div><strong>Preset library + extractor.</strong> Mine 3–5 effect types from the user's <code>.xsq</code>. Verify: <code>render()</code> reproduces source strings byte-for-byte; an extracted preset adds a visible effect; <code>checkSequence</code> clean.</div></div>
+  <div class="phase"><div class="k">C</div><div><strong>MCP server</strong> (read + lifecycle + <code>xl_add_effect_from_preset</code>). Verify: from Claude Code, open a sequence, read models, add a preset effect, save.</div></div>
+  <div class="phase"><div class="k">D</div><div><strong>Audio analysis + analysis panel.</strong> D1 VAMP+librosa · D2 demucs stems · D3 AcoustID/MusicBrainz + Essentia · D4 lyrics fetch+align · D5 panel + synthesizer → MusicBrief. Verify: QM bundle found; beats match xLights' timing track; demucs 4 stems; AcoustID genre; lyrics align within a beat; each tool's absence degrades cleanly.</div></div>
+  <div class="phase"><div class="k">E</div><div><strong>Single-agent end-to-end</strong> (no parallelism). One generator: analysis → small ShowPlan → effects on one group → render → preview. Verify: a watchable short sequence renders.</div></div>
+  <div class="phase"><div class="k">F</div><div><strong>Orchestration engine (PydanticAI + pydantic-graph) + parallel fan-out.</strong> registry, agent factory, Graph/State/nodes + sqlite persistence, coordination, plan-then-apply, analysis panel + N generators. Verify: full multi-section show; a role swapped Claude↔Gemini runs unchanged; DSP off the event loop; no write races; resume mid-pipeline from checkpoint; Logfire trace.</div></div>
+  <div class="phase"><div class="k">G</div><div><strong>Test suite + critic panel + refine loop.</strong> Deterministic QA, critic panel + Judge + scoped regen + ledger. Verify: hard fail → scoped regen without LLM critics; off-beat section caught by Sync QA; dark/monotonous section flagged + corrected within MAX; score improves per iteration.</div></div>
+  <div class="phase"><div class="k">H</div><div><strong>Checkpoints, CLI polish, finalize.</strong> Verify: full attended run produces an approved <code>.fseq</code>.</div></div>
+</div>
+</section>
+
+<section id="critical">
+<h2 class="sec">Critical files</h2>
+<ul>
+  <li><code>packages/xlights-core/src/xlights_core/client/client.py</code> — async REST client + write-lock</li>
+  <li><code>packages/xlights-core/src/xlights_core/client/settings_format.py</code> — <code>E_</code>/<code>C_</code> string encode/decode</li>
+  <li><code>packages/xlights-core/src/xlights_core/knowledge/xsq_extractor.py</code> + <code>preset_library.py</code> — valid-effect-generation core</li>
+  <li><code>packages/xlights-mcp/src/xlights_mcp/server.py</code> — MCP deliverable</li>
+  <li><code>packages/xlights-orchestrator/src/xlights_orchestrator/graph/graph.py</code> — the parallel + refine conductor</li>
+</ul>
+</section>
+
+<section id="verify">
+<h2 class="sec">Verification (end-to-end)</h2>
+<ol>
+  <li><strong>Live API smoke test:</strong> with xLights running, a CLI helper hits <code>getVersion</code>/<code>getModels</code> on <code>127.0.0.1:49913</code> and prints the layout.</li>
+  <li><strong>Preset round-trip tests:</strong> mined presets render to strings identical to their <code>.xsq</code> source.</li>
+  <li><strong>MCP integration:</strong> add the server to a Claude Code MCP config; open a sequence, add a preset effect, <code>checkSequence</code> clean, effect visible.</li>
+  <li><strong>Audio reference:</strong> analyze a known-BPM track; detected tempo within tolerance.</li>
+  <li><strong>Full run:</strong> <code>xlo run --song …</code> produces a rendered <code>.fseq</code> that plays in xLights; preview matches the ShowPlan at section boundaries.</li>
+</ol>
+</section>
+
+<section id="risks">
+<h2 class="sec">Risks</h2>
+<ul>
+  <li><strong>Invalid settings strings (highest):</strong> mined preset library + pre-send validation + <code>checkSequence</code>; grow coverage by mining more <code>.xsq</code>.</li>
+  <li><strong>Shared-sequence write races:</strong> single async write-lock; disjoint per-section assignment.</li>
+  <li><strong>Audio misdetection:</strong> VAMP (same engine as xLights) + librosa cross-check with confidence; human checkpoints 0/0b; manual overrides.</li>
+  <li><strong>VAMP availability:</strong> auto-discover xLights' bundled plugins via <code>VAMP_PATH</code>; degrade to librosa-only.</li>
+  <li><strong>Heavy/optional deps (demucs, whisperX, Essentia):</strong> ship as <code>[full]</code> extra; cache artifacts; feature-flag + degrade.</li>
+  <li><strong>Lyrics accuracy:</strong> gate Genius query on AcoustID match; align on the vocal stem; fall back syncedlyrics→ASR→none; gate lyric-driven effects on confidence.</li>
+  <li><strong>External-service/token risk:</strong> cache lookups; respect rate limits; optional enrichment only. (Spotify excluded — audio-features deprecated.)</li>
+  <li><strong>Cost/latency:</strong> worker tier for generators, planner only for planner/critic; cache catalog; bound iterations + concurrency; route high-volume roles to a cheaper provider.</li>
+  <li><strong>Multi-provider parity:</strong> PydanticAI normalizes tool/structured-output; provider features stay optional; validate each role's model supports what it needs (e.g. vision); pin a known-good default routing.</li>
+  <li><strong>PydanticAI/pydantic-graph maturity:</strong> keep domain logic framework-thin so the orchestration layer is replaceable; pin versions.</li>
+  <li><strong>xLights API drift / 504s:</strong> typed <code>XLightsNotImplemented</code>; all audio in our module; recorded-response tests.</li>
+</ul>
+</section>
+
+<section id="open">
+<h2 class="sec">Open items to resolve at implementation start</h2>
+<ul>
+  <li>Path to the user's existing <code>.xsq</code> show folder (input to <code>xsq_extractor.py</code>, Phase B).</li>
+  <li>Path to xLights' bundled <code>Vamp Plugins/</code> folder for <code>VAMP_PATH</code> (Phase D) — typically <code>bin/Vamp/Vamp Plugins/</code> in the xLights install.</li>
+  <li><strong>LLM provider keys</strong> (Phase F): <code>ANTHROPIC_API_KEY</code> and/or <code>GEMINI_API_KEY</code> (or Vertex creds) per <code>models/config.yaml</code>. At least one required.</li>
+  <li><strong>Optional API tokens</strong> (Phase D, pipeline degrades without them): Genius token (lyrics), AcoustID key (track ID). In <code>.env</code>.</li>
+  <li>GPU availability for demucs/whisperX (Phase D) — determines CPU-fallback timeouts.</li>
+</ul>
+</section>
+
+<hr>
+<p class="muted">Generated from the approved plan at <code>~/.claude/plans/i-want-to-create-harmonic-oasis.md</code>.</p>
+</main>
+</div>
+</body>
+</html>

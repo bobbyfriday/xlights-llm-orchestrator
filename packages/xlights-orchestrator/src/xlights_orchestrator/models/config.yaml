@@ -1,0 +1,28 @@
+# Per-role model routing. Pick the provider with `default_provider` or the XLO_PROVIDER
+# env var (no code change). Each role lists a model per provider. IDs are bare.
+default_provider: anthropic   # override at runtime with XLO_PROVIDER=gemini
+
+roles:
+  director:                                   # show planner (planner tier)
+    anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
+    gemini:    {model: gemini-3.1-pro-preview}
+  generator:                                  # per-section effects (worker tier)
+    anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
+    gemini:    {model: gemini-3.5-flash}
+  analyst:                                    # parallel song analysts (worker tier)
+    anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
+    gemini:    {model: gemini-3.5-flash}
+  synthesizer:                                # fuses analyst outputs → MusicBrief (planner)
+    anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
+    gemini:    {model: gemini-3.1-pro-preview}
+  judge:                                      # scores the draft + scoped revisions (planner)
+    anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
+    gemini:    {model: gemini-3.1-pro-preview}
+  visual_critic:                              # multimodal: looks at rendered frames (planner/vision)
+    anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
+    gemini:    {model: gemini-3.1-pro-preview}
+
+# Provider → PydanticAI model-string prefix. ('google:' replaces the deprecated 'google-gla:')
+providers:
+  anthropic: "anthropic:"
+  gemini: "google:"

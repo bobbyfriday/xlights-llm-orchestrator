@@ -1,0 +1,47 @@
+[project]
+name = "xlights-core"
+version = "0.1.0"
+description = "Shared async client and typed models for the xLights automation REST API."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.7",
+]
+
+# Audio analysis is heavy (vamp/librosa/numba/scipy) — opt in with xlights-core[audio].
+# Note: building `vamp` needs setuptools/wheel/Cython/numpy available at build time
+# (e.g. `pip install numpy setuptools wheel Cython` first, or pip with build isolation
+# that provides them).
+[project.optional-dependencies]
+audio = [
+    "vamp>=1.1",
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "numpy",
+]
+# Optional stem separation (off by default; enable per-run via stems=True / XLO_STEMS=1).
+# Default backend is demucs-mlx (Apple-Silicon, MLX). Inference is torch-free, BUT the
+# one-time htdemucs→MLX weight conversion needs `pip install 'demucs-mlx[convert]'`
+# (pulls torch once; the converted ~160MB MLX checkpoint caches to ~/.cache/demucs-mlx/,
+# after which torch is no longer needed). Pin the community port.
+stems = [
+    "demucs-mlx",
+]
+# Fallback backend for non-Apple/Linux (pulls PyTorch). Select via XLO_STEMS_BACKEND=torch.
+stems-torch = [
+    "demucs",
+]
+# Offline preview renderer (.fseq + layout → still PNG / clip MP4). Clips also need the
+# `ffmpeg` system binary (graceful: no ffmpeg → stills only). No xLights, no LLM dep.
+preview = [
+    "numpy",
+    "zstandard>=0.22",
+    "pillow>=10",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xlights_core"]

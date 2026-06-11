@@ -1,0 +1,16 @@
+# uv workspace root (virtual — no root package).
+# Members are the installable packages under packages/.
+[tool.uv.workspace]
+members = ["packages/*"]
+
+# Intra-workspace dependency: xlights-mcp depends on xlights-core from the workspace.
+[tool.uv.sources]
+xlights-core = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not live'"
+markers = ["live: requires a running xLights instance (opt in with -m live)"]

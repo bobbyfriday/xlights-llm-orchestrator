@@ -1,0 +1,22 @@
+# environments & secrets
+.venv/
+.env
+
+# derived per-song artifacts (analyses, stem caches, instruction caches, revision logs)
+data/
+
+# media — large and/or copyrighted (audio sources, render exports)
+mp3/
+*.mp3
+*.mp4
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.ruff_cache/
+
+# OS / crash artifacts
+.DS_Store
+xLights_dbgrpt-*.zip

@@ -16,7 +16,8 @@ _PROMPT = (Path(__file__).parent / "prompts" / "director.md").read_text()
 
 
 def director_agent():
-    return build_agent("director", output_type=ShowPlan, system_prompt=with_guides(_PROMPT, "sequencing", "effects"))
+    return build_agent("director", output_type=ShowPlan,
+                       system_prompt=with_guides(_PROMPT, "sequencing", "effects", "scenes"))
 
 
 def render_input(brief: MusicBrief, groups: list[str], placeable_types: list[str]) -> str:
@@ -42,6 +43,16 @@ def render_input(brief: MusicBrief, groups: list[str], placeable_types: list[str
           "- per-section palette: 3-5 colors INCLUDING a contrast/accent color (not one warm"
           " family) — multi-color effects (Plasma/Spirals/Bars) need 3+ colors to render."
           " Name colors ONLY from this vocabulary: " + ", ".join(sorted(NAMED_COLORS)) + ".\n"
+          "- per section, SCENE: set `scene_id` to the SCENE COOKBOOK scene (e.g. 'SC-01') whose"
+          " musical slot and energy band fit this section — the Standard Stack is the default for"
+          " ordinary verses/choruses; spend showpieces (drop, finale, masked reveal) only on the"
+          " moments that earn them; across repeated choruses apply the Escalating Chorus Series"
+          " doctrine (chorus 1 reduced, final chorus maximal). Set scene_id to '' only when no"
+          " scene fits. Cookbook rows name display ARCHETYPES (G2-HERO, G0-ALL-LESS-HERO, ...),"
+          " NOT real groups: in `scene_adaptation`, cast THIS layout's available groups into the"
+          " scene's roles (hero/rhythm/frame/accent/canvas, e.g. 'hero=SEM_FOCAL,"
+          " rhythm=SEM_ARCHES+SEM_MINITREES, bed=SEM_ALL') and note any rows this layout cannot"
+          " cast. target_groups must include every group the scene casts.\n"
           "- per section, RHYTHMIC INTENT for the beat layer: `pulse_groups` (groups that punctuate"
           " the beat — PREFER `SEM_ARCHES` or the `SEM_SIDE_*` spatial chase), `follow_stem` (the"
           " section's most prominent instrument from its stem shares, e.g. drums for the beat),"
@@ -55,7 +66,7 @@ def render_input(brief: MusicBrief, groups: list[str], placeable_types: list[str
 def section_redesigner():
     """Re-plans ONE section whose design caused violations (escalation from the refine loop)."""
     return build_agent("director", output_type=SectionPlan,
-                       system_prompt=with_guides(_PROMPT, "sequencing", "effects"))
+                       system_prompt=with_guides(_PROMPT, "sequencing", "effects", "scenes"))
 
 
 def redesign_input(section, plan, findings) -> str:
@@ -69,5 +80,7 @@ def redesign_input(section, plan, findings) -> str:
         + "\n\nSHOW CONCEPT (stay coherent): " + (plan.concept or "")
         + "\nKeep start_ms/end_ms and target_groups unchanged. Choose effect_types whose catalog"
           " energy band matches this section's intensity and that suit the targeted props;"
-          " 3-5 palette colors from the known vocabulary."
+          " 3-5 palette colors from the known vocabulary. You may keep or swap the section's"
+          " cookbook `scene_id` (check the scene's failure modes against the violations); keep"
+          " `scene_adaptation` consistent with the unchanged target_groups."
     )

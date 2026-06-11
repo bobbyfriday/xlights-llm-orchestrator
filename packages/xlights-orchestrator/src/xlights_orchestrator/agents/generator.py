@@ -14,11 +14,15 @@ _PROMPT = (Path(__file__).parent / "prompts" / "generator.md").read_text()
 
 
 def generator_agent():
-    return build_agent("generator", output_type=SectionEffects, system_prompt=with_guides(_PROMPT, "sequencing", "effects", "layering"))
+    return build_agent("generator", output_type=SectionEffects,
+                       system_prompt=with_guides(_PROMPT, "sequencing", "effects", "layering", "scenes"))
 
 
 def render_input(section: SectionPlan, revision=None, *, concept: str = "", motifs=None) -> str:
-    looks = candidate_look_ids(section.effect_family)
+    # Look candidates for every effect type the section may place (family + effect_types),
+    # so a scene stack's bed/feature/sparkle rows can each use their own type.
+    families = dict.fromkeys([section.effect_family, *section.effect_types])
+    looks = {ft: ids for ft in families if ft and (ids := candidate_look_ids(ft))}
     revision_note = ""
     if revision is not None:
         revision_note = (
@@ -32,10 +36,26 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
     if motifs:
         brief_note += "\n\nGROUP MOTIFS for this section's groups (honor each group's role/style/color):\n" + \
                       json.dumps({g: m.model_dump() for g, m in motifs.items()})
+    scene_note = ""
+    if section.scene_id:
+        scene_note = (
+            f"\n\nSCENE: this section realizes cookbook scene {section.scene_id}"
+            + (f" — casting: {section.scene_adaptation}" if section.scene_adaptation else "")
+            + ".\nBuild the scene's stack table as instructions: one instruction per row+layer on"
+              " the cast groups. The cookbook's L1 is the TOP layer → `layer` 0, L2 → 1, L3 → 2."
+              " Set a row's blend mode by putting T_CHOICE_LayerMethod in `extra_settings` on the"
+              " UPPER layer's instruction (e.g. {\"T_CHOICE_LayerMethod\": \"Max\"}; values per"
+              " the layering guide: Max, Average, Subtractive, 1 is Mask, ...; omit for Normal)."
+              " Use the scene's per-row render styles, and avoid its listed failure modes."
+              " Substitute a placeable effect type when a row's effect isn't in the candidates"
+              " (e.g. a Color Wash bed → a dim On)."
+        )
     return (
         "SECTION PLAN (realize its look/palette/effect_types/motion):\n" + section.model_dump_json(indent=1)
         + brief_note
-        + f"\n\nCANDIDATE LOOK IDS for '{section.effect_family}' (pick look_id from these):\n"
+        + scene_note
+        + "\n\nCANDIDATE LOOK IDS by effect type (each instruction's look_id MUST come from its"
+          " own effect_type's list):\n"
         + json.dumps(looks)
         + "\n\nPALETTE MENU (pick palette_id from these):\n"
         + json.dumps(palette_menu())

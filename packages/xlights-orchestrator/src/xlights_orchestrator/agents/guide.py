@@ -18,6 +18,9 @@ _GUIDES: dict[str, tuple[str, str, str]] = {
                 "EFFECTS CATALOG (choose effects + looks from here; respect prop affinities & energy bands)"),
     "layering": ("XLO_LAYERING_GUIDE", "xlights-layering-rendering-guide.md",
                  "LAYERING & RENDER-STYLE GUIDE (layers, blending, group-canvas vs per-model)"),
+    "scenes": ("XLO_SCENE_COOKBOOK", "xlights-scene-cookbook.md",
+               "SCENE COOKBOOK (named multi-prop scene recipes — compose sections from these;"
+               " row names are display ARCHETYPES to cast onto the real groups)"),
 }
 _cache: dict[str, str] = {}                  # keyed by resolved path so tests with distinct files work
 

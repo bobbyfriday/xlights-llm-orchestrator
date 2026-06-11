@@ -36,6 +36,9 @@ def render_creative_brief(plan: ShowPlan) -> str:
         L.append(f"\n### {i}. {_mmss(s.start_ms)}–{_mmss(s.end_ms)} · intensity {s.intensity:.2f}\n")
         if s.look:
             L.append(f"*{s.look}*\n")                                     # plain "what you see"
+        if s.scene_id:
+            L.append(f"- scene: {s.scene_id}"
+                     + (f" — {s.scene_adaptation}" if s.scene_adaptation else "") + "\n")
         if s.palette:
             L.append(f"- palette: {', '.join(s.palette)}\n")
         if s.target_groups:

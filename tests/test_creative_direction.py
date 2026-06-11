@@ -22,6 +22,7 @@ def test_showplan_back_compat():
     p = ShowPlan(sections=[SectionPlan(start_ms=0, end_ms=1000, target_groups=["G"],
                                        effect_family="On", intensity=0.5)])
     assert p.experience == "" and p.group_motifs == {} and p.sections[0].look == ""
+    assert p.sections[0].scene_id == "" and p.sections[0].scene_adaptation == ""
 
 
 # -- render leads with the plain-language experience --------------------------
@@ -73,3 +74,41 @@ def test_generator_input_includes_concept_and_motifs():
     # back-compat: old call shapes still work
     assert "SECTION PLAN" in generator_mod.render_input(sec)
     assert "SECTION PLAN" in generator_mod.render_input(sec, revision=None)
+
+
+# -- Scene cookbook plumbing (director picks scenes, generator realizes stacks) --
+
+def test_director_input_asks_for_scenes():
+    brief = MusicBrief(sections=[LabeledSection(start_ms=0, end_ms=1000, label="verse")])
+    s = director_mod.render_input(brief, ["G1"], ["On"])
+    assert "scene_id" in s and "scene_adaptation" in s
+    assert "ARCHETYPES" in s                                  # cookbook rows must be cast, not copied
+
+
+def test_generator_input_realizes_scene():
+    sec = SectionPlan(start_ms=0, end_ms=1000, target_groups=["Megatree"], effect_family="On",
+                      intensity=0.8, scene_id="SC-02",
+                      scene_adaptation="hero=Megatree, bed=SEM_ALL")
+    s = generator_mod.render_input(sec)
+    assert "SC-02" in s and "hero=Megatree" in s
+    assert "T_CHOICE_LayerMethod" in s and "`layer` 0" in s   # blend + layer-order mechanics
+    # no scene → no scene note
+    plain = SectionPlan(start_ms=0, end_ms=1000, target_groups=["G"], effect_family="On",
+                        intensity=0.5)
+    assert "cookbook scene" not in generator_mod.render_input(plain)
+
+
+def test_generator_input_offers_looks_per_effect_type():
+    sec = SectionPlan(start_ms=0, end_ms=1000, target_groups=["G"], effect_family="Spirals",
+                      intensity=0.6, effect_types=["Spirals", "Twinkle"])
+    s = generator_mod.render_input(sec)
+    assert "CANDIDATE LOOK IDS by effect type" in s
+    assert "Spirals#" in s and "Twinkle#" in s                # looks for every section type
+
+
+def test_render_creative_brief_shows_scene():
+    p = ShowPlan(sections=[SectionPlan(start_ms=0, end_ms=1000, target_groups=["G"],
+                                       effect_family="On", intensity=0.5, scene_id="SC-01",
+                                       scene_adaptation="hero=Megatree")])
+    md = render_creative_brief(p)
+    assert "SC-01" in md and "hero=Megatree" in md

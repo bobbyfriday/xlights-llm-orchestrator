@@ -38,6 +38,9 @@ class SectionPlan(BaseModel):
     effect_types: list[str] = []             # richer than the single effect_family
     motion: str = ""                         # the motion/feel
     transition: str = ""                     # how it flows into the next section
+    # -- scene intent (cookbook; additive) --
+    scene_id: str = ""                       # cookbook scene this section realizes (e.g. "SC-01"); "" = freeform
+    scene_adaptation: str = ""               # which real groups play the scene's archetype rows (hero/rhythm/...)
     # -- rhythmic intent (beat layer; all defaulted/back-compat) --
     pulse_groups: list[str] = []             # groups that punctuate the beat (default 04_BEAT_*)
     follow_stem: str = ""                    # whose rhythm to ride (default the prominent stem)

@@ -2,7 +2,7 @@
 
 > **Living document.** Volume 3 in the series, alongside the *Music-to-Effect Reference* and the *Layering & Rendering Guide*. This is a curated catalog of xLights built-in effects with a consistent schema per effect: what it is, what it's musically for, how it renders, and where it belongs. It is written to serve as **baseline placement instructions** — including for an automated/model-driven sequencer choosing effects — so entries favor explicit rules over prose.
 >
-> **Version:** 0.1 — June 2026
+> **Version:** 0.3 — June 2026
 > **Conventions:** Prop archetypes reference Volume 1 §3 (Hero, Rhythm, Canvas, Frame, Accent, Character, Atmosphere). Render style guidance references Volume 2 §6. Energy = 1 (ambient) to 5 (drop-level).
 
 ---
@@ -43,6 +43,17 @@ The full built-in effect roster as of current releases: Off, On, Bars, Butterfly
 ---
 
 ## 2. Quick Reference Table
+
+### 2.1 Duration Classes
+
+How long an effect may run before it reads as a mistake. Community-corpus medians are 0.3–0.9s for *every* top effect — even "sustained-capable" motion effects are placed as beat/bar cells, continuously re-decided.
+
+| Class | Effects | Rule |
+|---|---|---|
+| **Hit** | Shockwave, Strobe, Lightning | ≤ 1 bar per instance — pure punctuation. A multi-bar hit effect smears into one slow, weird gesture. |
+| **Phrase** | Curtain, Fill, Morph, Fan, Fireworks, Shimmer | ≤ 8 bars — a bounded gesture (reveal, build, sweep) with a start and an end. |
+| **Cell-able** | SingleStrand, Spirals, Pinwheel, Ripple, Wave, Bars, Butterfly | Default **1–2 bar cells** on the beat grid, alternating across groups. Sustained-*capable* ≠ sustained-*used*. |
+| **Bed** | Color Wash, Plasma, dim On — on whole-yard/band rows only | May span a section, at reduced brightness, under the fabric. At most one per section. |
 
 | Effect | Category | Energy | Primary props | One-line use |
 |---|---|---|---|---|
@@ -482,6 +493,8 @@ Distilled rules for automated or assisted effect placement. Apply in order:
 10. **Layer ceiling:** ≤ 4 layers per row; each layer must name its role (bed/feature/accent/mask). Unjustified layers are pruned.
 11. **Music-reactive effects (VU/Music) are texture, not sequencing.** They may support, never replace, deliberate placement on structural moments.
 12. **When in doubt, choose the boring effect shaped well** (On with good curves) over the exotic effect with defaults. Curves beat novelty.
+13. **Respect duration classes (§2.1).** Hit effects are ≤1-bar punctuation; phrase effects ≤8 bars; cell-able motion effects run as 1–2 bar cells re-decided on the grid — never section-spanning washes. Only declared beds run long.
+14. **Weave, don't wash.** Sections are a fabric of short beat/bar-quantized motion cells alternating across groups (a few cell designs reused many times), over at most one long bed. Community practice: ~58% of placements are motion effects with 0.3–0.9s medians; value curves shape *motion* (rotation/twist/radius), not just brightness.
 
 ---
 
@@ -500,6 +513,7 @@ Distilled rules for automated or assisted effect placement. Apply in order:
 
 | Version | Date | Changes |
 |---|---|---|
+| 0.3 | 2026-06-11 | §2.1 Duration Classes (hit/phrase/cell-able/bed — "sustained" retired per community-corpus medians); placement rules #13 (duration classes) and #14 (weave, don't wash) |
 | 0.1 | 2026-06-09 | Initial catalog: schema, quick-reference, ~50 effects across 8 categories, placement decision rules |
 
 <!--

@@ -1,0 +1,220 @@
+"""The cell weaver: deterministic expansion of LLM-designed CellRecipes into beat-snapped cells.
+
+The community fabric (docs/effects-layering-analysis.md) is ~49 distinct cell designs/min reused
+~12× each at ~1,300 placements/min — the repetition is mechanical, so the LLM designs the few
+recipes (judgment) and this module expands them across the section's real beat grid (realization),
+the same split as palettes/beats/brightness.
+"""
+
+from __future__ import annotations
+
+from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
+
+from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from ..show_plan import CellRecipe, EffectInstruction, SectionPlan, SectionWeave
+from .beats import (
+    ACCENT_GROUPS,
+    RHYTHM_GROUPS,
+    RHYTHM_POOL,
+    _downsample,
+    effect_palette,
+    effect_speed_setting,
+    wash_brightness,
+)
+
+# Density budget (tunable): cells/min = BASE + intensity * SCALE. Peak ≈ 600/min — the community's
+# ~1,300/min was measured across per-prop rows; ours weaves group rows (~15 targets), so scaled.
+BUDGET_BASE = 120.0
+BUDGET_SCALE = 480.0
+MAX_WOVEN_RECIPES = 3            # one carrier + up to two textures/accents (layer pressure cap)
+BED_BRIGHTNESS = "60"            # a bed sits under the fabric (static C_SLIDER_Brightness)
+
+# Motion vocabulary for the fallback weave's texture pick (cell-able types; see qa.rules).
+_FALLBACK_CARRIER = "SingleStrand"
+# Only bed-CAPABLE effects may run as the section-spanning bed (catalog §2.1 v0.3) — an LLM
+# recipe naming Pinwheel/Meteors as "bed" demotes to a texture (it weaves instead).
+_BED_EFFECTS = {"Color Wash", "Plasma", "On"}
+
+
+def canon_effect_type(name: str) -> str:
+    """Normalize an effect name to its placeable form ('Single Strand' → 'SingleStrand') —
+    LLMs echo the guides' display names, the API wants xLights' internal ones."""
+    if not name:
+        return name
+    types = placeable_effect_types()
+    if name in types:
+        return name
+    squeezed = name.replace(" ", "")
+    return next((t for t in types if t == squeezed or t.replace(" ", "") == squeezed), name)
+
+
+def cell_budget(intensity: float, section_ms: int) -> int:
+    """Max woven instructions for a section — scales with energy and length."""
+    i = max(0.0, min(1.0, intensity or 0.0))
+    return max(4, int(section_ms / 60000.0 * (BUDGET_BASE + BUDGET_SCALE * i)))
+
+
+def rhythm_pool(section: SectionPlan, available_groups: list[str]) -> list[str]:
+    """The groups the beat layer would chase — the SAME pool `place_beat_accents` builds, so
+    carrier-coverage checks compare against what would actually carry the beat."""
+    groups = [g for g in (section.pulse_groups or []) if g in available_groups]
+    for g in RHYTHM_POOL:
+        if len(groups) >= 3:
+            break
+        if g in available_groups and g not in groups:
+            groups.append(g)
+    if not groups:
+        groups = [g for g in RHYTHM_GROUPS if g in available_groups] \
+            or [g for g in section.target_groups if g in available_groups]
+    return groups
+
+
+def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
+                   available_groups: list[str]) -> bool:
+    """True when a carrier recipe's VALID groups intersect the actual rhythm pool — only then may
+    the beat-accent layer drop its every-beat chase (the carrier IS the beat now)."""
+    if weave is None:
+        return False
+    pool = set(rhythm_pool(section, available_groups))
+    for r in weave.cells:
+        if r.role == "carrier" and set(r.groups) & set(available_groups) & pool:
+            return True
+    return False
+
+
+def fallback_weave(section: SectionPlan, available_groups: list[str]) -> SectionWeave:
+    """A deterministic default fabric: a chase carrier on the rhythm pool + a sparse texture from
+    the section's own effect vocabulary. Used when the LLM omits the weave — the fabric never
+    depends on perfect LLM output."""
+    from ..qa.rules import DURATION_CELLABLE
+    cells = [CellRecipe(effect_type=_FALLBACK_CARRIER, role="carrier", cell_beats=1,
+                        alternation="chase", groups=rhythm_pool(section, available_groups))]
+    texture = next((t for t in (canon_effect_type(x) for x in section.effect_types or [])
+                    if t in DURATION_CELLABLE and t != _FALLBACK_CARRIER), None)
+    tex_groups = [g for g in section.target_groups
+                  if g in available_groups and g not in ACCENT_GROUPS]
+    if texture and tex_groups:
+        cells.append(CellRecipe(effect_type=texture, role="texture", cell_beats=4,
+                                alternation="sparse", groups=tex_groups))
+    return SectionWeave(cells=cells)
+
+
+def _slot_targets(recipe: CellRecipe, slot: int, groups: list[str]) -> list[str]:
+    """Which group(s) a slot lights — a pure function of (slot index, groups, pattern)."""
+    n = len(groups)
+    alt = recipe.alternation or "chase"
+    if alt == "all":
+        return list(groups)
+    if alt == "sparse":                       # every other slot breathes
+        return [groups[(slot // 2) % n]] if slot % 2 == 0 else []
+    if alt == "pingpong" and n > 1:
+        period = 2 * n - 2
+        k = slot % period
+        return [groups[k if k < n else period - k]]
+    return [groups[slot % n]]                 # chase
+
+
+def _valid_recipes(weave: SectionWeave, section: SectionPlan,
+                   available_groups: list[str]) -> tuple[list[CellRecipe], CellRecipe | None]:
+    """Validate + order: (bed-first realization order is the BLEND-correctness invariant —
+    base layers must be PLACED first so the emitter stacks them under the blended cells)."""
+    cells = [r.model_copy(update={"effect_type": canon_effect_type(r.effect_type)})
+             for r in weave.cells]
+    for r in cells:                                      # only bed-capable effects may bed
+        if r.role == "bed" and r.effect_type not in _BED_EFFECTS:
+            r.role = "texture"                           # a Pinwheel "bed" weaves instead
+    beds = [r for r in cells if r.role == "bed"]
+    others: list[CellRecipe] = []
+    for r in cells:
+        if r.role == "bed" or not (r.effect_type and candidate_look_ids(r.effect_type)):
+            continue
+        groups = [g for g in r.groups if g in available_groups]
+        if not groups and r.role == "carrier":           # a carrier always finds the pool
+            groups = rhythm_pool(section, available_groups)
+        if groups:
+            others.append(r.model_copy(update={"groups": groups}))
+    others.sort(key=lambda r: 0 if r.role == "carrier" else 1)   # carrier = the base layer
+    bed = next((b for b in beds if b.effect_type and candidate_look_ids(b.effect_type)), None)
+    return others[:MAX_WOVEN_RECIPES], bed
+
+
+def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
+          start: int, end: int, intensity: float, blended: bool) -> EffectInstruction:
+    looks = candidate_look_ids(recipe.effect_type)
+    look = recipe.look_id if recipe.look_id in looks else looks[0]
+    palette = recipe.palette or section.palette
+    extra = dict(effect_speed_setting(recipe.effect_type, intensity))
+    extra.update(brightness_setting(wash_brightness(intensity)))   # cells pop with the energy
+    extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
+    if recipe.transition:
+        extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
+                      "T_CHOICE_Out_Transition_Type": recipe.transition,
+                      "T_SLIDER_In_Transition_Adjust": "50",
+                      "T_SLIDER_Out_Transition_Adjust": "50"})
+    if blended:                               # blend rides the UPPER layer, only over a base.
+        # Default Max (live-verified): a top-layer cell's BLACK background otherwise OCCLUDES
+        # the bed/wash below it for the cell's whole span — the "mostly dark with sparse
+        # effects" failure. Max adds the cell's lit pixels and lets the base shine through.
+        extra["T_CHOICE_LayerMethod"] = recipe.blend or "Max"
+    # CELLS render per-model by default: the global fallback sends chases to 'Per Preview'
+    # (one gesture traveling the WHOLE yard buffer — a 0.5s cell on one group lights almost
+    # nothing). A cell is rhythmic multiplicity: every prop in the group runs it.
+    style = recipe.render_style or "Per Model Default"
+    return EffectInstruction(
+        target=target, effect_type=recipe.effect_type, look_id=look,
+        palette_colors=effect_palette(palette, recipe.effect_type, slot),
+        render_style=style, extra_settings=extra,
+        start_ms=start, end_ms=end)
+
+
+def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
+                 intensity: float, available_groups: list[str],
+                 based_targets: set[str] | None = None) -> list[EffectInstruction]:
+    """Expand the section's recipes into beat-snapped cells: slot boundaries on the real beat
+    grid (`cell_beats` beats per slot; the trailing partial slot merges into the last), targets
+    rotating per the alternation pattern, density bounded by `cell_budget`.
+
+    `based_targets` = targets that already carry a base layer this section (the LLM's washes/
+    scene rows) — cells over them blend instead of occluding."""
+    if weave is None:
+        return []
+    recipes, bed = _valid_recipes(weave, section, available_groups)
+    out: list[EffectInstruction] = []
+    based: set[str] = set(based_targets or ())   # targets with a base layer this section
+    if bed is not None:
+        groups = [g for g in bed.groups if g in available_groups] or \
+                 [g for g in ("SEM_BAND_GROUND", "SEM_ALL") if g in available_groups][:1]
+        for g in groups[:1]:                  # ONE spanning bed (the long-bed exception)
+            ins = _cell(bed, section, g, 0, section.start_ms, section.end_ms,
+                        intensity, blended=False)
+            ins.extra_settings["C_SLIDER_Brightness"] = BED_BRIGHTNESS
+            out.append(ins)
+            based.add(g)
+
+    beats = sorted(rhythm.get("beats_ms") or [])
+    if len(beats) >= 2 and recipes:
+        carrier_groups = set(recipes[0].groups) if recipes[0].role == "carrier" else set()
+        # candidate cells per recipe: (slot, start, end, target, blended)
+        per_recipe: list[list[tuple]] = []
+        for ri, r in enumerate(recipes):
+            # blend only over a target that actually HAS a base layer (bed or another
+            # recipe's carrier) — a mask with nothing under it is a black prop.
+            based_for_r = based | (carrier_groups if ri > 0 else set())
+            starts = beats[::max(1, r.cell_beats)]
+            cells: list[tuple] = []
+            for i, t in enumerate(starts):
+                end = starts[i + 1] if i + 1 < len(starts) else section.end_ms  # partial merges
+                end = min(end, section.end_ms)
+                if end <= t:
+                    continue
+                for tgt in _slot_targets(r, i, r.groups):
+                    cells.append((i, int(t), int(end), tgt, tgt in based_for_r))
+            per_recipe.append(cells)
+        total = sum(len(c) for c in per_recipe)
+        budget = max(0, cell_budget(intensity, section.end_ms - section.start_ms) - len(out))
+        factor = budget / total if total > budget else 1.0
+        for r, cells in zip(recipes, per_recipe):
+            kept = _downsample(cells, max(1, round(len(cells) * factor))) if factor < 1 else cells
+            for slot, t, end, tgt, blended in kept:
+                out.append(_cell(r, section, tgt, slot, t, end, intensity, blended))
+    return out

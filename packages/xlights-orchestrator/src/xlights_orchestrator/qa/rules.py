@@ -22,11 +22,24 @@ ENERGY_BAND: dict[str, tuple[int, int]] = {
     "Fireworks": (3, 5), "Ripple": (2, 3), "Shape": (1, 4), "Tendril": (2, 3), "Tree": (2, 2),
     "VU Meter": (2, 5),
 }
-# Duration classes (catalog §2.1): a HIT is ≤1-bar punctuation (smearing it over a section reads
-# as one slow weird gesture); a PHRASE is a bounded gesture (reveal/build); SUSTAINED = unbounded.
+# Duration classes (catalog §2.1 v0.3): a HIT is ≤1-bar punctuation (smearing it over a section
+# reads as one slow weird gesture); a PHRASE is a bounded gesture (reveal/build); CELL-ABLE motion
+# effects default to 1–2 bar cells (community medians are 0.3–0.9s even for Spirals/Wave —
+# sustained-CAPABLE ≠ sustained-USED); explicit long beds (ColorWash/Plasma on bed groups) exempt.
 DURATION_HIT = {"Shockwave", "Strobe", "Lightning"}
 DURATION_PHRASE = {"Curtain", "Fill", "Morph", "Fan", "Fireworks", "Shimmer"}
+DURATION_CELLABLE = {"SingleStrand", "Spirals", "Pinwheel", "Ripple", "Wave", "Bars", "Butterfly",
+                     "Meteors", "Garlands"}
 PHRASE_BARS = 8
+CELL_BARS = 2
+_BED_TARGET_PREFIXES = ("SEM_BAND_",)                  # band rows MAY hold long beds
+_BED_TARGETS = {"SEM_ALL", "SEM_YARD"}                 # exact — NOT SEM_ALL_LESS_* (those weave)
+
+# The community fabric is woven from continuous-motion effects (~58% there vs ~16% ours) —
+# surfaced per energetic section as an ADVISORY so the Judge sees fabric regressions.
+MOTION_EFFECTS = DURATION_CELLABLE | {"Meteors", "Garlands", "Fire", "Galaxy", "Pinwheel"}
+MOTION_SHARE_MIN = 0.30
+MOTION_SHARE_INTENSITY = 0.5
 
 TEXTURE = {"Plasma", "Fire", "Liquid", "Life"}                   # rule #2: never on linear props
 FEATURES = {"Kaleidoscope", "Shader", "Shockwave", "Fireworks"}  # rule #4: one at a time
@@ -93,7 +106,28 @@ def evaluate(instructions, plan) -> tuple[int, list[Finding]]:
                 section_index=getattr(x, "section_index", None),
                 detail=f"{b[2]} overlaps {a[2]} — at most one high-attention "
                        f"feature at a time (catalog rule #4)"))
-    return max(0, 100 - _PENALTY * len(findings)), findings
+    score = max(0, 100 - _PENALTY * len(findings))      # advisories below do NOT gate the score
+    # motion-share advisory: an energetic section that is mostly static/punctuation reads as
+    # "pulses over a wash", not the community's woven-motion fabric.
+    by_section: dict[int, list] = {}
+    for ins in instructions or []:
+        si = getattr(ins, "section_index", None)
+        if si is not None:
+            by_section.setdefault(si, []).append(ins)
+    for si, group in sorted(by_section.items()):
+        if not (0 <= si < len(sections)):
+            continue
+        if (getattr(sections[si], "intensity", 0.5) or 0.5) < MOTION_SHARE_INTENSITY:
+            continue
+        share = sum(1 for x in group if x.effect_type in MOTION_EFFECTS) / len(group)
+        if share < MOTION_SHARE_MIN:
+            findings.append(Finding(
+                scope=f"section {si}", severity="warn", metric="rules",
+                objective=False, section_index=si,
+                detail=f"motion-effect share {share:.0%} (< {MOTION_SHARE_MIN:.0%}) in an "
+                       f"energetic section — mostly static/punctuation effects; weave motion "
+                       f"cells (chases/spirals/ripples) instead (community fabric ~58% motion)"))
+    return score, findings
 
 
 def clamp_hard_caps(instructions, tempo_bpm: float | None) -> int:

@@ -75,7 +75,34 @@ class EffectInstruction(BaseModel):
     section_index: int | None = None   # which ShowPlan section produced it (for scoped regen/QA)
 
 
+class CellRecipe(BaseModel):
+    """One cell DESIGN the deterministic weaver repeats across a section's beat grid.
+
+    The LLM designs ~3–6 of these per section (the judgment); code expands them into the
+    hundreds of beat-snapped cells (the realization) — community fabric is ~12× reuse per design.
+    """
+
+    effect_type: str
+    look_id: str = ""                        # "" → first candidate look for the type
+    render_style: str = ""                   # buffer style; "" → fallback per effect
+    role: str = "texture"                    # carrier | texture | accent | bed
+    groups: list[str] = []                   # the alternation set (real targetable groups)
+    cell_beats: int = Field(default=1, ge=1, le=8)   # cell length in beats (1|2|4 typical)
+    alternation: str = "chase"               # chase | pingpong | all | sparse
+    blend: str = ""                          # T_CHOICE_LayerMethod value ("" = Normal)
+    motion_curve: str = ""                   # logical curve name (rotation/twist/radius/...)
+    transition: str = ""                     # in/out transition type (e.g. "Wipe")
+    palette: list[str] = []                  # cell colors; [] → the section palette
+
+
+class SectionWeave(BaseModel):
+    """The section's cell fabric: a few designs the weaver expands beat-by-beat."""
+
+    cells: list[CellRecipe] = []
+
+
 class SectionEffects(BaseModel):
     """Generator output for one section."""
 
     instructions: list[EffectInstruction]
+    weave: SectionWeave | None = None        # cell recipes (additive; None → no woven fabric)

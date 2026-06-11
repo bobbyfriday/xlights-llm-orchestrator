@@ -60,6 +60,7 @@ from .beats import (
 )
 from .features import instrument_entrances, instrument_feature_layer
 from .groups import targetable_groups
+from .weave import canon_effect_type, carrier_covers, expand_weave, fallback_weave
 from .media import patch_xsq_media, prepare_media, resolve_xsq, safe_name
 from .state import State
 from .timing import build_timing_tracks, patch_xsq_timing_tracks
@@ -146,6 +147,8 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
         _si = effective_intensity(getattr(section, "intensity", 0.5), rev.section_index, _rm)
         _rhythm = section_rhythm(st.song_analysis, section)
         instrs = trim_coverage(list(out.instructions), _si)   # energy-gated coverage on regen too
+        for ins in instrs:
+            ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
         instrs = normalize_durations(instrs, _rhythm)
         wash_b = wash_brightness(_si)
         for j, ins in enumerate(instrs):
@@ -160,11 +163,21 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
         if bed is not None:
             bed.section_index = rev.section_index
             instrs.append(bed)
+        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups)
+        woven = expand_weave(section, weave_obj, _rhythm, _si, st.available_groups,
+                             based_targets={k.target for k in instrs})   # cells blend over washes
+        for ins in woven:
+            ins.section_index = rev.section_index
+        instrs += woven                                  # the cell fabric on regen too
         clamp_hard_caps(instrs, getattr(st.song_analysis, "tempo_overall", None))
-        accents = place_beat_accents(section, _rhythm,
-                                     st.available_groups)       # beat layer on regen too
+        accents = place_beat_accents(
+            section, _rhythm, st.available_groups,       # beat layer on regen too
+            carrier_covers=carrier_covers(weave_obj, section, st.available_groups))
+        under = {k.target for k in instrs}
         for ins in accents:
             ins.section_index = rev.section_index
+            if ins.target in under:                      # a pulse ADDS over its base, not occludes
+                ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
         instrs += accents
         return instrs
 
@@ -415,6 +428,8 @@ async def run_pipeline(
             wash_b = wash_brightness(_si)            # energy → wash brightness
             rhythm = section_rhythm(st.song_analysis, section)
             kept = trim_coverage(out.instructions, _si)   # energy-gated coverage (quiet = fewer lit props)
+            for ins in kept:
+                ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
             kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
             for j, ins in enumerate(kept):
                 ins.section_index = i               # tag for scoped regen / per-section QA
@@ -429,12 +444,22 @@ async def run_pipeline(
             if bed is not None:
                 bed.section_index = i
                 kept.append(bed)
+            weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups)
+            woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
+                                 based_targets={k.target for k in kept})  # cells blend over washes
+            for ins in woven:
+                ins.section_index = i
+            kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
             clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
             instrs.extend(kept)
-            accents = place_beat_accents(section, rhythm,
-                                         st.available_groups)   # beat layer over the wash
+            accents = place_beat_accents(
+                section, rhythm, st.available_groups,   # beat layer over the wash; the weave's
+                carrier_covers=carrier_covers(weave_obj, section, st.available_groups))  # carrier owns the chase
+            under = {k.target for k in kept}
             for ins in accents:
                 ins.section_index = i
+                if ins.target in under:                 # a pulse ADDS over its base, not occludes
+                    ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
             instrs.extend(accents)
         # mid-section instrument entrances → surfaced as key moments + featured on the focal prop
         for _t, _stem in instrument_entrances(st.song_analysis):

@@ -30,15 +30,7 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
             f"  issue: {revision.issue}\n  try: {revision.suggested_fix}\n"
             f"  do NOT repeat: {revision.do_not_repeat}"
         )
-    scene_note = ""
-    if getattr(section, "scene_id", ""):
-        scene_note = ("\n\nSCENE: realize cookbook scene " + section.scene_id
-                      + " — follow its stack table (rows top-to-bottom, layers, effects, render"
-                        " styles) cast onto the real groups per this adaptation: "
-                      + (section.scene_adaptation or "(cast sensibly)")
-                      + ". Multiple instructions on the same target are fine (layers are assigned"
-                        " automatically); blend modes are not settable — design for Normal.")
-    brief_note = scene_note                          # the creative brief this section must realize
+    brief_note = ""                                  # the creative brief this section must realize
     if concept:
         brief_note += "\n\nSHOW CONCEPT (keep the through-line):\n" + concept
     if motifs:
@@ -76,7 +68,19 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
           " one unified gesture."
         + "\n\nDURATION CLASSES: hit effects (Shockwave/Strobe/Lightning) are ≤1-bar PUNCTUATION —"
           " never section-spanning washes. Phrase effects (Curtain/Fill/Morph/Fan/Fireworks) span ≤8"
-          " bars. Prefer SEVERAL SHORT effects across a section over one long static wash — the"
-          " display should keep changing."
+          " bars. Motion effects (SingleStrand/Spirals/Pinwheel/Ripple/Wave/Bars) are CELL-ABLE —"
+          " the weave (below) places them as short beat cells; only beds (ColorWash/Plasma/dim On"
+          " on whole-yard rows) run long."
+        + "\n\nWEAVE — also design `weave.cells`: 3–6 CELL RECIPES that code expands into"
+          " beat-snapped cells across the section (community fabric: short motion cells reused"
+          " ~12x, NOT long washes). Each recipe: effect_type (MOTION effects — SingleStrand chase"
+          " is the canonical beat-carrier; On/Twinkle only as accent/bed roles), role (exactly one"
+          " 'carrier' riding the beat on the rhythm groups; 1–2 'texture'; optional 'bed'),"
+          " groups (the alternation set), cell_beats (1=carrier, 2–4=texture), alternation"
+          " ('chase' rotates one group per cell, 'pingpong' bounces, 'all' hits every group,"
+          " 'sparse' breathes every other cell), blend (T_CHOICE_LayerMethod — 'Max' overlays,"
+          " 'Brightness' envelopes; only meaningful over a bed/carrier on the same groups),"
+          " motion_curve ('rotation'/'twist'/'radius'/'position' — ramps that param over each"
+          " cell), transition ('Wipe' flows cells into each other). Blend modes ARE settable."
         + "\n\nProduce effect instructions that follow the creative brief for this section."
     )

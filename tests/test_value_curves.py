@@ -19,16 +19,21 @@ def run(c):
 
 
 def test_synthesized_curve_is_valid_parametric():
+    """CANONICAL format (live round-trip verified): Min/Max = the PARAM's range, P1/P2 = the
+    ramp endpoints as real values, RV=TRUE. (Endpoints-in-Min/Max made xLights rescale them —
+    our old 84→120 ramp round-tripped as 1027→-84, a flash-to-black crash.)"""
     v = value_curve_setting("Brightness", 0, 100)["C_VALUECURVE_Brightness"]
     assert value_curve_is_active(v) and classify_value_curve(v) == "parametric"
     f = parse_value_curve(v)
-    assert f["Type"] == "Ramp" and f["Min"] == "0.00" and f["Max"] == "100.00" and f["RV"] == "FALSE"
+    assert f["Type"] == "Ramp" and f["Min"] == "0.00" and f["Max"] == "400.00"
+    assert f["P1"] == "0.00" and f["P2"] == "100.00" and f["RV"] == "TRUE"
 
 
-def test_descending_sets_reverse():
+def test_descending_ramp_keeps_endpoints():
     v = value_curve_setting("Brightness", 200, 50)["C_VALUECURVE_Brightness"]
     f = parse_value_curve(v)
-    assert f["Min"] == "50.00" and f["Max"] == "200.00" and f["RV"] == "TRUE"   # sorted + reverse flag
+    assert f["P1"] == "200.00" and f["P2"] == "50.00"      # direction lives in P1>P2, not RV
+    assert f["Min"] == "0.00" and f["Max"] == "400.00"
 
 
 def test_brightness_ramp_key():

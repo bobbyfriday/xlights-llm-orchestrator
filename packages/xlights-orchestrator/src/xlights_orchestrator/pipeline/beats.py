@@ -176,10 +176,14 @@ def _downsample(times: list, cap: int) -> list:
     return [times[int(i * k)] for i in range(cap)]
 
 
-def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: list[str]
-                       ) -> list[EffectInstruction]:
+def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: list[str],
+                       *, carrier_covers: bool = False) -> list[EffectInstruction]:
     """Accents on ~every beat, chasing the rhythm groups, in a CONTRASTING accent color, with a
-    bigger all-groups hit on each bar start (downbeat). Onset mode keeps the simple rotating chase."""
+    bigger all-groups hit on each bar start (downbeat). Onset mode keeps the simple rotating chase.
+
+    `carrier_covers=True` (a weave carrier already rides the rhythm pool): the every-beat chase
+    and downbeat group hits are the CARRIER's job now — only the sparkle-prop downbeats and the
+    hero onset layer place, so the beat is carried once, not doubled."""
     groups = list(section.pulse_groups or [])
     for g in RHYTHM_POOL:                              # a chase needs ≥2 groups — rhythm cells join
         if len(groups) >= 3:
@@ -223,8 +227,9 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     onsets = rhythm["onsets_by_stem"].get(stem, []) if stem else []
     if pulse_on == "onset" and onsets:                 # explicit override: ride the stem's hits
         times = _downsample(sorted(onsets), MAX_ACCENTS_PER_SECTION)
-        out = [_mk(groups[i % len(groups)], t, e)
-               for i, t in enumerate(times) if (e := _end(times, i, t)) > t]
+        out = [] if carrier_covers else \
+            [_mk(groups[i % len(groups)], t, e)
+             for i, t in enumerate(times) if (e := _end(times, i, t)) > t]
         # bars still exist under an onset groove — sparkle props fire on the beat-grid downbeats
         sparkle = [g for g in ACCENT_GROUPS if g in available_groups and g not in groups]
         for t in sorted(rhythm["beats_ms"])[::BEATS_PER_BAR]:
@@ -246,10 +251,11 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
         if e <= t:
             continue
         if i % BEATS_PER_BAR == 0:                      # bar start → bigger hit (every group)
-            downbeats.extend(_mk(g, t, e) for g in groups)
+            if not carrier_covers:                      # the weave carrier owns the group hits
+                downbeats.extend(_mk(g, t, e) for g in groups)
             downbeats.extend(_mk(g, t, e) for g in accent_hits)   # snowflakes/spinners fire on the bar
         else:                                           # off-beat → single rotating group (energy-gated)
-            if stride is not None and off_n % stride == 0:
+            if not carrier_covers and stride is not None and off_n % stride == 0:
                 offbeats.append(_mk(groups[i % len(groups)], t, e))
             off_n += 1
     downbeats = _downsample(downbeats, MAX_ACCENTS_PER_SECTION)         # keep downbeats first
@@ -303,10 +309,13 @@ def _bar_ms(rhythm: dict) -> float:
 
 
 def normalize_durations(instructions: list, rhythm: dict) -> list:
-    """Enforce duration classes (catalog §2.1): a HIT-class effect spanning bars becomes per-bar
-    short cells (the section PULSES with it instead of smearing one slow gesture); a PHRASE-class
-    effect is clamped to ~8 bars; SUSTAINED passes through."""
-    from ..qa.rules import DURATION_HIT, DURATION_PHRASE, PHRASE_BARS
+    """Enforce duration classes (catalog §2.1 v0.3): a HIT-class effect spanning bars becomes
+    per-bar short cells (the section PULSES with it instead of smearing one slow gesture); a
+    PHRASE-class effect is clamped to ~8 bars; a CELL-ABLE motion effect left long is chopped
+    into contiguous 2-bar cells (community medians: even Spirals/Wave run 0.3–0.9s) unless it
+    sits on a bed row (SEM_BAND_*/SEM_ALL — the explicit long-bed exception)."""
+    from ..qa.rules import (CELL_BARS, DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE,
+                            PHRASE_BARS, _BED_TARGET_PREFIXES, _BED_TARGETS)
     bar = _bar_ms(rhythm)
     out: list = []
     for ins in instructions:
@@ -324,6 +333,19 @@ def normalize_durations(instructions: list, rhythm: dict) -> list:
             c = ins.model_copy(deep=True)
             c.end_ms = int(ins.start_ms + PHRASE_BARS * bar)
             out.append(c)
+        elif (ins.effect_type in DURATION_CELLABLE and dur > 2 * CELL_BARS * bar
+              and not ins.target.startswith(_BED_TARGET_PREFIXES)
+              and ins.target not in _BED_TARGETS):
+            cell = CELL_BARS * bar                    # contiguous cells — motion, not pulses
+            t = float(ins.start_ms)
+            while t < ins.end_ms:
+                c = ins.model_copy(deep=True)
+                c.start_ms, c.end_ms = int(t), int(min(t + cell, ins.end_ms))
+                if c.end_ms - c.start_ms > cell * 0.25:   # trailing sliver merges by dropping
+                    out.append(c)
+                elif out and out[-1].effect_type == ins.effect_type:
+                    out[-1].end_ms = int(ins.end_ms)      # ...into the previous cell
+                t += cell
         else:
             out.append(ins)
     return out

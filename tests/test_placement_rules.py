@@ -31,7 +31,8 @@ def test_energy_band_mismatch_flagged():
 def test_same_feature_same_moment_is_one_gesture():
     a = _ins("Shockwave", "SEM_ALL", start=0, end=2000)
     b = _ins("Shockwave", "SEM_FOCAL", start=0, end=2000)     # same effect, same window, 2 groups
-    assert evaluate([a, b], _plan([0.9]))[1] == []             # ONE gesture, not a violation
+    findings = evaluate([a, b], _plan([0.9]))[1]               # ONE gesture, not a violation
+    assert [f for f in findings if f.objective] == []          # (motion-share advisory may appear)
 
 
 def test_overlapping_features_flagged():

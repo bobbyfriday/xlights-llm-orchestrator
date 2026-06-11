@@ -93,12 +93,35 @@ class AudioAnalyzer:
         aligned = align_lyrics(str(stem), text)
         if not aligned:
             return False
-        analysis.lyrics = {"title": title, "artist": artist, "text": text, **aligned}
+        # headers_fetch: this attach saw marker-aware text — pre-change caches (headers
+        # stripped at fetch) re-attach once and upgrade; marker-less songs never re-align again.
+        analysis.lyrics = {"title": title, "artist": artist, "text": text,
+                           "headers_fetch": True, **aligned}
+        from .structure import refine_segments_with_lyrics
+        if refine_segments_with_lyrics(analysis):      # lyric markers → the real structure
+            self._refresh_section_instrumentation(analysis, key)
         try:
             (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())
         except Exception:  # noqa: BLE001 — cache write is best-effort
             pass
         return True
+
+    def _refresh_section_instrumentation(self, analysis: SongAnalysis, key: str) -> None:
+        """Recompute per-section instrument prevalence over the REFINED segments from the
+        persisted stems (best-effort — stale coarse windows still time-overlap-match if absent)."""
+        try:
+            import librosa
+            from .extractors import stems as stems_ext
+            separated = {}
+            for f in sorted((self.cache_dir / key / "stems").glob("*.*")):
+                if f.suffix in (".wav", ".mp3"):
+                    y, _ = librosa.load(str(f), sr=analysis.sample_rate, mono=True)
+                    separated[f.stem] = y
+            if separated:
+                analysis.section_instrumentation = stems_ext.section_instrumentation(
+                    separated, analysis.sample_rate, analysis.segments)
+        except Exception:  # noqa: BLE001 — enrichment only; overlap-matching covers the gap
+            pass
 
     def _attach_stems(self, analysis: SongAnalysis, path: str, key: str) -> None:
         """Separate, persist inspectable stem wavs, attach features + per-section prevalence.

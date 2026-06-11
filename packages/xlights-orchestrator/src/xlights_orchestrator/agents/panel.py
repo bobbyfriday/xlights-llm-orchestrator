@@ -67,7 +67,10 @@ def _structure_render(sa, lyrics):
             + f"\nKEY: {sa.key_overall}   #CHORDS: {len(sa.chords)}"
             + hints
             + "\nLabel each segment (intro/verse/chorus/bridge/drop/outro), group recurring"
-              " labels in repetition_map, and propose candidate show themes.")
+              " labels in repetition_map, and propose candidate show themes."
+            + "\nSegments whose id is already a lyric section name (Verse/Chorus/Pre-Chorus/...)"
+              " are GROUND TRUTH from the song's lyrics — keep those labels and boundaries;"
+              " spend your judgment on themes and energy, not re-deriving structure.")
 
 
 def _rhythm_render(sa, lyrics):

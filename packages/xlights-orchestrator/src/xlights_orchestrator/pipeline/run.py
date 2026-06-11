@@ -361,7 +361,10 @@ async def run_pipeline(
         st.song_analysis = AudioAnalyzer().analyze(song_path, stems=stems)
     # timed lyrics as part of the INITIAL analysis: fetch text, align on the vocal stem (cached).
     # This also flips the synthesizer's `instrumental` flag (it reads sa.lyrics) for vocal songs.
-    if not (getattr(st.song_analysis, "lyrics", None) or {}).get("lines"):
+    # Re-attach when the cache predates marker-aware fetching (no headers_fetch flag) so lyric
+    # section markers upgrade old caches once.
+    _ly = getattr(st.song_analysis, "lyrics", None) or {}
+    if not _ly.get("lines") or not _ly.get("headers_fetch"):
         try:
             _ld = fetch_lyrics(song_path)
             if _ld and _ld.text:

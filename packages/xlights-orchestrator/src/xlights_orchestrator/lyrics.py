@@ -56,8 +56,8 @@ def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:
         import lyricsgenius  # type: ignore
 
         genius = lyricsgenius.Genius(
-            token, timeout=timeout, retries=1, remove_section_headers=True,
-        )
+            token, timeout=timeout, retries=1, remove_section_headers=False,
+        )  # keep [Verse]/[Chorus] markers — they become timed section boundaries
         song = genius.search_song(title, artist or "")
         if not song or not getattr(song, "lyrics", None):
             log.info("no Genius match for %r / %r", title, artist)

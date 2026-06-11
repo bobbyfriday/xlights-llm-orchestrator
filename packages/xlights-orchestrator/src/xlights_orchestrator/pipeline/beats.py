@@ -285,3 +285,45 @@ def ensemble_bed(section, intensity: float, available_groups: list[str], existin
                             start_ms=section.start_ms, end_ms=section.end_ms)
     ins.extra_settings.update(brightness_setting(wash_brightness(intensity) * BED_BRIGHTNESS_FACTOR))
     return ins
+
+
+HIT_CELL_MS = 1200                        # a hit effect cell is at most this long
+
+
+def _bar_ms(rhythm: dict) -> float:
+    tempo = rhythm.get("tempo")
+    if tempo:
+        return BEATS_PER_BAR * 60000.0 / tempo
+    beats = rhythm.get("beats_ms") or []
+    if len(beats) > 4:
+        deltas = [b - a for a, b in zip(beats, beats[1:])]
+        deltas.sort()
+        return BEATS_PER_BAR * deltas[len(deltas) // 2]
+    return BEATS_PER_BAR * 2000.0
+
+
+def normalize_durations(instructions: list, rhythm: dict) -> list:
+    """Enforce duration classes (catalog §2.1): a HIT-class effect spanning bars becomes per-bar
+    short cells (the section PULSES with it instead of smearing one slow gesture); a PHRASE-class
+    effect is clamped to ~8 bars; SUSTAINED passes through."""
+    from ..qa.rules import DURATION_HIT, DURATION_PHRASE, PHRASE_BARS
+    bar = _bar_ms(rhythm)
+    out: list = []
+    for ins in instructions:
+        dur = ins.end_ms - ins.start_ms
+        if ins.effect_type in DURATION_HIT and dur > 1.5 * bar:
+            cell = int(min(HIT_CELL_MS, bar * 0.75))
+            t = float(ins.start_ms)
+            while t < ins.end_ms:
+                c = ins.model_copy(deep=True)
+                c.start_ms, c.end_ms = int(t), int(min(t + cell, ins.end_ms))
+                if c.end_ms > c.start_ms:
+                    out.append(c)
+                t += bar                              # one pulse per bar
+        elif ins.effect_type in DURATION_PHRASE and dur > PHRASE_BARS * bar:
+            c = ins.model_copy(deep=True)
+            c.end_ms = int(ins.start_ms + PHRASE_BARS * bar)
+            out.append(c)
+        else:
+            out.append(ins)
+    return out

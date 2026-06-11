@@ -46,5 +46,9 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
           " across the whole yard (sweeps, Shockwave, Wave); 'Default' for simple On/washes. A group-"
           "canvas effect renders as one sparse shape and reads dark — prefer per-model unless you want"
           " one unified gesture."
+        + "\n\nDURATION CLASSES: hit effects (Shockwave/Strobe/Lightning) are ≤1-bar PUNCTUATION —"
+          " never section-spanning washes. Phrase effects (Curtain/Fill/Morph/Fan/Fireworks) span ≤8"
+          " bars. Prefer SEVERAL SHORT effects across a section over one long static wash — the"
+          " display should keep changing."
         + "\n\nProduce effect instructions that follow the creative brief for this section."
     )

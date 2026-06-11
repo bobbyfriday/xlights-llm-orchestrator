@@ -53,6 +53,7 @@ from .beats import (
     effect_palette,
     effect_speed_setting,
     ensemble_bed,
+    normalize_durations,
     trim_coverage,
     wash_brightness,
 )
@@ -141,7 +142,9 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             section, revision=rev, concept=st.show_plan.concept, motifs=motifs))).output
         _rm = st.music_brief.repetition_map if st.music_brief else None
         _si = effective_intensity(getattr(section, "intensity", 0.5), rev.section_index, _rm)
+        _rhythm = section_rhythm(st.song_analysis, section)
         instrs = trim_coverage(list(out.instructions), _si)   # energy-gated coverage on regen too
+        instrs = normalize_durations(instrs, _rhythm)
         wash_b = wash_brightness(_si)
         for j, ins in enumerate(instrs):
             if section.palette:                      # expanded family on regen too
@@ -156,7 +159,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             bed.section_index = rev.section_index
             instrs.append(bed)
         clamp_hard_caps(instrs, getattr(st.song_analysis, "tempo_overall", None))
-        accents = place_beat_accents(section, section_rhythm(st.song_analysis, section),
+        accents = place_beat_accents(section, _rhythm,
                                      st.available_groups)       # beat layer on regen too
         for ins in accents:
             ins.section_index = rev.section_index
@@ -395,7 +398,9 @@ async def run_pipeline(
             _rm = st.music_brief.repetition_map if st.music_brief else None
             _si = effective_intensity(getattr(section, "intensity", 0.5), i, _rm)  # + escalation
             wash_b = wash_brightness(_si)            # energy → wash brightness
+            rhythm = section_rhythm(st.song_analysis, section)
             kept = trim_coverage(out.instructions, _si)   # energy-gated coverage (quiet = fewer lit props)
+            kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
             for j, ins in enumerate(kept):
                 ins.section_index = i               # tag for scoped regen / per-section QA
                 if section.palette:                 # expanded family; multi-color effects get depth
@@ -411,7 +416,7 @@ async def run_pipeline(
                 kept.append(bed)
             clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
             instrs.extend(kept)
-            accents = place_beat_accents(section, section_rhythm(st.song_analysis, section),
+            accents = place_beat_accents(section, rhythm,
                                          st.available_groups)   # beat layer over the wash
             for ins in accents:
                 ins.section_index = i

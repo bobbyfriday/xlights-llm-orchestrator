@@ -22,6 +22,12 @@ ENERGY_BAND: dict[str, tuple[int, int]] = {
     "Fireworks": (3, 5), "Ripple": (2, 3), "Shape": (1, 4), "Tendril": (2, 3), "Tree": (2, 2),
     "VU Meter": (2, 5),
 }
+# Duration classes (catalog §2.1): a HIT is ≤1-bar punctuation (smearing it over a section reads
+# as one slow weird gesture); a PHRASE is a bounded gesture (reveal/build); SUSTAINED = unbounded.
+DURATION_HIT = {"Shockwave", "Strobe", "Lightning"}
+DURATION_PHRASE = {"Curtain", "Fill", "Morph", "Fan", "Fireworks", "Shimmer"}
+PHRASE_BARS = 8
+
 TEXTURE = {"Plasma", "Fire", "Liquid", "Life"}                   # rule #2: never on linear props
 FEATURES = {"Kaleidoscope", "Shader", "Shockwave", "Fireworks"}  # rule #4: one at a time
 _LINEAR_PREFIXES = ("SEM_ARCHES", "SEM_OUTLINE", "SEM_CANES", "SEM_ICICLES", "SEM_PATH")

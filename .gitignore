@@ -20,3 +20,6 @@ __pycache__/
 # OS / crash artifacts
 .DS_Store
 xLights_dbgrpt-*.zip
+
+# Claude Code worktrees (session-local, never commit)
+.claude/worktrees/

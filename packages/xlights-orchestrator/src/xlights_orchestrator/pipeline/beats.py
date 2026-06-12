@@ -256,7 +256,12 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
             downbeats.extend(_mk(g, t, e) for g in accent_hits)   # snowflakes/spinners fire on the bar
         else:                                           # off-beat → single rotating group (energy-gated)
             if not carrier_covers and stride is not None and off_n % stride == 0:
-                offbeats.append(_mk(groups[i % len(groups)], t, e))
+                # the chase BOUNCES: forward through the spatial group order on even bars,
+                # backward on odd — direction variety with no LLM surface. Position WITHIN
+                # the bar drives the walk (bar and pool periods differ).
+                n, p = len(groups), i % BEATS_PER_BAR
+                idx = p % n if (i // BEATS_PER_BAR) % 2 == 0 else (n - 1) - (p % n)
+                offbeats.append(_mk(groups[idx], t, e))
             off_n += 1
     downbeats = _downsample(downbeats, MAX_ACCENTS_PER_SECTION)         # keep downbeats first
     budget = max(0, MAX_ACCENTS_PER_SECTION - len(downbeats))

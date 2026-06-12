@@ -36,6 +36,73 @@ _FALLBACK_CARRIER = "SingleStrand"
 _BED_EFFECTS = {"Color Wash", "Plasma", "On"}
 
 
+# Direction realized through the EFFECTS' OWN settings (no grouping/target changes — user
+# decision). Values are strictly corpus-observed (community .xsq) — valid by construction.
+# direction -> (key, value) per effect type; missing pairs no-op.
+DIRECTION_KNOBS: dict[str, dict[str, tuple[str, str]]] = {
+    "SingleStrand": {"ltr": ("E_CHOICE_Chase_Type1", "Left-Right"),
+                     "rtl": ("E_CHOICE_Chase_Type1", "Right-Left"),
+                     "bounce": ("E_CHOICE_Chase_Type1", "Dual Bounce"),
+                     "center_out": ("E_CHOICE_Chase_Type1", "From Middle"),
+                     "center_in": ("E_CHOICE_Chase_Type1", "To Middle")},
+    "Bars": {"ltr": ("E_CHOICE_Bars_Direction", "Right"),
+             "rtl": ("E_CHOICE_Bars_Direction", "Left"),
+             "up": ("E_CHOICE_Bars_Direction", "up"),
+             "down": ("E_CHOICE_Bars_Direction", "down"),
+             "center_out": ("E_CHOICE_Bars_Direction", "H-expand"),
+             "center_in": ("E_CHOICE_Bars_Direction", "H-compress")},
+    "Garlands": {"ltr": ("E_CHOICE_Garlands_Direction", "Right"),
+                 "rtl": ("E_CHOICE_Garlands_Direction", "Left"),
+                 "up": ("E_CHOICE_Garlands_Direction", "Up"),
+                 "down": ("E_CHOICE_Garlands_Direction", "Down"),
+                 "bounce": ("E_CHOICE_Garlands_Direction", "Left then Right")},
+    "Meteors": {"ltr": ("E_CHOICE_Meteors_Effect", "Right"),
+                "up": ("E_CHOICE_Meteors_Effect", "Up"),
+                "down": ("E_CHOICE_Meteors_Effect", "Down"),
+                "center_out": ("E_CHOICE_Meteors_Effect", "Explode"),
+                "center_in": ("E_CHOICE_Meteors_Effect", "Implode")},
+    "Fill": {"ltr": ("E_CHOICE_Fill_Direction", "Right"),
+             "rtl": ("E_CHOICE_Fill_Direction", "Left"),
+             "up": ("E_CHOICE_Fill_Direction", "Up"),
+             "down": ("E_CHOICE_Fill_Direction", "Down")},
+    "Wave": {"ltr": ("E_CHOICE_Wave_Direction", "Left to Right"),
+             "rtl": ("E_CHOICE_Wave_Direction", "Right to Left")},
+    "Butterfly": {"ltr": ("E_CHOICE_Butterfly_Direction", "Normal"),
+                  "rtl": ("E_CHOICE_Butterfly_Direction", "Reverse")},
+    "Marquee": {"ltr": ("E_CHECKBOX_Marquee_Reverse", "0"),
+                "rtl": ("E_CHECKBOX_Marquee_Reverse", "1")},
+    "Fan": {"center_out": ("E_CHECKBOX_Fan_Reverse", "0"),
+            "center_in": ("E_CHECKBOX_Fan_Reverse", "1")},
+    "Galaxy": {"center_out": ("E_CHECKBOX_Galaxy_Reverse", "0"),
+               "center_in": ("E_CHECKBOX_Galaxy_Reverse", "1")},
+    "Pinwheel": {"ltr": ("E_CHECKBOX_Pinwheel_Rotation", "1"),
+                 "rtl": ("E_CHECKBOX_Pinwheel_Rotation", "0")},
+}
+# effects whose bounce lives INSIDE the effect (no per-bar flipping needed)
+_NATIVE_BOUNCE = {"SingleStrand", "Garlands"}
+_BEATS_PER_BAR = 4
+
+
+def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, str]:
+    """The effect-native settings for a cell's direction; `{}` when unmapped (never a skip).
+
+    `bounce` uses the effect's native bounce when it has one; otherwise the direction VALUE
+    flips at bar boundaries (ltr/rtl, or up/down for vertical-natured effects) — constant
+    within a bar so the gesture reads as phrasing, not jitter.
+    """
+    table = DIRECTION_KNOBS.get(effect_type)
+    if not table or not direction:
+        return {}
+    if direction == "bounce" and effect_type not in _NATIVE_BOUNCE:
+        pair = ("ltr", "rtl") if "ltr" in table and "rtl" in table else \
+               ("up", "down") if "up" in table and "down" in table else None
+        if pair is None:
+            return {}
+        direction = pair[bar % 2]
+    kv = table.get(direction)
+    return {kv[0]: kv[1]} if kv else {}
+
+
 def canon_effect_type(name: str) -> str:
     """Normalize an effect name to its placeable form ('Single Strand' → 'SingleStrand') —
     LLMs echo the guides' display names, the API wants xLights' internal ones."""
@@ -88,7 +155,8 @@ def fallback_weave(section: SectionPlan, available_groups: list[str]) -> Section
     depends on perfect LLM output."""
     from ..qa.rules import DURATION_CELLABLE
     cells = [CellRecipe(effect_type=_FALLBACK_CARRIER, role="carrier", cell_beats=1,
-                        alternation="chase", groups=rhythm_pool(section, available_groups))]
+                        alternation="chase", direction="bounce",
+                        groups=rhythm_pool(section, available_groups))]
     texture = next((t for t in (canon_effect_type(x) for x in section.effect_types or [])
                     if t in DURATION_CELLABLE and t != _FALLBACK_CARRIER), None)
     tex_groups = [g for g in section.target_groups
@@ -146,6 +214,8 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     extra = dict(effect_speed_setting(recipe.effect_type, intensity))
     extra.update(brightness_setting(wash_brightness(intensity)))   # cells pop with the energy
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
+    bar = slot * max(1, recipe.cell_beats) // _BEATS_PER_BAR       # derived-4/4 bar index
+    extra.update(direction_setting(recipe.effect_type, recipe.direction, bar))
     if recipe.transition:
         extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
                       "T_CHOICE_Out_Transition_Type": recipe.transition,

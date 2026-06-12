@@ -89,6 +89,8 @@ class CellRecipe(BaseModel):
     groups: list[str] = []                   # the alternation set (real targetable groups)
     cell_beats: int = Field(default=1, ge=1, le=8)   # cell length in beats (1|2|4 typical)
     alternation: str = "chase"               # chase | pingpong | all | sparse
+    direction: str = ""                      # ltr|rtl|bounce|center_out|center_in|up|down
+                                             #   (realized via the EFFECT'S own settings)
     blend: str = ""                          # T_CHOICE_LayerMethod value ("" = Normal)
     motion_curve: str = ""                   # logical curve name (rotation/twist/radius/...)
     transition: str = ""                     # in/out transition type (e.g. "Wipe")

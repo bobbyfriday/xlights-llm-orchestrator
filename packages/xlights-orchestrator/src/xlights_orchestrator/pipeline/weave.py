@@ -8,6 +8,7 @@ the same split as palettes/beats/brightness.
 
 from __future__ import annotations
 
+from xlights_core.knowledge.colors import contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
@@ -81,6 +82,11 @@ DIRECTION_KNOBS: dict[str, dict[str, tuple[str, str]]] = {
 # effects whose bounce lives INSIDE the effect (no per-bar flipping needed)
 _NATIVE_BOUNCE = {"SingleStrand", "Garlands"}
 _BEATS_PER_BAR = 4
+# a HORIZONTAL/RADIAL sweep on a chase-family effect must travel across the GROUP to be seen —
+# per-model rendering confines it to each prop for half a second (the invisible-sweep failure)
+_SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "center_out", "center_in"}
+_CHASE_FAMILY = {"SingleStrand", "Garlands", "Marquee", "Wave", "Bars"}
+_SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
 
 
 def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, str]:
@@ -191,6 +197,8 @@ def _valid_recipes(weave: SectionWeave, section: SectionPlan,
     for r in cells:                                      # only bed-capable effects may bed
         if r.role == "bed" and r.effect_type not in _BED_EFFECTS:
             r.role = "texture"                           # a Pinwheel "bed" weaves instead
+        if r.direction in _SWEEP_DIRECTIONS and r.effect_type in _CHASE_FAMILY:
+            r.cell_beats = max(r.cell_beats, _SWEEP_MIN_BEATS)   # sweeps need dwell time
     beds = [r for r in cells if r.role == "bed"]
     others: list[CellRecipe] = []
     for r in cells:
@@ -207,7 +215,8 @@ def _valid_recipes(weave: SectionWeave, section: SectionPlan,
 
 
 def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
-          start: int, end: int, intensity: float, blended: bool) -> EffectInstruction:
+          start: int, end: int, intensity: float, blended: bool,
+          anchors: tuple[str, str] | None = None) -> EffectInstruction:
     looks = candidate_look_ids(recipe.effect_type)
     look = recipe.look_id if recipe.look_id in looks else looks[0]
     palette = recipe.palette or section.palette
@@ -229,10 +238,19 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     # CELLS render per-model by default: the global fallback sends chases to 'Per Preview'
     # (one gesture traveling the WHOLE yard buffer — a 0.5s cell on one group lights almost
     # nothing). A cell is rhythmic multiplicity: every prop in the group runs it.
-    style = recipe.render_style or "Per Model Default"
+    # EXCEPT a directional sweep: per-model confines the motion to each prop — the sweep must
+    # travel the GROUP buffer to be seen (the user couldn't see per-model "sweeps" at all).
+    sweep = recipe.direction in _SWEEP_DIRECTIONS and recipe.effect_type in _CHASE_FAMILY
+    style = recipe.render_style or ("Default" if sweep else "Per Model Default")
+    # LED-contrast floor: rhythm-carrying cells alternate the two most hue-distant anchors
+    # beat-to-beat (pixels render hue contrast, not subtle tints); textures keep the family.
+    if anchors and recipe.role in ("carrier", "accent") and not recipe.palette:
+        colors = [anchors[slot % 2]]
+    else:
+        colors = effect_palette(palette, recipe.effect_type, slot)
     return EffectInstruction(
         target=target, effect_type=recipe.effect_type, look_id=look,
-        palette_colors=effect_palette(palette, recipe.effect_type, slot),
+        palette_colors=colors,
         render_style=style, extra_settings=extra,
         start_ms=start, end_ms=end)
 
@@ -263,6 +281,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
 
     beats = sorted(rhythm.get("beats_ms") or [])
     if len(beats) >= 2 and recipes:
+        anchors = contrast_anchors(section.palette)      # the LED-legible alternation pair
         carrier_groups = set(recipes[0].groups) if recipes[0].role == "carrier" else set()
         # candidate cells per recipe: (slot, start, end, target, blended)
         per_recipe: list[list[tuple]] = []
@@ -286,5 +305,6 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
         for r, cells in zip(recipes, per_recipe):
             kept = _downsample(cells, max(1, round(len(cells) * factor))) if factor < 1 else cells
             for slot, t, end, tgt, blended in kept:
-                out.append(_cell(r, section, tgt, slot, t, end, intensity, blended))
+                out.append(_cell(r, section, tgt, slot, t, end, intensity, blended,
+                                 anchors=anchors))
     return out

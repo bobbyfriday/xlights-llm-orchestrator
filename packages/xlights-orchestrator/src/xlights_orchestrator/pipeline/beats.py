@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import bisect
 
-from xlights_core.knowledge.colors import _brighten, _luminance, _resolve, expand_palette
+from xlights_core.knowledge.colors import contrast_anchors, expand_palette
 from xlights_core.knowledge.value_curves import brightness_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
@@ -53,15 +53,44 @@ def effect_palette(section_palette: list[str], effect_type: str, index: int) -> 
     return rot[:2] if effect_type in SIMPLE_COLOR else rot
 
 
-SPEED_MIN, SPEED_MAX = 8, 40              # effect speed slider range by energy
+# Each effect's REAL speed/cycles/movement parameter + corpus-observed range.
+# The old blanket `E_SLIDER_<Effect>_Speed` was a real key for only a few effects — the
+# intensity→speed feature silently no-op'd elsewhere AND xLights logged ApplySetting errors
+# on every UI selection. Effects with no speed concept emit nothing.
+# (key, lo, hi, fmt)  fmt: "int" slider | "f1" one-decimal textctrl
+SPEED_KEYS: dict[str, tuple[str, float, float, str]] = {
+    "Meteors":     ("E_SLIDER_Meteors_Speed", 10, 45, "int"),
+    "Pinwheel":    ("E_SLIDER_Pinwheel_Speed", 5, 20, "int"),
+    "Butterfly":   ("E_SLIDER_Butterfly_Speed", 8, 40, "int"),
+    "Marquee":     ("E_SLIDER_Marquee_Speed", 1, 8, "int"),
+    "Plasma":      ("E_SLIDER_Plasma_Speed", 70, 90, "int"),
+    "Snowflakes":  ("E_SLIDER_Snowflakes_Speed", 10, 25, "int"),
+    "Snowstorm":   ("E_SLIDER_Snowstorm_Speed", 10, 30, "int"),
+    "Circles":     ("E_SLIDER_Circles_Speed", 5, 25, "int"),
+    "Tree":        ("E_SLIDER_Tree_Speed", 5, 20, "int"),
+    "Warp":        ("E_SLIDER_Warp_Speed", 5, 30, "int"),
+    "Color Wash":  ("E_TEXTCTRL_ColorWash_Cycles", 1, 6, "f1"),
+    # "On" deliberately ABSENT: On_Cycles would make steady beds PULSE — pulses are the
+    # beat layer's job; beds stay flat.
+    "Bars":        ("E_TEXTCTRL_Bars_Cycles", 0.5, 4, "f1"),
+    "Garlands":    ("E_TEXTCTRL_Garlands_Cycles", 1, 4, "f1"),
+    "Ripple":      ("E_TEXTCTRL_Ripple_Cycles", 1, 8, "f1"),
+    "Shimmer":     ("E_TEXTCTRL_Shimmer_Cycles", 4, 12, "f1"),
+    "Wave":        ("E_TEXTCTRL_Wave_Speed", 5, 35, "f1"),
+    "Curtain":     ("E_TEXTCTRL_Curtain_Speed", 0.5, 4, "f1"),
+    "Spirals":     ("E_TEXTCTRL_Spirals_Movement", 0.5, 4, "f1"),
+}
 
 
 def effect_speed_setting(effect_type: str, intensity: float) -> dict[str, str]:
-    """`{E_SLIDER_<Effect>_Speed: val}` keyed to energy (slow quiet → fast loud). Appended;
-    a key an effect doesn't use is ignored by xLights, so this is safe for any effect."""
+    """The effect's REAL speed parameter scaled to energy; `{}` when it has none."""
+    spec = SPEED_KEYS.get(effect_type)
+    if spec is None:
+        return {}
+    key, lo, hi, fmt = spec
     i = max(0.0, min(1.0, intensity or 0.0))
-    val = round(SPEED_MIN + (SPEED_MAX - SPEED_MIN) * i)
-    return {f"E_SLIDER_{effect_type}_Speed": str(val)}
+    v = lo + (hi - lo) * i
+    return {key: str(round(v)) if fmt == "int" else f"{v:.1f}"}
 
 
 ESCALATION_BOOST = 0.25                   # how much a final recurrence can lift effective intensity
@@ -195,19 +224,14 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     if not groups:
         return []
     eff, look = _accent_look(section.accent_effect)
-    # The wash keeps the full (bright) palette; the beats are BRIGHTENED palette colors so they pop
-    # by luminance while staying colorful, cycling through the harmony's colors on chord changes.
-    hexes: list[str] = []
-    for c in section.palette or []:
-        h = _resolve(c)
-        if h and h not in hexes:
-            hexes.append(h)
-    cycle: list[str] = []
-    for h in sorted(hexes, key=_luminance, reverse=True):     # brightest first
-        bh = _brighten(h)
-        if bh not in cycle:
-            cycle.append(bh)
-    accent_colors = [cycle[0]] if cycle else list(section.palette)   # default beat = brightened-brightest
+    # The wash keeps the palette family; the beats use the CONTRAST anchors (the two most
+    # hue-distant colors after the LED legibility floor) — pixels render hue contrast, not the
+    # old brightened-same-hue accents, which read as the wash. Anchors stay SATURATED
+    # (_brighten washes hue out into exactly the pastel tint LEDs can't show); the pop comes
+    # from luminance settings, not color dilution. Chord changes step the pair.
+    a, b = contrast_anchors(section.palette)
+    cycle = [b, a]                                        # hue-distant anchor leads
+    accent_colors = [cycle[0]]
     chords_ms = rhythm.get("chords_ms") or []
 
     def _color_at(t: int) -> list[str]:
@@ -215,7 +239,10 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
         return [c] if c else list(accent_colors)
 
     def _mk(target: str, t: int, end: int) -> EffectInstruction:
+        # a 250ms punctuation must FILL its props — the global fallback sends chase-family
+        # accent effects to 'Per Preview' (spread over the whole yard ≈ invisible)
         return EffectInstruction(target=target, effect_type=eff, look_id=look,
+                                 render_style="Per Model Default",
                                  palette_colors=_color_at(t), start_ms=int(t), end_ms=int(end))
 
     def _end(times: list[int], i: int, t: int) -> int:

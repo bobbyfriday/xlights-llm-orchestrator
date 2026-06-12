@@ -15,6 +15,12 @@ from .knowledge.colors import palette_from_colors
 from .knowledge.preset_library import PresetLibrary, get_library
 
 
+# Settings keys REMOVED from current xLights but still carried by mined looks (authored in
+# older versions). Stripped at assembly — they were already non-functional; shipping them only
+# makes the editor log `ApplySetting: Unable to find` on every effect selection.
+DROP_KEYS = {"E_CHECKBOX_Chase_3dFade1"}
+
+
 class PresetPlacementError(Exception):
     """xLights accepted the request but did not add the effect (worked=false)."""
 
@@ -52,6 +58,9 @@ async def place_preset(
     if not palette:
         palette = lib.get_palette(palette_id).palette_string if palette_id else ""
     settings = lib.assemble(look, knob_values)  # validates knobs per constraint
+    if DROP_KEYS:                               # stale keys current xLights no longer has
+        settings = ",".join(p for p in settings.split(",")
+                            if p and p.split("=", 1)[0] not in DROP_KEYS)
     if extra_settings:
         # OVERRIDE keys the look already carries (xLights honors the FIRST occurrence of a
         # duplicate key, so blind-append loses to the frozen base); append the rest.

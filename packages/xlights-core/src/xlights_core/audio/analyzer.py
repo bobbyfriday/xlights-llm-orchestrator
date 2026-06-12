@@ -106,6 +106,20 @@ class AudioAnalyzer:
             pass
         return True
 
+    def refine_instrumental(self, analysis: SongAnalysis, path: str) -> bool:
+        """Subdivide an instrumental's long sections at musical seams, re-saving the cache
+        (augment-and-resave, like attach_lyrics). False when the analysis is untouched."""
+        from .structure import refine_segments_for_instrumental
+        if not refine_segments_for_instrumental(analysis):
+            return False
+        key = _content_key(path)
+        self._refresh_section_instrumentation(analysis, key)
+        try:
+            (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())
+        except Exception:  # noqa: BLE001 — cache write is best-effort
+            pass
+        return True
+
     def _refresh_section_instrumentation(self, analysis: SongAnalysis, key: str) -> None:
         """Recompute per-section instrument prevalence over the REFINED segments from the
         persisted stems (best-effort — stale coarse windows still time-overlap-match if absent)."""

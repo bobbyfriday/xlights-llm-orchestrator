@@ -375,6 +375,15 @@ async def run_pipeline(
                              len(st.song_analysis.lyrics.get("lines", [])))
         except Exception as exc:  # noqa: BLE001 — lyrics are enrichment
             log.info("lyric attach skipped: %s", exc)
+    # Instrumental complement: still no timed lines → subdivide long audio sections at
+    # musical seams so no single look runs past ~32s (best-effort; never blocks the run).
+    if not (getattr(st.song_analysis, "lyrics", None) or {}).get("lines"):
+        try:
+            if AudioAnalyzer().refine_instrumental(st.song_analysis, song_path):
+                log.info("instrumental sections refined (%d segments)",
+                         len(st.song_analysis.segments))
+        except Exception as exc:  # noqa: BLE001 — refinement is enrichment
+            log.info("instrumental refine skipped: %s", exc)
 
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
     st.placeable_types = placeable_effect_types()

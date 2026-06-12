@@ -70,7 +70,10 @@ def _structure_render(sa, lyrics):
               " labels in repetition_map, and propose candidate show themes."
             + "\nSegments whose id is already a lyric section name (Verse/Chorus/Pre-Chorus/...)"
               " are GROUND TRUTH from the song's lyrics — keep those labels and boundaries;"
-              " spend your judgment on themes and energy, not re-deriving structure.")
+              " spend your judgment on themes and energy, not re-deriving structure."
+            + "\nNumbered sub-segments (e.g. A1/A2) are beat-snapped subdivisions of ONE musical"
+              " part — give them related but EVOLVING looks (continuity with escalation);"
+              " keep their boundaries, don't re-derive them.")
 
 
 def _rhythm_render(sa, lyrics):

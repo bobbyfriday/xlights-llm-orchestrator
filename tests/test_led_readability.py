@@ -67,7 +67,30 @@ def test_nondirectional_and_explicit_unchanged():
     ss = [c for c in out if c.effect_type == "SingleStrand"]
     sp = [c for c in out if c.effect_type == "Spirals"]
     assert all(c.render_style == "Per Model Default" for c in ss)  # no direction → per-model
-    assert all(c.render_style == "Per Model Default" for c in sp)  # explicit style wins
+    assert all(c.render_style == "Per Model Default" for c in sp)  # non-chase: explicit wins
+
+
+def test_sweep_style_is_forced_over_llm_reflex():
+    """The Generator reflexively sets render_style on every recipe — sweeps must override it
+    (the live run's 155 sweep cells all came back per-model and read invisible again)."""
+    w = SectionWeave(cells=[CellRecipe(effect_type="SingleStrand", role="carrier",
+                                       direction="ltr", render_style="Per Model Default",
+                                       cell_beats=2, groups=["SEM_ARCHES"])])
+    out = expand_weave(_sec(), w, _rhythm(), 0.8, GROUPS)
+    assert out and all(c.render_style == "Default" for c in out)
+
+
+def test_layer_budget_trims_overstacked():
+    from xlights_orchestrator.effect_emitter import clamp_layer_budget
+    from xlights_orchestrator.show_plan import EffectInstruction
+    pile = [EffectInstruction(target="SEM_FOCAL", effect_type="On", look_id="x",
+                              start_ms=0, end_ms=1000) for _ in range(8)]
+    kept, dropped = clamp_layer_budget(pile)
+    assert len(kept) == 4 and dropped == 4                    # catalog rule #10
+    spread = [EffectInstruction(target="SEM_FOCAL", effect_type="On", look_id="x",
+                                start_ms=i * 1000, end_ms=i * 1000 + 900) for i in range(8)]
+    kept2, dropped2 = clamp_layer_budget(spread)
+    assert len(kept2) == 8 and dropped2 == 0                  # disjoint times don't stack
 
 
 # -- anchor alternation --------------------------------------------------------

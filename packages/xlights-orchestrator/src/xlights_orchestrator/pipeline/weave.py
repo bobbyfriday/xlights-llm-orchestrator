@@ -238,10 +238,11 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     # CELLS render per-model by default: the global fallback sends chases to 'Per Preview'
     # (one gesture traveling the WHOLE yard buffer — a 0.5s cell on one group lights almost
     # nothing). A cell is rhythmic multiplicity: every prop in the group runs it.
-    # EXCEPT a directional sweep: per-model confines the motion to each prop — the sweep must
-    # travel the GROUP buffer to be seen (the user couldn't see per-model "sweeps" at all).
+    # EXCEPT a directional sweep: per-model confines the motion to each prop — the sweep MUST
+    # travel the GROUP buffer to be seen. This is forced (not a default): the Generator
+    # reflexively sets render_style on every recipe, which silently un-swept the sweeps.
     sweep = recipe.direction in _SWEEP_DIRECTIONS and recipe.effect_type in _CHASE_FAMILY
-    style = recipe.render_style or ("Default" if sweep else "Per Model Default")
+    style = "Default" if sweep else (recipe.render_style or "Per Model Default")
     # LED-contrast floor: rhythm-carrying cells alternate the two most hue-distant anchors
     # beat-to-beat (pixels render hue contrast, not subtle tints); textures keep the family.
     if anchors and recipe.role in ("carrier", "accent") and not recipe.palette:

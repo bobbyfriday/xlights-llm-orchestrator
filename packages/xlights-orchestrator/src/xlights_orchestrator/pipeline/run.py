@@ -240,6 +240,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             models=models or {}, review_bundle=_bundle(i), **kw))
 
     iters = 0
+    prev_sig = None       # plateau detector: scores + flagged sections unchanged → more spend, same answer
     for i in range(max_iterations):                       # HARD cap — cannot be exceeded
         iters = i + 1
         obj_before = best_obj                             # snapshot BEFORE the keep/revert branch mutates it
@@ -256,6 +257,14 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             _record(i, report, verdict, human_decision=decision.action,   # log the accept/stop too
                     obj_before=obj_before, obj_after=obj_before, obj_delta=0)
             break
+        sig = (report.objective_score, report.advisory_score,
+               frozenset((r.section_index, (r.issue or "")[:64]) for r in verdict.revisions))
+        if sig == prev_sig:                   # plateau: the iteration would re-spend on the same answer
+            log.info("plateau: objective+advisory+revisions unchanged — stopping")
+            _record(i, report, verdict, human_decision="plateau",
+                    obj_before=obj_before, obj_after=obj_before, obj_delta=0)
+            break
+        prev_sig = sig
         judge_revs = list(decision.revisions or verdict.revisions)
         floored = floor_visual_revisions(report.findings, judge_revs)     # backstop: critic-confirmed visual errors
         revisions = judge_revs + floored

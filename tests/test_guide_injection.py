@@ -84,6 +84,8 @@ def test_scene_cookbook_routed_to_director_and_generator(tmp_path, monkeypatch):
     G._cache.clear()
     from xlights_orchestrator.agents import director, generator, judge, visual_critic
     assert "SC_COOKBOOK_MARKER_XYZ" in G.with_guides(director._PROMPT, "scenes")
-    # the director & generator factories actually request the scenes guide; critic/judge do not
-    for mod, wired in ((director, True), (generator, True), (visual_critic, False), (judge, False)):
+    # the director's factory requests the full scenes guide; critic/judge do not; the
+    # generator routes ONLY the section's named recipe per call (see guide_extracts)
+    for mod, wired in ((director, True), (visual_critic, False), (judge, False)):
         assert ('"scenes"' in open(mod.__file__).read()) is wired
+    assert "scene_recipe" in open(generator.__file__).read()

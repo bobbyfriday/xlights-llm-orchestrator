@@ -495,6 +495,7 @@ Distilled rules for automated or assisted effect placement. Apply in order:
 12. **When in doubt, choose the boring effect shaped well** (On with good curves) over the exotic effect with defaults. Curves beat novelty.
 13. **Respect duration classes (§2.1).** Hit effects are ≤1-bar punctuation; phrase effects ≤8 bars; cell-able motion effects run as 1–2 bar cells re-decided on the grid — never section-spanning washes. Only declared beds run long.
 14. **Weave, don't wash.** Sections are a fabric of short beat/bar-quantized motion cells alternating across groups (a few cell designs reused many times), over at most one long bed. Community practice: ~58% of placements are motion effects with 0.3–0.9s medians; value curves shape *motion* (rotation/twist/radius), not just brightness.
+15. **Contrast over subtlety.** LED pixels render hue contrast well and tonal subtlety terribly: gold + amber + warm white reads as one color outdoors. Automated palettes must span hues (≥1 cool vs warm anchor) and rhythm accents must be hue-distant from their wash — beat-to-beat color CHANGE is the legible signal, not brightness nuance.
 
 ---
 

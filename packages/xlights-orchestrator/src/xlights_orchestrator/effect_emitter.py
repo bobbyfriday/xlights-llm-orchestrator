@@ -14,6 +14,8 @@ from .pipeline.render_style import resolve_buffer_style
 from .show_plan import EffectInstruction
 
 _SKIPPABLE = (PresetPlacementError, XLightsTargetMissing, ValueError, KnobValueError, KeyError)
+MAX_LAYERS = 6        # defensive ceiling — beyond this xLights refuses anyway (and catalog
+                      # rule #10 caps rows at 4; generation trims to that BEFORE emitting)
 
 
 def _free_layer(occ: dict, target: str, start: int, end: int, start_layer: int) -> int:
@@ -22,6 +24,25 @@ def _free_layer(occ: dict, target: str, start: int, end: int, start_layer: int) 
     while any(not (end <= s or start >= e) for s, e in occ.get((target, layer), [])):
         layer += 1
     return layer
+
+
+def clamp_layer_budget(instructions: list[EffectInstruction], max_layers: int = 4
+                       ) -> tuple[list[EffectInstruction], int]:
+    """Enforce the catalog's layer ceiling (rule #10: ≤4 layers per row) BEFORE emitting:
+    placements that would stack deeper than `max_layers` concurrent layers on a target are
+    dropped, earliest-first wins (beds/washes/carriers come first in the stream by
+    construction). Returns (kept, dropped_count) — deliberate trims, not placement skips."""
+    occ: dict[tuple[str, int], list[tuple[int, int]]] = {}
+    kept: list[EffectInstruction] = []
+    dropped = 0
+    for ins in instructions:
+        layer = _free_layer(occ, ins.target, ins.start_ms, ins.end_ms, ins.layer)
+        if layer >= max_layers:
+            dropped += 1
+            continue
+        occ.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
+        kept.append(ins)
+    return kept, dropped
 
 
 async def apply_instructions(
@@ -63,6 +84,12 @@ async def apply_instructions(
 
     for ins in instructions:
         layer = _free_layer(occupancy, ins.target, ins.start_ms, ins.end_ms, ins.layer)
+        if layer >= MAX_LAYERS:                  # local skip — don't spam doomed API calls
+            skipped.append({"target": ins.target, "effect": ins.effect_type,
+                            "start_ms": ins.start_ms, "end_ms": ins.end_ms,
+                            "section_index": ins.section_index,
+                            "reason": f"layer budget: would need layer {layer}"})
+            continue
         # LLM's render style if valid, else a fallback — never the sparse unset default.
         extra = dict(ins.extra_settings)
         extra["B_CHOICE_BufferStyle"] = resolve_buffer_style(ins.render_style, ins.effect_type)

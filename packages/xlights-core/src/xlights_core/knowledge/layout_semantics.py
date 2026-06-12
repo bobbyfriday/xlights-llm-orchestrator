@@ -207,6 +207,33 @@ def analyze_layout(rgb_path) -> tuple[list[Prop], dict[str, list[str]], list[Pro
 
 _REMOVE_RE = re.compile(r"^(0[1-8]_|SEM_)")          # numbered taxonomy + our own SEM_ (idempotent)
 
+# xLights' default Max Grid Size (400) DOWNSCALES a group-canvas buffer whose actual extent is
+# larger (SEM_ARCHES 1144, SEM_FOCAL 1111...) and WARNs on every render. 1200 covers the largest
+# observed extent; the cost applies only to group-canvas effects — which are the buffer's point.
+SEM_GRID_SIZE = 1200
+
+
+def patch_sem_gridsize(rgb_path, size: int = SEM_GRID_SIZE) -> int:
+    """Set GridSize on existing SEM_ groups in-place (idempotent; user groups untouched).
+    Returns the number of groups updated. xLights loads it at the next restart."""
+    import os
+    from pathlib import Path
+    p = Path(rgb_path)
+    tree = ET.parse(p)
+    mg = tree.getroot().find("modelGroups")
+    if mg is None:
+        return 0
+    n = 0
+    for el in mg.findall("modelGroup"):
+        if el.get("name", "").startswith("SEM_") and el.get("GridSize") != str(size):
+            el.set("GridSize", str(size))
+            n += 1
+    if n:
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+        os.replace(tmp, p)
+    return n
+
 
 def patch_rgbeffects(rgb_path, groups: dict[str, list[str]], *, ts: str) -> str | None:
     """Back up, remove the numbered (0N_) + existing SEM_ groups, add the new SEM_ groups; atomic.
@@ -225,7 +252,8 @@ def patch_rgbeffects(rgb_path, groups: dict[str, list[str]], *, ts: str) -> str 
         mg.remove(el)                                # remove numbered + stale SEM_ (idempotent)
     for name, members in groups.items():
         ET.SubElement(mg, "modelGroup", {
-            "selected": "0", "name": name, "layout": "minimalGrid", "GridSize": "400",
+            "selected": "0", "name": name, "layout": "minimalGrid",
+            "GridSize": str(SEM_GRID_SIZE),
             "LayoutGroup": "Default", "models": ",".join(members)})
     tmp = p.with_suffix(p.suffix + ".tmp")
     tree.write(tmp, encoding="UTF-8", xml_declaration=True)

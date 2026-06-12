@@ -27,7 +27,7 @@ from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
 from ..agents import panel as panel_mod
 from ..agents.catalog import placeable_effect_types
-from ..effect_emitter import apply_instructions
+from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
 from ..models.registry import model_snapshot
@@ -280,6 +280,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
                     log.warning("section redesign failed for %d: %s", si, exc)
             st.instructions = replace_section(st.instructions, si, await _regen(rev))
             ledger.append(rev)
+        st.instructions, _ = clamp_layer_budget(st.instructions)      # rule #10 on regen too
         await client.close_sequence(force=True, quiet=True)
         st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
         obj = await _obj(st.applied)
@@ -482,6 +483,9 @@ async def run_pipeline(
     except Exception:  # noqa: BLE001
         show_folder = None
     media = prepare_media(song_path, show_folder)
+    st.instructions, _dropped = clamp_layer_budget(st.instructions)   # catalog rule #10: ≤4 layers
+    if _dropped:
+        log.info("layer budget trimmed %d over-stacked placements", _dropped)
     st.applied = await emitter(client, st.instructions, duration_secs=dur)
 
     # 5. refine (opt-in): test -> decide -> regenerate flagged sections -> rebuild

@@ -51,6 +51,7 @@ from .beats import (
     key_moment_flashes,
     place_beat_accents,
     section_rhythm,
+    feature_prop_contrast,
     effect_palette,
     effect_speed_setting,
     ensemble_bed,
@@ -156,7 +157,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
         instrs = normalize_durations(instrs, _rhythm)
         wash_b = wash_brightness(_si)
         for j, ins in enumerate(instrs):
-            if section.palette:                      # expanded family on regen too
+            if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
                 ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
             if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:
                 ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
@@ -185,6 +186,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             if ins.target in under:                      # a pulse ADDS over its base, not occludes
                 ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
         instrs += accents
+        feature_prop_contrast(instrs, section)           # featured sparkle/snow props pop (white-on-bed)
         return instrs
 
     redesigned: set[int] = set()
@@ -462,7 +464,7 @@ async def run_pipeline(
             kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
             for j, ins in enumerate(kept):
                 ins.section_index = i               # tag for scoped regen / per-section QA
-                if section.palette:                 # expanded family; multi-color effects get depth
+                if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
                     ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
                 if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:   # long energetic wash BUILDS
                     ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
@@ -511,6 +513,8 @@ async def run_pipeline(
         instrs += place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
                                  load_guide("triggers"))
         instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
+        for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
+            feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
         st.instructions = instrs
         ins_cache.parent.mkdir(parents=True, exist_ok=True)
         ins_cache.write_text(json.dumps([i.model_dump() for i in instrs]))

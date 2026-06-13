@@ -306,6 +306,24 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     return out
 
 
+RHYTHM_FLOOR = 0.35      # at/above this intensity a section is rhythmic by nature
+
+
+def section_is_rhythmic(section) -> bool:
+    """Does the brief OPT INTO a beat layer for this section? The deterministic rhythm layers
+    (fallback weave, beat-accent chase) fire only when so — a deliberately quiet/still section
+    (low intensity, no pulse groups, no rhythm props chosen) is realized as the brief directs,
+    not buried under injected chases/pops."""
+    if section is None:
+        return True
+    if getattr(section, "pulse_groups", None):                        # explicit beat-layer request
+        return True
+    targets = set(getattr(section, "target_groups", None) or [])
+    if targets & (set(RHYTHM_POOL) | set(RHYTHM_GROUPS)):             # brief chose rhythm props
+        return True
+    return (getattr(section, "intensity", 0.0) or 0.0) >= RHYTHM_FLOOR   # energetic → rhythmic
+
+
 BED_INTENSITY = 0.7                       # high-energy sections carry a whole-yard bed
 BED_BRIGHTNESS_FACTOR = 0.6               # the bed sits UNDER the features
 

@@ -60,7 +60,9 @@ from .beats import (
     trim_coverage,
     wash_brightness,
 )
-from .features import instrument_entrances, instrument_feature_layer
+from .features import instrument_entrances
+from .triggers import place_triggers
+from ..agents.guide import load_guide
 from .groups import targetable_groups
 from .weave import canon_effect_type, carrier_covers, expand_weave, fallback_weave
 from .media import patch_xsq_media, prepare_media, resolve_xsq, safe_name
@@ -504,7 +506,10 @@ async def run_pipeline(
         for _t, _stem in instrument_entrances(st.song_analysis):
             st.show_plan.key_moments.append(KeyMoment(at_ms=_t, kind="entrance",
                                                       treatment=f"{_stem} enters — feature it"))
-        instrs += instrument_feature_layer(st.song_analysis, st.show_plan.sections, st.available_groups)
+        # curated trigger effects (cookbook-defined; folds in the entrance feature as the
+        # `instrument_entrance` trigger — replaces the old instrument_feature_layer call).
+        instrs += place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
+                                 load_guide("triggers"))
         instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
         st.instructions = instrs
         ins_cache.parent.mkdir(parents=True, exist_ok=True)

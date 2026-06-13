@@ -73,6 +73,8 @@ class EffectInstruction(BaseModel):
     start_ms: int
     end_ms: int
     section_index: int | None = None   # which ShowPlan section produced it (for scoped regen/QA)
+    on_top: bool = False               # a punch-through accent (trigger): top layer, opaque,
+                                       # exempt from the layer-budget clamp so it always shows
 
 
 class CellRecipe(BaseModel):

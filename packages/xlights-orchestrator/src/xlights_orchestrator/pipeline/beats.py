@@ -309,6 +309,50 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
 BED_INTENSITY = 0.7                       # high-energy sections carry a whole-yard bed
 BED_BRIGHTNESS_FACTOR = 0.6               # the bed sits UNDER the features
 
+# Peak escalation: the show's payoff section(s) must read as the BIGGEST moment, not a busier
+# verse — full display, full brightness, regardless of how narrowly the brief targeted them.
+PEAK_BAND = 0.12                          # sections within this of max intensity = the peak
+PEAK_FLOOR = 0.66                         # ...and at least this loud (a quiet show has no peak)
+PEAK_BROAD_GROUPS = ("SEM_ALL", "SEM_BAND_GROUND")   # broadest available ensemble, preferred order
+
+
+def peak_sections(show_plan, band: float = PEAK_BAND, floor: float = PEAK_FLOOR) -> set[int]:
+    """Indices of the show's PEAK section(s): within `band` of the max section intensity AND
+    ≥ `floor`. Relative, so it works at any absolute energy; {} when nothing clears the floor."""
+    secs = list(getattr(show_plan, "sections", None) or [])
+    if not secs:
+        return set()
+    peak = max((getattr(s, "intensity", 0.0) or 0.0) for s in secs)
+    if peak < floor:
+        return set()
+    return {i for i, s in enumerate(secs)
+            if (getattr(s, "intensity", 0.0) or 0.0) >= peak - band}
+
+
+PEAK_BED_SPAN = 0.7                       # an existing wash this long already IS the lit yard
+
+
+def peak_fill(section, intensity: float, available_groups: list[str],
+              existing_instrs=None) -> EffectInstruction | None:
+    """A FULL-brightness whole-display bed for a peak section — the lit yard the payoff needs
+    (vs `ensemble_bed`'s dim frame for merely-high sections). Placed first → lowest layer; the
+    weave/accents ride on top.
+
+    `existing_instrs` = the section's placements so far: skip a broad target only when it ALREADY
+    carries a section-spanning wash (a 0.3s Strobe on SEM_ALL is punctuation, not a bed — the
+    old 'any instruction on the target' guard let narrow peaks stay dark)."""
+    span = (section.end_ms - section.start_ms) * PEAK_BED_SPAN
+    bedded = {ins.target for ins in (existing_instrs or [])
+              if ins.effect_type in ("On", "Color Wash") and ins.end_ms - ins.start_ms >= span}
+    target = next((g for g in PEAK_BROAD_GROUPS if g in available_groups and g not in bedded), None)
+    if not target:
+        return None
+    ins = EffectInstruction(target=target, effect_type="On", look_id=candidate_look_ids("On")[0],
+                            palette_colors=effect_palette(section.palette, "On", 0) or list(section.palette),
+                            start_ms=section.start_ms, end_ms=section.end_ms)
+    ins.extra_settings.update(brightness_setting(wash_brightness(intensity)))   # FULL, not 0.6×
+    return ins
+
 
 def ensemble_bed(section, intensity: float, available_groups: list[str], existing_targets) -> EffectInstruction | None:
     """A low-brightness ensemble bed for high-energy sections ('the frame holds the bed') —

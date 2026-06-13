@@ -57,6 +57,7 @@ from .beats import (
     normalize_durations,
     peak_fill,
     peak_sections,
+    section_is_rhythmic,
     trim_coverage,
     wash_brightness,
 )
@@ -176,9 +177,10 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             ins.section_index = rev.section_index
         instrs += woven                                  # the cell fabric on regen too
         clamp_hard_caps(instrs, getattr(st.song_analysis, "tempo_overall", None))
-        accents = place_beat_accents(
-            section, _rhythm, st.available_groups,       # beat layer on regen too
-            carrier_covers=carrier_covers(weave_obj, section, st.available_groups))
+        accents = place_beat_accents(            # beat layer on regen too — only if the brief is rhythmic
+            section, _rhythm, st.available_groups,
+            carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
+            if section_is_rhythmic(section) else []
         under = {k.target for k in instrs}
         for ins in accents:
             ins.section_index = rev.section_index
@@ -484,9 +486,10 @@ async def run_pipeline(
             kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
             clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
             instrs.extend(kept)
-            accents = place_beat_accents(
-                section, rhythm, st.available_groups,   # beat layer over the wash; the weave's
-                carrier_covers=carrier_covers(weave_obj, section, st.available_groups))  # carrier owns the chase
+            accents = place_beat_accents(            # beat layer over the wash; the weave's carrier
+                section, rhythm, st.available_groups,  # owns the chase. Only when the brief is rhythmic —
+                carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
+                if section_is_rhythmic(section) else []   # a still section stays still
             under = {k.target for k in kept}
             for ins in accents:
                 ins.section_index = i

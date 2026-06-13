@@ -20,6 +20,7 @@ from .beats import (
     _downsample,
     effect_palette,
     effect_speed_setting,
+    section_is_rhythmic,
     wash_brightness,
 )
 
@@ -130,18 +131,25 @@ def cell_budget(intensity: float, section_ms: int) -> int:
 
 
 def rhythm_pool(section: SectionPlan, available_groups: list[str]) -> list[str]:
-    """The groups the beat layer would chase — the SAME pool `place_beat_accents` builds, so
-    carrier-coverage checks compare against what would actually carry the beat."""
+    """The groups the deterministic beat layer chases. Respects the brief: builds from the groups
+    the brief actually chose (pulse_groups, then rhythm props in target_groups), and only INJECTS
+    the default rhythm pool when the section is rhythmic. A deliberately quiet section that chose
+    no rhythm groups gets `[]` — code won't light props the brief kept dark."""
     groups = [g for g in (section.pulse_groups or []) if g in available_groups]
-    for g in RHYTHM_POOL:
+    rhythm_set = set(RHYTHM_POOL) | set(RHYTHM_GROUPS)
+    for g in (section.target_groups or []):                  # rhythm props the brief explicitly chose
+        if g in available_groups and g in rhythm_set and g not in groups:
+            groups.append(g)
+    if groups or not section_is_rhythmic(section):
+        return groups                  # the brief named rhythm groups (use exactly those), OR
+                                       # it's a quiet section that named none (stay dark)
+    for g in RHYTHM_POOL:              # rhythmic but the brief named no rhythm groups → inject default
         if len(groups) >= 3:
             break
-        if g in available_groups and g not in groups:
+        if g in available_groups:
             groups.append(g)
-    if not groups:
-        groups = [g for g in RHYTHM_GROUPS if g in available_groups] \
-            or [g for g in section.target_groups if g in available_groups]
-    return groups
+    return groups or [g for g in RHYTHM_GROUPS if g in available_groups] \
+        or [g for g in section.target_groups if g in available_groups]
 
 
 def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
@@ -160,8 +168,13 @@ def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
 def fallback_weave(section: SectionPlan, available_groups: list[str]) -> SectionWeave:
     """A deterministic default fabric: a chase carrier on the rhythm pool + a sparse texture from
     the section's own effect vocabulary. Used when the LLM omits the weave — the fabric never
-    depends on perfect LLM output."""
+    depends on perfect LLM output.
+
+    NON-RHYTHMIC sections get NO synthesized fabric: a deliberately quiet/still section the brief
+    asked for is not a dead section, and code must not inject a chase the brief didn't want."""
     from ..qa.rules import DURATION_CELLABLE
+    if not section_is_rhythmic(section):
+        return SectionWeave(cells=[])
     cells = [CellRecipe(effect_type=_FALLBACK_CARRIER, role="carrier", cell_beats=1,
                         alternation="chase", direction="bounce",
                         groups=rhythm_pool(section, available_groups))]

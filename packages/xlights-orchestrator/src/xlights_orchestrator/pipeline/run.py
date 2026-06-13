@@ -51,6 +51,7 @@ from .beats import (
     key_moment_flashes,
     place_beat_accents,
     section_rhythm,
+    dim_beds_under_atmosphere,
     effect_palette,
     effect_speed_setting,
     ensemble_bed,
@@ -185,6 +186,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             if ins.target in under:                      # a pulse ADDS over its base, not occludes
                 ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
         instrs += accents
+        dim_beds_under_atmosphere(instrs)                # a sparse feature reads against a glow, not a full wash
         return instrs
 
     redesigned: set[int] = set()
@@ -443,6 +445,7 @@ async def run_pipeline(
     if use_cache and ins_cache.exists():
         st.instructions = [EffectInstruction.model_validate(x)
                            for x in json.loads(ins_cache.read_text())]
+        dim_beds_under_atmosphere(st.instructions)   # idempotent; applies the fix to pre-existing caches too
     else:
         agent = generator or generator_mod.generator_agent()
         instrs: list[EffectInstruction] = []
@@ -511,6 +514,7 @@ async def run_pipeline(
         instrs += place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
                                  load_guide("triggers"))
         instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
+        dim_beds_under_atmosphere(instrs)    # a sparse feature (snow/meteors/…) reads against a glow, not a full wash
         st.instructions = instrs
         ins_cache.parent.mkdir(parents=True, exist_ok=True)
         ins_cache.write_text(json.dumps([i.model_dump() for i in instrs]))

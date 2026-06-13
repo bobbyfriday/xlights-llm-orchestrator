@@ -369,6 +369,68 @@ def ensemble_bed(section, intensity: float, available_groups: list[str], existin
     return ins
 
 
+# -- atmosphere readability --------------------------------------------------------------------
+# Sprite/particle features render on a TRANSPARENT background: an opaque bed below bleeds through
+# the gaps and drowns them. Dim such a bed to a glow so the feature reads (the brief's "still glow
+# + falling snow"). Ordering can't fix this — the feature is already the top layer.
+ATMOSPHERIC = {"Snowflakes", "Snowstorm", "Meteors", "Twinkle", "Fireworks"}
+BED_EFFECTS = {"On", "Color Wash", "Fill"}
+GLOW_BRIGHTNESS = 30.0                    # 0–400 scale (100=normal): a dim base the sprites pop against
+
+
+def _slider_brightness(ins: EffectInstruction):
+    """The bed's current static brightness (0–400, 100=normal), or None if only a curve/default."""
+    raw = ins.extra_settings.get("C_SLIDER_Brightness")
+    try:
+        return float(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _time_overlaps(a: EffectInstruction, b: EffectInstruction) -> bool:
+    return a.start_ms < b.end_ms and b.start_ms < a.end_ms
+
+
+def dim_beds_under_atmosphere(instructions: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Cap an opaque wash bed (On/Color Wash/Fill) at a glow level when a sparse atmospheric
+    feature coexists on the SAME element and overlaps it in time — so the feature reads against a
+    glow instead of a full wash. Mutates in place; returns the list.
+
+    Caps, never brightens: a bed already dimmer than the glow is left as-is. We cap rather than
+    skip-on-brightness because EVERY section wash already carries an intensity-keyed
+    `wash_brightness` — there is no "bare" bed to detect; the bug is that wash level (e.g. 76 on a
+    calm intro) is still bright enough to drown transparent sprites. A glow (30) lets them read.
+
+    Skipped: beds with a blend mode set → already composited (e.g. a Max-blend beat accent), not an
+    occluding Normal-blend wash.
+
+    Coexistence (not a layer comparison) is the trigger: on-disk layers are assigned by stream
+    order at emit, so the bed's `.layer` hint is unreliable here — but a Normal-blend wash sharing
+    an element with an atmospheric feature drowns it whether it lands above or below.
+
+    Same-element only: cross-group occlusion already resolves via render order (the accent group
+    wins overlaps over SEM_ALL), and a group's own bed is what bleeds through its own feature."""
+    by_target: dict[str, list[EffectInstruction]] = {}
+    for ins in instructions:
+        by_target.setdefault(ins.target, []).append(ins)
+    for items in by_target.values():
+        features = [i for i in items if i.effect_type in ATMOSPHERIC]
+        if not features:
+            continue
+        for bed in items:
+            if bed.effect_type not in BED_EFFECTS:
+                continue
+            if "T_CHOICE_LayerMethod" in bed.extra_settings:     # composited add, not a wash
+                continue
+            if not any(_time_overlaps(f, bed) for f in features):
+                continue
+            cur = _slider_brightness(bed)
+            if cur is None or cur > GLOW_BRIGHTNESS:
+                bed.extra_settings.pop("C_VALUECURVE_Brightness", None)   # a static glow wins
+                bed.extra_settings.update(brightness_setting(GLOW_BRIGHTNESS))
+    return instructions
+
+
 HIT_CELL_MS = 1200                        # a hit effect cell is at most this long
 
 

@@ -16,7 +16,7 @@ from xlights_core.knowledge.value_curves import brightness_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction
-from .beats import RHYTHM_POOL, HERO_GROUP, _downsample, effect_palette
+from .beats import ACCENT_GROUPS, RHYTHM_POOL, HERO_GROUP, _downsample, effect_palette
 from .features import STEM_EFFECT, instrument_entrances
 
 log = logging.getLogger(__name__)
@@ -24,10 +24,22 @@ log = logging.getLogger(__name__)
 COLOR_WORDS = {"red", "green", "blue", "gold", "golden", "white", "silver", "purple", "violet",
                "pink", "orange", "amber", "yellow", "cyan", "teal", "crimson", "scarlet"}
 WHOLE_HOUSE_GROUPS = ("SEM_ALL", "SEM_HOUSE")
-SHOCKWAVE_RADIUS = 200       # out: 0→R ; in: R→0  (live-verify the exact feel, then tune here)
 DRUM_PROMINENT_SHARE = 0.22  # a section counts as drum-prominent at/above this drum energy share
+SPARSE_MAX_INTENSITY = 0.5   # 'sparse_beat' = a strong beat with little else (low overall energy)
 EVENT_MS = 220               # a point trigger's pop/flash duration (short — a drum hit)
 POP_BRIGHTNESS = 320         # 0–400 scale (100=normal): a pop is a bright FLASH, not a tint
+
+# A radiating Shockwave that reads on an accent prop — the user's hand-authored settings
+# (snowflakes/spinners, 0:30–0:44): a modest ring expanding from center. Overrides the look base.
+SHOCKWAVE_SETTINGS = {
+    "E_NOTEBOOK_Shockwave": "Position", "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+    "E_CHECKBOX_Shockwave_Scale": "1", "E_SLIDER_Shockwave_Accel": "0",
+    "E_SLIDER_Shockwave_CenterX": "50", "E_SLIDER_Shockwave_CenterY": "50",
+    "E_SLIDER_Shockwave_Cycles": "1", "E_SLIDER_Shockwave_Start_Radius": "1",
+    "E_SLIDER_Shockwave_End_Radius": "76", "E_SLIDER_Shockwave_Start_Width": "5",
+    "E_SLIDER_Shockwave_End_Width": "43",
+}
+GROUP_POOLS = {"rhythm": RHYTHM_POOL, "accents": ACCENT_GROUPS, "focal": (HERO_GROUP,)}
 
 
 @dataclass
@@ -52,6 +64,7 @@ class TriggerSpec:
     magnitude: str = "any"
     color: str = "section"
     direction: str = "none"
+    groups: str = "rhythm"           # which per_model pool: rhythm | accents | focal
     enabled: bool = True
 
 
@@ -81,7 +94,7 @@ def _spec_from(name: str, b: dict) -> TriggerSpec:
         render=b.get("render", "per_model"), sections=b.get("sections", "any"),
         select=b.get("select", "all"), density=b.get("density", "per_onset"),
         magnitude=b.get("magnitude", "any"), color=b.get("color", "section"),
-        direction=b.get("direction", "none"),
+        direction=b.get("direction", "none"), groups=b.get("groups", "rhythm"),
         enabled=b.get("enabled", "true").lower() != "false")
 
 
@@ -179,12 +192,16 @@ def _eligible_sections(spec: TriggerSpec, sa, sections) -> list[int]:
         peak = max((getattr(s, "intensity", 0.0) or 0.0 for s in sections), default=0.0)
         elig = [i for i, s in enumerate(sections)
                 if peak >= 0.66 and (getattr(s, "intensity", 0.0) or 0.0) >= peak - 0.12]
-    elif spec.sections == "drum_prominent":
+    elif spec.sections in ("drum_prominent", "sparse_beat"):
         elig = []
         for i, s in enumerate(sections):
             inst = next((x for x in (getattr(sa, "section_instrumentation", None) or [])
                          if x.start_ms < s.end_ms and x.end_ms > s.start_ms), None)
-            if inst and (inst.shares or {}).get("drums", 0.0) >= DRUM_PROMINENT_SHARE:
+            drummy = inst and (inst.shares or {}).get("drums", 0.0) >= DRUM_PROMINENT_SHARE
+            # sparse_beat = a STRONG beat with little else going on (the user's intro shockwaves):
+            # drum-prominent AND low overall energy. Plain drum_prominent ignores intensity.
+            if drummy and (spec.sections == "drum_prominent"
+                           or (getattr(s, "intensity", 1.0) or 0.0) <= SPARSE_MAX_INTENSITY):
                 elig.append(i)
     elif spec.sections == "has_guitar_solo":
         solos = {_section_index(sections, e.time_ms) for e in _guitar_solo(sa, sections)}
@@ -227,22 +244,28 @@ def _look(effect: str, stem: str | None) -> tuple[str, str] | None:
     return (eff, looks[0]) if looks else None
 
 
-def _shockwave_dir(effect: str, direction: str, idx: int) -> dict[str, str]:
-    if effect != "Shockwave" or direction == "none":
+def _shockwave_settings(effect: str, direction: str, idx: int) -> dict[str, str]:
+    """The user's radiating-Shockwave settings; `direction` in/out (or alternate) just swaps the
+    radius endpoints so the ring expands or contracts."""
+    if effect != "Shockwave":
         return {}
-    d = ("out", "in")[idx % 2] if direction == "alternate" else direction
-    lo, hi = ("0", str(SHOCKWAVE_RADIUS))
-    return {"E_SLIDER_Shockwave_Start_Radius": lo if d == "out" else hi,
-            "E_SLIDER_Shockwave_End_Radius": hi if d == "out" else lo}
+    s = dict(SHOCKWAVE_SETTINGS)
+    if direction and direction != "none":
+        d = ("out", "in")[idx % 2] if direction == "alternate" else direction
+        if d == "in":                                # collapse inward instead of expanding
+            s["E_SLIDER_Shockwave_Start_Radius"], s["E_SLIDER_Shockwave_End_Radius"] = \
+                s["E_SLIDER_Shockwave_End_Radius"], s["E_SLIDER_Shockwave_Start_Radius"]
+    return s
 
 
 def realize_triggers(specs: list[TriggerSpec], sa, sections, available_groups: list[str]
                      ) -> list[EffectInstruction]:
     avail = set(available_groups or [])
-    pool = [g for g in RHYTHM_POOL if g in avail] or list(available_groups or [])
     whole = next((g for g in WHOLE_HOUSE_GROUPS if g in avail), None)
     out: list[EffectInstruction] = []
     for offset, spec in enumerate(s for s in specs if s.enabled):
+        pool = [g for g in GROUP_POOLS.get(spec.groups, RHYTHM_POOL) if g in avail] \
+            or [g for g in RHYTHM_POOL if g in avail] or list(available_groups or [])
         det = DETECTORS.get(spec.detector)
         if det is None:
             log.info("trigger %r: unknown detector %r — skipped", spec.name, spec.detector)
@@ -293,7 +316,7 @@ def _one(spec, ev, idx, sec, si, pool, whole, anchors) -> EffectInstruction | No
         colors = effect_palette(list(getattr(sec, "palette", []) or []), eff, idx)
     start = ev.time_ms
     end = ev.end_ms or (start + EVENT_MS)
-    extra = _shockwave_dir(eff, spec.direction, idx)
+    extra = _shockwave_settings(eff, spec.direction, idx)
     # A POP IS A FLASH: brighten the hue (a hue-distant anchor can be near-black, e.g. navy
     # luminance 10 — invisible) and boost brightness so the accent reads as a punch of light,
     # not the prop blinking off. Point accents only (spans like a guitar solo stay as-is).

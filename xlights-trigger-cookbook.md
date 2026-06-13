@@ -13,7 +13,8 @@
 >   (a "big moment" is just `drum_onsets` with `magnitude: top:<low pct>` + `render: whole_house`)
 > - **effect** — the xLights effect to place (e.g. `Lightning`, `Shockwave`)
 > - **render** — `per_model` (each prop, scaled to it) | `whole_house` (one gesture across the layout)
-> - **sections** — eligibility: `any` | `drum_prominent` | `has_guitar_solo` | `peak`
+> - **sections** — eligibility: `any` | `drum_prominent` | `sparse_beat` (strong beat, low overall energy) | `has_guitar_solo` | `peak`
+> - **groups** — per_model target pool: `rhythm` (arches/canes/mini-trees) | `accents` (snowflakes/spinners) | `focal`
 > - **select** — `rotate` (only a rotated SUBSET of eligible sections — keeps it sparse) | `all`
 > - **density** — max events per selected section (`per_onset` = every qualifying hit)
 > - **magnitude** — event filter: `any` | `top:<pct>` (e.g. `top:5` = strongest 5%)
@@ -48,19 +49,21 @@
 - direction: out
 - enabled: false
 
-## Drum Onset Pops
-# A per-prop POP/flash on each drum hit (opaque, top layer → punches through the lit fabric).
-# Not a radiating shockwave — just a drum-reactive pop in an alternating contrast color, on a
-# rotated subset of drum-heavy sections so it's an effect you catch periodically, not constantly.
+## Drum Shockwaves on Accents
+# Radiating shockwaves on the ACCENT props (snowflakes/spinners) on each drum hit — but ONLY in
+# 'sparse_beat' sections: a strong beat with little else going on (the quiet intro/verse), where
+# a shockwave has empty space and a clear prop to read against. In a busy chorus it'd be lost.
+# (Modeled on the user's hand-authored 0:30–0:44 edit.)
 - detector: drum_onsets
-- effect: On
+- effect: Shockwave
 - render: per_model
-- sections: drum_prominent
-- select: rotate
+- groups: accents
+- sections: sparse_beat
+- select: all
 - density: per_onset
 - magnitude: any
 - color: anchor_alternate
-- direction: none
+- direction: out
 - enabled: true
 
 ## Lyric Color Words

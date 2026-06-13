@@ -16,4 +16,4 @@
 - [x] 4.1 `tests/test_guide_extracts.py`: sentinel + bound checks per extract; scene isolation (SC-01 without SC-02/09/14); bogus `XLO_EFFECTS_CATALOG` → ""; composed prompt <15KB; `render_input` scene-recipe inclusion/exclusion
 - [x] 4.2 `tests/test_refine.py`: identical fakes stop after 2 iterations (1 regen) with an approving checkpoint; moving scores run all iterations. `tests/test_guide_injection.py` scene-routing assertion updated; `tests/test_design_escalation.py` repeat-offender test given a moving score (flat + identical revision is now a plateau)
 - [x] 4.3 Full hermetic suite green from worktree root; composed generator prompt measured (99,091 → 15,204 bytes)
-- [ ] 4.4 Live: A/B a full run (flash-lite generator + slim prompt) — section quality holds (rules score, skips, user verdict) and per-run token spend drops as projected
+- [x] 4.4 Live: A/B a full run (flash-lite generator + slim prompt) — section quality holds (rules score, skips, user verdict) and per-run token spend drops as projected

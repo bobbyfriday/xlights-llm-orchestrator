@@ -92,7 +92,13 @@ def test_repeat_offender_escalates_on_second_iteration():
 
     f = Finding(scope="section 0", severity="error", metric="coverage", section_index=0,
                 detail="renders mostly dark")
-    run(_loop(st, _qa_with([f]), redesign, max_iterations=2))
+    seq = iter([70, 71, 72, 73, 74])                      # moving objective — a FLAT score with the
+                                                          # same revision is now a plateau stop
+
+    def qa(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=next(seq, 75), advisory_score=100, findings=[f])
+
+    run(_loop(st, qa, redesign, max_iterations=2))
     assert calls == [0]                                   # not on iter 0 (no prior), yes on iter 1 (repeat)
     assert st.show_plan.sections[0].effect_types == ["Spirals"]   # None → untouched
 

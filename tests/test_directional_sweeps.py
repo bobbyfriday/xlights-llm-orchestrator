@@ -63,10 +63,10 @@ def test_cells_carry_direction_and_flip_per_bar():
     w = SectionWeave(cells=[CellRecipe(effect_type="Wave", role="carrier", cell_beats=1,
                                        direction="bounce", groups=["SEM_YARD"])])
     out = expand_weave(_sec(), w, _rhythm(16), 0.8, GROUPS)
-    # 1-beat cells, 4/4 → first 4 cells = bar 0 (ltr), next 4 = bar 1 (rtl)
+    # sweep cells floor to 2 beats (dwell time), 4/4 → 2 cells = bar 0 (ltr), next 2 = bar 1 (rtl)
     dirs = [c.extra_settings["E_CHOICE_Wave_Direction"] for c in out]
-    assert dirs[:4] == ["Left to Right"] * 4
-    assert dirs[4:8] == ["Right to Left"] * 4
+    assert dirs[:2] == ["Left to Right"] * 2
+    assert dirs[2:4] == ["Right to Left"] * 2
 
 
 def test_empty_direction_is_backcompat():

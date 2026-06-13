@@ -691,3 +691,50 @@ The deterministic every-beat accent layer SHALL alternate its group-rotation ord
 - **WHEN** beat accents chase three rhythm groups across two consecutive bars
 - **THEN** the first bar visits the groups in spatial order and the second bar visits them in reverse order
 
+### Requirement: Directional cells render as visible cross-group motion
+WHEN a cell recipe specifies a horizontal or radial direction on a chase-family effect, the cell SHALL render on a buffer spanning the full target group (so the motion travels across all of the group's props) and SHALL persist long enough to track (a minimum cell length of two beats), unless the recipe explicitly chooses a render style. Non-directional cells SHALL keep the per-model default.
+
+#### Scenario: A left-to-right chase travels the whole arch line
+- **WHEN** a carrier recipe over the arches specifies ltr on a chase effect with no explicit render style
+- **THEN** its cells render on the group buffer with at least two-beat duration, so one chase head visibly travels across all the arches
+
+#### Scenario: Explicit style and non-directional cells unchanged
+- **WHEN** a recipe explicitly sets a render style, or has no direction
+- **THEN** the cell uses exactly that style (or the per-model default), as today
+
+### Requirement: Automated palettes guarantee LED-legible hue contrast
+The palette realization SHALL enforce a hue-contrast floor: WHEN a section's resolvable colors cluster within a minimum hue spread, a contrasting anchor SHALL be injected deterministically; rhythm-carrying cells (carrier and accent roles, and the beat-accent layer) SHALL alternate between the two most hue-distant anchors beat-to-beat, while texture and bed placements keep the section's expanded color family.
+
+#### Scenario: A warm-clustered palette gains a contrast anchor
+- **WHEN** a section's palette resolves to near-identical warm hues (e.g. golds and warm whites)
+- **THEN** a hue-distant anchor is injected and consecutive carrier cells alternate between two clearly different colors, while the section's washes keep the warm family
+
+#### Scenario: An already-contrasting palette is untouched
+- **WHEN** a section's palette already spans distant hues (e.g. deep blue and gold)
+- **THEN** no color is injected and the two existing most-distant colors become the alternating anchors
+
+### Requirement: Effect speed uses each effect's real speed parameter
+The intensity-to-speed realization SHALL set each effect's actual speed/cycles/movement parameter (corpus-verified key and value range per effect type) and SHALL emit nothing for effects that have no speed parameter, so no placement carries a speed key the effect does not define.
+
+#### Scenario: Cycles-class effect gets real speed control
+- **WHEN** a Color Wash placement is realized at high section intensity
+- **THEN** its settings carry `E_TEXTCTRL_ColorWash_Cycles` with a value in the corpus-observed range, and no `E_SLIDER_Color Wash_Speed` key
+
+#### Scenario: Speedless effects emit nothing
+- **WHEN** a Twinkle or SingleStrand placement is realized
+- **THEN** no speed key is added to its settings
+
+### Requirement: Placements carry no stale settings keys
+Settings keys known to be absent from the current xLights version SHALL be stripped from mined looks at placement, so the editor logs no ApplySetting errors for our effects.
+
+#### Scenario: Stale chase key stripped
+- **WHEN** a mined SingleStrand look whose frozen settings include `E_CHECKBOX_Chase_3dFade1` is placed
+- **THEN** the assembled settings string does not contain that key
+
+### Requirement: Semantic groups render at native buffer resolution
+The layout patcher SHALL set a grid size on the SEM_ groups that covers their actual extent, so group-canvas effects render at full resolution without max-grid warnings; user-authored groups SHALL NOT be modified.
+
+#### Scenario: Large semantic group renders without downscaling
+- **WHEN** the layout is patched and xLights reloads it
+- **THEN** SEM_ groups whose extent exceeds 400 carry a larger GridSize and rendering logs no max-grid-size warnings for them
+

@@ -159,3 +159,21 @@ def test_density_cap_limits_per_section():
 
 def test_empty_cookbook_no_triggers():
     assert T.place_triggers(_sa(), [_sec(0)], AVAIL, "") == []
+
+
+def test_triggers_are_on_top_and_clamp_exempt():
+    from xlights_orchestrator.effect_emitter import clamp_layer_budget
+    from xlights_orchestrator.show_plan import EffectInstruction
+    sa = _sa(drums_onsets=[0.5, 1.5], drums_arc=[(0.5, 0.8), (1.5, 0.8)],
+             section_inst=[_inst(0, 0.5)])
+    spec = T.TriggerSpec(name="pop", detector="drum_onsets", effect="On", render="per_model",
+                         sections="drum_prominent", select="all", density="per_onset",
+                         color="anchor_alternate", direction="none")
+    trigs = T.realize_triggers([spec], sa, [_sec(0)], AVAIL)
+    assert trigs and all(t.on_top for t in trigs)               # marked punch-through
+    # 4 fabric layers already saturate the prop at the trigger's time → fabric clamps, triggers don't
+    fabric = [EffectInstruction(target=trigs[0].target, effect_type="Spirals", look_id="x",
+                                start_ms=0, end_ms=3000) for _ in range(6)]
+    kept, dropped = clamp_layer_budget(fabric + trigs)
+    assert dropped > 0                                           # excess fabric trimmed
+    assert all(t in kept for t in trigs)                        # every trigger survives

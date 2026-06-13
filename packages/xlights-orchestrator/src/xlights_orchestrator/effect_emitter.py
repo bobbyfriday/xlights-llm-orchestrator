@@ -36,6 +36,9 @@ def clamp_layer_budget(instructions: list[EffectInstruction], max_layers: int = 
     kept: list[EffectInstruction] = []
     dropped = 0
     for ins in instructions:
+        if getattr(ins, "on_top", False):            # punch-through accents are never clamped
+            kept.append(ins)
+            continue
         layer = _free_layer(occ, ins.target, ins.start_ms, ins.end_ms, ins.layer)
         if layer >= max_layers:
             dropped += 1
@@ -84,7 +87,9 @@ async def apply_instructions(
 
     for ins in instructions:
         layer = _free_layer(occupancy, ins.target, ins.start_ms, ins.end_ms, ins.layer)
-        if layer >= MAX_LAYERS:                  # local skip — don't spam doomed API calls
+        # on_top accents (triggers) punch through: never budget-skipped, always placed above the
+        # fabric (they're last in the stream, so _free_layer already lands them on top).
+        if layer >= MAX_LAYERS and not getattr(ins, "on_top", False):
             skipped.append({"target": ins.target, "effect": ins.effect_type,
                             "start_ms": ins.start_ms, "end_ms": ins.end_ms,
                             "section_index": ins.section_index,

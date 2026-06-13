@@ -25,7 +25,7 @@ COLOR_WORDS = {"red", "green", "blue", "gold", "golden", "white", "silver", "pur
 WHOLE_HOUSE_GROUPS = ("SEM_ALL", "SEM_HOUSE")
 SHOCKWAVE_RADIUS = 200       # out: 0→R ; in: R→0  (live-verify the exact feel, then tune here)
 DRUM_PROMINENT_SHARE = 0.22  # a section counts as drum-prominent at/above this drum energy share
-EVENT_MS = 350               # a point trigger's default duration
+EVENT_MS = 220               # a point trigger's pop/flash duration (short — a drum hit)
 
 
 @dataclass
@@ -290,7 +290,8 @@ def _one(spec, ev, idx, sec, si, pool, whole, anchors) -> EffectInstruction | No
     extra = _shockwave_dir(eff, spec.direction, idx)
     return EffectInstruction(target=target, effect_type=eff, look_id=look,
                              palette_colors=colors, render_style=style, extra_settings=extra,
-                             start_ms=int(start), end_ms=int(end), section_index=si)
+                             start_ms=int(start), end_ms=int(end), section_index=si,
+                             on_top=True)            # punch through the fabric (opaque, top layer)
 
 
 def _int(s: str) -> int | None:

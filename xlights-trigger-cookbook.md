@@ -34,6 +34,9 @@
 - enabled: true
 
 ## Big Moment Shockwave
+# DEFERRED: a whole-house shockwave layered over the lit fabric can't read (no contrast, and
+# SEM_ALL renders under every other group). The real version is a "punch" — briefly clear the
+# fabric and sweep the gesture through the cleared space. Disabled until that's built.
 - detector: drum_onsets
 - effect: Shockwave
 - render: whole_house
@@ -43,18 +46,21 @@
 - magnitude: top:6
 - color: fixed:white
 - direction: out
-- enabled: true
+- enabled: false
 
-## Periodic Drum Shockwaves
+## Drum Onset Pops
+# A per-prop POP/flash on each drum hit (opaque, top layer → punches through the lit fabric).
+# Not a radiating shockwave — just a drum-reactive pop in an alternating contrast color, on a
+# rotated subset of drum-heavy sections so it's an effect you catch periodically, not constantly.
 - detector: drum_onsets
-- effect: Shockwave
+- effect: On
 - render: per_model
 - sections: drum_prominent
 - select: rotate
 - density: per_onset
 - magnitude: any
 - color: anchor_alternate
-- direction: alternate
+- direction: none
 - enabled: true
 
 ## Lyric Color Words

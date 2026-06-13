@@ -122,19 +122,6 @@ def _drum_onsets(sa, sections) -> list[TriggerEvent]:
                          stem="drums") for t in f.onsets]
 
 
-def _big_moment(sa, sections) -> list[TriggerEvent]:
-    """The single strongest drum hit per section — the once-in-a-while whole-house wallop."""
-    hits = _drum_onsets(sa, sections)
-    by_sec: dict[int, TriggerEvent] = {}
-    for ev in hits:
-        si = _section_index(sections, ev.time_ms)
-        if si is None:
-            continue
-        if si not in by_sec or ev.magnitude > by_sec[si].magnitude:
-            by_sec[si] = ev
-    return sorted(by_sec.values(), key=lambda e: e.time_ms)
-
-
 def _lyric_color(sa, sections) -> list[TriggerEvent]:
     """A color WORD in the lyric → an event at that word's time (word timing if persisted, else
     the line start), carrying the color."""
@@ -167,7 +154,9 @@ def _instrument_entrance(sa, sections) -> list[TriggerEvent]:
     return out
 
 
-DETECTORS = {"guitar_solo": _guitar_solo, "drum_onsets": _drum_onsets, "big_moment": _big_moment,
+# A "big moment" is not its own detector — it's `drum_onsets` gated to top-magnitude hits
+# (whole-house render, low top:<pct>): naturally rare, length-proportional, capped per section.
+DETECTORS = {"guitar_solo": _guitar_solo, "drum_onsets": _drum_onsets,
              "lyric_color": _lyric_color, "instrument_entrance": _instrument_entrance}
 
 

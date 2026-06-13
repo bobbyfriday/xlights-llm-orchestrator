@@ -79,10 +79,19 @@ def test_drum_onsets_carry_magnitude():
     assert evs[1].magnitude > evs[0].magnitude          # the 1.0-rms hit is bigger
 
 
-def test_big_moment_is_single_strongest_per_section():
-    sa = _sa(drums_onsets=[1.0, 5.0, 9.0], drums_arc=[(1.0, 0.3), (5.0, 0.9), (9.0, 0.4)])
-    evs = T._big_moment(sa, [_sec(0)])                  # all within section 0 (0-10s)
-    assert len(evs) == 1 and evs[0].time_ms == 5000     # the 0.9 hit
+def test_big_moment_is_top_magnitude_drum_hits_capped():
+    # big moment = drum_onsets gated to top magnitude + whole_house + per-section cap (not 1)
+    sa = _sa(drums_onsets=[1.0, 2.0, 5.0, 9.0],
+             drums_arc=[(1.0, 0.3), (2.0, 0.95), (5.0, 0.9), (9.0, 0.2)],
+             section_inst=[_inst(0, 0.5)])
+    spec = T.TriggerSpec(name="big", detector="drum_onsets", effect="Shockwave",
+                         render="whole_house", sections="any", select="all", density="10",
+                         magnitude="top:50", color="fixed:white", direction="out")
+    out = T.realize_triggers([spec], sa, [_sec(0)], AVAIL)
+    assert len(out) == 2                                # top 50% of 4 hits = the two strongest
+    assert all(o.render_style == "Per Preview" and o.target == "SEM_ALL" for o in out)
+    starts = sorted(o.start_ms for o in out)
+    assert starts == [2000, 5000]                       # the 0.95 and 0.9 hits, not 0.3/0.2
 
 
 def test_lyric_color_word_event_word_precise():
@@ -138,15 +147,14 @@ def test_periodic_drum_shockwaves_render_per_model_with_variety():
     assert int(r1["E_SLIDER_Shockwave_Start_Radius"]) > int(r1["E_SLIDER_Shockwave_End_Radius"])
 
 
-def test_big_moment_whole_house():
-    sa = _sa(drums_onsets=[5.0], drums_arc=[(5.0, 0.9)])
-    spec = T.TriggerSpec(name="b", detector="big_moment", effect="Shockwave", render="whole_house",
-                         sections="any", select="all", density="1", color="fixed:white",
-                         direction="out")
+def test_density_cap_limits_per_section():
+    sa = _sa(drums_onsets=[float(i) for i in range(1, 9)],
+             drums_arc=[(float(i), 0.8) for i in range(1, 9)], section_inst=[_inst(0, 0.5)])
+    spec = T.TriggerSpec(name="cap", detector="drum_onsets", effect="Shockwave",
+                         render="whole_house", sections="any", select="all", density="3",
+                         magnitude="any", color="fixed:white", direction="out")
     out = T.realize_triggers([spec], sa, [_sec(0)], AVAIL)
-    assert len(out) == 1
-    assert out[0].target == "SEM_ALL" and out[0].render_style == "Per Preview"
-    assert out[0].palette_colors == ["white"]
+    assert len(out) == 3                                # 8 hits capped to 3 per section
 
 
 def test_empty_cookbook_no_triggers():

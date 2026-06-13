@@ -13,7 +13,7 @@
 **D2 — Detector library** (`triggers.py`), each `analysis → [TriggerEvent{time_ms, magnitude 0–1, group?}]`:
 - `guitar_solo`: spans where the guitar stem dominates (share/energy) and vocals are absent; magnitude = dominance. One event per solo span (rarity `per_event`).
 - `drum_onsets`: drum stem onsets, magnitude = `energy_at(drums.energy_arc, t)` percentile-normalized; filtered by the trigger's `magnitude` (e.g. `any` for periodic small, `top:5` for the big-moment single hit).
-- `big_moment`: the single strongest drum onset / energy jump per region (rarity `per_show` or `per_section`).
+- big moments reuse `drum_onsets` gated to top-magnitude hits (the wallops) — NOT a separate "one per section" detector. Magnitude `top:<pct>` makes them naturally rare and length-proportional (a long, busy section yields more top-percentile hits), and a per-section density cap (~10) bounds the max. So a section gets a handful of whole-house shockwaves scaled to how many genuinely big hits it has — song-dependent, not a fixed count.
 - `lyric_color`: lyric words matching the color lexicon → event at the word's time, `group` = prominent props, color carried from the word.
 
 **D3 — Render scope is the small/large lever** (not radius): `per_model` → each prop gets a contained, prop-scaled effect; `whole_house` → `Per Preview` on `SEM_ALL`/`SEM_HOUSE`, one gesture radiating across the layout. Maps to existing `render_style` values; Shockwave already falls back to Per Preview.
@@ -31,7 +31,7 @@
 - [Overdone — triggers everywhere] → the whole point of D4; section rotation + per-trigger density caps it; the motion/coverage QA still observes the result.
 - [Cookbook parse fragility] → best-effort like guides; unknown detector / bad field → skip that trigger, log, never crash.
 - [Shockwave out/in via radius may not read as expected] → live round-trip the radius-direction values during the build (project discipline) before freezing the cookbook defaults.
-- [Big-moment detection picks a dull hit] → rank by energy_at magnitude across the region; `top:` percentile; if a region has no standout, place none (better than a forced flat one).
+- [Big-moment detection picks dull hits] → `top:<pct>` keeps only the strongest drum onsets globally; a quiet section with no top-percentile hit gets none (better than a forced flat one); the per-section cap bounds busy sections.
 - [Word-timestamp persistence bloats the cache] → words are small; only matched lines carry them; acceptable.
 
 ## Migration Plan
@@ -40,5 +40,5 @@ Additive; absent cookbook → no triggers (back-compat). Branch `change/add-trig
 
 ## Open Questions
 
-- Big-moment cadence: once per *show* vs once per *major section* — start with `per_section` capped, tune live.
+- Big-moment density: magnitude `top:<pct>` + per-section cap (~10) — the right percentile/cap is song-dependent; tune live in the cookbook.
 - Whether to expose trigger enable/emphasis to the Director later (v2 LLM gating) — out of scope now.

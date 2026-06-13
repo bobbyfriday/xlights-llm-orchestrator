@@ -9,7 +9,8 @@
 > Each trigger is a `## ` block of `- field: value` lines. Unknown detectors or bad fields are
 > skipped (logged), never fatal. Fields:
 >
-> - **detector** — what finds the events: `guitar_solo` | `drum_onsets` | `big_moment` | `lyric_color`
+> - **detector** — what finds the events: `guitar_solo` | `drum_onsets` | `lyric_color` | `instrument_entrance`
+>   (a "big moment" is just `drum_onsets` with `magnitude: top:<low pct>` + `render: whole_house`)
 > - **effect** — the xLights effect to place (e.g. `Lightning`, `Shockwave`)
 > - **render** — `per_model` (each prop, scaled to it) | `whole_house` (one gesture across the layout)
 > - **sections** — eligibility: `any` | `drum_prominent` | `has_guitar_solo` | `peak`
@@ -33,13 +34,13 @@
 - enabled: true
 
 ## Big Moment Shockwave
-- detector: big_moment
+- detector: drum_onsets
 - effect: Shockwave
 - render: whole_house
 - sections: any
-- select: rotate
-- density: 1
-- magnitude: top:10
+- select: all
+- density: 10
+- magnitude: top:6
 - color: fixed:white
 - direction: out
 - enabled: true

@@ -11,4 +11,4 @@
 ## 3. Tests & verification
 
 - [x] 3.1 Hermetic (tests/test_instrumental_sections.py): harmonic snap split, energy fallback, time-based last resort, no slivers, tiny-tail fold, label ordering/parenting, byte-for-byte pass-through, timed-lyrics disable, all-short no-op, idempotence, Carol worked example, panel render
-- [ ] 3.2 Live: Carol of the Bells re-run → coarse 73s/69s "A" segments become ~18s A1–A8 pieces in the analysis cache; brief/plan sections all under ~32s; show generates at the new granularity
+- [x] 3.2 Live: Carol of the Bells re-run → coarse 73s/69s "A" segments become ~18s A1–A8 pieces in the analysis cache; brief/plan sections all under ~32s; show generates at the new granularity

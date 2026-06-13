@@ -84,7 +84,7 @@ _NATIVE_BOUNCE = {"SingleStrand", "Garlands"}
 _BEATS_PER_BAR = 4
 # a HORIZONTAL/RADIAL sweep on a chase-family effect must travel across the GROUP to be seen —
 # per-model rendering confines it to each prop for half a second (the invisible-sweep failure)
-_SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "center_out", "center_in"}
+_SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}
 _CHASE_FAMILY = {"SingleStrand", "Garlands", "Marquee", "Wave", "Bars"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
 
@@ -99,7 +99,9 @@ def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, s
     table = DIRECTION_KNOBS.get(effect_type)
     if not table or not direction:
         return {}
-    if direction == "bounce" and effect_type not in _NATIVE_BOUNCE:
+    # "alternate" ALWAYS flips the value per bar (counter-phase via the bar offset) — unlike
+    # "bounce", it bypasses native bounce types so two staggered layers can weave.
+    if direction == "alternate" or (direction == "bounce" and effect_type not in _NATIVE_BOUNCE):
         pair = ("ltr", "rtl") if "ltr" in table and "rtl" in table else \
                ("up", "down") if "up" in table and "down" in table else None
         if pair is None:
@@ -188,8 +190,8 @@ def _slot_targets(recipe: CellRecipe, slot: int, groups: list[str]) -> list[str]
     return [groups[slot % n]]                 # chase
 
 
-def _valid_recipes(weave: SectionWeave, section: SectionPlan,
-                   available_groups: list[str]) -> tuple[list[CellRecipe], CellRecipe | None]:
+def _valid_recipes(weave: SectionWeave, section: SectionPlan, available_groups: list[str]
+                   ) -> tuple[list[CellRecipe], CellRecipe | None, dict[int, int]]:
     """Validate + order: (bed-first realization order is the BLEND-correctness invariant —
     base layers must be PLACED first so the emitter stacks them under the blended cells)."""
     cells = [r.model_copy(update={"effect_type": canon_effect_type(r.effect_type)})
@@ -210,13 +212,59 @@ def _valid_recipes(weave: SectionWeave, section: SectionPlan,
         if groups:
             others.append(r.model_copy(update={"groups": groups}))
     others.sort(key=lambda r: 0 if r.role == "carrier" else 1)   # carrier = the base layer
+    others = others[:MAX_WOVEN_RECIPES]
+    # COUNTER-PHASE: an opposite ltr/rtl chase pair on the same groups reads as a perpetual
+    # head-on collision — upgrade both to per-bar alternation in opposite phase, so the layers
+    # cross, bounce off the ends, and cross back (a woven figure). The pair is detected from
+    # the EFFECTIVE direction (the recipe's field, else the chosen look's own chase-type value:
+    # in practice the LLM builds crossing chases by picking two opposed LOOKS with empty
+    # direction fields). Explicit "alternate" recipes on shared groups stagger by order.
+    phases: dict[int, int] = {}
+    chases = [r for r in others if r.effect_type in _CHASE_FAMILY]
+    static = [(r, d) for r in chases if (d := _effective_direction(r)) in ("ltr", "rtl")]
+    for i, (a, da) in enumerate(static):                 # pair recipes with OVERLAPPING groups
+        for b, db in static[i + 1:]:                     # (run 8: a pool-chasing carrier vs a
+            if {da, db} == {"ltr", "rtl"} and set(a.groups) & set(b.groups) \
+                    and id(a) not in phases and id(b) not in phases:
+                a.direction = b.direction = "alternate"
+                phases[id(a)], phases[id(b)] = 0, 1      #  single-group texture — overlap, not
+    for p, r in enumerate([r for r in chases             #  identical sets)
+                           if r.direction == "alternate" and id(r) not in phases]):
+        phases[id(r)] = p
     bed = next((b for b in beds if b.effect_type and candidate_look_ids(b.effect_type)), None)
-    return others[:MAX_WOVEN_RECIPES], bed
+    return others, bed, phases
+
+
+def _effective_direction(recipe: CellRecipe) -> str:
+    """The recipe's direction, else the one implied by its look's own direction value
+    (frozen or knob default) — '' when neither resolves to a plain ltr/rtl."""
+    if recipe.direction:
+        return recipe.direction
+    table = DIRECTION_KNOBS.get(recipe.effect_type)
+    looks = candidate_look_ids(recipe.effect_type)
+    if not table or "ltr" not in table or not looks:
+        return ""
+    from xlights_core.knowledge.preset_library import get_library
+    try:
+        look = get_library().get_look(
+            recipe.effect_type, recipe.look_id if recipe.look_id in looks else looks[0])
+    except Exception:  # noqa: BLE001 — detection is best-effort
+        return ""
+    key = table["ltr"][0]
+    val = look.frozen_base.get(key)
+    if val is None:
+        kn = next((k for k in look.knobs if k.key == key), None)
+        val = kn.default if kn is not None else None
+    if val == table["ltr"][1]:
+        return "ltr"
+    if "rtl" in table and val == table["rtl"][1]:
+        return "rtl"
+    return ""
 
 
 def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
           start: int, end: int, intensity: float, blended: bool,
-          anchors: tuple[str, str] | None = None) -> EffectInstruction:
+          anchors: tuple[str, str] | None = None, phase: int = 0) -> EffectInstruction:
     looks = candidate_look_ids(recipe.effect_type)
     look = recipe.look_id if recipe.look_id in looks else looks[0]
     palette = recipe.palette or section.palette
@@ -224,7 +272,7 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     extra.update(brightness_setting(wash_brightness(intensity)))   # cells pop with the energy
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
     bar = slot * max(1, recipe.cell_beats) // _BEATS_PER_BAR       # derived-4/4 bar index
-    extra.update(direction_setting(recipe.effect_type, recipe.direction, bar))
+    extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
     if recipe.transition:
         extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
                       "T_CHOICE_Out_Transition_Type": recipe.transition,
@@ -267,7 +315,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
     scene rows) — cells over them blend instead of occluding."""
     if weave is None:
         return []
-    recipes, bed = _valid_recipes(weave, section, available_groups)
+    recipes, bed, phases = _valid_recipes(weave, section, available_groups)
     out: list[EffectInstruction] = []
     based: set[str] = set(based_targets or ())   # targets with a base layer this section
     if bed is not None:
@@ -307,5 +355,5 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
             kept = _downsample(cells, max(1, round(len(cells) * factor))) if factor < 1 else cells
             for slot, t, end, tgt, blended in kept:
                 out.append(_cell(r, section, tgt, slot, t, end, intensity, blended,
-                                 anchors=anchors))
+                                 anchors=anchors, phase=phases.get(id(r), 0)))
     return out

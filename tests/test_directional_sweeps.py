@@ -100,3 +100,90 @@ def test_accent_chase_reverses_on_odd_bars():
     # bar 0 walks forward (beat 1,2,3 → idx 1,2,0), bar 1 walks backward (idx 1,0,2)
     assert bar0 == [pool[1], pool[2], pool[0]]
     assert bar1 == [pool[1], pool[0], pool[2]]
+
+
+# -- counter-phase weaving -----------------------------------------------------
+
+def _dirs_by_layerorder(out, n_recipes=2):
+    """Per-recipe direction sequences (cells interleave in output; split by emit order)."""
+    seqs = {}
+    for c in out:
+        k = c.extra_settings.get("E_CHOICE_Chase_Type1")
+        seqs.setdefault((c.start_ms, ), []).append(k)
+    return seqs
+
+
+def test_opposite_pair_counterphases_per_bar():
+    """ltr + rtl on the same groups = the LLM's crossing-chase habit → upgraded to a woven
+    figure: both flip per bar, in opposite phase (cross, bounce, cross back)."""
+    w = SectionWeave(cells=[
+        CellRecipe(effect_type="SingleStrand", role="carrier", direction="ltr",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+        CellRecipe(effect_type="SingleStrand", role="texture", direction="rtl",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+    ])
+    out = expand_weave(_sec(end_ms=16000), w, _rhythm(32), 0.8, GROUPS)
+    by_time = {}
+    for c in out:
+        by_time.setdefault(c.start_ms, []).append(c.extra_settings["E_CHOICE_Chase_Type1"])
+    times = sorted(by_time)
+    # every moment has BOTH directions (still crossing)...
+    assert all(sorted(by_time[t]) == ["Left-Right", "Right-Left"] for t in times)
+    # ...and each layer SWAPS at the bar boundary: the pair order flips between bars
+    bar0 = by_time[times[0]]                      # 2-beat cells → 2 cells/bar
+    bar1 = by_time[times[2]]                      # first cell of bar 1
+    assert bar0 == bar1[::-1]                     # layer 1 and 2 traded directions
+
+
+def test_explicit_alternate_staggers():
+    w = SectionWeave(cells=[
+        CellRecipe(effect_type="SingleStrand", role="carrier", direction="alternate",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+        CellRecipe(effect_type="SingleStrand", role="texture", direction="alternate",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+    ])
+    out = expand_weave(_sec(end_ms=16000), w, _rhythm(32), 0.8, GROUPS)
+    by_time = {}
+    for c in out:
+        by_time.setdefault(c.start_ms, []).append(c.extra_settings["E_CHOICE_Chase_Type1"])
+    assert all(sorted(v) == ["Left-Right", "Right-Left"] for v in by_time.values())
+
+
+def test_single_static_recipe_unchanged():
+    w = SectionWeave(cells=[CellRecipe(effect_type="SingleStrand", role="carrier",
+                                       direction="ltr", cell_beats=2, groups=["SEM_ARCHES"])])
+    out = expand_weave(_sec(end_ms=16000), w, _rhythm(32), 0.8, GROUPS)
+    assert all(c.extra_settings["E_CHOICE_Chase_Type1"] == "Left-Right" for c in out)
+
+
+def test_opposite_pair_on_different_groups_untouched():
+    w = SectionWeave(cells=[
+        CellRecipe(effect_type="SingleStrand", role="carrier", direction="ltr",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+        CellRecipe(effect_type="SingleStrand", role="texture", direction="rtl",
+                   cell_beats=2, groups=["SEM_CANES"]),
+    ])
+    out = expand_weave(_sec(end_ms=16000), w, _rhythm(32), 0.8, GROUPS)
+    arches = {c.extra_settings["E_CHOICE_Chase_Type1"] for c in out if c.target == "SEM_ARCHES"}
+    canes = {c.extra_settings["E_CHOICE_Chase_Type1"] for c in out if c.target == "SEM_CANES"}
+    assert arches == {"Left-Right"} and canes == {"Right-Left"}   # no shared groups → static
+
+
+def test_look_implied_opposite_pair_counterphases():
+    """The LLM builds crossing chases by picking two OPPOSED LOOKS with empty direction
+    fields (live run 8) — the pair detector must read the look's own chase-type value."""
+    # within the CANDIDATE looks (what placement actually resolves): #0 = Left-Right,
+    # #2 = Right-Left (corpus facts)
+    w = SectionWeave(cells=[
+        CellRecipe(effect_type="SingleStrand", role="carrier", look_id="SingleStrand#0",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+        CellRecipe(effect_type="SingleStrand", role="texture", look_id="SingleStrand#2",
+                   cell_beats=2, groups=["SEM_ARCHES"]),
+    ])
+    out = expand_weave(_sec(end_ms=16000), w, _rhythm(32), 0.8, GROUPS)
+    by_time = {}
+    for c in out:
+        by_time.setdefault(c.start_ms, []).append(c.extra_settings.get("E_CHOICE_Chase_Type1"))
+    times = sorted(by_time)
+    assert all(sorted(v) == ["Left-Right", "Right-Left"] for v in by_time.values())
+    assert by_time[times[0]] == by_time[times[2]][::-1]   # layers swap at the bar boundary

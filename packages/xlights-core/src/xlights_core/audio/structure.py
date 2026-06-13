@@ -5,6 +5,9 @@ lyrics carry the REAL structure (8 markers → ~10 sections). When `align_lyrics
 markers, rebuild `analysis.segments` from them: boundaries beat-snapped, tiny sections merged,
 intro/outro split out, and the audio segmentation retained as in-fill inside long instrumental
 spans. Labels become ground truth for the analysts. Code owns boundaries; LLMs keep judgment.
+
+Instrumental songs (no timed lines) get the complement: long coarse audio segments are
+subdivided at harmonic/energy seams so no single look runs past ~32s.
 """
 
 from __future__ import annotations
@@ -21,6 +24,8 @@ OUTRO_TAIL_S = 8.0        # split an outro when this much song remains after the
 INFILL_SPAN_S = 25.0      # spans longer than this keep interior audio boundaries (instrumentals)
 INFILL_EDGE_S = 10.0      # ...but only boundaries at least this far from the span's edges
 LINE_NEAR_S = 2.0         # an audio boundary within this of a sung line is NOT instrumental
+INSTR_MAX_SECTION_S = 32.0  # one look longer than ~35s reads as boring (user verdict)
+INSTR_MIN_PIECE_S = 12.0    # don't shred a musical part into confetti
 
 
 def _snap(t: float, beats: list[float]) -> float:
@@ -97,4 +102,68 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
                          for a, b, lbl in merged]
     log.info("structure refined from lyrics: %d segments (%s)", len(analysis.segments),
              ", ".join(s.segment_id for s in analysis.segments))
+    return True
+
+
+def refine_segments_for_instrumental(analysis: SongAnalysis,
+                                     max_section_s: float = INSTR_MAX_SECTION_S,
+                                     min_piece_s: float = INSTR_MIN_PIECE_S) -> bool:
+    """Subdivide an instrumental song's long audio segments at the music's own seams.
+
+    The lyric refiner's complement: runs only when no timed lyric lines exist. Each segment
+    longer than `max_section_s` is cut greedily — preferring harmonic-change points, then
+    energy-delta peaks, then plain time — every cut beat-snapped, no piece over the max.
+    Pieces are labeled parent id + ordinal ("A" -> "A1","A2",...). False (untouched) when
+    lyrics are timed or every segment already fits; idempotent on its own output.
+    """
+    lyr = getattr(analysis, "lyrics", None) or {}
+    if lyr.get("lines"):
+        return False                                    # lyric refiner's territory — never both
+    old = list(analysis.segments or [])
+    if all(s.end - s.start <= max_section_s + 1e-6 for s in old):
+        return False
+    beats = [float(b.time) for b in (analysis.beats or [])]
+
+    # candidates (time, strength): harmonic seams preferred; energy-delta peaks as fallback.
+    # Snapped up-front so chosen cuts stay inside their window after snapping.
+    if analysis.harmonic_changes:
+        raw = [(float(t), 1.0) for t in analysis.harmonic_changes]
+    else:
+        arc = analysis.energy_arc or []
+        raw = [(float(q.time), abs(float(q.rms) - float(p.rms))) for p, q in zip(arc, arc[1:])]
+    cands = sorted({(_snap(t, beats), w) for t, w in raw})
+
+    out: list[Segment] = []
+    counts: dict[str, int] = {}                         # parent id -> ordinal (A,A -> A1..A7)
+    for seg in old:
+        a, b = float(seg.start), float(seg.end)
+        if b - a <= max_section_s + 1e-6:
+            out.append(seg)                             # short segment: untouched, byte-for-byte
+            continue
+        cuts: list[float] = []
+        prev = a
+        while b - prev > max_section_s + 1e-6:
+            lo, hi = prev + min_piece_s, prev + max_section_s
+            # cap keeps the eventual tail >= min_piece_s (>= MIN_SECTION_S when min is too big)
+            cap = next((c for c in (min(hi, b - min_piece_s), min(hi, b - MIN_SECTION_S), hi)
+                        if c >= lo))
+            inside = [(w, t) for t, w in cands if lo <= t <= cap]
+            if inside:
+                cut = max(inside)[1]                    # strongest seam; ties -> latest
+            else:
+                near = [bt for bt in beats if prev < bt <= cap]
+                cut = min(near, key=lambda bt: abs(bt - cap)) if near else cap
+            cuts.append(cut)
+            prev = cut
+        pieces = [[x, y] for x, y in zip([a] + cuts, cuts + [b])]
+        if len(pieces) > 1 and pieces[-1][1] - pieces[-1][0] < MIN_SECTION_S:
+            tail = pieces.pop()                         # fold a tiny tail into the previous piece
+            pieces[-1][1] = tail[1]
+        for x, y in pieces:
+            counts[seg.segment_id] = counts.get(seg.segment_id, 0) + 1
+            out.append(Segment(start=round(x, 3), end=round(y, 3),
+                               segment_id=f"{seg.segment_id}{counts[seg.segment_id]}"))
+    analysis.segments = out
+    log.info("instrumental structure refined: %d -> %d segments (%s)", len(old), len(out),
+             ", ".join(s.segment_id for s in out))
     return True

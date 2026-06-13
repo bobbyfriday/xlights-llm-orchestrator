@@ -76,7 +76,11 @@ def _match_lines(lines: list[str], words: list[tuple[str, float, float]],
         if best >= min_ratio and best_i is not None:
             j = min(best_i + n - 1, len(words) - 1)
             spans.append({"text": line, "start": round(words[best_i][1], 2),
-                          "end": round(words[j][2], 2)})
+                          "end": round(words[j][2], 2),
+                          # persist the matched per-word timing (already computed) so lyric
+                          # triggers can hit the WORD, not just the line — see triggers.py
+                          "words": [{"word": w[0], "start": round(w[1], 2), "end": round(w[2], 2)}
+                                    for w in words[best_i:j + 1]]})
             cursor = best_i + n
         else:
             spans.append(None)

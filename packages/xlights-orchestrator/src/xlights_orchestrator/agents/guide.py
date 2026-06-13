@@ -21,6 +21,8 @@ _GUIDES: dict[str, tuple[str, str, str]] = {
     "scenes": ("XLO_SCENE_COOKBOOK", "xlights-scene-cookbook.md",
                "SCENE COOKBOOK (named multi-prop scene recipes — compose sections from these;"
                " row names are display ARCHETYPES to cast onto the real groups)"),
+    "triggers": ("XLO_TRIGGER_COOKBOOK", "xlights-trigger-cookbook.md",
+                 "TRIGGER COOKBOOK (curated semantic accents — code-applied, not for the prompt)"),
 }
 _cache: dict[str, str] = {}                  # keyed by resolved path so tests with distinct files work
 

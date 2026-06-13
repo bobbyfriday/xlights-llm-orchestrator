@@ -192,12 +192,16 @@ def _eligible_sections(spec: TriggerSpec, sa, sections) -> list[int]:
     return elig
 
 
-def _select(spec: TriggerSpec, eligible: list[int], offset: int) -> set[int]:
-    """`rotate` keeps a sparse, offset subset (every other eligible section) so not every section
-    features the same accent and different triggers land on different sections."""
+def _select(spec: TriggerSpec, eligible: list[int], offset: int, sections) -> set[int]:
+    """`rotate` keeps a sparse subset so not every section features the accent — but the subset is
+    the most ENERGETIC eligible sections (drum pops belong on the drum-driven moments, not the
+    quiet ones), with the offset rotating the tie-break so different triggers spread out."""
     if spec.select != "rotate" or len(eligible) <= 1:
         return set(eligible)
-    return {s for k, s in enumerate(eligible) if (k + offset) % 2 == 0}
+    ranked = sorted(eligible,
+                    key=lambda i: (-(getattr(sections[i], "intensity", 0.0) or 0.0), (i + offset) % 2))
+    keep = max(1, (len(eligible) + 1) // 2)              # the top ~half by energy
+    return set(ranked[:keep])
 
 
 def _mag_keep(spec: TriggerSpec, events: list[TriggerEvent]) -> list[TriggerEvent]:
@@ -246,7 +250,7 @@ def realize_triggers(specs: list[TriggerSpec], sa, sections, available_groups: l
         except Exception as exc:  # noqa: BLE001 — a detector failure never sinks the run
             log.warning("trigger %r detector failed: %s", spec.name, exc)
             continue
-        selected = _select(spec, _eligible_sections(spec, sa, sections), offset)
+        selected = _select(spec, _eligible_sections(spec, sa, sections), offset, sections)
         # group events by their section, keep only selected sections, cap density
         by_sec: dict[int, list[TriggerEvent]] = {}
         for ev in events:

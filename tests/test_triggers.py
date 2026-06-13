@@ -115,13 +115,13 @@ def _inst(i, drums):
                            shares={"drums": drums}, dominant=["drums"])
 
 
-def test_rotate_selects_subset_of_eligible():
+def test_rotate_selects_energetic_subset():
     spec = T.TriggerSpec(name="r", detector="drum_onsets", select="rotate", sections="any")
-    elig = [0, 1, 2, 3]
-    s0 = T._select(spec, elig, 0)
-    s1 = T._select(spec, elig, 1)
-    assert s0 == {0, 2} and s1 == {1, 3}                # offset → different sections per trigger
-    assert s0 != set(elig)                              # NOT every section
+    secs = [_sec(0, intensity=0.2), _sec(1, intensity=0.9), _sec(2, intensity=0.3),
+            _sec(3, intensity=0.95)]
+    sel = T._select(spec, [0, 1, 2, 3], 0, secs)
+    assert sel == {1, 3}                                # the two MOST energetic, not positional
+    assert sel != {0, 1, 2, 3}                          # still a subset (not every section)
 
 
 def test_drum_prominent_eligibility():

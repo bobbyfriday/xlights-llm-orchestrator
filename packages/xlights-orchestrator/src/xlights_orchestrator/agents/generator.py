@@ -6,16 +6,36 @@ import json
 from pathlib import Path
 
 from ..models import build_agent
-from .guide import with_guides
+from .guide_extracts import (
+    catalog_essentials,
+    layering_essentials,
+    scene_recipe,
+    sequencing_essentials,
+)
 from ..show_plan import SectionEffects, SectionPlan
 from .catalog import candidate_look_ids, palette_menu
 
 _PROMPT = (Path(__file__).parent / "prompts" / "generator.md").read_text()
 
 
+def _system_prompt() -> str:
+    # Extracts, not the full ~100KB guide corpus — the generator runs ~21x/run (≈60% of run
+    # cost); the Director's single call carries the full guides. Scene recipes go per-section
+    # in render_input. Missing guides degrade to '' (skipped).
+    parts = [
+        ("EFFECTS CATALOG ESSENTIALS", catalog_essentials()),
+        ("RENDER STYLES", layering_essentials()),
+        ("SEQUENCING ESSENTIALS", sequencing_essentials()),
+    ]
+    out = _PROMPT
+    for title, text in parts:
+        if text:
+            out += f"\n\n## {title}\n\n{text}"
+    return out
+
+
 def generator_agent():
-    return build_agent("generator", output_type=SectionEffects,
-                       system_prompt=with_guides(_PROMPT, "sequencing", "effects", "layering", "scenes"))
+    return build_agent("generator", output_type=SectionEffects, system_prompt=_system_prompt())
 
 
 def render_input(section: SectionPlan, revision=None, *, concept: str = "", motifs=None) -> str:
@@ -50,6 +70,9 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
               " Substitute a placeable effect type when a row's effect isn't in the candidates"
               " (e.g. a Color Wash bed → a dim On)."
         )
+        recipe = scene_recipe(section.scene_id)   # only THIS scene's block (system prompt has none)
+        if recipe:
+            scene_note += "\n\nSCENE RECIPE (from the cookbook — realize this):\n" + recipe
     return (
         "SECTION PLAN (realize its look/palette/effect_types/motion):\n" + section.model_dump_json(indent=1)
         + brief_note

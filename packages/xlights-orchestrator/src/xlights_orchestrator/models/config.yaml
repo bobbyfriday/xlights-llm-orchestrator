@@ -8,16 +8,16 @@ roles:
     gemini:    {model: gemini-3.1-pro-preview}
   generator:                                  # per-section effects (worker tier)
     anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
-    gemini:    {model: gemini-3.5-flash}
+    gemini:    {model: gemini-3.1-flash-lite}   # live A/B'd: valid structured output, rules 92
   analyst:                                    # parallel song analysts (worker tier)
     anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
-    gemini:    {model: gemini-3.5-flash}
+    gemini:    {model: gemini-3.1-flash-lite}
   synthesizer:                                # fuses analyst outputs → MusicBrief (planner)
     anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
     gemini:    {model: gemini-3.1-pro-preview}
   judge:                                      # scores the draft + scoped revisions (planner)
     anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
-    gemini:    {model: gemini-3.1-pro-preview}
+    gemini:    {model: gemini-3.5-flash}      # scoring a structured QA report ≠ pro-tier work
   visual_critic:                              # multimodal: looks at rendered frames (planner/vision)
     anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
     gemini:    {model: gemini-3.1-pro-preview}

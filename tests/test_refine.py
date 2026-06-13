@@ -12,6 +12,7 @@ from xlights_orchestrator.qa import placement, sync, variety
 from xlights_orchestrator.refine import (
     Decision,
     JudgeVerdict,
+    QAReport,
     RevisionBrief,
     replace_section,
 )
@@ -153,6 +154,57 @@ def test_loop_terminates_independent_of_judge():
                      checkpoint=_noninteractive))
     # a Judge that always says iterate still terminates (cap + stall) — we get here, no hang
     assert True
+
+
+def test_loop_stops_on_plateau():
+    st = _state()
+    client = _FakeClient()
+    calls = {"judge": 0, "regen": 0}
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+    async def regen(rev):
+        calls["regen"] += 1
+        return [_ins("G1", 1000, 1500, sec=rev.section_index)]
+
+    class _SameJudge:                          # re-flags the SAME section/issue every iteration
+        async def run(self, prompt):
+            calls["judge"] += 1
+            return SimpleNamespace(output=JudgeVerdict(
+                score=80, verdict="iterate",
+                revisions=[RevisionBrief(section_index=1, issue="same issue", suggested_fix="y")]))
+
+    def qa_same(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=92, advisory_score=70)   # 92→92→… plateau
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=5, judge=_SameJudge(), qa=qa_same, regenerate=regen,
+                     checkpoint=_noninteractive))                # checkpoint APPROVES — would continue
+    # iteration 2 sees the identical (objective, advisory, revisions) signature → stops cold
+    assert calls["judge"] == 2 and calls["regen"] == 1
+
+
+def test_loop_no_plateau_stop_while_scores_move():
+    st = _state()
+    client = _FakeClient()
+    calls = {"judge": 0}
+    scores = iter([60, 60, 70, 70, 80, 80, 90, 90])   # report+post-apply pairs per iteration
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+    async def regen(rev):
+        return [_ins("G1", 1000, 1500, sec=rev.section_index)]
+
+    class _SameJudge:
+        async def run(self, prompt):
+            calls["judge"] += 1
+            return SimpleNamespace(output=JudgeVerdict(
+                score=80, verdict="iterate",
+                revisions=[RevisionBrief(section_index=1, issue="same issue", suggested_fix="y")]))
+
+    def qa_moving(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=next(scores, 90), advisory_score=50)
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=_SameJudge(), qa=qa_moving, regenerate=regen,
+                     checkpoint=_noninteractive))
+    assert calls["judge"] == 3                 # objective still moving → all iterations run
 
 
 def test_loop_checkpoint_stop_overrides_judge():

@@ -55,6 +55,8 @@ from .beats import (
     effect_speed_setting,
     ensemble_bed,
     normalize_durations,
+    peak_fill,
+    peak_sections,
     trim_coverage,
     wash_brightness,
 )
@@ -159,7 +161,9 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             else:
                 ins.extra_settings.update(brightness_setting(wash_b))
             ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
-        bed = ensemble_bed(section, _si, st.available_groups, {k.target for k in instrs})
+        _is_peak = rev.section_index in peak_sections(st.show_plan)   # payoff section?
+        bed = (peak_fill(section, _si, st.available_groups, instrs) if _is_peak
+               else ensemble_bed(section, _si, st.available_groups, {k.target for k in instrs}))
         if bed is not None:
             bed.section_index = rev.section_index
             instrs.append(bed)
@@ -440,6 +444,7 @@ async def run_pipeline(
     else:
         agent = generator or generator_mod.generator_agent()
         instrs: list[EffectInstruction] = []
+        _peaks = peak_sections(st.show_plan)         # the show's payoff section(s)
         for i, section in enumerate(st.show_plan.sections):
             motifs = {g: st.show_plan.group_motifs[g]
                       for g in section.target_groups if g in st.show_plan.group_motifs}
@@ -462,7 +467,10 @@ async def run_pipeline(
                 else:
                     ins.extra_settings.update(brightness_setting(wash_b))
                 ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
-            bed = ensemble_bed(section, _si, st.available_groups, {k.target for k in kept})
+            # the peak gets a FULL-bright whole-display fill (the lit payoff); merely-high
+            # sections get the dim frame bed — the contrast is the escalation.
+            bed = (peak_fill(section, _si, st.available_groups, kept) if i in _peaks
+                   else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
             if bed is not None:
                 bed.section_index = i
                 kept.append(bed)
@@ -483,6 +491,15 @@ async def run_pipeline(
                 if ins.target in under:                 # a pulse ADDS over its base, not occludes
                     ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
             instrs.extend(accents)
+        # guarantee the climax SIGNAL lands at the peak: a peak section with no climax/accent
+        # key-moment inside it gets one synthesized at its downbeat (drives key_moment_flashes).
+        for pi in _peaks:
+            sec = st.show_plan.sections[pi]
+            if not any(sec.start_ms <= m.at_ms < sec.end_ms
+                       and any(k in (m.kind or "").lower() for k in ("climax", "accent", "drop"))
+                       for m in st.show_plan.key_moments):
+                st.show_plan.key_moments.append(
+                    KeyMoment(at_ms=sec.start_ms, kind="climax", treatment="peak payoff"))
         # mid-section instrument entrances → surfaced as key moments + featured on the focal prop
         for _t, _stem in instrument_entrances(st.song_analysis):
             st.show_plan.key_moments.append(KeyMoment(at_ms=_t, kind="entrance",

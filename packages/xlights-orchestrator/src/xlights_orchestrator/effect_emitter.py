@@ -26,6 +26,17 @@ def _free_layer(occ: dict, target: str, start: int, end: int, start_layer: int) 
     return layer
 
 
+def _top_layer(occ: dict, target: str, start: int, end: int) -> int:
+    """The layer ABOVE every effect overlapping [start,end] on `target`. Higher index renders on
+    top (verified live), so an on_top accent must sit above ALL overlappers — not just in the
+    lowest free gap, which `_free_layer` would put it UNDER a longer spanning layer."""
+    top = -1
+    for (tg, layer), spans in occ.items():
+        if tg == target and any(not (end <= s or start >= e) for s, e in spans):
+            top = max(top, layer)
+    return top + 1
+
+
 def clamp_layer_budget(instructions: list[EffectInstruction], max_layers: int = 4
                        ) -> tuple[list[EffectInstruction], int]:
     """Enforce the catalog's layer ceiling (rule #10: ≤4 layers per row) BEFORE emitting:
@@ -86,9 +97,12 @@ async def apply_instructions(
     skipped: list[dict] = []
 
     for ins in instructions:
-        layer = _free_layer(occupancy, ins.target, ins.start_ms, ins.end_ms, ins.layer)
-        # on_top accents (triggers) punch through: never budget-skipped, always placed above the
-        # fabric (they're last in the stream, so _free_layer already lands them on top).
+        # on_top accents punch through: placed ABOVE every overlapping layer (not in the lowest
+        # free gap, which would bury them under a longer spanning layer). Never budget-skipped.
+        if getattr(ins, "on_top", False):
+            layer = _top_layer(occupancy, ins.target, ins.start_ms, ins.end_ms)
+        else:
+            layer = _free_layer(occupancy, ins.target, ins.start_ms, ins.end_ms, ins.layer)
         if layer >= MAX_LAYERS and not getattr(ins, "on_top", False):
             skipped.append({"target": ins.target, "effect": ins.effect_type,
                             "start_ms": ins.start_ms, "end_ms": ins.end_ms,

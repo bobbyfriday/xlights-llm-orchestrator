@@ -177,3 +177,15 @@ def test_triggers_are_on_top_and_clamp_exempt():
     kept, dropped = clamp_layer_budget(fabric + trigs)
     assert dropped > 0                                           # excess fabric trimmed
     assert all(t in kept for t in trigs)                        # every trigger survives
+
+
+def test_top_layer_sits_above_a_higher_spanning_layer():
+    from xlights_orchestrator.effect_emitter import _top_layer, _free_layer
+    # SEM_ARCHES: layer 0 has a short cell (gap after), layer 3 has a full-section wash spanning
+    occ = {("SEM_ARCHES", 0): [(0, 250)], ("SEM_ARCHES", 3): [(0, 10000)]}
+    # _free_layer would drop a 500ms pop at t=300 into layer 0 (free there) — UNDER the layer-3 wash
+    assert _free_layer(occ, "SEM_ARCHES", 300, 800, 0) == 0
+    # _top_layer puts it above the spanning layer-3 wash → visible
+    assert _top_layer(occ, "SEM_ARCHES", 300, 800) == 4
+    # nothing overlapping → layer 0
+    assert _top_layer(occ, "SEM_CANES", 300, 800) == 0

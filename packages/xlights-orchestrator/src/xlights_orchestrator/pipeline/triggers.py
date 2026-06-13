@@ -300,9 +300,12 @@ def _one(spec, ev, idx, sec, si, pool, whole, anchors) -> EffectInstruction | No
     if ev.end_ms is None:
         colors = [_brighten(_resolve(c) or c) or c for c in colors]
         extra.update(brightness_setting(POP_BRIGHTNESS))
+    # section_index=None so the refine loop's replace_section (which strips a section's tagged
+    # instructions) does NOT delete these — triggers are deterministic global accents, not
+    # per-section LLM output to be revised. (Same pattern the old instrument_feature_layer used.)
     return EffectInstruction(target=target, effect_type=eff, look_id=look,
                              palette_colors=colors, render_style=style, extra_settings=extra,
-                             start_ms=int(start), end_ms=int(end), section_index=si,
+                             start_ms=int(start), end_ms=int(end), section_index=None,
                              on_top=True)            # punch through the fabric (opaque, top layer)
 
 

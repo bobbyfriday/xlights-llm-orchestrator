@@ -11,7 +11,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from xlights_core.knowledge.colors import _resolve, contrast_anchors
+from xlights_core.knowledge.colors import _brighten, _resolve, contrast_anchors
+from xlights_core.knowledge.value_curves import brightness_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction
@@ -26,6 +27,7 @@ WHOLE_HOUSE_GROUPS = ("SEM_ALL", "SEM_HOUSE")
 SHOCKWAVE_RADIUS = 200       # out: 0→R ; in: R→0  (live-verify the exact feel, then tune here)
 DRUM_PROMINENT_SHARE = 0.22  # a section counts as drum-prominent at/above this drum energy share
 EVENT_MS = 220               # a point trigger's pop/flash duration (short — a drum hit)
+POP_BRIGHTNESS = 320         # 0–400 scale (100=normal): a pop is a bright FLASH, not a tint
 
 
 @dataclass
@@ -292,6 +294,12 @@ def _one(spec, ev, idx, sec, si, pool, whole, anchors) -> EffectInstruction | No
     start = ev.time_ms
     end = ev.end_ms or (start + EVENT_MS)
     extra = _shockwave_dir(eff, spec.direction, idx)
+    # A POP IS A FLASH: brighten the hue (a hue-distant anchor can be near-black, e.g. navy
+    # luminance 10 — invisible) and boost brightness so the accent reads as a punch of light,
+    # not the prop blinking off. Point accents only (spans like a guitar solo stay as-is).
+    if ev.end_ms is None:
+        colors = [_brighten(_resolve(c) or c) or c for c in colors]
+        extra.update(brightness_setting(POP_BRIGHTNESS))
     return EffectInstruction(target=target, effect_type=eff, look_id=look,
                              palette_colors=colors, render_style=style, extra_settings=extra,
                              start_ms=int(start), end_ms=int(end), section_index=si,

@@ -117,3 +117,8 @@ def test_render_creative_brief_shows_scene():
                                        scene_adaptation="hero=Megatree")])
     md = render_creative_brief(p)
     assert "SC-01" in md and "hero=Megatree" in md
+
+
+def test_director_input_has_section_pacing_guidance():
+    s = director_mod.render_input(MusicBrief(sections=[]), ["SEM_ALL"], ["On"])
+    assert "SECTION PACING" in s and "~35s" in s and "BORING" in s

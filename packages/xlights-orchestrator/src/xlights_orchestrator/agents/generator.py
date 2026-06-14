@@ -68,7 +68,7 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
               " the layering guide: Max, Average, Subtractive, 1 is Mask, ...; omit for Normal)."
               " Use the scene's per-row render styles, and avoid its listed failure modes."
               " Substitute a placeable effect type when a row's effect isn't in the candidates"
-              " (e.g. a Color Wash bed → a dim On)."
+              " (e.g. an unavailable bed effect → a dim On or Color Wash)."
         )
         recipe = scene_recipe(section.scene_id)   # only THIS scene's block (system prompt has none)
         if recipe:

@@ -71,8 +71,9 @@ def test_registry_reroute_via_env(monkeypatch):
 
 def test_placeable_excludes_rejected():
     types = set(placeable_effect_types())
-    assert types.isdisjoint(KNOWN_REJECTED_TYPES)
+    assert types.isdisjoint(KNOWN_REJECTED_TYPES)            # mechanism intact
     assert "SingleStrand" in types
+    assert "Color Wash" in types                            # re-verified placeable (2026-06-14)
 
 
 # -- TestModel agents ---------------------------------------------------------

@@ -9,12 +9,13 @@
 > Each trigger is a `## ` block of `- field: value` lines. Unknown detectors or bad fields are
 > skipped (logged), never fatal. Fields:
 >
-> - **detector** — what finds the events: `guitar_solo` | `drum_onsets` | `lyric_color` | `instrument_entrance`
+> - **detector** — what finds the events: `guitar_solo` | `drum_onsets` | `stem_onsets` | `lyric_color` | `instrument_entrance`
 >   (a "big moment" is just `drum_onsets` with `magnitude: top:<low pct>` + `render: whole_house`)
 > - **effect** — the xLights effect to place (e.g. `Lightning`, `Shockwave`)
 > - **render** — `per_model` (each prop, scaled to it) | `whole_house` (one gesture across the layout)
-> - **sections** — eligibility: `any` | `drum_prominent` | `sparse_beat` (strong beat, low overall energy) | `has_guitar_solo` | `peak`
+> - **sections** — eligibility: `any` | `drum_prominent` | `stem_prominent` (the trigger's `stem` is prominent) | `sparse_beat` (strong beat, low overall energy) | `has_guitar_solo` | `peak`
 > - **groups** — per_model target pool: `rhythm` (arches/canes/mini-trees) | `accents` (snowflakes/spinners) | `focal`
+> - **stem** — for `stem_onsets`/`stem_prominent`: which instrument drives it — `drums` (default) | `bass` | `piano` | `guitar` | `vocals` | `other`
 > - **select** — `rotate` (only a rotated SUBSET of eligible sections — keeps it sparse) | `all`
 > - **density** — max events per selected section (`per_onset` = every qualifying hit)
 > - **magnitude** — event filter: `any` | `top:<pct>` (e.g. `top:5` = strongest 5%)
@@ -64,6 +65,23 @@
 - magnitude: any
 - color: anchor_alternate
 - direction: out
+- enabled: true
+
+## Piano Note Chase
+# The piano melody walks the props: a bright pop rotates across the rhythm groups on each piano
+# onset, but ONLY in piano-prominent sections (so it's a melodic accent, not a constant wash).
+# Change `stem` to bass/guitar/vocals to chase a different instrument's line.
+- detector: stem_onsets
+- effect: On
+- render: per_model
+- groups: rhythm
+- sections: stem_prominent
+- stem: piano
+- select: rotate
+- density: per_onset
+- magnitude: any
+- color: anchor_alternate
+- direction: none
 - enabled: true
 
 ## Lyric Color Words

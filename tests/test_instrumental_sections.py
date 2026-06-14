@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from xlights_core.audio.schema import Beat, EnergyPoint, Segment, SongAnalysis
-from xlights_core.audio.structure import refine_segments_for_instrumental
+from xlights_core.audio.structure import cap_long_segments, refine_segments_for_instrumental
 
 
 def _sa(duration=200.0, beats=None, segments=None, lyrics=None,
@@ -145,3 +145,37 @@ def test_panel_render_marks_subsegments_evolving():
                                       Segment(start=30, end=60, segment_id="A2")])
     out = _structure_render(sa, None)
     assert "EVOLVING" in out and "A1/A2" in out
+
+
+# -- the fix: long sections are capped even in a LYRIC song (the 100s-intro bug) ----------------
+
+def test_cap_runs_even_with_lyrics():
+    # a lyric song with a long instrumental intro before the first sung line
+    sa = _sa(duration=120.0, beats=GRID, harmonic=[30.0, 60.0, 90.0],
+             segments=[Segment(start=0, end=100, segment_id="intro"),
+                       Segment(start=100, end=120, segment_id="Verse")],
+             lyrics={"lines": [{"text": "x", "start": 100.0, "end": 102.0}]})
+    # the instrumental refiner bails because lyrics are present (its gate) ...
+    assert refine_segments_for_instrumental(sa) is False
+    # ... but cap_long_segments subdivides the 100s intro regardless
+    assert cap_long_segments(sa) is True
+    intro_pieces = [s for s in sa.segments if s.segment_id.startswith("intro")]
+    assert len(intro_pieces) >= 3                           # 100s → several ≤32s pieces
+    assert all(s.end - s.start <= 32 + 1e-6 for s in sa.segments)
+    assert any(s.segment_id == "Verse" for s in sa.segments)   # short section untouched
+
+
+def test_cap_is_noop_when_all_sections_fit():
+    sa = _sa(duration=60.0, beats=GRID,
+             segments=[Segment(start=0, end=30, segment_id="A"),
+                       Segment(start=30, end=60, segment_id="B")])
+    assert cap_long_segments(sa) is False
+
+
+def test_cap_is_idempotent():
+    sa = _sa(duration=100.0, beats=GRID, harmonic=[30.0, 60.0, 90.0],
+             segments=[Segment(start=0, end=100, segment_id="A")])
+    assert cap_long_segments(sa) is True
+    n = len(sa.segments)
+    assert cap_long_segments(sa) is False                   # second pass: nothing left to cut
+    assert len(sa.segments) == n

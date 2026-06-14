@@ -105,20 +105,18 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
     return True
 
 
-def refine_segments_for_instrumental(analysis: SongAnalysis,
-                                     max_section_s: float = INSTR_MAX_SECTION_S,
-                                     min_piece_s: float = INSTR_MIN_PIECE_S) -> bool:
-    """Subdivide an instrumental song's long audio segments at the music's own seams.
+def cap_long_segments(analysis: SongAnalysis,
+                      max_section_s: float = INSTR_MAX_SECTION_S,
+                      min_piece_s: float = INSTR_MIN_PIECE_S) -> bool:
+    """Subdivide ANY segment longer than `max_section_s` at the music's own seams — preferring
+    harmonic-change points, then energy-delta peaks, then beat-snapped time. Pieces are labeled
+    parent id + ordinal ("A" -> "A1","A2",...). False (untouched) when every segment already fits;
+    idempotent on its own output.
 
-    The lyric refiner's complement: runs only when no timed lyric lines exist. Each segment
-    longer than `max_section_s` is cut greedily — preferring harmonic-change points, then
-    energy-delta peaks, then plain time — every cut beat-snapped, no piece over the max.
-    Pieces are labeled parent id + ordinal ("A" -> "A1","A2",...). False (untouched) when
-    lyrics are timed or every segment already fits; idempotent on its own output.
+    Runs regardless of lyrics, so a lyric song's long instrumental stretch (e.g. a 100s intro
+    before the first sung line, which the lyric refiner can't cut for lack of markers there) is
+    still broken up — no single section runs past the cap.
     """
-    lyr = getattr(analysis, "lyrics", None) or {}
-    if lyr.get("lines"):
-        return False                                    # lyric refiner's territory — never both
     old = list(analysis.segments or [])
     if all(s.end - s.start <= max_section_s + 1e-6 for s in old):
         return False
@@ -164,6 +162,19 @@ def refine_segments_for_instrumental(analysis: SongAnalysis,
             out.append(Segment(start=round(x, 3), end=round(y, 3),
                                segment_id=f"{seg.segment_id}{counts[seg.segment_id]}"))
     analysis.segments = out
-    log.info("instrumental structure refined: %d -> %d segments (%s)", len(old), len(out),
+    log.info("long segments capped: %d -> %d segments (%s)", len(old), len(out),
              ", ".join(s.segment_id for s in out))
     return True
+
+
+def refine_segments_for_instrumental(analysis: SongAnalysis,
+                                     max_section_s: float = INSTR_MAX_SECTION_S,
+                                     min_piece_s: float = INSTR_MIN_PIECE_S) -> bool:
+    """The lyric refiner's complement for INSTRUMENTAL songs (no timed lines): cap long audio
+    segments at musical seams. Lyric songs get the same cap as a final pass inside
+    `refine_segments_with_lyrics`, so this stays the no-lyrics entry point. False when lyrics are
+    timed or nothing needed capping."""
+    lyr = getattr(analysis, "lyrics", None) or {}
+    if lyr.get("lines"):
+        return False                                    # lyric refiner's territory
+    return cap_long_segments(analysis, max_section_s, min_piece_s)

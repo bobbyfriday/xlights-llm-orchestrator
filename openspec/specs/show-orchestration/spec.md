@@ -871,6 +871,7 @@ SHALL NOT inject groups the brief excluded.
 #### Scenario: The reject mechanism still exists
 - **WHEN** a future effect type is confirmed unplaceable and added to the reject list
 - **THEN** it is filtered out of the placeable set exactly as before
+
 ### Requirement: The creative brief is emitted as a schema-backed editable file
 When the creative brief is written, the orchestrator SHALL also write a JSON Schema for it (`creative_brief.schema.json`) and reference that schema from `creative_brief.json` via a relative `$schema` key, so a schema-aware editor offers valid choices and validation. The schema SHALL enumerate the run's actual vocabulary — the live layout groups for group fields, placeable effect types for effect fields, cookbook scene IDs for `scene_id`, the song's stems for `follow_stem`, and the named colors for palette fields — and SHALL keep `intensity` bounded to 0–1.
 
@@ -885,6 +886,7 @@ When the creative brief is written, the orchestrator SHALL also write a JSON Sch
 #### Scenario: A brief without a schema still loads
 - **WHEN** a `creative_brief.json` has no `$schema` key
 - **THEN** it validates and runs exactly as before
+
 ### Requirement: The creative brief is editable via a local browser form
 The orchestrator SHALL provide a local browser form that edits the creative brief using widgets generated from the brief schema — dropdowns for enum fields, multi-selects for array-of-enum fields, color swatches for the palette, a slider for intensity — and writes edits back to `creative_brief.json`. The save SHALL preserve the `$schema` reference and every field the form does not render, and SHALL reject a structurally invalid edit without writing.
 
@@ -899,6 +901,7 @@ The orchestrator SHALL provide a local browser form that edits the creative brie
 #### Scenario: Launch from the CLI
 - **WHEN** the user runs `xlo edit-brief --song <mp3>` (or `--brief <path>`)
 - **THEN** the editor serves that song's cached brief and opens it in the browser
+
 ### Requirement: Featured accent/sparkle prop groups are steered to pop
 When a section's look centers on a dedicated accent/sparkle prop group (such as SEM_SNOWFLAKES or SEM_SPINNERS), the creative-direction prompts SHALL steer those props to be the bright, high-contrast focal element in a light color over a different-hued background bed (e.g. white snowflakes on a blue house), kept bright even in a calm section. The generator prompt SHALL also steer away from named particle effects (Snowflakes/Snowstorm/Meteors) on small dedicated props — which render nothing visible there — toward lighting the props directly, reserving particle effects for a large canvas with a high count. This is steering, not a deterministic guarantee.
 
@@ -931,6 +934,7 @@ When a dedicated sparkle/snow prop group (SEM_SNOWFLAKES or SEM_SPINNERS) is amo
 #### Scenario: No accent group featured
 - **WHEN** a section does not target a sparkle/snow prop group
 - **THEN** the floor makes no change
+
 ### Requirement: Triggers can key off any instrument stem
 A trigger SHALL be able to fire on any instrument stem's onsets (drums, piano, bass, guitar,
 vocals), selected by a `stem` field, with section eligibility by that stem's prominence. Triggers
@@ -952,4 +956,19 @@ colors for Christmas/holiday songs, unless the song's mood clearly calls for a d
 #### Scenario: Christmas song palette
 - **WHEN** the Director designs a show for a clearly Christmas/holiday song
 - **THEN** its section palettes lean on red, green, and white as primaries with a small number of accent colors
+
+### Requirement: Long sections are subdivided regardless of lyrics
+No song section SHALL exceed the long-section cap. A segment longer than the cap SHALL be subdivided at the music's own seams (harmonic-change points, then energy-delta peaks, then beat-snapped time), with pieces labeled from the parent (id + ordinal). This SHALL apply whether or not the song has timed lyrics, so a long instrumental span in a lyric song (e.g. a long intro before the first sung line) is broken up rather than left as one oversized section.
+
+#### Scenario: A lyric song's long instrumental intro is split
+- **WHEN** a song has lyrics but a long instrumental stretch with no lyric markers (longer than the cap)
+- **THEN** that stretch is subdivided into sections no longer than the cap, cut at musical seams, labeled from the parent
+
+#### Scenario: Sections within the cap are untouched
+- **WHEN** all sections already fit within the cap
+- **THEN** the segmentation is unchanged (no-op, idempotent)
+
+#### Scenario: Instrumental songs are unaffected by the change
+- **WHEN** a song has no lyrics
+- **THEN** long sections are capped exactly as before
 

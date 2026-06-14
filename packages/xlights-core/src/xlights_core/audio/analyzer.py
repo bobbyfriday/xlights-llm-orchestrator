@@ -97,8 +97,9 @@ class AudioAnalyzer:
         # stripped at fetch) re-attach once and upgrade; marker-less songs never re-align again.
         analysis.lyrics = {"title": title, "artist": artist, "text": text,
                            "headers_fetch": True, **aligned}
-        from .structure import refine_segments_with_lyrics
+        from .structure import cap_long_segments, refine_segments_with_lyrics
         if refine_segments_with_lyrics(analysis):      # lyric markers → the real structure
+            cap_long_segments(analysis)                # then subdivide any long lyric-free span
             self._refresh_section_instrumentation(analysis, key)
         try:
             (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())

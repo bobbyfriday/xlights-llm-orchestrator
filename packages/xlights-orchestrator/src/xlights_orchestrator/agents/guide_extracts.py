@@ -55,6 +55,12 @@ def scene_recipe(scene_id: str) -> str:
     return _cut(load_guide("scenes"), lambda t: scene_id in t)
 
 
+def scene_ids() -> list[str]:
+    """Every `SC-NN` scene id defined in the scene cookbook (sorted, unique) — the source for the
+    brief schema's `scene_id` dropdown. Empty when the cookbook is absent."""
+    return sorted(set(re.findall(r"SC-\d+", load_guide("scenes") or "")))
+
+
 def sequencing_essentials() -> str:
     """Core Philosophy plus rhythm/call sections, bounded to ~3KB total. The raw first-3KB
     opening is mostly ToC + version boilerplate, and an unbounded extract blows the

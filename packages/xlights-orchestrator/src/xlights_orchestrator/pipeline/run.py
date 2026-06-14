@@ -42,6 +42,9 @@ from ..revision_log import (
 )
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects, ShowPlan
 from ..creative_brief import render_creative_brief
+from ..brief_schema import write_editable_brief
+from ..agents.guide_extracts import scene_ids as _scene_ids
+from xlights_core.knowledge.colors import NAMED_COLORS
 from ..song_description import render_description
 from xlights_core.knowledge.layout_semantics import patch_xsq_render_order
 from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
@@ -51,6 +54,7 @@ from .beats import (
     key_moment_flashes,
     place_beat_accents,
     section_rhythm,
+    feature_prop_contrast,
     effect_palette,
     effect_speed_setting,
     ensemble_bed,
@@ -157,7 +161,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
         instrs = normalize_durations(instrs, _rhythm)
         wash_b = wash_brightness(_si)
         for j, ins in enumerate(instrs):
-            if section.palette:                      # expanded family on regen too
+            if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
                 ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
             if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:
                 ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
@@ -187,6 +191,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             if ins.target in under:                      # a pulse ADDS over its base, not occludes
                 ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
         instrs += accents
+        feature_prop_contrast(instrs, section)           # featured sparkle/snow props pop (white-on-bed)
         return instrs
 
     redesigned: set[int] = set()
@@ -343,6 +348,19 @@ def _cache_path(key: str, stage: str) -> Path:
     return _cache_root() / key / f"{stage}.json"
 
 
+def _emit_editable_brief(st, out_dir) -> None:
+    """Write the schema-backed, hand-editable creative_brief.json (+ schema) — the run's vocabulary
+    as enum dropdowns. Idempotent on a cached/edited brief (rewrites the loaded plan)."""
+    write_editable_brief(
+        st.show_plan, out_dir,
+        groups=list(st.available_groups or []),
+        effect_types=list(st.placeable_types or placeable_effect_types()),
+        scene_ids=_scene_ids(),
+        stems=[f.stem for f in (getattr(st.song_analysis, "stems", None) or [])],
+        colors=list(NAMED_COLORS),
+    )
+
+
 async def run_pipeline(
     song_path: str,
     *,
@@ -432,11 +450,12 @@ async def run_pipeline(
         agent = director or director_mod.director_agent()
         prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
         st.show_plan = (await agent.run(prompt)).output
-        sp_cache.parent.mkdir(parents=True, exist_ok=True)
-        sp_cache.write_text(st.show_plan.model_dump_json())
+    _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)
     if design_checkpoint is not None:                      # hard review gate (attended); --auto passes None
+        log.info("creative brief is editable (schema-backed dropdowns) at %s — edit + re-run to apply",
+                 sp_cache)
         if not await design_checkpoint(brief_md, st.show_plan):
             return st
 
@@ -464,7 +483,7 @@ async def run_pipeline(
             kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
             for j, ins in enumerate(kept):
                 ins.section_index = i               # tag for scoped regen / per-section QA
-                if section.palette:                 # expanded family; multi-color effects get depth
+                if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
                     ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
                 if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:   # long energetic wash BUILDS
                     ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
@@ -514,6 +533,8 @@ async def run_pipeline(
         instrs += place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
                                  load_guide("triggers"))
         instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
+        for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
+            feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
         st.instructions = instrs
         ins_cache.parent.mkdir(parents=True, exist_ok=True)
         ins_cache.write_text(json.dumps([i.model_dump() for i in instrs]))
@@ -554,7 +575,7 @@ async def run_pipeline(
                            review_base=_cache_root() / key / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real)
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
-            _cache_path(key, "creative_brief").write_text(st.show_plan.model_dump_json(indent=1))
+            _emit_editable_brief(st, _cache_root() / key)   # keep the brief schema-backed after refine
             (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
             _cache_path(key, "instructions").write_text(
                 json.dumps([i.model_dump() for i in st.instructions], indent=1))

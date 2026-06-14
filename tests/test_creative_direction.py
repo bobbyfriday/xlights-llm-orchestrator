@@ -63,6 +63,11 @@ def test_director_input_marks_vocal():
     assert "INSTRUMENTAL: false" in director_mod.render_input(brief, ["G1"], ["On"])
 
 
+def test_director_input_has_holiday_palette_bias():
+    s = director_mod.render_input(MusicBrief(sections=[]), ["SEM_ALL"], ["On"])
+    assert "HOLIDAY BIAS" in s and "RED + GREEN + WHITE" in s
+
+
 # -- Generator follows the brief (concept + motifs) ---------------------------
 
 def test_generator_input_includes_concept_and_motifs():

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import bisect
 
-from xlights_core.knowledge.colors import contrast_anchors, expand_palette
+from xlights_core.knowledge.colors import _luminance, _resolve, contrast_anchors, expand_palette
 from xlights_core.knowledge.value_curves import brightness_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
@@ -385,6 +385,50 @@ def ensemble_bed(section, intensity: float, available_groups: list[str], existin
                             start_ms=section.start_ms, end_ms=section.end_ms)
     ins.extra_settings.update(brightness_setting(wash_brightness(intensity) * BED_BRIGHTNESS_FACTOR))
     return ins
+
+
+# -- feature-prop contrast floor --------------------------------------------------------------
+# A dedicated sparkle/snow prop group, when it's a section FEATURE, must POP — light it in the
+# section's LIGHTEST color (white snow) at a bright level so it reads against the bed. Deterministic
+# floor UNDER the LLM steering: the LLM picks the look; this guarantees the feature isn't lost to a
+# dim or same-hue color (the silver-snow-on-navy failure). Scoped to the accent prop groups only.
+FEATURE_BASE_EFFECTS = {"On", "Twinkle", "SingleStrand", "Single Strand", "Fill", "Snowflakes",
+                        "Snowstorm", "Strobe", "Shimmer", "Meteors"}
+FEATURE_PROP_BRIGHTNESS = 150.0           # 0–400 (100=normal): the feature pops above the bed
+
+
+def _slider_brightness(ins: EffectInstruction):
+    raw = ins.extra_settings.get("C_SLIDER_Brightness")
+    try:
+        return float(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _lightest_hex(palette: list[str]) -> str | None:
+    hexes = [h for h in (_resolve(c) for c in (palette or [])) if h]
+    return max(hexes, key=_luminance) if hexes else None
+
+
+def feature_prop_contrast(instructions: list[EffectInstruction], section: SectionPlan
+                          ) -> list[EffectInstruction]:
+    """Floor: when a dedicated sparkle/snow prop group (ACCENT_GROUPS) is among the section's
+    targets, recolor its base-lighting effects to the section's LIGHTEST color at a bright level so
+    the feature reads against the bed. Mutates in place; returns the list. No-op when no accent
+    group is featured or the palette resolves to nothing."""
+    featured = set(ACCENT_GROUPS) & set(section.target_groups or [])
+    if not featured:
+        return instructions
+    light = _lightest_hex(getattr(section, "palette", None) or [])
+    if not light:
+        return instructions
+    for ins in instructions:
+        if ins.target in featured and ins.effect_type in FEATURE_BASE_EFFECTS:
+            ins.palette_colors = [light]                       # the whitest section color
+            cur = _slider_brightness(ins)
+            if cur is None or cur < FEATURE_PROP_BRIGHTNESS:
+                ins.extra_settings.update(brightness_setting(FEATURE_PROP_BRIGHTNESS))
+    return instructions
 
 
 HIT_CELL_MS = 1200                        # a hit effect cell is at most this long

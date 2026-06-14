@@ -189,3 +189,67 @@ def test_top_layer_sits_above_a_higher_spanning_layer():
     assert _top_layer(occ, "SEM_ARCHES", 300, 800) == 4
     # nothing overlapping → layer 0
     assert _top_layer(occ, "SEM_CANES", 300, 800) == 0
+
+
+# -- stem-parameterized triggers (add-melodic-triggers) ------------------------
+
+def _inst_sh(start_ms, end_ms, shares):
+    return SimpleNamespace(start_ms=start_ms, end_ms=end_ms, shares=dict(shares))
+
+
+def _sa_stem(stem, onsets, arc=((0, 1.0),), section_inst=None):
+    s = SimpleNamespace(stem=stem, onsets=list(onsets), energy_arc=[_ep(t, r) for t, r in arc])
+    return SimpleNamespace(stems=[s], lyrics=None, section_instrumentation=section_inst or [])
+
+
+def test_stem_onsets_fires_on_named_stem():
+    sa = _sa_stem("piano", [1.0, 2.0, 3.0])
+    spec = T.TriggerSpec(name="P", detector="stem_onsets", stem="piano")
+    evs = T._stem_onsets(sa, [], spec)
+    assert [e.time_ms for e in evs] == [1000, 2000, 3000]
+    assert all(e.stem == "piano" for e in evs)
+
+
+def test_stem_onsets_default_stem_is_drums():
+    sa = _sa_stem("drums", [0.5, 1.5])
+    spec = T.TriggerSpec(name="D", detector="stem_onsets")        # no stem → default "drums"
+    assert [e.time_ms for e in T._stem_onsets(sa, [], spec)] == [500, 1500]
+
+
+def test_drum_onsets_alias_forces_drums():
+    # even if a spec names piano, the drum_onsets detector reads drums (back-compat)
+    sa = SimpleNamespace(stems=[
+        SimpleNamespace(stem="drums", onsets=[1.0], energy_arc=[_ep(0, 1.0)]),
+        SimpleNamespace(stem="piano", onsets=[2.0, 3.0], energy_arc=[_ep(0, 1.0)])],
+        lyrics=None, section_instrumentation=[])
+    spec = T.TriggerSpec(name="X", detector="drum_onsets", stem="piano")
+    assert [e.stem for e in T._drum_onsets(sa, [], spec)] == ["drums"]
+
+
+def test_absent_stem_yields_no_events():
+    sa = _sa_stem("drums", [1.0])
+    spec = T.TriggerSpec(name="P", detector="stem_onsets", stem="piano")  # no piano stem present
+    assert T._stem_onsets(sa, [], spec) == []
+
+
+def test_stem_prominent_eligibility_uses_spec_stem():
+    sections = [_sec(0), _sec(1)]
+    inst = [_inst_sh(0, 10000, {"piano": 0.05}), _inst_sh(10000, 20000, {"piano": 0.5})]
+    sa = SimpleNamespace(stems=[], lyrics=None, section_instrumentation=inst)
+    spec = T.TriggerSpec(name="P", detector="stem_onsets", sections="stem_prominent", stem="piano")
+    assert T._eligible_sections(spec, sa, sections) == [1]        # only the piano-prominent one
+
+
+def test_piano_trigger_rotates_groups_per_note():
+    onsets = [1.0, 2.0, 3.0, 4.0]
+    inst = [_inst_sh(0, 10000, {"piano": 0.6})]
+    sa = _sa_stem("piano", onsets, section_inst=inst)
+    spec = T.TriggerSpec(name="Piano", detector="stem_onsets", effect="On", render="per_model",
+                         groups="rhythm", sections="stem_prominent", stem="piano",
+                         select="all", density="per_onset")
+    out = T.realize_triggers([spec], sa, [_sec(0)], AVAIL)
+    assert len(out) == 4
+    rhythm = {"SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"}
+    assert all(o.target in rhythm for o in out)
+    assert len({o.target for o in out}) >= 2                      # walks across groups
+    assert all(o.on_top and o.effect_type == "On" for o in out)

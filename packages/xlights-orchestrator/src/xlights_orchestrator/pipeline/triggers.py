@@ -65,6 +65,7 @@ class TriggerSpec:
     color: str = "section"
     direction: str = "none"
     groups: str = "rhythm"           # which per_model pool: rhythm | accents | focal
+    stem: str = "drums"              # which instrument stem drives stem_onsets / stem_prominent
     enabled: bool = True
 
 
@@ -95,6 +96,7 @@ def _spec_from(name: str, b: dict) -> TriggerSpec:
         select=b.get("select", "all"), density=b.get("density", "per_onset"),
         magnitude=b.get("magnitude", "any"), color=b.get("color", "section"),
         direction=b.get("direction", "none"), groups=b.get("groups", "rhythm"),
+        stem=b.get("stem", "drums"),
         enabled=b.get("enabled", "true").lower() != "false")
 
 
@@ -116,7 +118,7 @@ def _stem(sa, name: str):
 
 # -- detectors: analysis -> [TriggerEvent] -------------------------------------
 
-def _guitar_solo(sa, sections) -> list[TriggerEvent]:
+def _guitar_solo(sa, sections, spec=None) -> list[TriggerEvent]:
     """Sections where guitar dominates and vocals are absent — the soloist's window."""
     out: list[TriggerEvent] = []
     for inst in (getattr(sa, "section_instrumentation", None) or []):
@@ -128,16 +130,28 @@ def _guitar_solo(sa, sections) -> list[TriggerEvent]:
     return out
 
 
-def _drum_onsets(sa, sections) -> list[TriggerEvent]:
-    f = _stem(sa, "drums")
+def _onsets_for(sa, name: str) -> list[TriggerEvent]:
+    """Every onset of stem `name`, each carrying that stem's normalized energy as magnitude."""
+    f = _stem(sa, name)
     if not f or not f.onsets:
         return []
     peak = max((p.rms for p in f.energy_arc), default=0.0) or 1.0
     return [TriggerEvent(time_ms=int(t * 1000), magnitude=energy_at(f.energy_arc, t, peak),
-                         stem="drums") for t in f.onsets]
+                         stem=name) for t in f.onsets]
 
 
-def _lyric_color(sa, sections) -> list[TriggerEvent]:
+def _stem_onsets(sa, sections, spec=None) -> list[TriggerEvent]:
+    """Onsets of the trigger's chosen stem (`spec.stem`, default drums) — a melodic line (piano,
+    bass, …) walking the props, not only the beat."""
+    return _onsets_for(sa, (getattr(spec, "stem", None) or "drums"))
+
+
+def _drum_onsets(sa, sections, spec=None) -> list[TriggerEvent]:
+    """Back-compat name: stem_onsets forced to drums regardless of the spec's stem."""
+    return _onsets_for(sa, "drums")
+
+
+def _lyric_color(sa, sections, spec=None) -> list[TriggerEvent]:
     """A color WORD in the lyric → an event at that word's time (word timing if persisted, else
     the line start), carrying the color."""
     lyr = getattr(sa, "lyrics", None) or {}
@@ -157,7 +171,7 @@ def _lyric_color(sa, sections) -> list[TriggerEvent]:
     return out
 
 
-def _instrument_entrance(sa, sections) -> list[TriggerEvent]:
+def _instrument_entrance(sa, sections, spec=None) -> list[TriggerEvent]:
     """The folded-in entrance feature: a stem surging in → ride its onsets on the focal prop."""
     onsets_by_stem = {f.stem: [int(t * 1000) for t in (f.onsets or [])]
                       for f in (getattr(sa, "stems", None) or [])}
@@ -172,6 +186,7 @@ def _instrument_entrance(sa, sections) -> list[TriggerEvent]:
 # A "big moment" is not its own detector — it's `drum_onsets` gated to top-magnitude hits
 # (whole-house render, low top:<pct>): naturally rare, length-proportional, capped per section.
 DETECTORS = {"guitar_solo": _guitar_solo, "drum_onsets": _drum_onsets,
+             "stem_onsets": _stem_onsets,
              "lyric_color": _lyric_color, "instrument_entrance": _instrument_entrance}
 
 
@@ -192,19 +207,21 @@ def _eligible_sections(spec: TriggerSpec, sa, sections) -> list[int]:
         peak = max((getattr(s, "intensity", 0.0) or 0.0 for s in sections), default=0.0)
         elig = [i for i, s in enumerate(sections)
                 if peak >= 0.66 and (getattr(s, "intensity", 0.0) or 0.0) >= peak - 0.12]
-    elif spec.sections in ("drum_prominent", "sparse_beat"):
+    elif spec.sections in ("drum_prominent", "sparse_beat", "stem_prominent"):
+        # which stem must be prominent: the chosen stem for stem_prominent, else drums.
+        stem = (spec.stem or "drums") if spec.sections == "stem_prominent" else "drums"
         elig = []
         for i, s in enumerate(sections):
             inst = next((x for x in (getattr(sa, "section_instrumentation", None) or [])
                          if x.start_ms < s.end_ms and x.end_ms > s.start_ms), None)
-            drummy = inst and (inst.shares or {}).get("drums", 0.0) >= DRUM_PROMINENT_SHARE
+            prominent = inst and (inst.shares or {}).get(stem, 0.0) >= DRUM_PROMINENT_SHARE
             # sparse_beat = a STRONG beat with little else going on (the user's intro shockwaves):
-            # drum-prominent AND low overall energy. Plain drum_prominent ignores intensity.
-            if drummy and (spec.sections == "drum_prominent"
-                           or (getattr(s, "intensity", 1.0) or 0.0) <= SPARSE_MAX_INTENSITY):
+            # prominent AND low overall energy. drum_prominent / stem_prominent ignore intensity.
+            if prominent and (spec.sections != "sparse_beat"
+                              or (getattr(s, "intensity", 1.0) or 0.0) <= SPARSE_MAX_INTENSITY):
                 elig.append(i)
     elif spec.sections == "has_guitar_solo":
-        solos = {_section_index(sections, e.time_ms) for e in _guitar_solo(sa, sections)}
+        solos = {_section_index(sections, e.time_ms) for e in _guitar_solo(sa, sections, spec)}
         elig = sorted(i for i in solos if i is not None)
     else:
         elig = list(range(n))
@@ -271,7 +288,7 @@ def realize_triggers(specs: list[TriggerSpec], sa, sections, available_groups: l
             log.info("trigger %r: unknown detector %r — skipped", spec.name, spec.detector)
             continue
         try:
-            events = _mag_keep(spec, det(sa, sections))
+            events = _mag_keep(spec, det(sa, sections, spec))
         except Exception as exc:  # noqa: BLE001 — a detector failure never sinks the run
             log.warning("trigger %r detector failed: %s", spec.name, exc)
             continue

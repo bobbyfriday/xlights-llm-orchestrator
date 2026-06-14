@@ -37,9 +37,28 @@ async def _run(args) -> None:
     print(f"\nOpen '{name}' in xLights to play it with audio (File → Open Sequence).")
 
 
+def _edit_brief(args) -> None:
+    from pathlib import Path
+    from .brief_editor import serve
+    from .pipeline.run import _cache_path, _song_key
+    if args.brief:
+        brief = Path(args.brief)
+    elif args.song:
+        brief = _cache_path(_song_key(args.song), "creative_brief")
+    else:
+        raise SystemExit("edit-brief needs --song or --brief")
+    if not brief.exists():
+        raise SystemExit(f"no creative brief at {brief} — run `xlo run` for this song first")
+    serve(brief, open_browser=not args.no_open)
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="xlo", description="xLights LLM orchestrator")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    e = sub.add_parser("edit-brief", help="open the creative brief in a browser form (dropdowns/colors)")
+    e.add_argument("--song", default=None, help="song whose cached brief to edit")
+    e.add_argument("--brief", default=None, help="path to a creative_brief.json (overrides --song)")
+    e.add_argument("--no-open", action="store_true", help="don't auto-open the browser")
     r = sub.add_parser("run", help="generate a sequence for a song")
     r.add_argument("--song", required=True, help="path to an audio file")
     r.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
@@ -54,6 +73,9 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
 
     load_env()
+    if args.cmd == "edit-brief":
+        _edit_brief(args)
+        return
     if args.cmd == "run":
         if not has_llm_key():
             raise SystemExit(

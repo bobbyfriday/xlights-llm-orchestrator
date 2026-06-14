@@ -861,3 +861,95 @@ SHALL NOT inject groups the brief excluded.
 - **WHEN** the Generator emitted weave recipes for a section
 - **THEN** those expand regardless of the gate; only the code-synthesized fallback is suppressed in non-rhythmic sections
 
+### Requirement: Color Wash is a placeable effect type
+"Color Wash" SHALL be treated as a placeable effect type — included in the placeable set offered to the director and enumerated by the editable-brief schema — having been re-verified to place (`addEffect` `worked=true`) and render via the automation API. The reject-list mechanism SHALL remain for any effect type genuinely confirmed unplaceable.
+
+#### Scenario: Color Wash is offered and accepted
+- **WHEN** the placeable effect types are computed
+- **THEN** "Color Wash" is included, so the director may choose it and the brief schema lists it as a valid effect type
+
+#### Scenario: The reject mechanism still exists
+- **WHEN** a future effect type is confirmed unplaceable and added to the reject list
+- **THEN** it is filtered out of the placeable set exactly as before
+### Requirement: The creative brief is emitted as a schema-backed editable file
+When the creative brief is written, the orchestrator SHALL also write a JSON Schema for it (`creative_brief.schema.json`) and reference that schema from `creative_brief.json` via a relative `$schema` key, so a schema-aware editor offers valid choices and validation. The schema SHALL enumerate the run's actual vocabulary — the live layout groups for group fields, placeable effect types for effect fields, cookbook scene IDs for `scene_id`, the song's stems for `follow_stem`, and the named colors for palette fields — and SHALL keep `intensity` bounded to 0–1.
+
+#### Scenario: Schema lists the run's real choices
+- **WHEN** the brief is written for a run whose layout has groups G and whose cookbook defines scenes S
+- **THEN** the generated schema's group fields enumerate G and its `scene_id` field enumerates S, so an editor offers exactly those choices
+
+#### Scenario: An edited brief is read back unchanged
+- **WHEN** the user edits `creative_brief.json` (which carries a `$schema` key) and re-runs
+- **THEN** the brief loads as the edited `ShowPlan`, with the `$schema` key ignored, and the run uses the edited values
+
+#### Scenario: A brief without a schema still loads
+- **WHEN** a `creative_brief.json` has no `$schema` key
+- **THEN** it validates and runs exactly as before
+### Requirement: The creative brief is editable via a local browser form
+The orchestrator SHALL provide a local browser form that edits the creative brief using widgets generated from the brief schema — dropdowns for enum fields, multi-selects for array-of-enum fields, color swatches for the palette, a slider for intensity — and writes edits back to `creative_brief.json`. The save SHALL preserve the `$schema` reference and every field the form does not render, and SHALL reject a structurally invalid edit without writing.
+
+#### Scenario: Edit a section's scene and palette via widgets
+- **WHEN** the user opens the brief editor and changes a section's scene (dropdown) and palette (color rows)
+- **THEN** Save writes those changes to `creative_brief.json` while leaving unrendered fields (e.g. group_motifs) and the `$schema` key intact
+
+#### Scenario: Invalid edit is rejected
+- **WHEN** a save would produce a brief that is not a valid ShowPlan
+- **THEN** the server rejects it with an error shown in the form and does not overwrite the file
+
+#### Scenario: Launch from the CLI
+- **WHEN** the user runs `xlo edit-brief --song <mp3>` (or `--brief <path>`)
+- **THEN** the editor serves that song's cached brief and opens it in the browser
+### Requirement: Featured accent/sparkle prop groups are steered to pop
+When a section's look centers on a dedicated accent/sparkle prop group (such as SEM_SNOWFLAKES or SEM_SPINNERS), the creative-direction prompts SHALL steer those props to be the bright, high-contrast focal element in a light color over a different-hued background bed (e.g. white snowflakes on a blue house), kept bright even in a calm section. The generator prompt SHALL also steer away from named particle effects (Snowflakes/Snowstorm/Meteors) on small dedicated props — which render nothing visible there — toward lighting the props directly, reserving particle effects for a large canvas with a high count. This is steering, not a deterministic guarantee.
+
+#### Scenario: Snow section steered to white-on-blue
+- **WHEN** the Director and Generator compose a section that features the snowflake props
+- **THEN** their prompts direct the snow props to a bright light color over a contrasting bed, and direct against a particle effect that won't render on the small props
+
+#### Scenario: Particle effects still allowed on a real canvas
+- **WHEN** a section uses a particle effect on a large whole-house or Matrix canvas
+- **THEN** the guidance does not discourage it (the caveat is scoped to small dedicated props)
+
+### Requirement: An instruction's explicit color is respected
+When an effect instruction carries an explicitly-chosen `palette_colors`, the orchestrator SHALL use those colors as-is rather than overwriting them with the index-rotated section palette. An instruction with no explicit `palette_colors` SHALL receive the section-palette family as before.
+
+#### Scenario: A pinned feature color survives
+- **WHEN** the generator sets `palette_colors` (e.g. white) on a feature-prop instruction
+- **THEN** that color is used as-is and is not replaced by the section-palette rotation
+
+#### Scenario: Unpinned instructions take the section family
+- **WHEN** an instruction has no explicit `palette_colors`
+- **THEN** it receives the expanded section palette exactly as before
+
+### Requirement: Featured sparkle/snow props have a deterministic contrast floor
+When a dedicated sparkle/snow prop group (SEM_SNOWFLAKES or SEM_SPINNERS) is among a section's target groups, the orchestrator SHALL recolor that group's base-lighting effects to the section's lightest resolved palette color and raise their brightness to a bright level, so the feature pops against the bed regardless of the LLM's color choice. This floor SHALL apply only to those accent prop groups and only when they are featured; all other groups and effect choices remain the LLM's.
+
+#### Scenario: Snow props forced to the lightest color, bright
+- **WHEN** a section targets SEM_SNOWFLAKES with a palette containing a light color
+- **THEN** the snowflake props' base lighting is set to that lightest color at a bright level, while the bed and other groups keep their colors
+
+#### Scenario: No accent group featured
+- **WHEN** a section does not target a sparkle/snow prop group
+- **THEN** the floor makes no change
+### Requirement: Triggers can key off any instrument stem
+A trigger SHALL be able to fire on any instrument stem's onsets (drums, piano, bass, guitar,
+vocals), selected by a `stem` field, with section eligibility by that stem's prominence. Triggers
+without a `stem` SHALL default to drums (back-compat). A stem that is never prominent SHALL simply
+produce no events (not an error).
+
+#### Scenario: Piano notes drive the props
+- **WHEN** a trigger specifies the piano stem on a piano-heavy song
+- **THEN** it fires on the piano's onsets, rotating across the target groups so the melody walks the props, in the sections where piano is prominent
+
+#### Scenario: Drum triggers unchanged
+- **WHEN** an existing trigger names no stem
+- **THEN** it fires on the drum stem exactly as before
+
+### Requirement: Holiday songs prefer the traditional Christmas palette
+The Director's palette guidance SHALL prefer a red / green / white primary palette with accent
+colors for Christmas/holiday songs, unless the song's mood clearly calls for a different scheme.
+
+#### Scenario: Christmas song palette
+- **WHEN** the Director designs a show for a clearly Christmas/holiday song
+- **THEN** its section palettes lean on red, green, and white as primaries with a small number of accent colors
+

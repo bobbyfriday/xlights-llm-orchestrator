@@ -42,6 +42,9 @@ from ..revision_log import (
 )
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects, ShowPlan
 from ..creative_brief import render_creative_brief
+from ..brief_schema import write_editable_brief
+from ..agents.guide_extracts import scene_ids as _scene_ids
+from xlights_core.knowledge.colors import NAMED_COLORS
 from ..song_description import render_description
 from xlights_core.knowledge.layout_semantics import patch_xsq_render_order
 from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
@@ -343,6 +346,19 @@ def _cache_path(key: str, stage: str) -> Path:
     return _cache_root() / key / f"{stage}.json"
 
 
+def _emit_editable_brief(st, out_dir) -> None:
+    """Write the schema-backed, hand-editable creative_brief.json (+ schema) — the run's vocabulary
+    as enum dropdowns. Idempotent on a cached/edited brief (rewrites the loaded plan)."""
+    write_editable_brief(
+        st.show_plan, out_dir,
+        groups=list(st.available_groups or []),
+        effect_types=list(st.placeable_types or placeable_effect_types()),
+        scene_ids=_scene_ids(),
+        stems=[f.stem for f in (getattr(st.song_analysis, "stems", None) or [])],
+        colors=list(NAMED_COLORS),
+    )
+
+
 async def run_pipeline(
     song_path: str,
     *,
@@ -432,11 +448,12 @@ async def run_pipeline(
         agent = director or director_mod.director_agent()
         prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
         st.show_plan = (await agent.run(prompt)).output
-        sp_cache.parent.mkdir(parents=True, exist_ok=True)
-        sp_cache.write_text(st.show_plan.model_dump_json())
+    _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)
     if design_checkpoint is not None:                      # hard review gate (attended); --auto passes None
+        log.info("creative brief is editable (schema-backed dropdowns) at %s — edit + re-run to apply",
+                 sp_cache)
         if not await design_checkpoint(brief_md, st.show_plan):
             return st
 
@@ -554,7 +571,7 @@ async def run_pipeline(
                            review_base=_cache_root() / key / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real)
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
-            _cache_path(key, "creative_brief").write_text(st.show_plan.model_dump_json(indent=1))
+            _emit_editable_brief(st, _cache_root() / key)   # keep the brief schema-backed after refine
             (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
             _cache_path(key, "instructions").write_text(
                 json.dumps([i.model_dump() for i in st.instructions], indent=1))

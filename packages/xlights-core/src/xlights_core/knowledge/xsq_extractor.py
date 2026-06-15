@@ -17,7 +17,6 @@ from .constants import ASSET_BOUND_TYPES, classify_kind
 from .models import Catalog, Knob, Look, Palette
 from .settings import (
     classify_value_curve,
-    key_signature,
     parse_settings,
     value_curve_is_active,
 )
@@ -150,7 +149,6 @@ def build_catalog(show_dir: str | Path) -> tuple[Catalog, dict]:
                     values_by_key[k].append(v)
             rep = full_strings.most_common(1)[0][0]
             rep_order = [k for k, _ in rep]
-            rep_values = dict(rep)
 
             frozen, knob_keys = {}, []
             for k in rep_order:
@@ -209,7 +207,7 @@ def _palette_tags(colors: list[str]) -> list[str]:
         tags.append("monochrome")
     warm = cool = 0
     for c in colors:
-        r, g, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
+        r, _, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
         if r >= b:
             warm += 1
         else:

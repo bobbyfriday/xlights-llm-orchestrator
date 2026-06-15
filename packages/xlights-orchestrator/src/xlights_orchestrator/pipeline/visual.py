@@ -8,7 +8,6 @@ The `.fseq` is written by the orchestrator's render+save into the macOS sandbox 
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
@@ -37,7 +36,7 @@ def _persist_bundle(root: Path, media: list[tuple], vf, findings: list[Finding])
             if mp4:
                 (root / f"{base}.mp4").write_bytes(mp4)
         (root / "findings.json").write_text(vf.model_dump_json(indent=1))
-        lines = [f"# Visual review\n", f"**Summary:** {vf.summary}\n"]
+        lines = ["# Visual review\n", f"**Summary:** {vf.summary}\n"]
         for i, (label, _png, mp4) in enumerate(media):
             lines.append(f"\n## section {i}: {label}\n")
             lines.append(f"![still](s{i}_{label.replace(' ', '_')[:24]}.png)\n")

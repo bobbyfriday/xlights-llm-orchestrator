@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ffmpeg is a system binary the preview/real-render tests shell out to.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          enable-cache: true
+
+      # Base + dev group (pytest/ruff/mypy) + the preview extra (numpy/zstandard/
+      # pillow). librosa/soundfile back the audio tests; we install them directly
+      # rather than via the `audio` extra to skip the heavy, build-from-source vamp.
+      - name: Install dependencies
+        run: |
+          uv sync --extra preview
+          uv pip install librosa soundfile
+
+      - name: Lint (ruff)
+        run: uv run ruff check
+
+      - name: Test (pytest)
+        run: uv run --no-sync pytest
+
+      # Type checking is wired in but ADVISORY for now: the codebase is fully
+      # annotated but was never type-checked, so a backlog of findings is being
+      # triaged before this becomes a hard gate. Remove continue-on-error to enforce.
+      - name: Type check (mypy, advisory)
+        run: uv run --no-sync mypy
+        continue-on-error: true

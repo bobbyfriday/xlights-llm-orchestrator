@@ -5,7 +5,6 @@ from __future__ import annotations
 import struct
 
 import numpy as np
-import pytest
 import zstandard
 
 from xlights_core.preview import (

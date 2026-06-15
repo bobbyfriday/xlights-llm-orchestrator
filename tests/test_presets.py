@@ -16,7 +16,6 @@ from xlights_core.knowledge import (
     KnobValueError,
     get_library,
 )
-from xlights_core.knowledge.preset_library import PresetLibrary
 from xlights_core.knowledge.settings import (
     classify_value_curve,
     parse_settings,

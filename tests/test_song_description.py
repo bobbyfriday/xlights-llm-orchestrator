@@ -106,7 +106,6 @@ def test_render_description_covers_layers():
 # -- interpret checkpoint gate ------------------------------------------------
 
 def test_interpret_checkpoint_gates(monkeypatch):
-    from xlights_orchestrator.pipeline import run as run_mod
     calls = {}
 
     async def chk(desc_md, brief):

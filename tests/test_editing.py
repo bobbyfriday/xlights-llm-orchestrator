@@ -125,7 +125,6 @@ def test_write_lock_serializes():
 # -- place_preset validation --------------------------------------------------
 
 def _layout_and_addeffect(worked="true", models=("Tree",)):
-    import json
 
     def handler(req: httpx.Request) -> httpx.Response:
         if req.url.path == "/getModels":

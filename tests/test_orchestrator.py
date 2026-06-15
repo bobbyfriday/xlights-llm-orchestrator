@@ -19,7 +19,7 @@ from xlights_orchestrator.music_brief import LabeledSection, MusicBrief
 from xlights_orchestrator.pipeline import run_pipeline
 from xlights_orchestrator.show_plan import EffectInstruction, SectionEffects, ShowPlan
 from xlights_core.audio import EnergyPoint, SectionInstrumentation, Segment, SongAnalysis
-from xlights_core.editing import CleanSlateRequired, PresetPlacementError
+from xlights_core.editing import PresetPlacementError
 from xlights_core.exceptions import XLightsResponseError
 
 
@@ -205,7 +205,7 @@ from types import SimpleNamespace
 
 from xlights_orchestrator.agents import panel as panel_mod
 from xlights_orchestrator.agents import synthesizer as synth_mod
-from xlights_orchestrator.music_brief import HarmonyOut, LyricOut, RhythmOut, StructureOut
+from xlights_orchestrator.music_brief import HarmonyOut, RhythmOut, StructureOut
 
 
 class _StubAgent:

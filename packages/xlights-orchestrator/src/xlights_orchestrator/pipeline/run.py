@@ -14,7 +14,6 @@ import os
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from xlights_core.audio import AudioAnalyzer, SongAnalysis
 
@@ -70,7 +69,7 @@ from .triggers import place_triggers
 from ..agents.guide import load_guide
 from .groups import targetable_groups
 from .weave import canon_effect_type, carrier_covers, expand_weave, fallback_weave
-from .media import patch_xsq_media, prepare_media, resolve_xsq, safe_name
+from .media import patch_xsq_media, prepare_media, resolve_xsq
 from .state import State
 from .timing import build_timing_tracks, patch_xsq_timing_tracks
 from .visual import RealRender, make_lit_sampler, make_visual_critique

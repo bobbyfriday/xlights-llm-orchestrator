@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 
 import pytest
 
@@ -70,7 +69,7 @@ def test_real_guides_present_and_routed():
     # all four real guides load from repo root
     assert G.load_guide("sequencing") and G.load_guide("effects") and G.load_guide("layering")
     assert G.load_guide("scenes")
-    from xlights_orchestrator.agents import director, generator, visual_critic
+    from xlights_orchestrator.agents import generator, visual_critic
     gen = G.with_guides(generator._PROMPT, "sequencing", "effects", "layering", "scenes")
     assert "EFFECTS CATALOG" in gen and "LAYERING" in gen and "SEQUENCING" in gen   # generator: all
     assert "SCENE COOKBOOK" in gen

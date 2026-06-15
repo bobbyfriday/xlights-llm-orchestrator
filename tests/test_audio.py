@@ -7,7 +7,6 @@ pipeline over a show .mp3 and skips if the plugins or audio aren't available.
 from __future__ import annotations
 
 import glob
-from pathlib import Path
 
 import pytest
 

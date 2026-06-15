@@ -16,6 +16,10 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .ruff_cache/
+.mypy_cache/
+
+# uv resolves fresh in CI; the repo intentionally tracks no lockfile
+uv.lock
 
 # OS / crash artifacts
 .DS_Store

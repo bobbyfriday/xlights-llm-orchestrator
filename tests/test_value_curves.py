@@ -49,7 +49,7 @@ class _FakeClient:
 
 
 def test_extra_settings_appended_to_placement():
-    lib = get_library()
+    get_library()
     c = _FakeClient()
     run(place_preset(c, "G1", "On", "On#0", extra_settings=brightness_ramp(0, 100),
                      start_ms=0, end_ms=1000))
@@ -60,7 +60,7 @@ def test_extra_settings_appended_to_placement():
 
 
 def test_no_extra_settings_unchanged():
-    lib = get_library()
+    get_library()
     c = _FakeClient()
     run(place_preset(c, "G1", "On", "On#0", start_ms=0, end_ms=1000))
     assert "C_VALUECURVE" not in (c.settings or "")

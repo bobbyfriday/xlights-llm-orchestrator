@@ -9,7 +9,7 @@ Code owns timing + realization, the markdown owns the curation — same split as
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from xlights_core.knowledge.colors import _brighten, _resolve, contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting

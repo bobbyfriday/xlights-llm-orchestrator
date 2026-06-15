@@ -1,9 +1,7 @@
 """Tests for real-render feedback (export guard, offset, frame sampling, fallbacks)."""
 import asyncio
 import subprocess
-from types import SimpleNamespace
 
-import pytest
 
 from xlights_orchestrator.pipeline import visual as V
 from xlights_orchestrator.pipeline.visual import RealRender

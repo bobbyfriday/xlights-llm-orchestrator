@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from types import SimpleNamespace
 
 from xlights_orchestrator.pipeline.run import _refine_loop
 from xlights_orchestrator.pipeline.state import State
-from xlights_orchestrator.refine import Finding, JudgeVerdict, RevisionBrief
+from xlights_orchestrator.refine import Finding, JudgeVerdict
 from xlights_orchestrator.revision_log import (
     LogFinding,
     LogRevision,

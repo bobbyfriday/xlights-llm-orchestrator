@@ -1,9 +1,33 @@
 [
  {
+  "effect_type": "On",
+  "end_ms": 1000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_ARCHES"
+ },
+ {
   "effect_type": "Twinkle",
   "end_ms": 1000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -95,26 +119,6 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 500,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 0,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "On",
   "end_ms": 1250,
   "extra_settings": {},
   "knob_values": {},
@@ -132,29 +136,32 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 1500,
+  "end_ms": 2000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#FF0000"
+   "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
   "start_ms": 1000,
-  "target": "SEM_ARCHES"
+  "target": "SEM_CANES"
  },
  {
   "effect_type": "Twinkle",
   "end_ms": 2000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -226,10 +233,12 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 10500,
+  "end_ms": 11000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -248,7 +257,9 @@
   "effect_type": "Twinkle",
   "end_ms": 11000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -266,25 +277,6 @@
   "section_index": 0,
   "start_ms": 10000,
   "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 11000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 10500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",
@@ -305,29 +297,32 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 11500,
+  "end_ms": 12000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#FF0000"
+   "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
   "start_ms": 11000,
-  "target": "SEM_ARCHES"
+  "target": "SEM_CANES"
  },
  {
   "effect_type": "Twinkle",
   "end_ms": 12000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -345,44 +340,6 @@
   "section_index": 0,
   "start_ms": 11000,
   "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 12000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 11500,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 2000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 1500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",
@@ -437,10 +394,12 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 2500,
+  "end_ms": 3000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -459,7 +418,9 @@
   "effect_type": "Twinkle",
   "end_ms": 3000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -477,25 +438,6 @@
   "section_index": 0,
   "start_ms": 2000,
   "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 3000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 2500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",
@@ -516,29 +458,32 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 3500,
+  "end_ms": 4000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#FF0000"
+   "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
   "start_ms": 3000,
-  "target": "SEM_ARCHES"
+  "target": "SEM_CANES"
  },
  {
   "effect_type": "Twinkle",
   "end_ms": 4000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -556,25 +501,6 @@
   "section_index": 0,
   "start_ms": 3000,
   "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 4000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 3500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",
@@ -629,10 +555,12 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 4500,
+  "end_ms": 5000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -651,7 +579,9 @@
   "effect_type": "Twinkle",
   "end_ms": 5000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -672,44 +602,6 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 5000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 4500,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 1000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 500,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "On",
   "end_ms": 5250,
   "extra_settings": {},
   "knob_values": {},
@@ -727,29 +619,32 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 5500,
+  "end_ms": 6000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#FF0000"
+   "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
   "start_ms": 5000,
-  "target": "SEM_ARCHES"
+  "target": "SEM_CANES"
  },
  {
   "effect_type": "Twinkle",
   "end_ms": 6000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -770,25 +665,6 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 6000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 5500,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "On",
   "end_ms": 6250,
   "extra_settings": {},
   "knob_values": {},
@@ -840,10 +716,12 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 6500,
+  "end_ms": 7000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -862,7 +740,9 @@
   "effect_type": "Twinkle",
   "end_ms": 7000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -880,25 +760,6 @@
   "section_index": 0,
   "start_ms": 6000,
   "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 7000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 6500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",
@@ -919,29 +780,32 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 7500,
+  "end_ms": 8000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#FF0000"
+   "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
   "start_ms": 7000,
-  "target": "SEM_ARCHES"
+  "target": "SEM_CANES"
  },
  {
   "effect_type": "Twinkle",
   "end_ms": 8000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -959,25 +823,6 @@
   "section_index": 0,
   "start_ms": 7000,
   "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 8000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 7500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",
@@ -1032,10 +877,12 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 8500,
+  "end_ms": 9000,
   "extra_settings": {
    "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -1054,7 +901,9 @@
   "effect_type": "Twinkle",
   "end_ms": 9000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -1075,9 +924,11 @@
  },
  {
   "effect_type": "On",
-  "end_ms": 9000,
+  "end_ms": 10000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -1089,14 +940,16 @@
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 8500,
+  "start_ms": 9000,
   "target": "SEM_CANES"
  },
  {
   "effect_type": "Twinkle",
   "end_ms": 10000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_SLIDER_Brightness": "108",
+   "T_TEXTCTRL_Fadein": "0.35",
+   "T_TEXTCTRL_Fadeout": "0.35"
   },
   "knob_values": {},
   "layer": 0,
@@ -1131,45 +984,6 @@
   "section_index": 0,
   "start_ms": 9000,
   "target": "SEM_FOCAL"
- },
- {
-  "effect_type": "On",
-  "end_ms": 9500,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_CHOICE_LayerMethod": "Max"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 9000,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "On",
-  "end_ms": 10000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 9500,
-  "target": "SEM_CANES"
  },
  {
   "effect_type": "On",

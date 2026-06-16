@@ -102,6 +102,8 @@ The Layer Settings panel has two tabs — **Buffer** (how the effect renders int
 
 **Transitions vs Morph blend vs sequencing:** for section boundaries you have three tools — out/in transitions on the layers, the Morph blend mode within one cell, or explicitly sequencing a transition effect (Shockwave/wipe) on a group. Use transitions for routine entries/exits, Morph-blend for one-cell crossfades, and explicit effects for *musical* transitions the audience should notice.
 
+**Phrasing → soft cell edges (orchestrator behavior):** the cell weaver softens or sharpens cell edges by the section's *phrasing*. A **legato** section (the Director's call for calm/introspective moods, or the default below mid energy) gives each woven cell a soft entrance/exit — a linear **fade in/out** scaled to the cell's length for line/chase/point effects, or a **Dissolve** in/out for full-canvas fills/washes — and lengthens short cells so the edge has room to read, so the fabric evolves instead of flashing. A **staccato** section (energetic, or directed) keeps crisp on/off cells. The Director picks only the feel (`phrasing`); code owns the fade/dissolve timing. An explicit per-recipe transition still wins over the phrasing default.
+
 ---
 
 ## 6. Render Styles: Group vs Per-Model

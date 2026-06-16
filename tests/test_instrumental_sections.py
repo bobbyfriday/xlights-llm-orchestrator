@@ -179,3 +179,18 @@ def test_cap_is_idempotent():
     n = len(sa.segments)
     assert cap_long_segments(sa) is False                   # second pass: nothing left to cut
     assert len(sa.segments) == n
+
+
+# -- cuts land on the ENERGY break, not the latest harmonic before the cap (seam-strength) ------
+
+def test_cut_lands_on_energy_break_not_latest_harmonic():
+    # dense harmonic changes across the whole [12,32] window (like Canon's ~every-0.5s noise),
+    # plus ONE real energy break at ~28s. Old code picked the latest harmonic (~31.5, cap-drift);
+    # new code weights seams by energy change and picks the break.
+    harmonic = [12.0 + 0.5 * i for i in range(40)]            # 12.0 .. 31.5, all in-window
+    energy = [(float(t), 0.02 if t == 28 else 0.2) for t in range(50)]   # drop-out + re-entry at 28/29
+    sa = _sa(duration=50.0, beats=GRID, harmonic=harmonic, energy=energy,
+             segments=[Segment(start=0, end=50, segment_id="A")])
+    assert cap_long_segments(sa) is True
+    first_end = sa.segments[0].end
+    assert 27.0 <= first_end <= 30.0                          # the energy break, NOT ~31.5

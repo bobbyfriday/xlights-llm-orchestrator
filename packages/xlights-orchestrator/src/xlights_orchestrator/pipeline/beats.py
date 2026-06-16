@@ -274,9 +274,13 @@ def select_rhythm_groups(section: SectionPlan, available_groups: list[str]) -> R
     hero = HERO_GROUP if HERO_GROUP in avail else \
         (section.target_groups[0] if section.target_groups else None)
     bass_band = BASS_BAND_GROUP if BASS_BAND_GROUP in avail else None
-    # the backbeat answers on a contrasting group — never a ring group, never a sparkle prop
+    # the backbeat answers on a contrasting group — prefer a non-ring, non-sparkle group; when
+    # none is free (the ring consumed the side groups), fall back to a ring family OTHER than the
+    # downbeat anchor (ring[0]) so the backbeat still reads on most drum sections.
     backbeat = next((g for g in BACKBEAT_GROUP_PREFERENCE
                      if g in avail and g not in ring and g not in sparkle), None)
+    if backbeat is None and len(ring) >= 2:
+        backbeat = ring[len(ring) // 2]        # a different prop family than the anchor ring[0]
     return RhythmRoles(ring, sparkle, hero, bass_band, backbeat)
 
 
@@ -356,11 +360,16 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     drum_onsets = rhythm.get("onsets_by_stem", {}).get("drums", [])
     if roles.backbeat and len(drum_onsets) >= BACKBEAT_MIN_DRUM_ONSETS and not legato:
         bpos = _backbeat_positions(bpb)
+        n = len(roles.ring)
         for i, t in enumerate(beats):
-            if i % bpb in bpos:
-                end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None)
-                if end > t:
-                    out.append(_mk(roles.backbeat, t, end))
+            if i % bpb not in bpos:
+                continue
+            # skip when a ring-fallback backbeat would double the backbone's own group this beat
+            if not carrier_covers and n and roles.ring[i % n] == roles.backbeat:
+                continue
+            end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None)
+            if end > t:
+                out.append(_mk(roles.backbeat, t, end))
 
     # -- SPARKLE: the strongest drum hits (not every bar) ----------------------------------------
     if roles.sparkle and drum_onsets:

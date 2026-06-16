@@ -40,6 +40,19 @@ def test_no_backbeat_without_drums():
     assert not [a for a in acc if a.target == "SEM_SIDE_CENTER"]
 
 
+def test_backbeat_falls_back_to_a_ring_family_when_no_contrasting_group():
+    # the brief puts the only side group in the ring → no contrasting group is free; the backbeat
+    # must still read, on a ring family OTHER than the downbeat anchor (ring[0]).
+    sec = _sec(pulse_groups=["SEM_ARCHES", "SEM_CANES", "SEM_MINITREES", "SEM_SIDE_CENTER"])
+    av = ["SEM_ARCHES", "SEM_CANES", "SEM_MINITREES", "SEM_SIDE_CENTER"]
+    roles = select_rhythm_groups(sec, av)
+    assert roles.backbeat == roles.ring[len(roles.ring) // 2]    # mid ring family, never the anchor
+    assert roles.backbeat != roles.ring[0]
+    acc = place_beat_accents(sec, _rhythm([i * 500 for i in range(8)],
+                                          drums=[i * 120 for i in range(8)]), av)
+    assert [a.start_ms for a in acc if a.target == roles.backbeat and a.start_ms in (500, 1500)]
+
+
 # -- phrasing-aware accents ---------------------------------------------------
 
 def test_legato_accents_fade_longer_and_sparser_than_staccato():

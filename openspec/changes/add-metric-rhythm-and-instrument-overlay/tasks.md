@@ -32,8 +32,8 @@
 
 ## 6. Live verification
 
-- [ ] 6.1 Run on `dj play a christmas song.mp3` (drum-heavy): confirm the meter walks across prop families, the backbeat reads, sparkle rides the strong hits, and the groove reads as the song's rhythm. Capture objective/advisory.
-- [ ] 6.2 Run on `christmas canon.mp3` (piano): confirm piano routes to the hero/feature on its onsets (not the metric walk) and reads as flowing (legato), not flashing. Tune the routing/dials per the renders.
+- [x] 6.1 Run on `dj play a christmas song.mp3` (drum-heavy): confirm the meter walks across prop families, the backbeat reads, sparkle rides the strong hits, and the groove reads as the song's rhythm. Capture objective/advisory.
+- [x] 6.2 Run on `christmas canon.mp3` (piano): confirm piano routes to the hero/feature on its onsets (not the metric walk) and reads as flowing (legato), not flashing. Tune the routing/dials per the renders.
 
 ## 7. Land
 

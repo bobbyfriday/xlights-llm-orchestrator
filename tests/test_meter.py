@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from types import SimpleNamespace
 
 from xlights_orchestrator.pipeline.beats import place_beat_accents, section_rhythm
@@ -80,13 +79,12 @@ def test_meter_drives_downbeat_placement():
     sec = SectionPlan(start_ms=0, end_ms=3000, target_groups=["G1", "G2"], effect_family="On",
                       intensity=1.0, palette=["Gold", "Deep Blue"], pulse_groups=["G1", "G2"])
 
-    def downbeats(bpb):
+    def anchors(bpb):
         acc = place_beat_accents(sec, _rhythm(beats, bpb), ["G1", "G2"])
-        counts = Counter(a.start_ms for a in acc)          # a downbeat lights ALL pulse groups
-        return {t for t, n in counts.items() if n >= 2}
+        return {a.start_ms for a in acc if "C_SLIDER_Brightness" in a.extra_settings}  # the bar anchors
 
-    assert downbeats(3) == {0, 1500}                        # 3/4 → every 3rd beat
-    assert downbeats(4) == {0, 2000}                        # 4/4 → every 4th beat
+    assert anchors(3) == {0, 1500}                          # 3/4 → downbeat every 3rd beat
+    assert anchors(4) == {0, 2000}                          # 4/4 → every 4th beat
 
 
 def test_bar_timing_track_strides_by_meter():

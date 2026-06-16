@@ -88,18 +88,20 @@ def test_fallback_weave_bounces():
 
 # -- beat-accent bounce --------------------------------------------------------
 
-def test_accent_chase_reverses_on_odd_bars():
+def test_meter_walk_advances_through_the_ring():
     sec = _sec(palette=["Gold"], intensity=0.9)
-    rhythm = {"beats_ms": [i * 500 for i in range(16)], "prominent_stem": None,
-              "onsets_by_stem": {}, "chords_ms": [], "tempo": 120}
-    acc = place_beat_accents(sec, rhythm, GROUPS)
-    pool = ["SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"]
-    offbeats = [a for a in acc if a.target in pool and a.start_ms % 2000 != 0]
-    bar0 = [a.target for a in offbeats if a.start_ms < 2000]
-    bar1 = [a.target for a in offbeats if 2000 <= a.start_ms < 4000]
-    # bar 0 walks forward (beat 1,2,3 → idx 1,2,0), bar 1 walks backward (idx 1,0,2)
-    assert bar0 == [pool[1], pool[2], pool[0]]
-    assert bar1 == [pool[1], pool[0], pool[2]]
+    rhythm = {"beats_ms": [i * 500 for i in range(16)], "beats_per_bar": 4, "prominent_stem": None,
+              "melodic_stem": None, "onsets_by_stem": {}, "onset_mag_by_stem": {},
+              "chords_ms": [], "tempo": 120}
+    ring = ["SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"]      # a 3-group layout → a 3-beat wrap
+    acc = place_beat_accents(sec, rhythm, ring)
+    by_t = {a.start_ms: a.target for a in acc if a.target in ring}
+    # the bar WALKS FORWARD: downbeat → ring[0]; each off-beat → the next ring family (i % len)
+    assert by_t[0] == "SEM_ARCHES"          # downbeat anchor
+    assert by_t[500] == ring[1 % 3]         # SEM_CANES
+    assert by_t[1000] == ring[2 % 3]        # SEM_MINITREES
+    assert by_t[1500] == ring[3 % 3]        # SEM_ARCHES (wrapped, still forward)
+    assert by_t[2000] == "SEM_ARCHES"       # next bar's downbeat anchor
 
 
 # -- counter-phase weaving -----------------------------------------------------

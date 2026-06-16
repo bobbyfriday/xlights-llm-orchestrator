@@ -33,3 +33,19 @@ WHOLE_HOUSE_GROUPS = (SEM_ALL, SEM_HOUSE)                        # trigger targe
 BED_PREFERENCE = (SEM_BAND_GROUND, SEM_ALL)
 # The peak fill prefers the BROADEST ensemble first (deliberately the opposite order).
 PEAK_BROAD_GROUPS = (SEM_ALL, SEM_BAND_GROUND)
+
+# -- metric rhythm + instrument overlay -------------------------------------
+# The METRIC RING: each beat of the bar lights the next group, so the bar walks across prop
+# FAMILIES (beat 1 → arches, 2 → canes, 3 → mini-trees, 4 → sparkle). Filtered to available;
+# the brief's pulse_groups override it. Distinct prop-type per beat = the meter you can see.
+METRIC_RING = (SEM_ARCHES, SEM_CANES, SEM_MINITREES, SEM_SNOWFLAKES)
+# The backbeat (2 & 4) answers the downbeat on a CONTRASTING group. Prefer the spatial SIDE
+# groups (they sweep across, distinct from the prop-family ring), then the point accents. When
+# every preferred group is already taken by the ring/sparkle, the selector falls back to a ring
+# family other than the downbeat anchor (see select_rhythm_groups) so the backbeat still reads.
+BACKBEAT_GROUP_PREFERENCE = (SEM_SIDE_CENTER, SEM_SIDE_LEFT, SEM_SIDE_RIGHT,
+                             SEM_SPINNERS, SEM_SNOWFLAKES)
+# The bass foundation rides the low band (low sound → low props).
+BASS_BAND_GROUP = SEM_BAND_GROUND
+# Stems that are MELODIC leads (route to the hero focal prop, never the metric walk).
+MELODIC_STEMS = ("guitar", "piano", "vocals")

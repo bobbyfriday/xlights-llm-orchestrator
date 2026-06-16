@@ -62,13 +62,14 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
         return False
     duration = float(analysis.duration_s)
     beats = [float(b.time) for b in (analysis.beats or [])]
+    downbeats = _downbeats(analysis)          # sections start on the BAR LINE when one is near
     lines = lyr.get("lines") or []
     old = list(analysis.segments or [])
 
     # boundaries: snapped marker starts, deduped, in-range
     cuts: list[tuple[float, str]] = []
     for m in sorted(markers, key=lambda m: m["start"]):
-        t = _snap(float(m["start"]), beats)
+        t = _snap_downbeat(float(m["start"]), beats, downbeats)
         if 0.0 < t < duration and (not cuts or t - cuts[-1][0] > 1e-6):
             cuts.append((t, str(m.get("label") or "section")))
     if len(cuts) < 2:
@@ -76,7 +77,7 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
 
     # outro: split after the last sung line when a long tail remains
     last_sung = max((float(s["end"]) for s in lines), default=0.0)
-    tail = _snap(last_sung, beats)
+    tail = _snap_downbeat(last_sung, beats, downbeats)
     if duration - tail >= OUTRO_TAIL_S and tail > cuts[-1][0] + 1e-6:
         cuts.append((tail, "outro"))
 
@@ -98,7 +99,7 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
                 if a + INFILL_EDGE_S < t < b - INFILL_EDGE_S and not any(
                         float(s["start"]) - LINE_NEAR_S < t < float(s["end"]) + LINE_NEAR_S
                         for s in lines):
-                    inner.append((_snap(t, beats), seg.segment_id))
+                    inner.append((_snap_downbeat(t, beats, downbeats), seg.segment_id))
         prev = a
         for t, sid in sorted(set(inner)):
             if t - prev > MIN_SECTION_S:

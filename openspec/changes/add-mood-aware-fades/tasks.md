@@ -33,4 +33,4 @@
 ## 6. Land
 
 - [x] 6.1 Update `xlights-layering-rendering-guide.md` (or the relevant guide) to mention phrasing-driven fades if it documents cell realization.
-- [ ] 6.2 Open a PR per the project workflow; do not commit to `main` directly.
+- [x] 6.2 Open a PR per the project workflow; do not commit to `main` directly.

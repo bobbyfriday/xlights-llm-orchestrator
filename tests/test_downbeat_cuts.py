@@ -10,6 +10,7 @@ from xlights_core.audio.structure import (
     _snap,
     _snap_downbeat,
     cap_long_segments,
+    refine_segments_with_lyrics,
 )
 
 # 0–120s beat grid at 0.5s; bar_position cycles 1..4 so downbeats land on EVEN seconds (0,2,4,…)
@@ -68,6 +69,23 @@ def test_same_data_without_bars_drifts_to_the_louder_offbeat():
     sa = _sa(_beats(with_bars=False), harmonic=[28.1], energy=_energy())
     assert cap_long_segments(sa, max_section_s=31.9, min_piece_s=12.0) is True
     assert sa.segments[0].end == 31.5                       # louder off-beat seam wins (pre-change)
+
+
+# -- lyric-marker boundaries are downbeat-aware too ---------------------------
+
+def test_lyric_marker_cuts_snap_to_downbeats():
+    # markers near a bar line snap to it; one far from any downbeat keeps its beat
+    ly = {"sections": [{"label": "Verse 1", "start": 10.3},   # → downbeat 10.0 (0.3 ≤ tol)
+                       {"label": "Chorus", "start": 41.0}],   # 1.0 from 40/42 → stays on a beat
+          "lines": [{"text": "x", "start": 10.3, "end": 12.0},
+                    {"text": "x", "start": 41.0, "end": 60.0}]}
+    sa = _sa(_beats(with_bars=True), duration=120.0, seg_end=120.0)
+    sa.lyrics = ly
+    assert refine_segments_with_lyrics(sa) is True
+    by_id = {s.segment_id: s for s in sa.segments}
+    assert by_id["Verse 1"].start == 10.0                    # snapped to the bar line (was 10.5)
+    assert by_id["Chorus"].start == 41.0                     # >tol from any downbeat → beat
+    assert sa.segments[0].segment_id == "intro" and sa.segments[0].end == 10.0
 
 
 # -- guarantees preserved -----------------------------------------------------

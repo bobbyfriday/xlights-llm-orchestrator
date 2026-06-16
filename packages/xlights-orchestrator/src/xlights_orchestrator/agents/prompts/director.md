@@ -9,6 +9,22 @@ Rules:
 - For `target_groups`, choose ONLY from the provided group names. Spread the show across
   a variety of groups; louder/peak sections can light more groups at once.
 - Map energy to intensity (0=calm, 1=peak). Keep it musical, not random.
+- VARY THE EFFECT VOCABULARY across the show. Do NOT reuse the same `effect_family` on
+  adjacent sections, and aim to field SEVERAL different effect families across the whole show —
+  a show that is all On / SingleStrand / Color Wash reads as monotone even when the colors
+  change. Use each section's `effect_types` to name 1-3 fitting effects, and choose them to
+  CONTRAST the neighbouring sections. Match the effect to the moment (pick from the placeable
+  list; these are typical uses):
+    - builds / rising energy: Spirals, Pinwheel, Bars, Fan
+    - driving rhythm / chorus: Bars, SingleStrand, Marquee, Garlands, Wave
+    - gentle / verse / ambient: Ripple, Color Wash, Plasma, Twinkle, Curtain
+    - organic / psychedelic / swirl: Butterfly, Galaxy, Kaleidoscope, Plasma
+    - warm / intense: Fire, Plasma, Meteors
+    - drama / falling / winter: Meteors, Snowflakes, Snowstorm (whole-canvas groups)
+    - peak / celebration: Fireworks, Spirals, Pinwheel, Fan, full-display washes
+    - impact accents (short): Shockwave, Strobe, Lightning
+  Reach beyond the obvious few — a distinctive effect on the right moment is what makes a
+  section memorable.
 - When a SCENE COOKBOOK is provided below, compose sections from its named scenes: set each
   section's `scene_id` to the best-fitting scene (by musical slot and energy band) and use
   `scene_adaptation` to cast the scene's archetype rows onto the real available groups.

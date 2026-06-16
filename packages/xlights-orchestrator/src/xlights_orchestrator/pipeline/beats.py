@@ -8,6 +8,7 @@ accents are a SECOND layer added over the section washes, chasing across the rhy
 from __future__ import annotations
 
 import bisect
+from typing import NamedTuple
 
 from xlights_core.knowledge.colors import _luminance, _resolve, contrast_anchors, expand_palette
 from xlights_core.knowledge.value_curves import brightness_setting
@@ -18,17 +19,24 @@ from ..show_plan import EffectInstruction, SectionPlan
 # SEM_ semantic groups (xlights-layout-semantics-spec): the beat chase sweeps L→C→R spatially,
 # the hero onset layer rides the focal props, flashes hit the whole display. Group vocabulary in
 # semantic_groups; the show-feel dials (brightness/energy/density) live in tuning.
+from .phrasing import resolve_phrasing, soft_edge_settings
 from .semantic_groups import (
     ACCENT_GROUPS,
+    BACKBEAT_GROUP_PREFERENCE,
+    BASS_BAND_GROUP,
     BED_PREFERENCE,
     FULL_DISPLAY,
     HERO_GROUP,
+    MELODIC_STEMS,
+    METRIC_RING,
     PEAK_BROAD_GROUPS,
     RHYTHM_GROUPS,
     RHYTHM_POOL,
 )
 from .tuning import (
     ACCENT_MS,
+    BACKBEAT_MIN_DRUM_ONSETS,
+    BASS_MAX_ONSETS,
     BED_BRIGHTNESS_FACTOR,
     BED_INTENSITY,
     ESCALATION_BOOST,
@@ -37,6 +45,8 @@ from .tuning import (
     FLASH_MS,
     HERO_MAX_ONSETS,
     HIT_CELL_MS,
+    LEGATO_ACCENT_MS,
+    LEGATO_ACCENT_SPARSEN,
     MAX_ACCENTS_PER_SECTION,
     MIN_LIT_GROUPS,
     PALETTE_DEPTH,
@@ -44,6 +54,7 @@ from .tuning import (
     PEAK_BED_SPAN,
     PEAK_FLOOR,
     RHYTHM_FLOOR,
+    SPARKLE_TOP_N,
     WASH_MAX_B,
     WASH_MIN_B,
 )
@@ -173,18 +184,33 @@ def section_rhythm(sa, section: SectionPlan, beats_per_bar: int = BEATS_PER_BAR)
     beats = [int(b.time * 1000) for b in (getattr(sa, "beats", None) or [])
              if s <= b.time * 1000 < e]
     onsets_by_stem: dict[str, list[int]] = {}
+    onset_mag_by_stem: dict[str, list[float]] = {}    # each onset's normalized strength (0–1)
     for f in getattr(sa, "stems", None) or []:
-        ons = sorted(int(t * 1000) for t in (f.onsets or []) if s <= t * 1000 < e)
-        if ons:
-            onsets_by_stem[f.stem] = ons
+        arc = getattr(f, "energy_arc", None) or []
+        pk = max((p.rms for p in arc), default=0.0) or 1.0
+        pairs = sorted((int(t * 1000), _onset_energy(arc, t, pk))
+                       for t in (f.onsets or []) if s <= t * 1000 < e)
+        if pairs:
+            onsets_by_stem[f.stem] = [t for t, _ in pairs]
+            onset_mag_by_stem[f.stem] = [m for _, m in pairs]
     cand = {k: len(v) for k, v in onsets_by_stem.items() if k != "other"}
     prominent = max(cand, key=cand.get) if cand else None
+    mel = {k: len(v) for k, v in onsets_by_stem.items() if k in MELODIC_STEMS}
+    melodic = max(mel, key=mel.get) if mel else None      # the lead the hero prop follows
     chords = sorted((int(c.time * 1000), c.label) for c in (getattr(sa, "chords", None) or [])
                     if s <= c.time * 1000 < e)
-    return {"beats_ms": sorted(beats), "prominent_stem": prominent,
-            "onsets_by_stem": onsets_by_stem, "chords_ms": chords,
-            "beats_per_bar": beats_per_bar,
+    return {"beats_ms": sorted(beats), "prominent_stem": prominent, "melodic_stem": melodic,
+            "onsets_by_stem": onsets_by_stem, "onset_mag_by_stem": onset_mag_by_stem,
+            "chords_ms": chords, "beats_per_bar": beats_per_bar,
             "tempo": getattr(sa, "tempo_overall", None)}
+
+
+def _onset_energy(arc, t_s: float, peak: float) -> float:
+    """The stem's normalized RMS at an onset (nearest ~0.5s sample) — a small/big-hit magnitude."""
+    if not arc:
+        return 0.0
+    nearest = min(arc, key=lambda p: abs(p.time - t_s))
+    return max(0.0, min(1.0, nearest.rms / (peak or 1.0)))
 
 
 FLASH_KINDS = ("climax", "accent", "drop", "hit")
@@ -223,106 +249,167 @@ def _downsample(times: list, cap: int) -> list:
     return [times[int(i * k)] for i in range(cap)]
 
 
+class RhythmRoles(NamedTuple):
+    ring: list[str]               # the metric ring (one group per beat, in order)
+    sparkle: list[str]            # accent/point props that ride the strongest drum hits
+    hero: str | None              # the focal prop the melodic lead drives
+    bass_band: str | None         # the low band the bass foundation rides
+    backbeat: str | None          # the contrasting group that answers on 2 & 4
+
+
+def select_rhythm_groups(section: SectionPlan, available_groups: list[str]) -> RhythmRoles:
+    """Pick each rhythm sublayer's groups from the layout's classified groups (not a flat tuple).
+    The brief's pulse_groups seed/override the metric ring; a missing category disables only its
+    own sublayer (graceful)."""
+    avail = list(available_groups or [])
+    ring = [g for g in (section.pulse_groups or []) if g in avail]
+    if len(ring) < 2:                          # a meter walk needs ≥2 prop families — extend a thin brief
+        for g in (METRIC_RING + RHYTHM_POOL + RHYTHM_GROUPS):
+            if g in avail and g not in ring:
+                ring.append(g)
+            if len(ring) >= 4:                 # a full bar's worth of distinct families
+                break
+    ring = ring or [g for g in (section.target_groups or []) if g in avail]
+    sparkle = [g for g in ACCENT_GROUPS if g in avail and g not in ring]
+    hero = HERO_GROUP if HERO_GROUP in avail else \
+        (section.target_groups[0] if section.target_groups else None)
+    bass_band = BASS_BAND_GROUP if BASS_BAND_GROUP in avail else None
+    # the backbeat answers on a contrasting group — prefer a non-ring, non-sparkle group; when
+    # none is free (the ring consumed the side groups), fall back to a ring family OTHER than the
+    # downbeat anchor (ring[0]) so the backbeat still reads on most drum sections.
+    backbeat = next((g for g in BACKBEAT_GROUP_PREFERENCE
+                     if g in avail and g not in ring and g not in sparkle), None)
+    if backbeat is None and len(ring) >= 2:
+        backbeat = ring[len(ring) // 2]        # a different prop family than the anchor ring[0]
+    return RhythmRoles(ring, sparkle, hero, bass_band, backbeat)
+
+
+def _backbeat_positions(bpb: int) -> set[int]:
+    """The weak-strong beats of the bar (0-indexed). 4/4 → {1, 3} = beats 2 & 4 (the snare)."""
+    if bpb >= 4:
+        return {i for i in range(1, bpb, 2)}     # 2 & 4 (& 6 …)
+    if bpb == 3:
+        return {1}                               # beat 2 lift in 3/4
+    return set()
+
+
 def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: list[str],
                        *, carrier_covers: bool = False) -> list[EffectInstruction]:
-    """Accents on ~every beat, chasing the rhythm groups, in a CONTRASTING accent color, with a
-    bigger all-groups hit on each bar start (downbeat). Onset mode keeps the simple rotating chase.
+    """The deterministic rhythm = a METER BACKBONE (each beat of the bar lights the next ring group,
+    so the bar walks across prop families) + an instrument-mapped GROOVE OVERLAY (backbeat on 2&4,
+    sparkle on the strongest drum hits, the melodic lead on the hero, bass on the ground band), all
+    phrasing-modulated (legato lengthens/fades/sparsens; staccato crisp).
 
-    `carrier_covers=True` (a weave carrier already rides the rhythm pool): the every-beat chase
-    and downbeat group hits are the CARRIER's job now — only the sparkle-prop downbeats and the
-    hero onset layer place, so the beat is carried once, not doubled."""
-    groups = list(section.pulse_groups or [])
-    for g in RHYTHM_POOL:                              # a chase needs ≥2 groups — rhythm cells join
-        if len(groups) >= 3:
-            break
-        if g in available_groups and g not in groups:
-            groups.append(g)
-    if not groups:
-        groups = [g for g in RHYTHM_GROUPS if g in available_groups] or list(section.target_groups)
-    if not groups:
+    `carrier_covers=True` (a weave carrier already rides the rhythm pool): the backbone defers (the
+    carrier IS the beat now); the overlay still places, so the beat is carried once, not doubled."""
+    beats = sorted(rhythm.get("beats_ms") or [])
+    if not beats:
         return []
     bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR    # the song's meter, not always 4/4
+    roles = select_rhythm_groups(section, available_groups)
+    intensity = getattr(section, "intensity", 0.8) or 0.8
+    legato = resolve_phrasing(getattr(section, "phrasing", ""), intensity) == "legato"
+    accent_ms = LEGATO_ACCENT_MS if legato else ACCENT_MS
     eff, look = _accent_look(section.accent_effect)
-    # The wash keeps the palette family; the beats use the CONTRAST anchors (the two most
-    # hue-distant colors after the LED legibility floor) — pixels render hue contrast, not the
-    # old brightened-same-hue accents, which read as the wash. Anchors stay SATURATED
-    # (_brighten washes hue out into exactly the pastel tint LEDs can't show); the pop comes
-    # from luminance settings, not color dilution. Chord changes step the pair.
+    # beats use the CONTRAST anchors (the two most hue-distant colors) — pixels render hue contrast,
+    # not the wash's family. Chord changes step the pair.
     a, b = contrast_anchors(section.palette)
-    cycle = [b, a]                                        # hue-distant anchor leads
-    accent_colors = [cycle[0]]
+    cycle = [b, a]
     chords_ms = rhythm.get("chords_ms") or []
 
     def _color_at(t: int) -> list[str]:
-        c = _chord_color(t, chords_ms, cycle)                 # step color with the harmony
-        return [c] if c else list(accent_colors)
+        c = _chord_color(t, chords_ms, cycle)
+        return [c] if c else [cycle[0]]
 
-    def _mk(target: str, t: int, end: int) -> EffectInstruction:
-        # a 250ms punctuation must FILL its props — the global fallback sends chase-family
-        # accent effects to 'Per Preview' (spread over the whole yard ≈ invisible)
+    def _mk(target: str, t: int, end: int, *, boost: float | None = None) -> EffectInstruction:
+        extra: dict[str, str] = {}
+        if legato:                                       # legato accents breathe + soft-fade
+            extra.update(soft_edge_settings(eff, end - t, "legato"))
+        if boost is not None:
+            extra.update(brightness_setting(boost))      # the downbeat anchor reads bigger
         return EffectInstruction(target=target, effect_type=eff, look_id=look,
-                                 render_style="Per Model Default",
-                                 palette_colors=_color_at(t), start_ms=int(t), end_ms=int(end))
+                                 render_style="Per Model Default", palette_colors=_color_at(t),
+                                 extra_settings=extra, start_ms=int(t), end_ms=int(end))
 
-    def _end(times: list[int], i: int, t: int) -> int:
-        nxt = times[i + 1] if i + 1 < len(times) else section.end_ms
-        return min(nxt, t + ACCENT_MS, section.end_ms)
+    def _end_at(t: int, nxt: int | None) -> int:
+        cap = nxt if nxt is not None else section.end_ms
+        return min(cap, t + accent_ms, section.end_ms)
 
-    pulse_on = section.pulse_on or "beat"
-    stem = section.follow_stem or rhythm["prominent_stem"]
-    onsets = rhythm["onsets_by_stem"].get(stem, []) if stem else []
-    if pulse_on == "onset" and onsets:                 # explicit override: ride the stem's hits
-        times = _downsample(sorted(onsets), MAX_ACCENTS_PER_SECTION)
-        out = [] if carrier_covers else \
-            [_mk(groups[i % len(groups)], t, e)
-             for i, t in enumerate(times) if (e := _end(times, i, t)) > t]
-        # bars still exist under an onset groove — sparkle props fire on the beat-grid downbeats
-        sparkle = [g for g in ACCENT_GROUPS if g in available_groups and g not in groups]
-        for t in sorted(rhythm["beats_ms"])[::bpb]:
-            e = min(t + ACCENT_MS, section.end_ms)
-            if e > t:
-                out.extend(_mk(g, t, e) for g in sparkle)
-        return out
+    out: list[EffectInstruction] = []
 
-    beats = sorted(rhythm["beats_ms"])
-    if not beats:
-        return []
-    accent_hits = [g for g in ACCENT_GROUPS if g in available_groups and g not in groups]
-    stride = _off_beat_stride(getattr(section, "intensity", 0.8) or 0.8)   # energy-scaled density
-    downbeats: list[EffectInstruction] = []
-    offbeats: list[EffectInstruction] = []
-    off_n = 0
-    for i, t in enumerate(beats):
-        e = _end(beats, i, t)
-        if e <= t:
-            continue
-        if i % bpb == 0:                                # bar start → bigger hit (every group)
-            if not carrier_covers:                      # the weave carrier owns the group hits
-                downbeats.extend(_mk(g, t, e) for g in groups)
-            downbeats.extend(_mk(g, t, e) for g in accent_hits)   # snowflakes/spinners fire on the bar
-        else:                                           # off-beat → single rotating group (energy-gated)
-            if not carrier_covers and stride is not None and off_n % stride == 0:
-                # the chase BOUNCES: forward through the spatial group order on even bars,
-                # backward on odd — direction variety with no LLM surface. Position WITHIN
-                # the bar drives the walk (bar and pool periods differ).
-                n, p = len(groups), i % bpb
-                idx = p % n if (i // bpb) % 2 == 0 else (n - 1) - (p % n)
-                offbeats.append(_mk(groups[idx], t, e))
-            off_n += 1
-    downbeats = _downsample(downbeats, MAX_ACCENTS_PER_SECTION)         # keep downbeats first
-    budget = max(0, MAX_ACCENTS_PER_SECTION - len(downbeats))
-    out = downbeats + _downsample(offbeats, budget)
+    # -- METER BACKBONE: beat i → ring[i % len(ring)]; downbeat is the brighter anchor -----------
+    if not carrier_covers and roles.ring:
+        n = len(roles.ring)
+        stride = _off_beat_stride(intensity)             # energy-gated off-beat density
+        anchor_b = wash_brightness(min(1.0, intensity + 0.2))    # downbeat reads bigger
+        for i, t in enumerate(beats):
+            end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None)
+            if end <= t:
+                continue
+            is_down = (i % bpb == 0)
+            if is_down:
+                out.append(_mk(roles.ring[0], t, end, boost=anchor_b))   # the bar anchor
+                continue
+            if stride is None or (i % stride):           # off-beat density gate
+                continue
+            if legato and (i % LEGATO_ACCENT_SPARSEN):   # legato is sparser still
+                continue
+            out.append(_mk(roles.ring[i % n], t, end))   # the walk across prop families
 
-    # hero onset layer: a feature prop pulses on the prominent stem's real attacks — energy-scaled
-    # (quiet sections get few/none) and capped so it stays a tasteful accent, not a strobe.
-    hero_cap = round(HERO_MAX_ONSETS * (getattr(section, "intensity", 0.8) or 0.8))
-    if onsets and hero_cap > 0:
-        hero = (HERO_GROUP if HERO_GROUP in available_groups else None) \
-            or (section.target_groups[0] if section.target_groups else None)
-        if hero:
-            htimes = _downsample(sorted(onsets), hero_cap)
-            out += [_mk(hero, t, e) for i, t in enumerate(htimes) if (e := _end(htimes, i, t)) > t]
-    return out
+    # -- BACKBEAT (2 & 4): a contrasting answer, only with drums present -------------------------
+    drum_onsets = rhythm.get("onsets_by_stem", {}).get("drums", [])
+    if roles.backbeat and len(drum_onsets) >= BACKBEAT_MIN_DRUM_ONSETS and not legato:
+        bpos = _backbeat_positions(bpb)
+        n = len(roles.ring)
+        for i, t in enumerate(beats):
+            if i % bpb not in bpos:
+                continue
+            # skip when a ring-fallback backbeat would double the backbone's own group this beat
+            if not carrier_covers and n and roles.ring[i % n] == roles.backbeat:
+                continue
+            end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None)
+            if end > t:
+                out.append(_mk(roles.backbeat, t, end))
+
+    # -- SPARKLE: the strongest drum hits (not every bar) ----------------------------------------
+    if roles.sparkle and drum_onsets:
+        mags = rhythm.get("onset_mag_by_stem", {}).get("drums", [])
+        ranked = sorted(zip(drum_onsets, mags or [0.0] * len(drum_onsets)),
+                        key=lambda tm: -tm[1])[:SPARKLE_TOP_N]
+        for t, _m in sorted(ranked):
+            end = min(t + accent_ms, section.end_ms)
+            if end > t:
+                out.extend(_mk(g, t, end) for g in roles.sparkle)
+
+    # -- HERO: the melodic lead (guitar/piano/vocals) on the focal prop, on its real onsets -------
+    mel_stem = section.follow_stem or rhythm.get("melodic_stem")
+    mel_onsets = rhythm.get("onsets_by_stem", {}).get(mel_stem, []) if mel_stem else []
+    hero_cap = round(HERO_MAX_ONSETS * intensity)
+    if roles.hero and mel_onsets and hero_cap > 0:
+        htimes = _downsample(sorted(mel_onsets), hero_cap)
+        for i, t in enumerate(htimes):
+            end = _end_at(t, htimes[i + 1] if i + 1 < len(htimes) else None)
+            if end > t:
+                out.append(_mk(roles.hero, t, end))
+
+    # -- BASS foundation: a sparse low pulse on the ground band -----------------------------------
+    bass_onsets = rhythm.get("onsets_by_stem", {}).get("bass", [])
+    if roles.bass_band and bass_onsets:
+        btimes = _downsample(sorted(bass_onsets), BASS_MAX_ONSETS)
+        for i, t in enumerate(btimes):
+            end = _end_at(t, btimes[i + 1] if i + 1 < len(btimes) else None)
+            if end > t:
+                out.append(_mk(roles.bass_band, t, end))
+
+    return _cap_accents(out)
+
+
+def _cap_accents(accents: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Bound the per-section accent count, keeping an even temporal spread (downsample by time)."""
+    if len(accents) <= MAX_ACCENTS_PER_SECTION:
+        return accents
+    ordered = sorted(accents, key=lambda a: a.start_ms)
+    return _downsample(ordered, MAX_ACCENTS_PER_SECTION)
 
 
 

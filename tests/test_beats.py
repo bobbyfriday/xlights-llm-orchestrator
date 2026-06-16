@@ -40,22 +40,35 @@ def test_section_rhythm_no_stems_graceful():
 
 # -- place_beat_accents -------------------------------------------------------
 
-def _rhythm(beats, onsets=None, chords=None):
-    return {"beats_ms": beats, "prominent_stem": "drums" if onsets else None,
-            "onsets_by_stem": {"drums": onsets or []}, "chords_ms": chords or [], "tempo": 120}
+def _rhythm(beats, onsets=None, chords=None, melodic=None, bass=None, drum_mags=None, bpb=4):
+    obs, omag = {}, {}
+    if onsets:
+        obs["drums"] = onsets
+        omag["drums"] = drum_mags or [1.0] * len(onsets)
+    if melodic:
+        obs["piano"] = melodic
+    if bass:
+        obs["bass"] = bass
+    return {"beats_ms": beats, "beats_per_bar": bpb,
+            "prominent_stem": "drums" if onsets else None,
+            "melodic_stem": "piano" if melodic else None,
+            "onsets_by_stem": obs, "onset_mag_by_stem": omag,
+            "chords_ms": chords or [], "tempo": 120}
 
 
-def test_beats_contrast_color_and_downbeat_emphasis():
+def test_beats_contrast_color_and_meter_walk():
     sec = SectionPlan(start_ms=0, end_ms=4000, target_groups=["X"], effect_family="On", intensity=0.8,
-                      palette=["Gold", "Deep Blue"], pulse_groups=["04_BEAT_1", "04_BEAT_2"])
-    acc = place_beat_accents(sec, _rhythm([0, 1000, 2000, 3000]), ["04_BEAT_1", "04_BEAT_2"])
+                      palette=["Gold", "Deep Blue"], pulse_groups=["G1", "G2"])     # ring = [G1, G2]
+    acc = place_beat_accents(sec, _rhythm([0, 1000, 2000, 3000]), ["G1", "G2"])
     from xlights_core.knowledge.colors import hue_spread
-    accent = acc[0].palette_colors[0]                    # accents = the CONTRAST anchor pair
+    accent = acc[0].palette_colors[0]                    # accents = the CONTRAST anchor
     assert hue_spread([accent, "#FFD700"]) > 90          # hue-distant from the Gold wash (LED contrast)
-    at0 = {a.target for a in acc if a.start_ms == 0}                # downbeat (i=0) → ALL groups
-    assert at0 == {"04_BEAT_1", "04_BEAT_2"}
-    assert sum(1 for a in acc if a.start_ms == 1000) == 1           # off-beat → single rotating group
-    assert acc[0].end_ms == 250                                      # short accent
+    by_t = {a.start_ms: a.target for a in acc}
+    assert by_t[0] == "G1"                               # beat 1 (downbeat) → ring[0]
+    assert by_t[1000] == "G2"                            # beat 2 → the NEXT ring group (the walk)
+    assert sum(1 for a in acc if a.start_ms == 1000) == 1           # one distinct group per off-beat
+    assert "C_SLIDER_Brightness" in acc[0].extra_settings           # the downbeat anchor reads bigger
+    assert acc[0].end_ms == 250                                      # crisp (staccato at intensity 0.8)
 
 
 def test_default_groups_are_sem_sides():
@@ -96,15 +109,16 @@ def test_energy_scaled_density():
     assert nq > 0                                                    # downbeats still present
 
 
-def test_hero_onset_layer_follows_prominent_stem():
+def test_hero_layer_follows_the_melodic_lead():
     sec = SectionPlan(start_ms=0, end_ms=8000, target_groups=["Mega"], effect_family="On", intensity=0.9,
-                      palette=["Gold", "Deep Blue"], pulse_groups=["04_BEAT_1"])
-    av = ["SEM_SIDE_LEFT", "SEM_FOCAL"]
-    acc = place_beat_accents(sec, _rhythm([0, 500], onsets=[100, 600, 1100]), av)
+                      palette=["Gold", "Deep Blue"], pulse_groups=["G1"])
+    av = ["G1", "SEM_FOCAL"]
+    # melodic (piano) onsets drive the hero; drums do NOT (drums → backbone/sparkle)
+    acc = place_beat_accents(sec, _rhythm([0, 500], onsets=[120, 480], melodic=[100, 600, 1100]), av)
     hero = [a for a in acc if a.target == "SEM_FOCAL"]
-    assert [a.start_ms for a in hero] == [100, 600, 1100]           # feature prop on the onsets
-    # no stem → no hero layer
-    assert not [a for a in place_beat_accents(sec, _rhythm([0, 500]), av)
+    assert [a.start_ms for a in hero] == [100, 600, 1100]           # focal prop rides the melodic lead
+    # no melodic stem → no hero layer (drums alone don't drive the hero)
+    assert not [a for a in place_beat_accents(sec, _rhythm([0, 500], onsets=[120, 480]), av)
                 if a.target == "SEM_FOCAL"]
 
 
@@ -120,8 +134,18 @@ def test_chord_driven_accent_color():
     assert len({tuple(a.palette_colors) for a in one}) == 1
 
 
-def test_onset_mode_uses_stem_onsets():
-    sec = SectionPlan(start_ms=0, end_ms=4000, target_groups=["G"], effect_family="On", intensity=0.5,
-                      pulse_groups=["G"], pulse_on="onset")
-    acc = place_beat_accents(sec, _rhythm([0, 2000], onsets=[100, 900, 1700]), ["G"])
-    assert [a.start_ms for a in acc] == [100, 900, 1700]                # rode the onsets, not the beats
+def test_sparkle_rides_the_strongest_drum_hits():
+    from xlights_orchestrator.pipeline.tuning import SPARKLE_TOP_N
+    sec = SectionPlan(start_ms=0, end_ms=8000, target_groups=["G"], effect_family="On", intensity=0.9,
+                      pulse_groups=["G"])                              # ring=[G]; sparkle=SEM_SPINNERS
+    av = ["G", "SEM_SPINNERS", "SEM_SIDE_CENTER"]                     # SIDE_CENTER takes the backbeat
+    drums = [100, 300, 600, 1100, 2000, 2100]
+    mags = [0.9, 0.1, 0.8, 0.2, 1.0, 0.05]                            # the strong hits: 2000, 100, 600
+    acc = place_beat_accents(sec, _rhythm([0, 500], onsets=drums, drum_mags=mags), av)
+    sparkle = sorted(a.start_ms for a in acc if a.target == "SEM_SPINNERS")
+    assert len(sparkle) <= SPARKLE_TOP_N
+    assert set(sparkle) <= set(drums)                                 # sparkle only on real drum onsets
+    assert {100, 600, 2000} <= set(sparkle)                           # the strongest hits are kept
+    # no drums → no sparkle
+    assert not [a for a in place_beat_accents(sec, _rhythm([0, 500]), av)
+                if a.target == "SEM_SPINNERS"]

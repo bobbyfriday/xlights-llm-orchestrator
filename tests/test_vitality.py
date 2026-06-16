@@ -23,12 +23,18 @@ def test_single_pulse_group_extended_with_rhythm_cells():
     assert len({a.target for a in acc if a.start_ms == 500}) == 1   # off-beats still rotate one group
 
 
-def test_snowflakes_fire_on_downbeats_only():
-    sec = _sec(pulse_groups=["SEM_ARCHES", "SEM_CANES"])
+def test_sparkle_rides_drum_hits_not_bars():
+    sec = _sec(pulse_groups=["SEM_ARCHES", "SEM_CANES"])             # ring; SNOWFLAKES → sparkle
     av = ["SEM_ARCHES", "SEM_CANES", "SEM_SNOWFLAKES"]
-    acc = place_beat_accents(sec, _rhythm([i * 500 for i in range(8)]), av)
-    flakes = [a for a in acc if a.target == "SEM_SNOWFLAKES"]
-    assert flakes and all(a.start_ms in (0, 2000) for a in flakes)   # downbeats (every 4th beat) only
+    rhythm = {"beats_ms": [i * 500 for i in range(8)], "beats_per_bar": 4, "prominent_stem": "drums",
+              "melodic_stem": None, "onsets_by_stem": {"drums": [120, 600, 1300, 2100]},
+              "onset_mag_by_stem": {"drums": [0.9, 0.4, 1.0, 0.3]}, "chords_ms": [], "tempo": 120}
+    acc = place_beat_accents(sec, rhythm, av)
+    flakes = sorted(a.start_ms for a in acc if a.target == "SEM_SNOWFLAKES")
+    assert flakes and set(flakes) <= {120, 600, 1300, 2100}         # the real drum hits, not every bar
+    # no drums → no sparkle
+    rhythm2 = dict(rhythm, onsets_by_stem={}, onset_mag_by_stem={}, prominent_stem=None)
+    assert not [a for a in place_beat_accents(sec, rhythm2, av) if a.target == "SEM_SNOWFLAKES"]
 
 
 def test_ensemble_bed_high_energy_only():
@@ -41,11 +47,15 @@ def test_ensemble_bed_high_energy_only():
     assert ensemble_bed(_sec(), 0.9, ["SEM_FOCAL"], set()) is None            # no ensemble group → skip
 
 
-def test_onset_mode_also_sparkles_downbeats():
-    sec = _sec(pulse_groups=["SEM_ARCHES", "SEM_CANES"], pulse_on="onset", follow_stem="drums")
-    av = ["SEM_ARCHES", "SEM_CANES", "SEM_SNOWFLAKES"]
-    rhythm = {"beats_ms": [i * 500 for i in range(8)], "prominent_stem": "drums",
-              "onsets_by_stem": {"drums": [100, 700, 1300, 2100]}, "chords_ms": [], "tempo": 120}
+def test_bass_drives_the_ground_band():
+    sec = _sec(pulse_groups=["SEM_ARCHES", "SEM_CANES"])
+    av = ["SEM_ARCHES", "SEM_CANES", "SEM_BAND_GROUND"]
+    rhythm = {"beats_ms": [i * 500 for i in range(8)], "beats_per_bar": 4, "prominent_stem": "drums",
+              "melodic_stem": None, "onsets_by_stem": {"bass": [0, 1000, 2000]},
+              "onset_mag_by_stem": {}, "chords_ms": [], "tempo": 120}
     acc = place_beat_accents(sec, rhythm, av)
-    flakes = [a for a in acc if a.target == "SEM_SNOWFLAKES"]
-    assert flakes and all(a.start_ms in (0, 2000) for a in flakes)   # bar sparkles even in onset mode
+    bass = sorted(a.start_ms for a in acc if a.target == "SEM_BAND_GROUND")
+    assert bass == [0, 1000, 2000]                                   # low sound rides the low band
+    # no ground band available → no bass layer
+    assert not [a for a in place_beat_accents(sec, rhythm, ["SEM_ARCHES", "SEM_CANES"])
+                if a.target == "SEM_BAND_GROUND"]

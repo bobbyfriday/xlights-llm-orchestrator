@@ -68,6 +68,7 @@ from .visual import RealRender, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
 from .generate import generate_instructions
 from .finalize import finalize_sequence
+from .meter import resolve_beats_per_bar
 
 log = logging.getLogger(__name__)
 
@@ -148,7 +149,8 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             section, revision=rev, concept=st.show_plan.concept, motifs=motifs))).output
         _rm = st.music_brief.repetition_map if st.music_brief else None
         _si = effective_intensity(getattr(section, "intensity", 0.5), rev.section_index, _rm)
-        _rhythm = section_rhythm(st.song_analysis, section)
+        _rhythm = section_rhythm(st.song_analysis, section,
+                                 resolve_beats_per_bar(st.song_analysis, st.music_brief))
         instrs = trim_coverage(list(out.instructions), _si)   # energy-gated coverage on regen too
         for ins in instrs:
             ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable

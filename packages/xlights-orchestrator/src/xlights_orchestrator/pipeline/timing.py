@@ -11,10 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..song_description import _timed_lines
+from .meter import resolve_beats_per_bar
 
 log = logging.getLogger(__name__)
 
-BEATS_PER_BAR = 4
+BEATS_PER_BAR = 4   # default/fallback only; the real meter is resolved per song
 LAST_MARK_MS = 500            # clamp a final tiled mark so it isn't a giant block
 MAX_ONSET_STEMS = 3           # selective: drums + lead/bass, not all six
 _MIN_ENERGY_SHARE = 0.10      # a stem needs ≥10% of the loudest stem's mean energy to get a track
@@ -62,19 +63,19 @@ def _section_track(brief, fallback_sections) -> TimingTrack | None:
     return TimingTrack("Sections", marks)
 
 
-def _beat_track(sa, end_ms) -> TimingTrack | None:
+def _beat_track(sa, end_ms, beats_per_bar=BEATS_PER_BAR) -> TimingTrack | None:
     beats = [int(b.time * 1000) for b in (getattr(sa, "beats", None) or [])]
     if not beats:
         return None
-    labels = [str((i % BEATS_PER_BAR) + 1) for i in range(len(beats))]   # beat-in-bar 1..N
+    labels = [str((i % beats_per_bar) + 1) for i in range(len(beats))]   # beat-in-bar 1..N
     return TimingTrack("Beats", _tile(beats, end_ms, labels))
 
 
-def _bar_track(sa, end_ms) -> TimingTrack | None:
+def _bar_track(sa, end_ms, beats_per_bar=BEATS_PER_BAR) -> TimingTrack | None:
     beats = sorted(int(b.time * 1000) for b in (getattr(sa, "beats", None) or []))
-    if len(beats) < BEATS_PER_BAR:
+    if len(beats) < beats_per_bar:
         return None
-    downbeats = beats[::BEATS_PER_BAR]                                   # derived bars (no detected downbeats)
+    downbeats = beats[::beats_per_bar]                                   # bars at the song's meter
     return TimingTrack("Bars", _tile(downbeats, end_ms))
 
 
@@ -130,10 +131,11 @@ def _lyric_track(sa, end_ms) -> TimingTrack | None:
 def build_timing_tracks(sa, brief, *, fallback_sections=None, onset_stems=None) -> list[TimingTrack]:
     """Assemble all reference tracks from the analysis + brief (skips any with no data)."""
     end_ms = int(getattr(sa, "duration_s", 0) * 1000) or None
+    bpb = resolve_beats_per_bar(sa, brief)        # label/stride the beat+bar grid at the real meter
     candidates = [
         _section_track(brief, fallback_sections),
-        _beat_track(sa, end_ms),
-        _bar_track(sa, end_ms),
+        _beat_track(sa, end_ms, bpb),
+        _bar_track(sa, end_ms, bpb),
         *_onset_tracks(sa, end_ms, onset_stems),
         _chord_track(sa, end_ms),
         _lyric_track(sa, end_ms),

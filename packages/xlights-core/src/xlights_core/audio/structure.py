@@ -26,6 +26,8 @@ INFILL_EDGE_S = 10.0      # ...but only boundaries at least this far from the sp
 LINE_NEAR_S = 2.0         # an audio boundary within this of a sung line is NOT instrumental
 INSTR_MAX_SECTION_S = 32.0  # one look longer than ~35s reads as boring (user verdict)
 INSTR_MIN_PIECE_S = 12.0    # don't shred a musical part into confetti
+SEAM_ENERGY_NEAR_S = 0.75   # a harmonic seam scores by energy shift within this of it
+                            # (energy_arc is ~0.5s-spaced, so ±0.75 catches the adjacent step)
 
 
 def _snap(t: float, beats: list[float]) -> float:
@@ -122,14 +124,26 @@ def cap_long_segments(analysis: SongAnalysis,
         return False
     beats = [float(b.time) for b in (analysis.beats or [])]
 
-    # candidates (time, strength): harmonic seams preferred; energy-delta peaks as fallback.
-    # Snapped up-front so chosen cuts stay inside their window after snapping.
-    if analysis.harmonic_changes:
-        raw = [(float(t), 1.0) for t in analysis.harmonic_changes]
-    else:
-        arc = analysis.energy_arc or []
-        raw = [(float(q.time), abs(float(q.rms) - float(p.rms))) for p, q in zip(arc, arc[1:])]
-    cands = sorted({(_snap(t, beats), w) for t, w in raw})
+    # candidates (time, STRENGTH): a cut should land on a real structural break, not just the
+    # latest seam before the cap. Strength = how much the ENERGY changes there (|Δrms|): the music
+    # dropping out / surging back is the audible boundary. Harmonic-change times are candidates too,
+    # scored by the energy shift around them — so a seam that is BOTH a chord change and an energy
+    # jump wins, but a dense run of harmonic changes at steady volume no longer all tie at 1.0
+    # (which made the old code pick the latest → it drifted to the ~32s cap). Snapped to beats.
+    arc = analysis.energy_arc or []
+    edelta = [(float(q.time), abs(float(q.rms) - float(p.rms))) for p, q in zip(arc, arc[1:])]
+
+    def _energy_strength(t: float) -> float:
+        return max((d for et, d in edelta if abs(et - t) <= SEAM_ENERGY_NEAR_S), default=0.0)
+
+    cand: dict[float, float] = {}
+    for t in (analysis.harmonic_changes or []):        # harmonic seams, scored by coincident energy
+        s = _snap(float(t), beats)
+        cand[s] = max(cand.get(s, 0.0), _energy_strength(float(t)))
+    for et, d in edelta:                               # energy-delta points are seams in their own right
+        s = _snap(et, beats)
+        cand[s] = max(cand.get(s, 0.0), d)
+    cands = sorted(cand.items())
 
     out: list[Segment] = []
     counts: dict[str, int] = {}                         # parent id -> ordinal (A,A -> A1..A7)
@@ -145,10 +159,11 @@ def cap_long_segments(analysis: SongAnalysis,
             # cap keeps the eventual tail >= min_piece_s (>= MIN_SECTION_S when min is too big)
             cap = next((c for c in (min(hi, b - min_piece_s), min(hi, b - MIN_SECTION_S), hi)
                         if c >= lo))
-            inside = [(w, t) for t, w in cands if lo <= t <= cap]
+            inside = [(t, w) for t, w in cands if lo <= t <= cap]
             if inside:
-                cut = max(inside)[1]                    # strongest seam; ties -> latest
+                cut = max(inside, key=lambda tw: (tw[1], -tw[0]))[0]   # strongest seam; ties → EARLIEST
             else:
+                # no seam at all in the window (no harmonic/energy data): even spacing near the cap
                 near = [bt for bt in beats if prev < bt <= cap]
                 cut = min(near, key=lambda bt: abs(bt - cap)) if near else cap
             cuts.append(cut)

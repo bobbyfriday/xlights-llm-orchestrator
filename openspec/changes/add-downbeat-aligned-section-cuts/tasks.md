@@ -22,4 +22,4 @@
 
 ## 4. Land
 
-- [ ] 4.1 Open a PR per the project workflow; do not commit to `main` directly.
+- [x] 4.1 Open a PR per the project workflow; do not commit to `main` directly.

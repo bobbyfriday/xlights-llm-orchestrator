@@ -61,7 +61,14 @@ from .beats import (
     wash_brightness,
 )
 from .groups import targetable_groups
-from .weave import canon_effect_type, carrier_covers, expand_weave, fallback_weave
+from .weave import (
+    canon_effect_type,
+    carrier_covers,
+    diversify_carrier,
+    expand_weave,
+    fallback_weave,
+    section_carrier,
+)
 from .media import prepare_media
 from .state import State
 from .visual import RealRender, make_lit_sampler, make_visual_critique
@@ -170,7 +177,10 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
         if bed is not None:
             bed.section_index = rev.section_index
             instrs.append(bed)
-        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups)
+        _carrier = section_carrier(rev.section_index)        # keep carrier rotation on regen too
+        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
+                                                                 carrier=_carrier)
+        diversify_carrier(weave_obj, _carrier)
         woven = expand_weave(section, weave_obj, _rhythm, _si, st.available_groups,
                              based_targets={k.target for k in instrs})   # cells blend over washes
         for ins in woven:

@@ -24,7 +24,12 @@ Rules:
     - peak / celebration: Fireworks, Spirals, Pinwheel, Fan, full-display washes
     - impact accents (short): Shockwave, Strobe, Lightning
   Reach beyond the obvious few — a distinctive effect on the right moment is what makes a
-  section memorable.
+  section memorable. Grounded technique tips (xLights manual): Butterfly style 2 renders RADIAL
+  patterns that suit round props (snowflakes/stars/globes); Galaxy/Plasma make a LIVING bed
+  (richer than a flat wash) — keep them dim and slow under a feature; Fire reads as flat orange
+  on the whole yard, so keep it to the frame/hero; Fan and Shockwave are render-expensive on big
+  canvases, so spend them on the hero/canvas, not SEM_ALL; reserve a value-curved speed/brightness
+  ramp for builds.
 - When a SCENE COOKBOOK is provided below, compose sections from its named scenes: set each
   section's `scene_id` to the best-fitting scene (by musical slot and energy band) and use
   `scene_adaptation` to cast the scene's archetype rows onto the real available groups.

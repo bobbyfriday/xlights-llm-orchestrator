@@ -32,6 +32,7 @@ from .beats import (
     wash_brightness,
 )
 from .features import instrument_entrances
+from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
 from .weave import canon_effect_type, carrier_covers, expand_weave, fallback_weave
@@ -42,6 +43,7 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     agent = generator or generator_mod.generator_agent()
     instrs: list[EffectInstruction] = []
     _peaks = peak_sections(st.show_plan)         # the show's payoff section(s)
+    bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
     for i, section in enumerate(st.show_plan.sections):
         motifs = {g: st.show_plan.group_motifs[g]
                   for g in section.target_groups if g in st.show_plan.group_motifs}
@@ -50,7 +52,7 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
         _rm = st.music_brief.repetition_map if st.music_brief else None
         _si = effective_intensity(getattr(section, "intensity", 0.5), i, _rm)  # + escalation
         wash_b = wash_brightness(_si)            # energy → wash brightness
-        rhythm = section_rhythm(st.song_analysis, section)
+        rhythm = section_rhythm(st.song_analysis, section, bpb)
         kept = trim_coverage(out.instructions, _si)   # energy-gated coverage (quiet = fewer lit props)
         for ins in kept:
             ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable

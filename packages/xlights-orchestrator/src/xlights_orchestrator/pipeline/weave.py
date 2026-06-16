@@ -273,14 +273,15 @@ def _effective_direction(recipe: CellRecipe) -> str:
 
 def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
           start: int, end: int, intensity: float, blended: bool,
-          anchors: tuple[str, str] | None = None, phase: int = 0) -> EffectInstruction:
+          anchors: tuple[str, str] | None = None, phase: int = 0,
+          beats_per_bar: int = _BEATS_PER_BAR) -> EffectInstruction:
     looks = candidate_look_ids(recipe.effect_type)
     look = recipe.look_id if recipe.look_id in looks else looks[0]
     palette = recipe.palette or section.palette
     extra = dict(effect_speed_setting(recipe.effect_type, intensity))
     extra.update(brightness_setting(wash_brightness(intensity)))   # cells pop with the energy
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
-    bar = slot * max(1, recipe.cell_beats) // _BEATS_PER_BAR       # derived-4/4 bar index
+    bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
     extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
     if recipe.transition:
         extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
@@ -324,6 +325,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
     scene rows) — cells over them blend instead of occluding."""
     if weave is None:
         return []
+    bpb = rhythm.get("beats_per_bar") or _BEATS_PER_BAR    # the song's meter, threaded into cells
     recipes, bed, phases = _valid_recipes(weave, section, available_groups)
     out: list[EffectInstruction] = []
     based: set[str] = set(based_targets or ())   # targets with a base layer this section
@@ -364,5 +366,5 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
             kept = _downsample(cells, max(1, round(len(cells) * factor))) if factor < 1 else cells
             for slot, t, end, tgt, blended in kept:
                 out.append(_cell(r, section, tgt, slot, t, end, intensity, blended,
-                                 anchors=anchors, phase=phases.get(id(r), 0)))
+                                 anchors=anchors, phase=phases.get(id(r), 0), beats_per_bar=bpb))
     return out

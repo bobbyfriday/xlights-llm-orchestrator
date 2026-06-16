@@ -161,11 +161,13 @@ def _chord_color(t: int, chords_ms: list, colors: list[str]) -> str | None:
     return colors[max(0, idx) % len(colors)]
 
 
-def section_rhythm(sa, section: SectionPlan) -> dict:
+def section_rhythm(sa, section: SectionPlan, beats_per_bar: int = BEATS_PER_BAR) -> dict:
     """Per-section beats + each stem's onsets in-window (ms) + the prominent stem.
 
     Prominent stem = the non-"other" stem with the most onsets in the section window (so it's
     derived from the audio, not a brief field). The brief's `follow_stem` can override it.
+    `beats_per_bar` is the song's resolved meter (see meter.resolve_beats_per_bar); it rides the
+    rhythm dict so the accent/weave/duration layers grid to the real time signature, not always 4/4.
     """
     s, e = section.start_ms, section.end_ms
     beats = [int(b.time * 1000) for b in (getattr(sa, "beats", None) or [])
@@ -181,6 +183,7 @@ def section_rhythm(sa, section: SectionPlan) -> dict:
                     if s <= c.time * 1000 < e)
     return {"beats_ms": sorted(beats), "prominent_stem": prominent,
             "onsets_by_stem": onsets_by_stem, "chords_ms": chords,
+            "beats_per_bar": beats_per_bar,
             "tempo": getattr(sa, "tempo_overall", None)}
 
 
@@ -238,6 +241,7 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
         groups = [g for g in RHYTHM_GROUPS if g in available_groups] or list(section.target_groups)
     if not groups:
         return []
+    bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR    # the song's meter, not always 4/4
     eff, look = _accent_look(section.accent_effect)
     # The wash keeps the palette family; the beats use the CONTRAST anchors (the two most
     # hue-distant colors after the LED legibility floor) — pixels render hue contrast, not the
@@ -274,7 +278,7 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
              for i, t in enumerate(times) if (e := _end(times, i, t)) > t]
         # bars still exist under an onset groove — sparkle props fire on the beat-grid downbeats
         sparkle = [g for g in ACCENT_GROUPS if g in available_groups and g not in groups]
-        for t in sorted(rhythm["beats_ms"])[::BEATS_PER_BAR]:
+        for t in sorted(rhythm["beats_ms"])[::bpb]:
             e = min(t + ACCENT_MS, section.end_ms)
             if e > t:
                 out.extend(_mk(g, t, e) for g in sparkle)
@@ -292,7 +296,7 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
         e = _end(beats, i, t)
         if e <= t:
             continue
-        if i % BEATS_PER_BAR == 0:                      # bar start → bigger hit (every group)
+        if i % bpb == 0:                                # bar start → bigger hit (every group)
             if not carrier_covers:                      # the weave carrier owns the group hits
                 downbeats.extend(_mk(g, t, e) for g in groups)
             downbeats.extend(_mk(g, t, e) for g in accent_hits)   # snowflakes/spinners fire on the bar
@@ -301,8 +305,8 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
                 # the chase BOUNCES: forward through the spatial group order on even bars,
                 # backward on odd — direction variety with no LLM surface. Position WITHIN
                 # the bar drives the walk (bar and pool periods differ).
-                n, p = len(groups), i % BEATS_PER_BAR
-                idx = p % n if (i // BEATS_PER_BAR) % 2 == 0 else (n - 1) - (p % n)
+                n, p = len(groups), i % bpb
+                idx = p % n if (i // bpb) % 2 == 0 else (n - 1) - (p % n)
                 offbeats.append(_mk(groups[idx], t, e))
             off_n += 1
     downbeats = _downsample(downbeats, MAX_ACCENTS_PER_SECTION)         # keep downbeats first
@@ -442,15 +446,16 @@ def feature_prop_contrast(instructions: list[EffectInstruction], section: Sectio
 
 
 def _bar_ms(rhythm: dict) -> float:
+    bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR
     tempo = rhythm.get("tempo")
     if tempo:
-        return BEATS_PER_BAR * 60000.0 / tempo
+        return bpb * 60000.0 / tempo
     beats = rhythm.get("beats_ms") or []
     if len(beats) > 4:
         deltas = [b - a for a, b in zip(beats, beats[1:])]
         deltas.sort()
-        return BEATS_PER_BAR * deltas[len(deltas) // 2]
-    return BEATS_PER_BAR * 2000.0
+        return bpb * deltas[len(deltas) // 2]
+    return bpb * 2000.0
 
 
 def normalize_durations(instructions: list, rhythm: dict) -> list:

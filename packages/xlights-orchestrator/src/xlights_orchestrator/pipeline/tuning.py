@@ -46,6 +46,13 @@ PALETTE_DEPTH = 5                      # expanded section-palette size
 BUDGET_BASE = 120.0
 BUDGET_SCALE = 480.0
 
+# -- metric rhythm + instrument overlay -------------------------------------
+SPARKLE_TOP_N = 12             # sparkle rides only the N strongest drum hits per section (not every bar)
+BASS_MAX_ONSETS = 16           # bass-foundation pulses per section (low + sparse)
+BACKBEAT_MIN_DRUM_ONSETS = 4   # need at least this many drum onsets in a section to add a backbeat
+LEGATO_ACCENT_SPARSEN = 2      # a legato section keeps every Nth backbone accent (sparser, softer)
+LEGATO_ACCENT_MS = 600         # legato accents breathe longer than the crisp ACCENT_MS pop
+
 # -- durations (ms) ---------------------------------------------------------
 ACCENT_MS = 250                        # a short beat-accent punctuation
 FLASH_MS = 150                         # a brief full-display white hit

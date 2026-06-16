@@ -201,16 +201,19 @@ def test_carrier_covers_requires_pool_intersection():
 
 def test_beat_accents_defer_to_carrier():
     sec = _sec(palette=["Gold"])
-    rhythm = {"beats_ms": [0, 500, 1000, 1500, 2000, 2500, 3000, 3500],
-              "prominent_stem": None, "onsets_by_stem": {}, "chords_ms": [], "tempo": 120}
+    drums = [100, 400, 700, 1100, 1500, 2000]
+    rhythm = {"beats_ms": [0, 500, 1000, 1500, 2000, 2500, 3000, 3500], "beats_per_bar": 4,
+              "prominent_stem": "drums", "melodic_stem": None,
+              "onsets_by_stem": {"drums": drums}, "onset_mag_by_stem": {"drums": [1.0] * len(drums)},
+              "chords_ms": [], "tempo": 120}
     full = place_beat_accents(sec, rhythm, GROUPS)
     deferred = place_beat_accents(sec, rhythm, GROUPS, carrier_covers=True)
     pool = {"SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"}
-    assert any(a.target in pool for a in full)                       # chase exists normally
-    assert not any(a.target in pool for a in deferred)               # carrier owns the chase
+    assert any(a.target in pool for a in full)                       # the metric backbone exists normally
+    assert not any(a.target in pool for a in deferred)               # carrier owns the backbone (deferred)
     sparkle = {"SEM_SNOWFLAKES", "SEM_SPINNERS"}
     assert {a.target for a in place_beat_accents(sec, rhythm, GROUPS + list(sparkle),
-                                                 carrier_covers=True)} & sparkle
+                                                 carrier_covers=True)} & sparkle   # overlay still places
 
 
 # -- QA advisory --------------------------------------------------------------

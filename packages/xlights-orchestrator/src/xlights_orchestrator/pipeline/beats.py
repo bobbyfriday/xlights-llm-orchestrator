@@ -15,21 +15,40 @@ from xlights_core.knowledge.value_curves import brightness_setting
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction, SectionPlan
 
-MAX_ACCENTS_PER_SECTION = 80       # hard upper bound (every-beat + downbeat hits stay under this)
-ACCENT_MS = 250                    # short punctuation
 # SEM_ semantic groups (xlights-layout-semantics-spec): the beat chase sweeps L→C→R spatially,
-# the hero onset layer rides the focal props, flashes hit the whole display.
-RHYTHM_GROUPS = ("SEM_SIDE_LEFT", "SEM_SIDE_CENTER", "SEM_SIDE_RIGHT")
-RHYTHM_POOL = ("SEM_ARCHES", "SEM_CANES", "SEM_MINITREES")    # the guide's rhythm cells (call-and-response)
-ACCENT_GROUPS = ("SEM_SNOWFLAKES", "SEM_SPINNERS")            # sparkle props: fire on hits, dark otherwise
-HERO_GROUP = "SEM_FOCAL"
-FULL_DISPLAY = "SEM_ALL"
+# the hero onset layer rides the focal props, flashes hit the whole display. Group vocabulary in
+# semantic_groups; the show-feel dials (brightness/energy/density) live in tuning.
+from .semantic_groups import (
+    ACCENT_GROUPS,
+    BED_PREFERENCE,
+    FULL_DISPLAY,
+    HERO_GROUP,
+    PEAK_BROAD_GROUPS,
+    RHYTHM_GROUPS,
+    RHYTHM_POOL,
+)
+from .tuning import (
+    ACCENT_MS,
+    BED_BRIGHTNESS_FACTOR,
+    BED_INTENSITY,
+    ESCALATION_BOOST,
+    FEATURE_PROP_BRIGHTNESS,
+    FLASH_BRIGHTNESS,
+    FLASH_MS,
+    HERO_MAX_ONSETS,
+    HIT_CELL_MS,
+    MAX_ACCENTS_PER_SECTION,
+    MIN_LIT_GROUPS,
+    PALETTE_DEPTH,
+    PEAK_BAND,
+    PEAK_BED_SPAN,
+    PEAK_FLOOR,
+    RHYTHM_FLOOR,
+    WASH_MAX_B,
+    WASH_MIN_B,
+)
+
 BEATS_PER_BAR = 4                  # derived 4/4 (downbeat = every 4th beat)
-HERO_MAX_ONSETS = 40               # hero hits scale with intensity, up to this (keeps it tasteful)
-
-
-WASH_MIN_B, WASH_MAX_B = 50.0, 180.0     # 0–400 brightness scale (100=normal): dim quiet, boost loud
-MIN_LIT_GROUPS = 2                       # a section is never fully blacked out by the coverage rule
 
 
 def wash_brightness(intensity: float) -> float:
@@ -39,7 +58,6 @@ def wash_brightness(intensity: float) -> float:
 
 
 SIMPLE_COLOR = {"On", "Off", "Strobe", "Lightning", "Fill"}   # 1-2 colors read best
-PALETTE_DEPTH = 5                                             # expanded section palette size
 
 
 def effect_palette(section_palette: list[str], effect_type: str, index: int) -> list[str]:
@@ -93,7 +111,6 @@ def effect_speed_setting(effect_type: str, intensity: float) -> dict[str, str]:
     return {key: str(round(v)) if fmt == "int" else f"{v:.1f}"}
 
 
-ESCALATION_BOOST = 0.25                   # how much a final recurrence can lift effective intensity
 
 
 def escalation_level(section_index: int, repetition_map: dict | None) -> float:
@@ -167,9 +184,7 @@ def section_rhythm(sa, section: SectionPlan) -> dict:
             "tempo": getattr(sa, "tempo_overall", None)}
 
 
-FLASH_MS = 150                            # brief full-display white hit
 FLASH_KINDS = ("climax", "accent", "drop", "hit")
-FLASH_BRIGHTNESS = 300.0                  # 0–400 scale → a bright white pop
 
 
 def key_moment_flashes(show_plan, available_groups: list[str]) -> list:
@@ -306,7 +321,6 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     return out
 
 
-RHYTHM_FLOOR = 0.35      # at/above this intensity a section is rhythmic by nature
 
 
 def section_is_rhythmic(section) -> bool:
@@ -324,14 +338,10 @@ def section_is_rhythmic(section) -> bool:
     return (getattr(section, "intensity", 0.0) or 0.0) >= RHYTHM_FLOOR   # energetic → rhythmic
 
 
-BED_INTENSITY = 0.7                       # high-energy sections carry a whole-yard bed
-BED_BRIGHTNESS_FACTOR = 0.6               # the bed sits UNDER the features
 
 # Peak escalation: the show's payoff section(s) must read as the BIGGEST moment, not a busier
 # verse — full display, full brightness, regardless of how narrowly the brief targeted them.
-PEAK_BAND = 0.12                          # sections within this of max intensity = the peak
-PEAK_FLOOR = 0.66                         # ...and at least this loud (a quiet show has no peak)
-PEAK_BROAD_GROUPS = ("SEM_ALL", "SEM_BAND_GROUND")   # broadest available ensemble, preferred order
+# PEAK_BROAD_GROUPS / BED_PREFERENCE come from semantic_groups (orders differ on purpose).
 
 
 def peak_sections(show_plan, band: float = PEAK_BAND, floor: float = PEAK_FLOOR) -> set[int]:
@@ -347,7 +357,6 @@ def peak_sections(show_plan, band: float = PEAK_BAND, floor: float = PEAK_FLOOR)
             if (getattr(s, "intensity", 0.0) or 0.0) >= peak - band}
 
 
-PEAK_BED_SPAN = 0.7                       # an existing wash this long already IS the lit yard
 
 
 def peak_fill(section, intensity: float, available_groups: list[str],
@@ -377,7 +386,7 @@ def ensemble_bed(section, intensity: float, available_groups: list[str], existin
     so a peak never reads as a quarter-lit yard behind one blinking group."""
     if intensity < BED_INTENSITY:
         return None
-    target = next((g for g in ("SEM_BAND_GROUND", "SEM_ALL") if g in available_groups), None)
+    target = next((g for g in BED_PREFERENCE if g in available_groups), None)
     if not target or target in (existing_targets or set()):
         return None
     ins = EffectInstruction(target=target, effect_type="On", look_id=candidate_look_ids("On")[0],
@@ -394,7 +403,6 @@ def ensemble_bed(section, intensity: float, available_groups: list[str], existin
 # dim or same-hue color (the silver-snow-on-navy failure). Scoped to the accent prop groups only.
 FEATURE_BASE_EFFECTS = {"On", "Twinkle", "SingleStrand", "Single Strand", "Fill", "Snowflakes",
                         "Snowstorm", "Strobe", "Shimmer", "Meteors"}
-FEATURE_PROP_BRIGHTNESS = 150.0           # 0–400 (100=normal): the feature pops above the bed
 
 
 def _slider_brightness(ins: EffectInstruction):
@@ -431,7 +439,6 @@ def feature_prop_contrast(instructions: list[EffectInstruction], section: Sectio
     return instructions
 
 
-HIT_CELL_MS = 1200                        # a hit effect cell is at most this long
 
 
 def _bar_ms(rhythm: dict) -> float:

@@ -14,22 +14,18 @@ from xlights_core.knowledge.value_curves import brightness_setting, motion_curve
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import CellRecipe, EffectInstruction, SectionPlan, SectionWeave
 from .beats import (
-    ACCENT_GROUPS,
-    RHYTHM_GROUPS,
-    RHYTHM_POOL,
     _downsample,
     effect_palette,
     effect_speed_setting,
     section_is_rhythmic,
     wash_brightness,
 )
+from .semantic_groups import ACCENT_GROUPS, BED_PREFERENCE, RHYTHM_GROUPS, RHYTHM_POOL
 
-# Density budget (tunable): cells/min = BASE + intensity * SCALE. Peak ≈ 600/min — the community's
-# ~1,300/min was measured across per-prop rows; ours weaves group rows (~15 targets), so scaled.
-BUDGET_BASE = 120.0
-BUDGET_SCALE = 480.0
+# Density budget + bed brightness are show-feel dials (see tuning.py).
+from .tuning import BUDGET_BASE, BUDGET_SCALE, WEAVE_BED_BRIGHTNESS as BED_BRIGHTNESS
+
 MAX_WOVEN_RECIPES = 3            # one carrier + up to two textures/accents (layer pressure cap)
-BED_BRIGHTNESS = "60"            # a bed sits under the fabric (static C_SLIDER_Brightness)
 
 # Motion vocabulary for the fallback weave's texture pick (cell-able types; see qa.rules).
 _FALLBACK_CARRIER = "SingleStrand"
@@ -333,7 +329,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
     based: set[str] = set(based_targets or ())   # targets with a base layer this section
     if bed is not None:
         groups = [g for g in bed.groups if g in available_groups] or \
-                 [g for g in ("SEM_BAND_GROUND", "SEM_ALL") if g in available_groups][:1]
+                 [g for g in BED_PREFERENCE if g in available_groups][:1]
         for g in groups[:1]:                  # ONE spanning bed (the long-bed exception)
             ins = _cell(bed, section, g, 0, section.start_ms, section.end_ms,
                         intensity, blended=False)

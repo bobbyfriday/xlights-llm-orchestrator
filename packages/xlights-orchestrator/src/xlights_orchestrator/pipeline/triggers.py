@@ -16,14 +16,14 @@ from xlights_core.knowledge.value_curves import brightness_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction
-from .beats import ACCENT_GROUPS, RHYTHM_POOL, HERO_GROUP, _downsample, effect_palette
+from .beats import _downsample, effect_palette
 from .features import STEM_EFFECT, instrument_entrances
+from .semantic_groups import ACCENT_GROUPS, HERO_GROUP, RHYTHM_POOL, WHOLE_HOUSE_GROUPS
 
 log = logging.getLogger(__name__)
 
 COLOR_WORDS = {"red", "green", "blue", "gold", "golden", "white", "silver", "purple", "violet",
                "pink", "orange", "amber", "yellow", "cyan", "teal", "crimson", "scarlet"}
-WHOLE_HOUSE_GROUPS = ("SEM_ALL", "SEM_HOUSE")
 DRUM_PROMINENT_SHARE = 0.22  # a section counts as drum-prominent at/above this drum energy share
 SPARSE_MAX_INTENSITY = 0.5   # 'sparse_beat' = a strong beat with little else (low overall energy)
 EVENT_MS = 220               # a point trigger's pop/flash duration (short — a drum hit)

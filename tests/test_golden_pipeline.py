@@ -195,3 +195,9 @@ def test_golden_is_non_trivial(tmp_path, monkeypatch):
     }
     assert carrier_by_section[0] != carrier_by_section[1]              # rotated, not identical
     assert len({t for ts in carrier_by_section.values() for t in ts}) >= 2
+    # composite stack: the peak hero (SEM_FOCAL) carries a multi-effect blended stack
+    focal = [i for i in produced if i["target"] == "SEM_FOCAL"]
+    layers = sorted({i["layer"] for i in focal})
+    assert layers[:2] == [0, 1]                                        # ≥2 stacked layers
+    assert any(i["extra_settings"].get("T_CHOICE_LayerMethod") for i in focal if i["layer"] > 0)
+    assert len({i["effect_type"] for i in focal}) >= 2                 # different effects combined

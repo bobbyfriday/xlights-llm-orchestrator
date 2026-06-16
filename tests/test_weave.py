@@ -285,3 +285,35 @@ def test_diversify_carrier_swaps_plain_keeps_distinctive():
     tex = SectionWeave(cells=[CellRecipe(effect_type="On", role="texture", groups=["SEM_ARCHES"])])
     diversify_carrier(tex, "Bars")
     assert tex.cells[0].effect_type == "On"
+
+
+# -- composite stacks (multi-effect blended layers) ---------------------------
+
+def test_expand_composite_stacks_layers_with_blend():
+    from xlights_orchestrator.pipeline.weave import curated_composite, expand_composite
+    rec = curated_composite("kaleidoscope", ["SEM_FOCAL"])
+    assert rec is not None
+    ins = expand_composite(rec, _sec(intensity=0.9), 0.9, ["SEM_FOCAL"])
+    assert [i.layer for i in ins] == [0, 1]                       # two stacked layers
+    assert all(i.target == "SEM_FOCAL" for i in ins)              # same group
+    assert all(i.effect_type == "Morph" for i in ins)            # the kaleidoscope = two Morphs
+    assert ins[0].extra_settings.get("T_CHOICE_LayerMethod") is None      # base = Normal
+    assert ins[1].extra_settings.get("T_CHOICE_LayerMethod") == "Max"      # upper blends Max
+    # layers differ by palette rotation so they COMBINE distinctly (not one hiding the other)
+    assert ins[0].palette_colors != ins[1].palette_colors
+    assert ins[0].start_ms == ins[1].start_ms                     # share the section span
+
+
+def test_expand_composite_needs_two_layers_and_valid_groups():
+    from xlights_orchestrator.pipeline.weave import expand_composite
+    from xlights_orchestrator.show_plan import CompositeLayer, CompositeRecipe
+    one = CompositeRecipe(groups=["SEM_FOCAL"], layers=[CompositeLayer(effect_type="Morph")])
+    assert expand_composite(one, _sec(), 0.8, ["SEM_FOCAL"]) == []          # <2 layers → nothing
+    two = CompositeRecipe(groups=["NOPE"], layers=[CompositeLayer(effect_type="Morph"),
+                                                   CompositeLayer(effect_type="Galaxy", blend="Max")])
+    assert expand_composite(two, _sec(), 0.8, ["SEM_FOCAL"]) == []          # group not available → nothing
+
+
+def test_curated_composite_unknown_name():
+    from xlights_orchestrator.pipeline.weave import curated_composite
+    assert curated_composite("does-not-exist", ["SEM_FOCAL"]) is None

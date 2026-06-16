@@ -35,14 +35,21 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
+from .semantic_groups import HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
+    curated_composite,
     diversify_carrier,
+    expand_composite,
     expand_weave,
     fallback_weave,
     section_carrier,
 )
+
+# Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
+# look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
+_PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
 
 
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
@@ -89,6 +96,17 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
         for ins in woven:
             ins.section_index = i
         kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
+        # composite stacks: LLM-designed multi-effect blended layers, plus a curated stack on the
+        # hero at the peak — effects COMBINED on layers (e.g. counter-Morphs + Max) for a rich look.
+        comp_recipes = list(getattr(out, "composites", None) or [])
+        if i in _peaks and HERO_GROUP in st.available_groups:
+            cc = curated_composite(_PEAK_COMPOSITES[i % len(_PEAK_COMPOSITES)], [HERO_GROUP])
+            if cc is not None:
+                comp_recipes.append(cc)
+        for comp in comp_recipes:
+            for ins in expand_composite(comp, section, _si, st.available_groups):
+                ins.section_index = i
+                kept.append(ins)
         clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
         instrs.extend(kept)
         accents = place_beat_accents(            # beat layer over the wash; the weave's carrier

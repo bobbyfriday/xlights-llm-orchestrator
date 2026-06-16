@@ -107,8 +107,30 @@ class SectionWeave(BaseModel):
     cells: list[CellRecipe] = []
 
 
+class CompositeLayer(BaseModel):
+    """One layer of a composite stack (index 0 = base/bottom; higher = stacked above)."""
+
+    effect_type: str
+    look_id: str = ""                        # "" → first candidate look for the type
+    direction: str = ""                      # the effect's own motion direction (counter-phases per layer)
+    motion_curve: str = ""                   # logical curve name ramped over the span
+    blend: str = ""                          # T_CHOICE_LayerMethod over the layer below ("" = Normal)
+    palette: list[str] = []                  # this layer's colors; [] → rotated section palette
+
+
+class CompositeRecipe(BaseModel):
+    """A multi-effect STACK on the SAME group(s): 2–3 effects on blended layers that COMBINE into
+    one rich, kaleidoscopic look (e.g. two counter-moving Morphs blended Max). Code expands it into
+    stacked EffectInstructions sharing a target + span; the LLM may emit these, or code synthesizes
+    one from the curated set for a feature moment."""
+
+    groups: list[str] = []                   # the group(s) the stack lights (each gets the full stack)
+    layers: list[CompositeLayer] = []        # 2–3 layers, base first
+
+
 class SectionEffects(BaseModel):
     """Generator output for one section."""
 
     instructions: list[EffectInstruction]
     weave: SectionWeave | None = None        # cell recipes (additive; None → no woven fabric)
+    composites: list[CompositeRecipe] = []   # multi-effect blended stacks on a group (additive)

@@ -37,4 +37,4 @@
 
 ## 7. Land
 
-- [ ] 7.1 Open a PR per the project workflow; do not commit to `main` directly.
+- [x] 7.1 Open a PR per the project workflow; do not commit to `main` directly.

@@ -102,10 +102,16 @@ _DISSOLVE_FAMILY = {"Plasma", "Color Wash", "Fill", "Shimmer", "Fire", "Liquid",
 
 def resolve_phrasing(phrasing: str, intensity: float) -> str:
     """A section's effective phrasing: the Director's value when given, else inferred from energy
-    (low intensity → legato/soft, energetic → staccato/crisp). Always returns 'legato'|'staccato'."""
+    (low intensity → legato/soft, energetic → staccato/crisp). Always returns 'legato'|'staccato'.
+
+    The Director sometimes answers with a descriptive phrase ('legato and sweeping') rather than the
+    bare enum, so match the keyword anywhere in the value before falling back to the energy default —
+    its explicit intent shouldn't be lost to a stray adjective."""
     p = (phrasing or "").strip().lower()
-    if p in ("legato", "staccato"):
-        return p
+    if "legato" in p:
+        return "legato"
+    if "staccato" in p:
+        return "staccato"
     i = max(0.0, min(1.0, intensity or 0.0))
     return "legato" if i < PHRASING_INTENSITY_THRESHOLD else "staccato"
 

@@ -113,5 +113,20 @@ verses) but is free to omit it and rely on the energy default.
 - The exact effect-family → primitive split (which effects count as "textural" and get Dissolve vs
   the linear fade) — seed from the effects-catalog families, refine against the render. Dissolve's
   visible graininess on sparse props should be sanity-checked live before widening its use.
+
+## Live-verification findings (Christmas Canon, `--no-cache --refine --auto`)
+
+The Director used the dial well (8 legato / 6 staccato across 16 sections; staccato on the
+intensity-0.85–1.0 peaks; a deliberate legato on a loud 0.84 section that realized as dissolves +
+fades — the directed-override path). Two findings:
+
+- **Director sometimes answered with a phrase** ('legato and sweeping', 'driving') instead of the
+  bare enum. Fixed in this change: `resolve_phrasing` now keyword-matches ('legato' anywhere →
+  legato) and the Director prompt asks for exactly one word.
+- **Phrasing only softens woven cells (by design).** The every-beat accent layer (`beats.py`) and
+  downbeat sparkle are not phrasing-aware, so in a calm section their short `On` pulses can still
+  read as flashing — and cells the Generator gave an explicit transition correctly keep it. Making
+  the beat-accent / sparkle layers phrasing-aware (softer, sparser accents in legato sections) is
+  the natural **phase-2** companion to the cross-layer crossfade overlap, tracked as follow-up.
 - Whether the long bed cell should also carry a gentle fade-in at section entry (likely yes, small)
   — settle during implementation against the render.

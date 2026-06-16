@@ -57,6 +57,8 @@ def test_resolve_phrasing_directed_wins_over_intensity():
     assert resolve_phrasing("legato", 0.95) == "legato"     # directed beats a loud section
     assert resolve_phrasing("staccato", 0.05) == "staccato"  # directed beats a quiet section
     assert resolve_phrasing("LEGATO", 0.95) == "legato"      # case-insensitive
+    assert resolve_phrasing("legato and sweeping", 0.9) == "legato"   # descriptive phrase, keyword wins
+    assert resolve_phrasing("staccato, punchy", 0.1) == "staccato"
 
 
 def test_resolve_phrasing_defaults_from_intensity():

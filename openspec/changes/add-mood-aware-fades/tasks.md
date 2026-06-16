@@ -27,8 +27,8 @@
 
 ## 5. Live verification
 
-- [ ] 5.1 Run `xlo run --song "mp3/christmas canon.mp3" --refine --auto` and confirm verses 4 & 5 (legato) carry fades and no longer draw the "rapid erratic flashing" critique; confirm a peak section stays crisp (staccato).
-- [ ] 5.2 Tune `FADE_FRACTION`, `MAX_FADE_S`, and the legato `cell_beats` floor against the live render if needed.
+- [x] 5.1 Run `xlo run --song "mp3/christmas canon.mp3" --refine --auto` and confirm verses 4 & 5 (legato) carry fades and no longer draw the "rapid erratic flashing" critique; confirm a peak section stays crisp (staccato).
+- [x] 5.2 Tune `FADE_FRACTION`, `MAX_FADE_S`, and the legato `cell_beats` floor against the live render if needed.
 
 ## 6. Land
 

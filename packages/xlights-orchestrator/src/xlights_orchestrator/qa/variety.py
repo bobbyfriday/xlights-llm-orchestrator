@@ -6,8 +6,9 @@ from collections import Counter
 
 from ..refine import Finding
 
-DOMINANCE = 0.7   # one effect type covering >70% of effects reads as monotone
-COVERAGE = 0.3    # using <30% of groups reads as thin
+DOMINANCE = 0.7      # one effect type covering >70% of effects reads as monotone
+COVERAGE = 0.3       # using <30% of groups reads as thin
+MIN_DISTINCT_TYPES = 4   # a whole show fielding fewer than this many effect types reads as samey
 
 
 def evaluate(instructions, groups) -> tuple[int, list[Finding]]:
@@ -22,6 +23,16 @@ def evaluate(instructions, groups) -> tuple[int, list[Finding]]:
         findings.append(Finding(scope="global", severity="warn", metric="variety", objective=False,
                                 detail=f"effect '{top_type}' dominates ({top_n}/{len(instructions)})"))
         score -= 30
+
+    # Reward breadth: too few DISTINCT effect types across the show reads as monotone even when
+    # no single type dominates. Graduated so the Judge sees how far short it falls.
+    distinct = len(counts)
+    if distinct < MIN_DISTINCT_TYPES:
+        findings.append(Finding(
+            scope="global", severity="warn", metric="variety", objective=False,
+            detail=f"only {distinct} distinct effect types (aim ≥{MIN_DISTINCT_TYPES}) — "
+                   "give some sections different effect_types/weave carriers"))
+        score -= 10 * (MIN_DISTINCT_TYPES - distinct)
 
     used = {ins.target for ins in instructions}
     if groups:

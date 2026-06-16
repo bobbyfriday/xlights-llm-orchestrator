@@ -168,7 +168,31 @@ def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
     return False
 
 
-def fallback_weave(section: SectionPlan, available_groups: list[str]) -> SectionWeave:
+# Rotate the cell-fabric carrier across sections so a show isn't wall-to-wall SingleStrand.
+# All are cell-able AND chase-family AND direction-supporting, with looks in the catalog.
+CARRIER_ROTATION = ("SingleStrand", "Bars", "Garlands", "Wave")
+# "plain" carriers we rotate; a deliberately distinctive carrier the LLM chose (Spirals,
+# Pinwheel, Ripple, Butterfly, Meteors) is preserved — only the default chase/On gets varied.
+_ROTATABLE_CARRIERS = set(_CHASE_FAMILY) | {"On"}
+
+
+def section_carrier(seed: int) -> str:
+    """The rotated carrier effect for a section index (deterministic; cycles CARRIER_ROTATION)."""
+    return CARRIER_ROTATION[seed % len(CARRIER_ROTATION)]
+
+
+def diversify_carrier(weave: SectionWeave | None, carrier: str) -> None:
+    """Swap each plain carrier recipe to `carrier` in place, so the beat-carrier varies per section.
+
+    A distinctive carrier the LLM picked (e.g. Spirals) is left alone; only the default chase/On
+    carrier is rotated. Clears look_id so the new type picks its own valid look."""
+    for r in (weave.cells if weave else []):
+        if r.role == "carrier" and r.effect_type in _ROTATABLE_CARRIERS and r.effect_type != carrier:
+            r.effect_type, r.look_id = carrier, ""
+
+
+def fallback_weave(section: SectionPlan, available_groups: list[str],
+                   *, carrier: str = _FALLBACK_CARRIER) -> SectionWeave:
     """A deterministic default fabric: a chase carrier on the rhythm pool + a sparse texture from
     the section's own effect vocabulary. Used when the LLM omits the weave — the fabric never
     depends on perfect LLM output.
@@ -178,11 +202,11 @@ def fallback_weave(section: SectionPlan, available_groups: list[str]) -> Section
     from ..qa.rules import DURATION_CELLABLE
     if not section_is_rhythmic(section):
         return SectionWeave(cells=[])
-    cells = [CellRecipe(effect_type=_FALLBACK_CARRIER, role="carrier", cell_beats=1,
+    cells = [CellRecipe(effect_type=carrier, role="carrier", cell_beats=1,
                         alternation="chase", direction="bounce",
                         groups=rhythm_pool(section, available_groups))]
     texture = next((t for t in (canon_effect_type(x) for x in section.effect_types or [])
-                    if t in DURATION_CELLABLE and t != _FALLBACK_CARRIER), None)
+                    if t in DURATION_CELLABLE and t != carrier), None)
     tex_groups = [g for g in section.target_groups
                   if g in available_groups and g not in ACCENT_GROUPS]
     if texture and tex_groups:

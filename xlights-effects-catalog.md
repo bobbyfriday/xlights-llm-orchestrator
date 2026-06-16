@@ -507,6 +507,7 @@ Distilled rules for automated or assisted effect placement. Apply in order:
 - Volume 1 (Music-to-Effect Reference) §§2–5, 7, 9 — taxonomy, prop notes, mistakes
 - Volume 2 (Layering & Rendering Guide) §§4–9 — blend modes, render styles, recipes
 - Community: AusChristmasLighting threads on group render behavior; vendor import guidance (RGB Sequences) on Pictures vs Video density limits
+- `docs/community-technique.md` — cited digest of community technique (value curves, buffer/grid cost, layering/masking, per-effect best-use). Notable grounded tips folded into entries: Butterfly style 2 = radial (round props); Fan/Shockwave are grid-expensive (keep off whole-house canvases); Galaxy/Plasma make living beds; value-curve a Ramp on speed/brightness for builds.
 
 ---
 
@@ -514,6 +515,7 @@ Distilled rules for automated or assisted effect placement. Apply in order:
 
 | Version | Date | Changes |
 |---|---|---|
+| 0.4 | 2026-06-16 | §12 link to `docs/community-technique.md` (cited community-technique digest); grounded best-use tips reflected in the Director cheat-sheet |
 | 0.3 | 2026-06-11 | §2.1 Duration Classes (hit/phrase/cell-able/bed — "sustained" retired per community-corpus medians); placement rules #13 (duration classes) and #14 (weave, don't wash) |
 | 0.1 | 2026-06-09 | Initial catalog: schema, quick-reference, ~50 effects across 8 categories, placement decision rules |
 

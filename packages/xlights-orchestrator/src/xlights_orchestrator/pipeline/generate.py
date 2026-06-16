@@ -35,7 +35,14 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
-from .weave import canon_effect_type, carrier_covers, expand_weave, fallback_weave
+from .weave import (
+    canon_effect_type,
+    carrier_covers,
+    diversify_carrier,
+    expand_weave,
+    fallback_weave,
+    section_carrier,
+)
 
 
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
@@ -73,7 +80,10 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
         if bed is not None:
             bed.section_index = i
             kept.append(bed)
-        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups)
+        carrier = section_carrier(i)                 # rotate the carrier so the show isn't all one effect
+        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
+                                                                  carrier=carrier)
+        diversify_carrier(weave_obj, carrier)        # vary an LLM weave's default carrier too
         woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
                              based_targets={k.target for k in kept})  # cells blend over washes
         for ins in woven:

@@ -126,6 +126,25 @@ Maintenance rule from prior art: **add groups freely** (it doesn't disturb exist
 
 ---
 
+### SC-15 · Galaxy Swirl Bed — `PROPOSED`
+*A living bed that breathes, with an organic hero over it.*
+
+- **Musical slot:** dreamy verses, atmospheric choruses, instrumental pads. Energy 2–3.
+- **Stack:**
+
+| Row | Render style | Layer | Effect | Blend | Notes |
+|---|---|---|---|---|---|
+| G0-ALL-LESS-HERO | Default (canvas) | L1 | Galaxy, slow, cool palette | Normal | The swirling bed — never a flat wash |
+| G2-HERO | Default | L2 | Butterfly, color set 2 | Normal | Organic hero feature |
+| | | L1 | Color Wash 20% | Normal | Hero's own dim bed |
+| G2-ACCENT | Per Model | L1 | Twinkle, low | Max | Sparkle |
+
+- **Why it works:** Galaxy gives a non-repeating, alive background that reads richer than a Color Wash; Butterfly's curved organic motion contrasts it, and the two curved effects stay distinct because one is the bed and one is the focal.
+- **Failure modes:** both at full brightness compete (keep the bed ≤30%); Galaxy too fast reads as static noise.
+- **Prior art:** atmospheric living-bed pattern; original — untested idea.
+
+---
+
 ## 4. Showpiece Scenes
 
 ### SC-04 · The Drop Formula — `PROPOSED`
@@ -178,6 +197,40 @@ Maintenance rule from prior art: **add groups freely** (it doesn't disturb exist
 - **Why it works:** persistence turns motion into accumulation — a visual crescendo that matches a sustained final chord; the documented buffer behavior (frames remain until overwritten) is the mechanism.
 - **Failure modes:** forgetting the Off reset (trail garbage bleeds into the next section).
 - **Prior art:** manual Layer Settings (Persistent); Vol 2 §9.5.
+
+---
+
+### SC-16 · Radiant Fan Bloom — `PROPOSED`
+*A flower of light that opens with the music.*
+
+- **Musical slot:** builds into a chorus, instrumental reveals, key lifts. Energy 3–4.
+- **Stack:**
+
+| Row | Render style | Layer | Effect | Blend | Notes |
+|---|---|---|---|---|---|
+| G2-HERO | Default | L2 | Fan, center-out, full palette | Normal | The bloom |
+| | | L1 | Color Wash 25% | Normal | Hero bed |
+| G2-RHYTHM | Per Model | L1 | Bars on beat | Normal | Linear rhythm under the radial feature |
+| G0-ALL-LESS-HERO-RHYTHM | Default | L1 | Color Wash 30% | Normal | The bed |
+
+- **Why it works:** Fan's radial opening reads as a bloom/burst that physically grows with the build; pairing a radial feature with a *linear* rhythm (Bars) keeps the two voices from mushing into one.
+- **Failure modes:** Fan on a linear prop reads as nothing — keep it on the hero/canvas; too many petals at low energy looks busy.
+- **Prior art:** radial-reveal pattern; original — untested idea.
+
+### SC-17 · Kaleidoscope Canvas — `PROPOSED`
+*The matrix as a premium, asset-free showpiece.*
+
+- **Musical slot:** instrumental hooks, psychedelic bridges, solo spotlights. Energy 3–4.
+- **Stack:**
+
+| Row | Render style | Layer | Effect | Blend | Notes |
+|---|---|---|---|---|---|
+| G2-CANVAS | Default | L1 | Kaleidoscope, full palette, slow rotation | Normal | The storyteller |
+| G0-ALL-LESS-HERO | Default | L1 | Color Wash 20% | Normal | Quiet bed so the canvas owns focus |
+
+- **Why it works:** the matrix is the storyteller (Vol 3 §6); a kaleidoscope is premium motion with no assets, and its symmetry reads as deliberately "designed."
+- **Failure modes:** kaleidoscope on small non-matrix props is invisible — canvas only; too fast reads as chaos rather than pattern.
+- **Prior art:** matrix shader/effect tradition; original — untested idea.
 
 ---
 
@@ -239,6 +292,26 @@ Maintenance rule from prior art: **add groups freely** (it doesn't disturb exist
 - **Stack (timeline):** A's feature gets an out-transition (fade/wipe, ~0.5–1s) while a Morph effect travels across G0-ALL from A's position toward B (start/end blocks aimed via Morph's positioning); B's feature enters with an in-transition timed to the Morph's arrival.
 - **Why it works:** the eye follows motion; the morph is a literal pointer. Without it, focus changes read as "something turned off."
 - **Failure modes:** morph slower than the musical gesture; both features at full brightness simultaneously.
+
+---
+
+### SC-18 · Ember Glow — `PROPOSED`
+*A warm, living glow a flat wash can't give.*
+
+- **Musical slot:** warm intense bridges, slow-burn builds, candle-lit ballads. Energy 2–3.
+- **Stack:** G0-ALL (Default): L2 Plasma, warm palette (red/orange/amber + 1 cool anchor) | L1 Fire on G2-FRAME or the hero base, low, **Max** — embers licking up. G2-ACCENT: Twinkle gold, low.
+- **Why it works:** Fire + Plasma read as a genuinely warm, moving glow that a Color Wash can't fake; the single cool anchor keeps it from collapsing into one orange mush on LEDs (Vol 3 LED-contrast rule).
+- **Failure modes:** Fire across the whole display reads as flat orange — keep it to frame/hero; no cool anchor → the tonal subtlety is invisible.
+- **Prior art:** warm-wash tradition; original — untested idea.
+
+### SC-19 · Ripple Reflections — `PROPOSED`
+*Calm concentric motion instead of a still wash.*
+
+- **Musical slot:** gentle verses, ambient interludes, "water/light" lyrics. Energy 1–2.
+- **Stack:** G0-ALL-LESS-HERO (Default): L1 Ripple, slow, cool palette — concentric gentle waves. G2-HERO (Default): L1 Color Wash 20%. G2-ACCENT: Twinkle low, Max.
+- **Why it works:** Ripple's slow concentric motion reads as calm/water and is a restful, *moving* alternative to a flat wash for quiet sections — variety without raising the energy.
+- **Failure modes:** Ripple too fast reads as energetic (keep it slow); on tiny props it's invisible — broad groups only.
+- **Prior art:** ambient water pattern; original — untested idea.
 
 ---
 
@@ -321,6 +394,7 @@ Scenes that failed testing, kept so they aren't reinvented. Format: ID, what it 
 | Version | Date | Changes |
 |---|---|---|
 | 0.1 | 2026-06-09 | Initial cookbook: schema, group architecture incl. subtractive groups, 14 scenes (all PROPOSED), testing protocol, graveyard & log scaffolding |
+| 0.2 | 2026-06-16 | +5 variety scenes (PROPOSED) spotlighting under-used effects: SC-15 Galaxy Swirl Bed, SC-16 Radiant Fan Bloom, SC-17 Kaleidoscope Canvas, SC-18 Ember Glow (Fire/Plasma), SC-19 Ripple Reflections |
 
 <!--
 Editing conventions:

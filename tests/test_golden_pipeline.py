@@ -26,6 +26,7 @@ import os
 from pathlib import Path
 
 from xlights_orchestrator.pipeline import run_pipeline
+from xlights_orchestrator.pipeline.weave import CARRIER_ROTATION
 from xlights_orchestrator.show_plan import (
     CellRecipe,
     EffectInstruction,
@@ -187,3 +188,10 @@ def test_golden_is_non_trivial(tmp_path, monkeypatch):
     assert len(produced) > 10
     assert any(i["effect_type"] == "Twinkle" for i in produced)        # weave texture cell expanded
     assert any(i["section_index"] == 1 for i in produced)              # both sections produced effects
+    # carrier rotation: the two sections use DIFFERENT carrier effects (variety, not all SingleStrand)
+    carrier_by_section = {
+        s: {i["effect_type"] for i in produced if i["section_index"] == s} & set(CARRIER_ROTATION)
+        for s in (0, 1)
+    }
+    assert carrier_by_section[0] != carrier_by_section[1]              # rotated, not identical
+    assert len({t for ts in carrier_by_section.values() for t in ts}) >= 2

@@ -223,3 +223,20 @@ def test_loop_checkpoint_stop_overrides_judge():
     run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
                      max_iterations=3, judge=judge, qa=None, regenerate=regen, checkpoint=stopper))
     assert calls["regen"] == 0   # human stop → no regeneration despite Judge 'iterate'
+
+
+def test_variety_rewards_distinct_effect_types():
+    from xlights_orchestrator.show_plan import EffectInstruction
+    def ins(t, ms):
+        return EffectInstruction(target="G1", effect_type=t, look_id=f"{t}#0",
+                                 start_ms=ms, end_ms=ms + 400)
+    groups = ["G1", "G2", "G3", "G4"]
+    # a broad palette of distinct types scores higher than a samey one of the same size
+    broad = [ins(t, i * 500) for i, t in enumerate(
+        ["SingleStrand", "Bars", "Garlands", "Wave", "On", "Twinkle"])]
+    samey = [ins("On", i * 500) for i in range(6)]
+    s_broad, f_broad = variety.evaluate(broad, groups)
+    s_samey, f_samey = variety.evaluate(samey, groups)
+    assert s_broad > s_samey
+    assert any("distinct effect types" in f.detail for f in f_samey)   # surfaced to the Judge
+    assert not any("distinct effect types" in f.detail for f in f_broad)

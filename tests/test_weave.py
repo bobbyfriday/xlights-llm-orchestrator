@@ -7,10 +7,13 @@ from xlights_core.knowledge.value_curves import motion_curve_setting
 
 from xlights_orchestrator.pipeline.beats import place_beat_accents
 from xlights_orchestrator.pipeline.weave import (
+    CARRIER_ROTATION,
     carrier_covers,
     cell_budget,
+    diversify_carrier,
     expand_weave,
     fallback_weave,
+    section_carrier,
 )
 from xlights_orchestrator.qa.rules import evaluate as rules_evaluate
 from xlights_orchestrator.show_plan import CellRecipe, SectionPlan, SectionWeave
@@ -250,3 +253,35 @@ def test_cellable_long_placement_chopped():
     sub = EffectInstruction(target="SEM_ALL_LESS_FOCAL", effect_type="Bars", look_id="x",
                             start_ms=0, end_ms=20000)
     assert len(normalize_durations([sub], rhythm)) == 5              # subtractive ensembles WEAVE
+
+
+# -- carrier rotation (variety) -----------------------------------------------
+
+def test_section_carrier_rotates_across_sections():
+    seen = [section_carrier(i) for i in range(len(CARRIER_ROTATION))]
+    assert seen == list(CARRIER_ROTATION)            # cycles the full set
+    assert section_carrier(len(CARRIER_ROTATION)) == CARRIER_ROTATION[0]   # wraps
+    assert len(set(seen)) >= 4                        # genuinely varied carriers
+
+
+def test_fallback_weave_uses_rotated_carrier():
+    wv = fallback_weave(_sec(), GROUPS, carrier="Bars")
+    carriers = [c for c in wv.cells if c.role == "carrier"]
+    assert carriers and all(c.effect_type == "Bars" for c in carriers)
+
+
+def test_diversify_carrier_swaps_plain_keeps_distinctive():
+    # a plain SingleStrand/On carrier is rotated...
+    plain = SectionWeave(cells=[CellRecipe(effect_type="On", role="carrier", look_id="On#0",
+                                           groups=["SEM_ARCHES"])])
+    diversify_carrier(plain, "Garlands")
+    assert plain.cells[0].effect_type == "Garlands" and plain.cells[0].look_id == ""
+    # ...but a deliberately distinctive carrier (Spirals) is left alone
+    fancy = SectionWeave(cells=[CellRecipe(effect_type="Spirals", role="carrier",
+                                           groups=["SEM_ARCHES"])])
+    diversify_carrier(fancy, "Garlands")
+    assert fancy.cells[0].effect_type == "Spirals"
+    # a non-carrier texture is never touched
+    tex = SectionWeave(cells=[CellRecipe(effect_type="On", role="texture", groups=["SEM_ARCHES"])])
+    diversify_carrier(tex, "Bars")
+    assert tex.cells[0].effect_type == "On"

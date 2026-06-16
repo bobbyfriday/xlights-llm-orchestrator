@@ -22,8 +22,17 @@ from .beats import (
 )
 from .semantic_groups import ACCENT_GROUPS, BED_PREFERENCE, RHYTHM_GROUPS, RHYTHM_POOL
 
-# Density budget + bed brightness are show-feel dials (see tuning.py).
-from .tuning import BUDGET_BASE, BUDGET_SCALE, WEAVE_BED_BRIGHTNESS as BED_BRIGHTNESS
+# Density budget + bed brightness + phrasing dials are show-feel dials (see tuning.py).
+from .tuning import (
+    BUDGET_BASE,
+    BUDGET_SCALE,
+    LEGATO_BED_FADE_S,
+    LEGATO_CELL_BEATS_FLOOR,
+    LEGATO_FADE_FRACTION,
+    LEGATO_MAX_FADE_S,
+    PHRASING_INTENSITY_THRESHOLD,
+    WEAVE_BED_BRIGHTNESS as BED_BRIGHTNESS,
+)
 
 MAX_WOVEN_RECIPES = 3            # one carrier + up to two textures/accents (layer pressure cap)
 
@@ -84,6 +93,41 @@ _BEATS_PER_BAR = 4
 _SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}
 _CHASE_FAMILY = {"SingleStrand", "Garlands", "Marquee", "Wave", "Bars"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
+
+# Legato realization picks a soft-edge primitive per effect FAMILY: full-canvas fills/washes/
+# textures melt better with a Dissolve; everything else (line/chase/point effects) softens with a
+# linear opacity fade — the safe default for any effect not listed here.
+_DISSOLVE_FAMILY = {"Plasma", "Color Wash", "Fill", "Shimmer", "Fire", "Liquid", "Life", "Galaxy"}
+
+
+def resolve_phrasing(phrasing: str, intensity: float) -> str:
+    """A section's effective phrasing: the Director's value when given, else inferred from energy
+    (low intensity → legato/soft, energetic → staccato/crisp). Always returns 'legato'|'staccato'."""
+    p = (phrasing or "").strip().lower()
+    if p in ("legato", "staccato"):
+        return p
+    i = max(0.0, min(1.0, intensity or 0.0))
+    return "legato" if i < PHRASING_INTENSITY_THRESHOLD else "staccato"
+
+
+def soft_edge_settings(effect_type: str, cell_len_ms: int, phrasing: str) -> dict[str, str]:
+    """The legato soft-edge keys for a cell; `{}` for staccato (crisp on/off, as before).
+
+    The primitive is chosen in code from the effect family — a Dissolve melt for full-canvas
+    fills/washes, a linear opacity fade (scaled to the cell's own length, capped) for line/chase/
+    point effects. All numbers are owned here, never by the LLM.
+    """
+    if phrasing != "legato":
+        return {}
+    if effect_type in _DISSOLVE_FAMILY:
+        adj = str(int(round(LEGATO_FADE_FRACTION * 100)))
+        return {"T_CHOICE_In_Transition_Type": "Dissolve",
+                "T_CHOICE_Out_Transition_Type": "Dissolve",
+                "T_SLIDER_In_Transition_Adjust": adj,
+                "T_SLIDER_Out_Transition_Adjust": adj}
+    fade = round(min(LEGATO_MAX_FADE_S, LEGATO_FADE_FRACTION * max(0, cell_len_ms) / 1000.0), 2)
+    s = f"{fade:g}"                            # xLights fade is seconds, e.g. "0.42" | "1.5"
+    return {"T_TEXTCTRL_Fadein": s, "T_TEXTCTRL_Fadeout": s}
 
 
 def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, str]:
@@ -274,7 +318,8 @@ def _effective_direction(recipe: CellRecipe) -> str:
 def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
           start: int, end: int, intensity: float, blended: bool,
           anchors: tuple[str, str] | None = None, phase: int = 0,
-          beats_per_bar: int = _BEATS_PER_BAR) -> EffectInstruction:
+          beats_per_bar: int = _BEATS_PER_BAR,
+          phrasing: str = "staccato") -> EffectInstruction:
     looks = candidate_look_ids(recipe.effect_type)
     look = recipe.look_id if recipe.look_id in looks else looks[0]
     palette = recipe.palette or section.palette
@@ -283,11 +328,13 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
     bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
     extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
-    if recipe.transition:
+    if recipe.transition:                     # an explicit Generator transition wins
         extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
                       "T_CHOICE_Out_Transition_Type": recipe.transition,
                       "T_SLIDER_In_Transition_Adjust": "50",
                       "T_SLIDER_Out_Transition_Adjust": "50"})
+    else:                                     # else the section's phrasing softens (legato) or not
+        extra.update(soft_edge_settings(recipe.effect_type, end - start, phrasing))
     if blended:                               # blend rides the UPPER layer, only over a base.
         # Default Max (live-verified): a top-layer cell's BLACK background otherwise OCCLUDES
         # the bed/wash below it for the cell's whole span — the "mostly dark with sparse
@@ -326,7 +373,11 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
     if weave is None:
         return []
     bpb = rhythm.get("beats_per_bar") or _BEATS_PER_BAR    # the song's meter, threaded into cells
+    phrasing = resolve_phrasing(section.phrasing, intensity)   # directed, else inferred from energy
     recipes, bed, phases = _valid_recipes(weave, section, available_groups)
+    if phrasing == "legato":                  # legato lengthens short cells so the soft edge reads
+        for r in recipes:
+            r.cell_beats = max(r.cell_beats, LEGATO_CELL_BEATS_FLOOR)
     out: list[EffectInstruction] = []
     based: set[str] = set(based_targets or ())   # targets with a base layer this section
     if bed is not None:
@@ -336,6 +387,10 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
             ins = _cell(bed, section, g, 0, section.start_ms, section.end_ms,
                         intensity, blended=False)
             ins.extra_settings["C_SLIDER_Brightness"] = BED_BRIGHTNESS
+            if phrasing == "legato":          # a gentle, capped entrance/exit (linear, not a melt)
+                bed_fade = f"{LEGATO_BED_FADE_S:g}"
+                ins.extra_settings.setdefault("T_TEXTCTRL_Fadein", bed_fade)
+                ins.extra_settings.setdefault("T_TEXTCTRL_Fadeout", bed_fade)
             out.append(ins)
             based.add(g)
 
@@ -366,5 +421,6 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
             kept = _downsample(cells, max(1, round(len(cells) * factor))) if factor < 1 else cells
             for slot, t, end, tgt, blended in kept:
                 out.append(_cell(r, section, tgt, slot, t, end, intensity, blended,
-                                 anchors=anchors, phase=phases.get(id(r), 0), beats_per_bar=bpb))
+                                 anchors=anchors, phase=phases.get(id(r), 0), beats_per_bar=bpb,
+                                 phrasing=phrasing))
     return out

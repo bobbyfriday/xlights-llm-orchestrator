@@ -18,6 +18,16 @@ FEATURE_PROP_BRIGHTNESS = 150.0        # featured sparkle/snow props pop above t
 FLASH_BRIGHTNESS = 300.0               # the white climax flash — a bright pop
 WEAVE_BED_BRIGHTNESS = "60"            # the woven section-spanning bed (static C_SLIDER_Brightness)
 
+# -- phrasing / soft-edge transitions (legato vs staccato) ------------------
+# A section's cells are either legato (soft, evolving — fades/dissolves at the edges, for calm
+# introspective sections) or staccato (crisp on/off, for energetic sections). The Director may
+# direct it per section; left blank, it defaults from intensity at this threshold.
+PHRASING_INTENSITY_THRESHOLD = 0.5     # below this a section defaults to legato, at/above to staccato
+LEGATO_FADE_FRACTION = 0.35            # legato fade time as a fraction of the cell's own length...
+LEGATO_MAX_FADE_S = 1.5                # ...capped here (a long cell must not fade for many seconds)
+LEGATO_BED_FADE_S = 1.0                # the section-spanning bed's gentle entrance/exit (capped)
+LEGATO_CELL_BEATS_FLOOR = 2            # legato lengthens short cells so the soft edge has room to read
+
 # -- energy thresholds (0..1 intensity) -------------------------------------
 ESCALATION_BOOST = 0.25                # how much a final recurrence can lift effective intensity
 RHYTHM_FLOOR = 0.35                    # at/above this a section is rhythmic by nature

@@ -1,0 +1,2541 @@
+[
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 1000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#00FF00",
+   "#FF7070",
+   "#70FF70",
+   "#A30000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 1250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 1000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 1500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 1000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 2000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00",
+   "#FF7070",
+   "#70FF70",
+   "#A30000",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 1000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 10250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 10000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 10250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 10000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 10250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 10000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 10500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 10000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 11000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#00FF00",
+   "#FF7070",
+   "#70FF70",
+   "#A30000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 10000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 11000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 10500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 11250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 11000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 11500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 11000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00",
+   "#FF7070",
+   "#70FF70",
+   "#A30000",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 11000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 11500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 2000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 1500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 2250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 2000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 2250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 2000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 2250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 2000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 2500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 2000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 3000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF7070",
+   "#70FF70",
+   "#A30000",
+   "#FF0000",
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 2000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 3000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 2500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 3250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 3000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 3500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 3000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 4000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#70FF70",
+   "#A30000",
+   "#FF0000",
+   "#00FF00",
+   "#FF7070"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 3000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 4000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 3500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 4250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 4000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 4250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 4000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 4250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 4000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 4500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 4000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 5000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#A30000",
+   "#FF0000",
+   "#00FF00",
+   "#FF7070",
+   "#70FF70"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 4000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 5000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 4500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 1000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 5250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 5000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 5500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 5000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 6000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#00FF00",
+   "#FF7070",
+   "#70FF70",
+   "#A30000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 5000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 6000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 5500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 6250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 6000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 6250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 6000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 6250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 6000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 6500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 6000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 7000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00",
+   "#FF7070",
+   "#70FF70",
+   "#A30000",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 6000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 7000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 6500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 7250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 7000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 7500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 7000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 8000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF7070",
+   "#70FF70",
+   "#A30000",
+   "#FF0000",
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 7000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 8000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 7500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 8250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 8000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 8250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 8000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 8250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 8000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 8500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 8000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 9000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#70FF70",
+   "#A30000",
+   "#FF0000",
+   "#00FF00",
+   "#FF7070"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 8000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 9000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 8500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 10000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#A30000",
+   "#FF0000",
+   "#00FF00",
+   "#FF7070",
+   "#70FF70"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 9000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 9250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 9000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 9500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 9000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 10000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "108"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 9500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "",
+  "section_index": 1,
+  "start_ms": 0,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 13000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 24000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_ALL"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 13000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 13500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 13000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 14000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3",
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 13000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 14000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 13500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 14250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 14000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 14250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 14000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 14500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 14000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 15000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#7070FF",
+   "#FF7070",
+   "#0000A3",
+   "#0000FF",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 14000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 15000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 14500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 15500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 15000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 16000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF7070",
+   "#0000A3",
+   "#0000FF",
+   "#FF0000",
+   "#7070FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 15000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 16000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 15500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 16250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 16000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 16250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 16000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 16500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 16000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 17000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000A3",
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 16000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 17000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 16500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 17500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 17000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 18000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 17000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 18000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 17500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 18250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 18000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 18250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 18000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 18500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 18000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 19000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3",
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 18000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 19000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 18500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 19500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 19000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 20000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#7070FF",
+   "#FF7070",
+   "#0000A3",
+   "#0000FF",
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 19000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 20000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 19500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 20250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 20000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 20250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 20000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 20500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 20000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 21000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF7070",
+   "#0000A3",
+   "#0000FF",
+   "#FF0000",
+   "#7070FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 20000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 21000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 20500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 21500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 21000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 22000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000A3",
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 21000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 22000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 21500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 22250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 22000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 22250,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 22000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 22500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 22000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 23000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 22000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 23000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 22500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 23500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 23000,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "effect_type": "Twinkle",
+  "end_ms": 24000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Twinkle#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3",
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 23000,
+  "target": "SEM_MINITREES"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 24000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "170"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 23500,
+  "target": "SEM_CANES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#FFA6A6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 0,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 1220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#A6FFA6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 1000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 10220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#FFA6A6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 10000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 11220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#A6FFA6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 11000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "On",
+  "end_ms": 12150,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "300"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "white"
+  ],
+  "palette_id": null,
+  "render_style": "",
+  "section_index": null,
+  "start_ms": 12000,
+  "target": "SEM_ALL"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 2220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#FFA6A6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 2000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 3220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#A6FFA6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 3000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 4220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#FFA6A6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 4000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 5220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#A6FFA6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 5000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 6220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#FFA6A6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 6000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 7220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#A6FFA6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 7000,
+  "target": "SEM_SPINNERS"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 8220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#FFA6A6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 8000,
+  "target": "SEM_SNOWFLAKES"
+ },
+ {
+  "effect_type": "Shockwave",
+  "end_ms": 9220,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "320",
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#0",
+  "on_top": true,
+  "palette_colors": [
+   "#A6FFA6"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": null,
+  "start_ms": 9000,
+  "target": "SEM_SPINNERS"
+ }
+]

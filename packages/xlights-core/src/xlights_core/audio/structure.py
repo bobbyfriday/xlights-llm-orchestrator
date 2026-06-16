@@ -24,10 +24,14 @@ OUTRO_TAIL_S = 8.0        # split an outro when this much song remains after the
 INFILL_SPAN_S = 25.0      # spans longer than this keep interior audio boundaries (instrumentals)
 INFILL_EDGE_S = 10.0      # ...but only boundaries at least this far from the span's edges
 LINE_NEAR_S = 2.0         # an audio boundary within this of a sung line is NOT instrumental
-INSTR_MAX_SECTION_S = 32.0  # one look longer than ~35s reads as boring (user verdict)
-INSTR_MIN_PIECE_S = 12.0    # don't shred a musical part into confetti
-SEAM_ENERGY_NEAR_S = 0.75   # a harmonic seam scores by energy shift within this of it
-                            # (energy_arc is ~0.5s-spaced, so ±0.75 catches the adjacent step)
+INSTR_TARGET_SECTION_S = 25.0  # aim a long-section cut near here — a look much past this gets boring
+INSTR_SECTION_FLEX_S = 10.0    # ...but flex ±this onto a real musical break (so a cut lands in 15–35s)
+INSTR_MIN_PIECE_S = 12.0       # don't shred a musical part into confetti
+SEAM_ENERGY_NEAR_S = 0.75      # a harmonic seam scores by the energy shift within this of it
+                               # (energy_arc is ~duration/400-spaced; 0.75 covers the adjacent step
+                               #  for songs up to ~10 min)
+SEAM_MIN_STRENGTH_FRAC = 0.12  # a cut counts as a "real" break only if the energy shifts at least
+                               # this fraction of the song's full RMS span (else it's just noise)
 
 
 def _snap(t: float, beats: list[float]) -> float:
@@ -108,30 +112,35 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
 
 
 def cap_long_segments(analysis: SongAnalysis,
-                      max_section_s: float = INSTR_MAX_SECTION_S,
+                      target_s: float = INSTR_TARGET_SECTION_S,
+                      flex_s: float = INSTR_SECTION_FLEX_S,
                       min_piece_s: float = INSTR_MIN_PIECE_S) -> bool:
-    """Subdivide ANY segment longer than `max_section_s` at the music's own seams — preferring
-    harmonic-change points, then energy-delta peaks, then beat-snapped time. Pieces are labeled
-    parent id + ordinal ("A" -> "A1","A2",...). False (untouched) when every segment already fits;
-    idempotent on its own output.
+    """Subdivide ANY segment longer than the ceiling (`target_s + flex_s`) at the music's own seams.
+    Each cut AIMS for `target_s` but flexes ±`flex_s` to land on a real structural break — the
+    energy dropping out / surging back — instead of snapping to a fixed length. Pieces are labeled
+    parent id + ordinal ("A" -> "A1","A2",...). False (untouched) when every segment already fits
+    the ceiling; idempotent on its own output.
 
     Runs regardless of lyrics, so a lyric song's long instrumental stretch (e.g. a 100s intro
     before the first sung line, which the lyric refiner can't cut for lack of markers there) is
-    still broken up — no single section runs past the cap.
+    still broken up — no single section runs past the ceiling.
     """
+    ceiling = target_s + flex_s
     old = list(analysis.segments or [])
-    if all(s.end - s.start <= max_section_s + 1e-6 for s in old):
+    if all(s.end - s.start <= ceiling + 1e-6 for s in old):
         return False
     beats = [float(b.time) for b in (analysis.beats or [])]
 
-    # candidates (time, STRENGTH): a cut should land on a real structural break, not just the
-    # latest seam before the cap. Strength = how much the ENERGY changes there (|Δrms|): the music
-    # dropping out / surging back is the audible boundary. Harmonic-change times are candidates too,
-    # scored by the energy shift around them — so a seam that is BOTH a chord change and an energy
-    # jump wins, but a dense run of harmonic changes at steady volume no longer all tie at 1.0
-    # (which made the old code pick the latest → it drifted to the ~32s cap). Snapped to beats.
+    # candidates (time, STRENGTH): a cut should land on a real structural break. Strength = how much
+    # the ENERGY changes there (|Δrms|): the music dropping out / surging back is the audible
+    # boundary. Harmonic-change times are candidates too, scored by the energy shift around them — so
+    # a seam that is BOTH a chord change and an energy jump scores highest, while a dense run of chord
+    # changes at steady volume scores ~0. `strength_bar` is the floor for a shift to count as a real
+    # break (vs. noise), set relative to the song's own RMS span so it adapts to the mix. Snapped to beats.
     arc = analysis.energy_arc or []
     edelta = [(float(q.time), abs(float(q.rms) - float(p.rms))) for p, q in zip(arc, arc[1:])]
+    rms = [float(p.rms) for p in arc]
+    strength_bar = SEAM_MIN_STRENGTH_FRAC * (max(rms) - min(rms)) if rms else 0.0
 
     def _energy_strength(t: float) -> float:
         return max((d for et, d in edelta if abs(et - t) <= SEAM_ENERGY_NEAR_S), default=0.0)
@@ -149,23 +158,25 @@ def cap_long_segments(analysis: SongAnalysis,
     counts: dict[str, int] = {}                         # parent id -> ordinal (A,A -> A1..A7)
     for seg in old:
         a, b = float(seg.start), float(seg.end)
-        if b - a <= max_section_s + 1e-6:
+        if b - a <= ceiling + 1e-6:
             out.append(seg)                             # short segment: untouched, byte-for-byte
             continue
         cuts: list[float] = []
         prev = a
-        while b - prev > max_section_s + 1e-6:
-            lo, hi = prev + min_piece_s, prev + max_section_s
-            # cap keeps the eventual tail >= min_piece_s (>= MIN_SECTION_S when min is too big)
-            cap = next((c for c in (min(hi, b - min_piece_s), min(hi, b - MIN_SECTION_S), hi)
-                        if c >= lo))
-            inside = [(t, w) for t, w in cands if lo <= t <= cap]
-            if inside:
-                cut = max(inside, key=lambda tw: (tw[1], -tw[0]))[0]   # strongest seam; ties → EARLIEST
+        while b - prev > ceiling + 1e-6:
+            target = prev + target_s
+            lo = prev + max(target_s - flex_s, min_piece_s)      # earliest allowed cut
+            hi = min(prev + target_s + flex_s, b - min_piece_s)  # latest; keep the tail >= min_piece
+            lo = min(lo, hi)                            # degenerate guard (tail clamp below the floor)
+            window = [(t, w) for t, w in cands if lo <= t <= hi]
+            real = [tw for tw in window if tw[1] >= strength_bar and tw[1] > 0.0]
+            pick = real or window           # a real energy break, else any seam (harmonic-only / flat)
+            if pick:                        # land on the seam NEAREST the target; ties → the stronger
+                cut = min(pick, key=lambda tw: (abs(tw[0] - target), -tw[1]))[0]
             else:
-                # no seam at all in the window (no harmonic/energy data): even spacing near the cap
-                near = [bt for bt in beats if prev < bt <= cap]
-                cut = min(near, key=lambda bt: abs(bt - cap)) if near else cap
+                # no seam at all in the window: even spacing at the target (beat-snapped)
+                near = [bt for bt in beats if lo <= bt <= hi]
+                cut = min(near, key=lambda bt: abs(bt - target)) if near else min(max(target, lo), hi)
             cuts.append(cut)
             prev = cut
         pieces = [[x, y] for x, y in zip([a] + cuts, cuts + [b])]
@@ -183,7 +194,8 @@ def cap_long_segments(analysis: SongAnalysis,
 
 
 def refine_segments_for_instrumental(analysis: SongAnalysis,
-                                     max_section_s: float = INSTR_MAX_SECTION_S,
+                                     target_s: float = INSTR_TARGET_SECTION_S,
+                                     flex_s: float = INSTR_SECTION_FLEX_S,
                                      min_piece_s: float = INSTR_MIN_PIECE_S) -> bool:
     """The lyric refiner's complement for INSTRUMENTAL songs (no timed lines): cap long audio
     segments at musical seams. Lyric songs get the same cap as a final pass inside
@@ -192,4 +204,4 @@ def refine_segments_for_instrumental(analysis: SongAnalysis,
     lyr = getattr(analysis, "lyrics", None) or {}
     if lyr.get("lines"):
         return False                                    # lyric refiner's territory
-    return cap_long_segments(analysis, max_section_s, min_piece_s)
+    return cap_long_segments(analysis, target_s, flex_s, min_piece_s)

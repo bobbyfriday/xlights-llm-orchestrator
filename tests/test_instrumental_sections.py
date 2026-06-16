@@ -44,10 +44,10 @@ def test_pure_time_based_last_resort_and_unsnapped_without_beats():
     sa = _sa(duration=50.0, beats=GRID,
              segments=[Segment(start=0, end=50, segment_id="A")])
     refine_segments_for_instrumental(sa)
-    assert [s.end for s in sa.segments] == [32.0, 50.0]    # beat nearest the window cap
+    assert [s.end for s in sa.segments] == [25.0, 50.0]    # no seam: beat nearest the target
     sa2 = _sa(duration=50.0, segments=[Segment(start=0, end=50, segment_id="A")])
     refine_segments_for_instrumental(sa2)                  # no beats: graceful, unsnapped
-    assert [s.end for s in sa2.segments] == [32.0, 50.0]
+    assert [s.end for s in sa2.segments] == [25.0, 50.0]
 
 
 def test_min_piece_respected_no_slivers():
@@ -58,11 +58,12 @@ def test_min_piece_respected_no_slivers():
 
 
 def test_tiny_tail_folds_into_previous_piece():
-    # max < min + MIN_SECTION_S is the only way to strand a tiny tail; it folds back
-    sa = _sa(duration=31.0, segments=[Segment(start=0, end=31, segment_id="A")])
-    refine_segments_for_instrumental(sa, max_section_s=15.0, min_piece_s=12.0)
+    # a near-end cut would strand a sub-MIN_SECTION tail (only reachable when min_piece < MIN_SECTION);
+    # it folds back into the previous piece rather than leaving a sliver.
+    sa = _sa(duration=29.0, beats=GRID, segments=[Segment(start=0, end=29, segment_id="A")])
+    cap_long_segments(sa, target_s=12.0, flex_s=2.0, min_piece_s=5.0)
     assert [s.segment_id for s in sa.segments] == ["A1", "A2"]
-    assert sa.segments[-1].end == 31.0                     # 1s tail absorbed, no sliver
+    assert sa.segments[-1].end == 29.0                     # sliver tail absorbed, no sliver
     assert all(s.end - s.start >= 6.0 for s in sa.segments)
 
 
@@ -125,7 +126,7 @@ def test_worked_example_carol_of_the_bells():
     a_ids = [i for i in ids if i not in ("N1", "N3")]
     assert a_ids == [f"A{n}" for n in range(1, len(a_ids) + 1)]   # nested, ordered ordinals
     for s in sa.segments:
-        assert s.end - s.start <= 32.0 + 1e-6
+        assert s.end - s.start <= 35.0 + 1e-6              # ceiling = target 25 + flex 10
         if s.segment_id != "N1":                           # the 0.2s artifact is exempt
             assert s.end - s.start >= 12.0 - 1e-6
     # contiguous, boundary-preserving cover of the song

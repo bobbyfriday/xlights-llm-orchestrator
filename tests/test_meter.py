@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from types import SimpleNamespace
 
 from xlights_orchestrator.pipeline.beats import place_beat_accents, section_rhythm

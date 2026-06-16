@@ -28,10 +28,30 @@ INSTR_MAX_SECTION_S = 32.0  # one look longer than ~35s reads as boring (user ve
 INSTR_MIN_PIECE_S = 12.0    # don't shred a musical part into confetti
 SEAM_ENERGY_NEAR_S = 0.75   # a harmonic seam scores by energy shift within this of it
                             # (energy_arc is ~0.5s-spaced, so ±0.75 catches the adjacent step)
+DOWNBEAT_SNAP_TOL_S = 0.6   # snap a section boundary to a bar line within this (≈ one beat at
+                            # ~130bpm) — sections should START on a downbeat, not a weak pickup
 
 
 def _snap(t: float, beats: list[float]) -> float:
     return min(beats, key=lambda b: abs(b - t)) if beats else t
+
+
+def _downbeats(analysis: SongAnalysis) -> list[float]:
+    """Bar-line times from the beat grid (empty when the tracker labelled no bar positions —
+    legacy caches / meters it couldn't resolve — so callers degrade to beat snapping)."""
+    return [float(b.time) for b in (analysis.beats or []) if b.is_downbeat]
+
+
+def _snap_downbeat(t: float, beats: list[float], downbeats: list[float],
+                   tol_s: float = DOWNBEAT_SNAP_TOL_S) -> float:
+    """Snap to the nearest DOWNBEAT when one is within `tol_s`, else to the nearest beat (today's
+    behaviour). With no downbeats this is exactly `_snap` — section boundaries should land on bar
+    lines, but only when a bar line is genuinely near the seam (a far one would distort timing)."""
+    if downbeats:
+        db = min(downbeats, key=lambda d: abs(d - t))
+        if abs(db - t) <= tol_s:
+            return db
+    return _snap(t, beats)
 
 
 def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
@@ -123,6 +143,7 @@ def cap_long_segments(analysis: SongAnalysis,
     if all(s.end - s.start <= max_section_s + 1e-6 for s in old):
         return False
     beats = [float(b.time) for b in (analysis.beats or [])]
+    downbeats = _downbeats(analysis)              # bar lines (empty → beat-snapped, as before)
 
     # candidates (time, STRENGTH): a cut should land on a real structural break, not just the
     # latest seam before the cap. Strength = how much the ENERGY changes there (|Δrms|): the music
@@ -136,12 +157,15 @@ def cap_long_segments(analysis: SongAnalysis,
     def _energy_strength(t: float) -> float:
         return max((d for et, d in edelta if abs(et - t) <= SEAM_ENERGY_NEAR_S), default=0.0)
 
+    # Snap candidates to the BAR LINE (downbeat) when one is near: off-beat seams collapse onto
+    # their downbeat, and a loud seam near the cap whose bar line is PAST the cap then falls outside
+    # the window and is dropped — so an earlier downbeat phrase boundary wins over a louder off-beat.
     cand: dict[float, float] = {}
     for t in (analysis.harmonic_changes or []):        # harmonic seams, scored by coincident energy
-        s = _snap(float(t), beats)
+        s = _snap_downbeat(float(t), beats, downbeats)
         cand[s] = max(cand.get(s, 0.0), _energy_strength(float(t)))
     for et, d in edelta:                               # energy-delta points are seams in their own right
-        s = _snap(et, beats)
+        s = _snap_downbeat(et, beats, downbeats)
         cand[s] = max(cand.get(s, 0.0), d)
     cands = sorted(cand.items())
 
@@ -166,6 +190,12 @@ def cap_long_segments(analysis: SongAnalysis,
                 # no seam at all in the window (no harmonic/energy data): even spacing near the cap
                 near = [bt for bt in beats if prev < bt <= cap]
                 cut = min(near, key=lambda bt: abs(bt - cap)) if near else cap
+            # bar-align the chosen cut: a downbeat within the window [lo, cap] and the snap tolerance
+            # (so the spacing fallback and any off-bar candidate still land on a bar line, never
+            # below the min-piece floor `lo` nor past the cap)
+            db_in = [d for d in downbeats if lo <= d <= cap and abs(d - cut) <= DOWNBEAT_SNAP_TOL_S]
+            if db_in:
+                cut = min(db_in, key=lambda d: abs(d - cut))
             cuts.append(cut)
             prev = cut
         pieces = [[x, y] for x, y in zip([a] + cuts, cuts + [b])]

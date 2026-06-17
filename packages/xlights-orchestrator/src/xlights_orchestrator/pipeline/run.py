@@ -134,6 +134,63 @@ async def _final_approval(st: State) -> bool:
     return ans.startswith("y")
 
 
+async def regenerate_section(st: State, rev, *, gen_agent) -> list[EffectInstruction]:
+    """Realize ONE section's instructions from a RevisionBrief — the deterministic per-section
+    pipeline (coverage, palette/brightness/speed, bed/peak-fill, carrier-rotated weave, beat
+    accents, feature contrast), with section structure pinned. Shared by the automatic refine loop
+    and the manual `xlo regen` command so both realize a section identically."""
+    section = st.show_plan.sections[rev.section_index]
+    motifs = {g: st.show_plan.group_motifs[g]
+              for g in section.target_groups if g in st.show_plan.group_motifs}
+    out = (await gen_agent.run(generator_mod.render_input(
+        section, revision=rev, concept=st.show_plan.concept, motifs=motifs))).output
+    _rm = st.music_brief.repetition_map if st.music_brief else None
+    _si = effective_intensity(getattr(section, "intensity", 0.5), rev.section_index, _rm)
+    _rhythm = section_rhythm(st.song_analysis, section,
+                             resolve_beats_per_bar(st.song_analysis, st.music_brief))
+    instrs = trim_coverage(list(out.instructions), _si)   # energy-gated coverage on regen too
+    for ins in instrs:
+        ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
+    instrs = normalize_durations(instrs, _rhythm)
+    wash_b = wash_brightness(_si)
+    for j, ins in enumerate(instrs):
+        if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
+            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
+        if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:
+            ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
+        else:
+            ins.extra_settings.update(brightness_setting(wash_b))
+        ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
+    _is_peak = rev.section_index in peak_sections(st.show_plan)   # payoff section?
+    bed = (peak_fill(section, _si, st.available_groups, instrs) if _is_peak
+           else ensemble_bed(section, _si, st.available_groups, {k.target for k in instrs}))
+    if bed is not None:
+        bed.section_index = rev.section_index
+        instrs.append(bed)
+    _carrier = section_carrier(rev.section_index)        # keep carrier rotation on regen too
+    weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
+                                                             carrier=_carrier)
+    diversify_carrier(weave_obj, _carrier)
+    woven = expand_weave(section, weave_obj, _rhythm, _si, st.available_groups,
+                         based_targets={k.target for k in instrs})   # cells blend over washes
+    for ins in woven:
+        ins.section_index = rev.section_index
+    instrs += woven                                  # the cell fabric on regen too
+    clamp_hard_caps(instrs, getattr(st.song_analysis, "tempo_overall", None))
+    accents = place_beat_accents(            # beat layer on regen too — only if the brief is rhythmic
+        section, _rhythm, st.available_groups,
+        carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
+        if section_is_rhythmic(section) else []
+    under = {k.target for k in instrs}
+    for ins in accents:
+        ins.section_index = rev.section_index
+        if ins.target in under:                      # a pulse ADDS over its base, not occludes
+            ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
+    instrs += accents
+    feature_prop_contrast(instrs, section)           # featured sparkle/snow props pop (white-on-bed)
+    return instrs
+
+
 async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
                        max_iterations, judge, qa, regenerate, checkpoint,
                        visual_critique=None, revlog=None, run_id="run", song_key="",
@@ -149,56 +206,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
     async def _regen(rev):
         if regenerate is not None:
             return await regenerate(rev)
-        section = st.show_plan.sections[rev.section_index]
-        motifs = {g: st.show_plan.group_motifs[g]
-                  for g in section.target_groups if g in st.show_plan.group_motifs}
-        out = (await gen_agent.run(generator_mod.render_input(
-            section, revision=rev, concept=st.show_plan.concept, motifs=motifs))).output
-        _rm = st.music_brief.repetition_map if st.music_brief else None
-        _si = effective_intensity(getattr(section, "intensity", 0.5), rev.section_index, _rm)
-        _rhythm = section_rhythm(st.song_analysis, section,
-                                 resolve_beats_per_bar(st.song_analysis, st.music_brief))
-        instrs = trim_coverage(list(out.instructions), _si)   # energy-gated coverage on regen too
-        for ins in instrs:
-            ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
-        instrs = normalize_durations(instrs, _rhythm)
-        wash_b = wash_brightness(_si)
-        for j, ins in enumerate(instrs):
-            if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
-                ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
-            if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:
-                ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
-            else:
-                ins.extra_settings.update(brightness_setting(wash_b))
-            ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
-        _is_peak = rev.section_index in peak_sections(st.show_plan)   # payoff section?
-        bed = (peak_fill(section, _si, st.available_groups, instrs) if _is_peak
-               else ensemble_bed(section, _si, st.available_groups, {k.target for k in instrs}))
-        if bed is not None:
-            bed.section_index = rev.section_index
-            instrs.append(bed)
-        _carrier = section_carrier(rev.section_index)        # keep carrier rotation on regen too
-        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
-                                                                 carrier=_carrier)
-        diversify_carrier(weave_obj, _carrier)
-        woven = expand_weave(section, weave_obj, _rhythm, _si, st.available_groups,
-                             based_targets={k.target for k in instrs})   # cells blend over washes
-        for ins in woven:
-            ins.section_index = rev.section_index
-        instrs += woven                                  # the cell fabric on regen too
-        clamp_hard_caps(instrs, getattr(st.song_analysis, "tempo_overall", None))
-        accents = place_beat_accents(            # beat layer on regen too — only if the brief is rhythmic
-            section, _rhythm, st.available_groups,
-            carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
-            if section_is_rhythmic(section) else []
-        under = {k.target for k in instrs}
-        for ins in accents:
-            ins.section_index = rev.section_index
-            if ins.target in under:                      # a pulse ADDS over its base, not occludes
-                ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
-        instrs += accents
-        feature_prop_contrast(instrs, section)           # featured sparkle/snow props pop (white-on-bed)
-        return instrs
+        return await regenerate_section(st, rev, gen_agent=gen_agent)
 
     redesigned: set[int] = set()
     _rd_agent = None
@@ -410,6 +418,13 @@ async def run_pipeline(
                          len(st.song_analysis.segments))
         except Exception as exc:  # noqa: BLE001 — refinement is enrichment
             log.info("instrumental refine skipped: %s", exc)
+
+    try:    # persist the analysis so `xlo regen` can rehydrate without re-analyzing the audio
+        sa_cache = _cache_path(key, "song_analysis")
+        sa_cache.parent.mkdir(parents=True, exist_ok=True)
+        sa_cache.write_text(st.song_analysis.model_dump_json())
+    except Exception as exc:  # noqa: BLE001 — caching is best-effort
+        log.info("song_analysis cache skipped: %s", exc)
 
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
     st.placeable_types = placeable_effect_types()

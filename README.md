@@ -43,6 +43,19 @@ xlo run --song "mp3/your song.mp3" --refine --auto
 
 Open the named sequence in xLights (File → Open Sequence) to play it with audio.
 
+### Targeted fixes: regenerate one section
+
+To redo a single section without re-running the whole show (a targeted fix), use `xlo regen` —
+it reloads the cached show, regenerates just that section, and leaves every other section intact:
+
+```bash
+xlo regen --song "mp3/your song.mp3" --list                       # list sections (index, time, look)
+xlo regen --song "mp3/your song.mp3" --section 4 --note "too busy, calm it down"
+```
+
+Use this for a one-off correction; use `xlo run --refine` when you want the automatic
+test→judge→refine loop to re-evaluate the whole show.
+
 ## Editable show "voice"
 
 Five hand-editable markdown files shape the agents and the deterministic layers — tune them

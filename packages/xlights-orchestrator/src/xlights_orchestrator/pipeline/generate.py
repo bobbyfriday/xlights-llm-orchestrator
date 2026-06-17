@@ -50,6 +50,7 @@ from .weave import (
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
 _PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
+_MIN_EFFECT_MS = 50          # one render frame (seqStepTime); shorter effects snap away and drop
 
 
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
@@ -86,7 +87,12 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
                else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
         if bed is not None:
             bed.section_index = i
-            kept.append(bed)
+            kept.insert(0, bed)              # bed FIRST → lowest layer (emitter stacks by order)
+            # a feature sharing the bed's target must blend, or its black background (Fireworks,
+            # Spirals, …) occludes the bed and the opaque bed occludes it — Max keeps both.
+            for ins in kept:
+                if ins is not bed and ins.target == bed.target:
+                    ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
         carrier = section_carrier(i)                 # rotate the carrier so the show isn't all one effect
         weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
                                                                   carrier=carrier)
@@ -139,4 +145,9 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
     for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
         feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
+    # every effect must span ≥1 render frame — a sub-frame sliver snaps to start==end and xLights
+    # silently drops it (seen on section seams). Stretch the short ones to a frame.
+    for ins in instrs:
+        if ins.end_ms - ins.start_ms < _MIN_EFFECT_MS:
+            ins.end_ms = ins.start_ms + _MIN_EFFECT_MS
     return instrs

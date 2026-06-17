@@ -317,3 +317,23 @@ def test_expand_composite_needs_two_layers_and_valid_groups():
 def test_curated_composite_unknown_name():
     from xlights_orchestrator.pipeline.weave import curated_composite
     assert curated_composite("does-not-exist", ["SEM_FOCAL"]) is None
+
+
+# -- transition validation (xLights drops unrecognised transition types like 'fade') ----------
+
+def test_canon_transition_maps_known_drops_unknown():
+    from xlights_orchestrator.pipeline.weave import _canon_transition
+    assert _canon_transition("wipe") == "Wipe"
+    assert _canon_transition("WIPE") == "Wipe"
+    assert _canon_transition("From Middle") == "From Middle"
+    assert _canon_transition("dissolve") == "Dissolve"
+    assert _canon_transition("fade") == ""          # a fade-time, not a transition type → dropped
+    assert _canon_transition("") == "" and _canon_transition(None) == ""
+
+
+def test_cell_drops_invalid_transition_keeps_valid():
+    from xlights_orchestrator.pipeline.weave import _cell
+    bad = _cell(_carrier(transition="fade"), _sec(), "SEM_ARCHES", 0, 0, 1000, 0.8, False)
+    assert "T_CHOICE_In_Transition_Type" not in bad.extra_settings    # 'fade' not emitted
+    good = _cell(_carrier(transition="Wipe"), _sec(), "SEM_ARCHES", 0, 0, 1000, 0.8, False)
+    assert good.extra_settings.get("T_CHOICE_In_Transition_Type") == "Wipe"

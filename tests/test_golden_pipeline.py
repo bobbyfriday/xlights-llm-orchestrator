@@ -201,3 +201,27 @@ def test_golden_is_non_trivial(tmp_path, monkeypatch):
     assert layers[:2] == [0, 1]                                        # ≥2 stacked layers
     assert any(i["extra_settings"].get("T_CHOICE_LayerMethod") for i in focal if i["layer"] > 0)
     assert len({i["effect_type"] for i in focal}) >= 2                 # different effects combined
+
+
+def test_bed_does_not_occlude_a_feature_on_the_same_group(tmp_path, monkeypatch):
+    """A feature sharing the peak bed's group must blend Max (and the bed sits under it) so the
+    opaque bed and the feature's black background don't cancel each other — the 2:15 Fireworks bug."""
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path / "cache"))
+    song = tmp_path / "s.mp3"; song.write_bytes(b"x")
+    plan = ShowPlan(concept="c", palette=ShowPalette(colors=["Red", "Blue"]), sections=[
+        {"start_ms": 0, "end_ms": 12000, "target_groups": ["SEM_ALL"],
+         "effect_family": "Fireworks", "intensity": 0.95, "palette": ["Red", "Blue"]}])
+    se = SectionEffects(instructions=[EffectInstruction(
+        target="SEM_ALL", effect_type="Fireworks", look_id="Fireworks#0", start_ms=0, end_ms=12000)])
+
+    async def emit(client, instructions, *, duration_secs, **kw):
+        return {"placed": [], "skipped": [], "rendered": True}
+    st = _run(run_pipeline(str(song), client=_FakeClient(GROUPS),
+        director=_test_agent(plan), generator=_test_agent(se),
+        analyze=lambda p: _analysis(), interpret=lambda p, sa: _noop_brief(),
+        emitter=emit, use_cache=False, stems=False, timing_tracks=False))
+    sem_all = [i for i in st.instructions if i.target == "SEM_ALL"]
+    beds = [i for i in sem_all if i.effect_type in ("On", "Color Wash")]
+    fw = [i for i in sem_all if i.effect_type == "Fireworks"]
+    assert beds and fw, f"expected a bed + a Fireworks on SEM_ALL, got {[i.effect_type for i in sem_all]}"
+    assert all(i.extra_settings.get("T_CHOICE_LayerMethod") == "Max" for i in fw)  # feature won't occlude

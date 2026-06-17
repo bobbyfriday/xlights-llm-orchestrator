@@ -100,6 +100,24 @@ _CHASE_FAMILY = {"SingleStrand", "Garlands", "Marquee", "Wave", "Bars"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
 
 
+# xLights effect-transition TYPES (the in/out wipe vocabulary). A plain time-fade is NOT one of
+# these — it's the Fade In/Out seconds fields (soft_edge_settings) — so an LLM 'fade' falls through
+# to phrasing rather than emitting an unrecognised transition type that xLights logs and ignores.
+_VALID_TRANSITIONS = {
+    "wipe": "Wipe", "clock": "Clock", "from middle": "From Middle", "circles": "Circles",
+    "squares": "Squares", "blinds": "Blinds", "slide checks": "Slide Checks",
+    "slide bars": "Slide Bars", "dissolve": "Dissolve", "circular squares": "Circular Squares",
+    "bowtie": "Bowtie", "fold": "Fold", "zoom": "Zoom", "doors": "Doors", "pinwheel": "Pinwheel",
+    "wedge": "Wedge", "star": "Star", "snake": "Snake", "fan": "Fan", "move": "Move",
+}
+
+
+def _canon_transition(name: str) -> str:
+    """Canonical xLights transition type for a recipe's `transition`; '' when unknown/empty
+    (e.g. 'fade', which is a fade-time, not a transition type → handled by phrasing soft edges)."""
+    return _VALID_TRANSITIONS.get((name or "").strip().lower(), "")
+
+
 def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, str]:
     """The effect-native settings for a cell's direction; `{}` when unmapped (never a skip).
 
@@ -322,13 +340,14 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
     bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
     extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
-    if recipe.transition:                     # an explicit Generator transition wins
-        extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
-                      "T_CHOICE_Out_Transition_Type": recipe.transition,
+    _t = _canon_transition(recipe.transition)
+    if _t:                                    # a VALID explicit Generator transition wins
+        extra.update({"T_CHOICE_In_Transition_Type": _t,
+                      "T_CHOICE_Out_Transition_Type": _t,
                       "T_SLIDER_In_Transition_Adjust": "50",
                       "T_SLIDER_Out_Transition_Adjust": "50"})
-    else:                                     # else the section's phrasing softens (legato) or not
-        extra.update(soft_edge_settings(recipe.effect_type, end - start, phrasing))
+    else:                                     # empty/unknown ('fade' etc.) → phrasing soft edges,
+        extra.update(soft_edge_settings(recipe.effect_type, end - start, phrasing))  # a real fade
     if blended:                               # blend rides the UPPER layer, only over a base.
         # Default Max (live-verified): a top-layer cell's BLACK background otherwise OCCLUDES
         # the bed/wash below it for the cell's whole span — the "mostly dark with sparse

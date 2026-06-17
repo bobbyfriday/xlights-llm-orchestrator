@@ -292,8 +292,10 @@ def write_manifest(path, props: list[Prop], groups: dict[str, list[str]],
 # -- render order (cookbook §2 / layering guide §7): later rows WIN overlaps --------------------
 
 _ORDER_TIERS = (
-    ("bed",     lambda n: n in ("SEM_ALL", "SEM_ALL_LESS_FOCAL", "SEM_ALL_LESS_FOCAL_RHYTHM")
-                          or n.startswith(("SEM_BAND_", "SEM_SIDE_"))),
+    # the whole-display base bed must render FIRST (top) so everything else paints over it —
+    # ABOVE the zone beds (bands/sides), independent of the layout's model-file order
+    ("base",    lambda n: n in ("SEM_ALL", "SEM_ALL_LESS_FOCAL", "SEM_ALL_LESS_FOCAL_RHYTHM")),
+    ("bed",     lambda n: n.startswith(("SEM_BAND_", "SEM_SIDE_"))),    # zone beds, under features
     ("frame",   lambda n: n in ("SEM_OUTLINE", "SEM_WINDOWS", "SEM_ICICLES", "SEM_PATH", "SEM_HOUSE",
                                 "SEM_YARD")),
     ("rhythm",  lambda n: n.startswith(("SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"))),
@@ -304,11 +306,11 @@ _ORDER_TIERS = (
 
 
 def _order_tier(name: str) -> int:
-    # later tiers checked first so focal/accent outrank the catch-all
-    for idx in (5, 4, 0, 1, 2):
+    # specific tiers checked before the "other" catch-all (index 4)
+    for idx in (6, 5, 0, 1, 2, 3):
         if _ORDER_TIERS[idx][1](name):
             return idx
-    return 3
+    return 4
 
 
 def canonical_order(names: list[str]) -> list[str]:

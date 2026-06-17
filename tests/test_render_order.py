@@ -11,6 +11,9 @@ def test_canonical_precedence():
     assert out[-1] == "SEM_SNOWFLAKES"                              # accents last (win)
     assert out.index("SEM_FOCAL") > out.index("Gingerbread Man-1")  # focal over plain props
     assert "Null 7" not in out
+    # the whole-display base bed ranks ABOVE the zone beds even when the layout lists them first
+    base_first = canonical_order(["SEM_BAND_ROOF", "SEM_SIDE_LEFT", "SEM_BAND_GROUND", "SEM_ALL"])
+    assert base_first[0] == "SEM_ALL"
 
 
 _XSQ = ('<?xml version="1.0" encoding="UTF-8"?><xsequence><head/>'

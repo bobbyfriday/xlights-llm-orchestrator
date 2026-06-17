@@ -12,7 +12,14 @@ from xlights_core.knowledge.colors import contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
-from ..show_plan import CellRecipe, EffectInstruction, SectionPlan, SectionWeave
+from ..show_plan import (
+    CellRecipe,
+    CompositeLayer,
+    CompositeRecipe,
+    EffectInstruction,
+    SectionPlan,
+    SectionWeave,
+)
 from .beats import (
     _downsample,
     effect_palette,
@@ -91,6 +98,24 @@ _BEATS_PER_BAR = 4
 _SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}
 _CHASE_FAMILY = {"SingleStrand", "Garlands", "Marquee", "Wave", "Bars"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
+
+
+# xLights effect-transition TYPES (the in/out wipe vocabulary). A plain time-fade is NOT one of
+# these — it's the Fade In/Out seconds fields (soft_edge_settings) — so an LLM 'fade' falls through
+# to phrasing rather than emitting an unrecognised transition type that xLights logs and ignores.
+_VALID_TRANSITIONS = {
+    "wipe": "Wipe", "clock": "Clock", "from middle": "From Middle", "circles": "Circles",
+    "squares": "Squares", "blinds": "Blinds", "slide checks": "Slide Checks",
+    "slide bars": "Slide Bars", "dissolve": "Dissolve", "circular squares": "Circular Squares",
+    "bowtie": "Bowtie", "fold": "Fold", "zoom": "Zoom", "doors": "Doors", "pinwheel": "Pinwheel",
+    "wedge": "Wedge", "star": "Star", "snake": "Snake", "fan": "Fan", "move": "Move",
+}
+
+
+def _canon_transition(name: str) -> str:
+    """Canonical xLights transition type for a recipe's `transition`; '' when unknown/empty
+    (e.g. 'fade', which is a fade-time, not a transition type → handled by phrasing soft edges)."""
+    return _VALID_TRANSITIONS.get((name or "").strip().lower(), "")
 
 
 def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, str]:
@@ -315,13 +340,14 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
     bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
     extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
-    if recipe.transition:                     # an explicit Generator transition wins
-        extra.update({"T_CHOICE_In_Transition_Type": recipe.transition,
-                      "T_CHOICE_Out_Transition_Type": recipe.transition,
+    _t = _canon_transition(recipe.transition)
+    if _t:                                    # a VALID explicit Generator transition wins
+        extra.update({"T_CHOICE_In_Transition_Type": _t,
+                      "T_CHOICE_Out_Transition_Type": _t,
                       "T_SLIDER_In_Transition_Adjust": "50",
                       "T_SLIDER_Out_Transition_Adjust": "50"})
-    else:                                     # else the section's phrasing softens (legato) or not
-        extra.update(soft_edge_settings(recipe.effect_type, end - start, phrasing))
+    else:                                     # empty/unknown ('fade' etc.) → phrasing soft edges,
+        extra.update(soft_edge_settings(recipe.effect_type, end - start, phrasing))  # a real fade
     if blended:                               # blend rides the UPPER layer, only over a base.
         # Default Max (live-verified): a top-layer cell's BLACK background otherwise OCCLUDES
         # the bed/wash below it for the cell's whole span — the "mostly dark with sparse
@@ -410,4 +436,64 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
                 out.append(_cell(r, section, tgt, slot, t, end, intensity, blended,
                                  anchors=anchors, phase=phases.get(id(r), 0), beats_per_bar=bpb,
                                  phrasing=phrasing))
+    return out
+
+
+# -- composite stacks (multi-effect blended layers on one group) --------------
+# Curated combos (the "cookbook" as code): named multi-effect stacks that combine into one rich,
+# kaleidoscopic look. base layer first; upper layers carry a blend over the one below. Opposite
+# directions on a chase/curved pair make the layers WEAVE rather than sit on top of each other.
+CURATED_COMPOSITES: dict[str, list[CompositeLayer]] = {
+    # two counter-moving Morphs blended Max — the canonical kaleidoscope stack
+    "kaleidoscope": [CompositeLayer(effect_type="Morph", direction="ltr"),
+                     CompositeLayer(effect_type="Morph", direction="rtl", blend="Max")],
+    # a living swirl: Galaxy bed under an organic Butterfly
+    "swirl": [CompositeLayer(effect_type="Galaxy"),
+              CompositeLayer(effect_type="Butterfly", blend="Max")],
+    # warm depth: Plasma bed under flickering Fire
+    "ember": [CompositeLayer(effect_type="Plasma"),
+              CompositeLayer(effect_type="Fire", blend="Brightness")],
+    # radial bloom: Spirals under a counter-rotating Fan
+    "bloom": [CompositeLayer(effect_type="Spirals", direction="ltr"),
+              CompositeLayer(effect_type="Fan", direction="rtl", blend="Max")],
+}
+
+
+def curated_composite(name: str, groups: list[str]) -> CompositeRecipe | None:
+    """A named curated composite cast onto `groups`; None if the name is unknown."""
+    layers = CURATED_COMPOSITES.get(name)
+    return CompositeRecipe(groups=list(groups), layers=list(layers)) if layers else None
+
+
+def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: float,
+                     available_groups: list[str]) -> list[EffectInstruction]:
+    """Realize a composite stack: for each group, emit one EffectInstruction per layer, sharing the
+    section span, ascending `layer`, with each upper layer's blend mode set so the effects COMBINE.
+
+    Each layer rotates the section palette so the stacked effects differ in color — that, plus the
+    blend mode, is what reads as a woven kaleidoscopic look rather than one effect hiding another.
+    Direction-capable effects (DIRECTION_KNOBS) additionally counter-phase via their layer index;
+    effects without a direction knob (Morph/Plasma/Fire) just combine via blend + palette."""
+    groups = [g for g in (recipe.groups or []) if g in available_groups]
+    layers = [lyr for lyr in (recipe.layers or []) if lyr.effect_type][:4]   # layer-budget safe
+    if not groups or len(layers) < 2:
+        return []
+    out: list[EffectInstruction] = []
+    for g in groups:
+        for i, lyr in enumerate(layers):
+            looks = candidate_look_ids(lyr.effect_type)
+            if not looks:
+                continue
+            look = lyr.look_id if lyr.look_id in looks else looks[0]
+            extra = dict(effect_speed_setting(lyr.effect_type, intensity))
+            extra.update(motion_curve_setting(lyr.effect_type, lyr.motion_curve, intensity))
+            extra.update(direction_setting(lyr.effect_type, lyr.direction, i))   # counter-phase per layer
+            if i > 0 and lyr.blend:                       # upper layers blend onto the stack below
+                extra["T_CHOICE_LayerMethod"] = lyr.blend
+            colors = lyr.palette or effect_palette(section.palette, lyr.effect_type, i)
+            out.append(EffectInstruction(
+                target=g, effect_type=lyr.effect_type, look_id=look,
+                render_style="Per Model Default", layer=i,
+                start_ms=section.start_ms, end_ms=section.end_ms,
+                palette_colors=colors, extra_settings=extra))
     return out

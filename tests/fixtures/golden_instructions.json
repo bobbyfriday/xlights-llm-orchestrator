@@ -932,6 +932,51 @@
   "target": "SEM_ALL"
  },
  {
+  "effect_type": "Butterfly",
+  "end_ms": 24000,
+  "extra_settings": {
+   "E_SLIDER_Butterfly_Speed": "37",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 1,
+  "look_id": "Butterfly#0",
+  "on_top": false,
+  "palette_colors": [
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3",
+   "#0000FF"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "effect_type": "Galaxy",
+  "end_ms": 24000,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Galaxy#0",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_FOCAL"
+ },
+ {
   "effect_type": "On",
   "end_ms": 12750,
   "extra_settings": {},
@@ -1935,7 +1980,8 @@
   "effect_type": "On",
   "end_ms": 12150,
   "extra_settings": {
-   "C_SLIDER_Brightness": "300"
+   "C_SLIDER_Brightness": "300",
+   "T_CHOICE_LayerMethod": "Max"
   },
   "knob_values": {},
   "layer": 0,

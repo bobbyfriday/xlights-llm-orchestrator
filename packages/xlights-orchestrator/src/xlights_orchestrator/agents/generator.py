@@ -126,5 +126,12 @@ def render_input(section: SectionPlan, revision=None, *, concept: str = "", moti
           " 'Brightness' envelopes; only meaningful over a bed/carrier on the same groups),"
           " motion_curve ('rotation'/'twist'/'radius'/'position' — ramps that param over each"
           " cell), transition ('Wipe' flows cells into each other). Blend modes ARE settable."
+        + "\n\nCOMPOSITES (optional) — for a rich FEATURE look on a single group, design"
+          " `composites`: a stack of 2-3 effects on the SAME group that COMBINE on blended layers"
+          " (this is how Morph/Galaxy/Plasma get their depth). Each composite: groups (one focal"
+          " group like SEM_FOCAL or the matrix), layers (base first; each layer = effect_type +"
+          " optional direction/motion_curve/palette + a `blend` like 'Max'/'Brightness' on the"
+          " UPPER layers). e.g. two counter-moving Morphs blended Max, or Galaxy under Butterfly."
+          " Use sparingly — a feature moment, not every section. Code already adds one on the peak."
         + "\n\nProduce effect instructions that follow the creative brief for this section."
     )

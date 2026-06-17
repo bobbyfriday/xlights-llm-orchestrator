@@ -43,6 +43,7 @@ Copy `.env.example` to `.env`. Keys:
 | `GENIUS_ACCESS_TOKEN` | Optional. Enables lyric fetch → timed alignment → lyric-derived song sections + color-word triggers. |
 | `XLIGHTS_BASE_URL` | xLights automation endpoint (default `http://127.0.0.1:49913`; instance "B" is `49914`). |
 | `XLO_CACHE_DIR` | Where analysis/plan artifacts cache (default `data/analyses`). |
+| `XLO_REFINE_SKIP_OBJECTIVE` | Skip the `--refine` loop (no Judge/critic/regen spend) when the first-pass objective score is ≥ this (default `88`). Set `101` to disable and always iterate. Saves cost on drafts that are already good. |
 | `XLO_STEMS` | `1` to force stem separation on; otherwise the CLI requests it by default. |
 | `XLO_STEMS_MODEL` / `XLO_STEMS_BACKEND` | Override the demucs model/backend. |
 | `XLO_SEQUENCING_GUIDE`, `XLO_EFFECTS_CATALOG`, `XLO_LAYERING_GUIDE`, `XLO_SCENE_COOKBOOK`, `XLO_TRIGGER_COOKBOOK` | Override the path to each guide/cookbook (defaults are the repo-root `.md` files). |

@@ -240,3 +240,133 @@ def test_variety_rewards_distinct_effect_types():
     assert s_broad > s_samey
     assert any("distinct effect types" in f.detail for f in f_samey)   # surfaced to the Judge
     assert not any("distinct effect types" in f.detail for f in f_broad)
+
+
+# -- high-objective skip gate -------------------------------------------------
+
+def test_loop_skips_judging_when_first_pass_objective_high():
+    st = _state()
+    client = _FakeClient()
+    calls = {"judge": 0, "regen": 0}
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+
+    async def regen(rev):
+        calls["regen"] += 1
+        return [_ins("G1", 1000, 1500, sec=rev.section_index)]
+
+    class _CountJudge:
+        async def run(self, prompt):
+            calls["judge"] += 1
+            return SimpleNamespace(output=JudgeVerdict(
+                score=50, verdict="iterate",
+                revisions=[RevisionBrief(section_index=1, issue="x", suggested_fix="y")]))
+
+    def qa_high(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=95, advisory_score=80)
+
+    before = [i.model_dump() for i in st.instructions]
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=_CountJudge(), qa=qa_high, regenerate=regen,
+                     checkpoint=_noninteractive, skip_objective=88))
+    # already-good first pass → no Judge, no regeneration, draft untouched
+    assert calls["judge"] == 0 and calls["regen"] == 0
+    assert [i.model_dump() for i in st.instructions] == before
+
+
+def test_loop_iterates_when_first_pass_below_threshold():
+    st = _state()
+    client = _FakeClient()
+    calls = {"judge": 0, "regen": 0}
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+
+    async def regen(rev):
+        calls["regen"] += 1
+        return [_ins("G2", 1000, 1500, sec=rev.section_index, etype="Wave")]
+
+    class _CountJudge:
+        async def run(self, prompt):
+            calls["judge"] += 1
+            return SimpleNamespace(output=JudgeVerdict(
+                score=60, verdict="accept" if calls["judge"] > 1 else "iterate",
+                revisions=[RevisionBrief(section_index=1, issue="x", suggested_fix="y")]))
+
+    def qa_low(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=70, advisory_score=80)   # below the 88 gate
+
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=_CountJudge(), qa=qa_low, regenerate=regen,
+                     checkpoint=_noninteractive, skip_objective=88))
+    assert calls["judge"] >= 1 and calls["regen"] >= 1            # gate didn't fire → normal refine
+    assert any(i.effect_type == "Wave" for i in st.instructions)
+
+
+def test_loop_default_skip_off_preserves_behavior():
+    # skip_objective defaults to None → a high objective still enters the loop (back-compat)
+    st = _state()
+    client = _FakeClient()
+    calls = {"judge": 0}
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+
+    async def regen(rev):
+        return [_ins("G1", 1000, 1500, sec=rev.section_index)]
+
+    class _CountJudge:
+        async def run(self, prompt):
+            calls["judge"] += 1
+            return SimpleNamespace(output=JudgeVerdict(score=99, verdict="accept"))
+
+    def qa_high(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=95, advisory_score=80)
+
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=_CountJudge(), qa=qa_high, regenerate=regen,
+                     checkpoint=_noninteractive))   # no skip_objective passed
+    assert calls["judge"] == 1                       # entered the loop, judged, then accepted
+
+
+def test_skip_writes_finalize_record():
+    st = _state()
+    client = _FakeClient()
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+
+    class _CaptureLog:
+        def __init__(self):
+            self.records = []
+
+        def write(self, rec):
+            self.records.append(rec)
+
+    async def regen(rev):                       # never called on the skip path; present so the
+        return []                               # loop doesn't build a real generator agent
+
+    def qa_high(instructions, analysis, plan, applied, groups):
+        return QAReport(objective_score=92, advisory_score=80)
+
+    log = _CaptureLog()
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=_Judge([]), qa=qa_high, regenerate=regen,
+                     checkpoint=_noninteractive, revlog=log, skip_objective=88))
+    assert len(log.records) == 1
+    rec = log.records[0]
+    assert rec.kind == "finalize" and rec.human_decision == "skip-high-objective"
+    assert rec.obj_after == 92
+
+
+def test_refine_skip_objective_env(monkeypatch):
+    from xlights_orchestrator.pipeline.run import REFINE_SKIP_OBJECTIVE, _refine_skip_objective
+    monkeypatch.delenv("XLO_REFINE_SKIP_OBJECTIVE", raising=False)
+    assert _refine_skip_objective() == REFINE_SKIP_OBJECTIVE
+    monkeypatch.setenv("XLO_REFINE_SKIP_OBJECTIVE", "95")
+    assert _refine_skip_objective() == 95
+    monkeypatch.setenv("XLO_REFINE_SKIP_OBJECTIVE", "not-a-number")
+    assert _refine_skip_objective() == REFINE_SKIP_OBJECTIVE   # invalid → fall back
+    monkeypatch.setenv("XLO_REFINE_SKIP_OBJECTIVE", "101")
+    assert _refine_skip_objective() == 101                     # disables the gate

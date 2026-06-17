@@ -18,6 +18,7 @@
 7. [Group Ordering & Master View Strategy](#7-group-ordering--master-view-strategy)
 8. [Allow Blending Between Models](#8-allow-blending-between-models)
 9. [Recipes: Common Layering Patterns](#9-recipes-common-layering-patterns)
+9b. [Per-Effect Layering Roles](#9b-per-effect-layering-roles)
 10. [Performance & Render Hygiene](#10-performance--render-hygiene)
 11. [What Else We Might Be Missing](#11-what-else-we-might-be-missing)
 12. [Sources](#12-sources)
@@ -183,6 +184,75 @@ Patterns worth saving as presets:
 
 ---
 
+## 9b. Per-Effect Layering Roles
+
+A curated, per-effect reference for *how each effect is used in a stack* — its typical role, what
+it layers over/under, and the blend it usually wears. This is reference knowledge (what to reach
+for), not a placement spec.
+
+Grounded in 648 multi-layer models mined from the community corpus (Listen To Our Lights + xLights
+Around the World). Two patterns fell straight out of the data and frame the whole table:
+
+- **Duration tells you the role.** Effects split cleanly into **sustained beds/textures** (median
+  2–6 s — they sit low and hold) and **cells/accents** (median 0.4–0.9 s — they ride the beat on
+  top). VU Meter (3.8 s), Twinkle (4.2 s), Butterfly (5.1 s), Wave (5.6 s), Circles (5.0 s),
+  Color Wash (3.5 s) are beds; On (0.4 s), SingleStrand (0.5 s), Shockwave (0.5 s), Bars (0.5 s),
+  Ripple (0.5 s), Morph (0.7 s) are cells/accents.
+- **Masking is the community's dominant blend**, not Max/Average. `1/2 is (Un)Mask` and
+  `1 reveals 2` show up far more than the math blends — a *shape* layer (On/Shape/Bars/Text/Faces)
+  reveals or knocks out the *texture* below it. Our weaver defaults to **Max**; the corpus says the
+  richest looks come from **reveal/mask** stacks. Worth leaning into.
+
+### Beds & sustained textures (sit LOW, run long, ≥~2 s)
+
+| Effect | Layers as | Pairs well with (above it) | Typical blend (below the top) | Note |
+|---|---|---|---|---|
+| **Color Wash** | the base bed | a feature + Twinkle | Normal / `Layered` | the default 30–40% bed; dim it under features |
+| **Plasma** | warm organic bed | Fire above; sparkle | `Layered` | liquid color; pair a cool anchor |
+| **VU Meter** | music-reactive bed/texture | Twinkle, SingleStrand, Butterfly | `2 is (Un)Mask` (revealed by a shape above) | n=1384; a *reactive* bed, not just a meter |
+| **Butterfly** | organic swirl bed | On, Twinkle, SingleStrand, VU Meter | `2 is True Unmask` / `Effect 1` | n=331; the most-layered organic texture |
+| **Galaxy / Spirals** | rotating texture bed | a counter-spiral, sparkle | `Average` / `Max` | counter-rotation pair = the mega-tree showpiece (§9.7) |
+| **Wave / Circles / Ripple(slow)** | flowing water bed | sparkle, accents | `1 reveals 2` | long, calm; good under a bright accent |
+| **Shader** | canvas tint/distort bed | anything | **Canvas mode** | distorts/tints the composite below (§4) |
+| **Shape** | a mask SHAPE or slow texture | a texture below it | `2 is True Unmask` | doubles as a reveal mask |
+
+### Carriers & motion cells (beat-length, ~0.4–0.9 s)
+
+| Effect | Layers as | Pairs well with | Typical blend | Note |
+|---|---|---|---|---|
+| **SingleStrand** | the beat carrier (chase) | Twinkle above; over a wash | `Effect 1` / over-bed Max | n=4484; the workhorse rhythm layer |
+| **Bars** | driving carrier / reveal shape | On, SingleStrand | `1 reveals 2` | also a clean mask shape for text-style knockouts |
+| **Garlands / Marquee / Fan** | sweeping carrier | over a bed | Normal | directional; read on a group canvas, not per-model |
+| **Morph** | short motion cell (NOT a bed here) | another Morph, sparkle | `Layered` | community uses it as a *cell*, often two interleaved (§9.6) |
+| **Pinwheel** | radial cell on round props | Twinkle | `Average` | n=596; spinners/stars |
+| **Ripple / Fill** | gentle motion / fill cell | over a bed | `1 is True Unmask` | |
+
+### Overlays, accents & mask shapes (sit HIGH, on top)
+
+| Effect | Layers as | Pairs well with (below) | Typical blend | Note |
+|---|---|---|---|---|
+| **Twinkle** | the universal sparkle overlay | On, SingleStrand, VU Meter, Butterfly, Pinwheel | `Effect 1` / `Max` | n=661, med 4.2 s — a sustained top coat over almost anything |
+| **Shimmer** | strobing top coat | a steady bed | per-pixel alternation | |
+| **On** | base fill **and** mask shape **and** flash accent | everything | `1 is True Unmask` (as a mask) / Normal | n=15288 — the most-used layer; wears every hat |
+| **Shockwave / Strobe / Lightning** | punch-through accent (short) | a bed/carrier | `1 is Unmask` / on top | n(Shockwave)=1760; ≤1-bar punctuation |
+| **Text / Faces** | a reveal mask / character layer | a texture to show through it | `1 is Mask` / `Effect 1` | the texture shows only inside the glyphs/face |
+
+### What pairs with what (top community co-occurrences)
+
+The pairs that show up most often on the same multi-layer model — a quick "if you have X, Y goes
+well on top":
+
+`On+Twinkle` · `On+SingleStrand` · `On+VU Meter` · `Butterfly+On` · `SingleStrand+Twinkle` ·
+`Bars+On` · `On+Pinwheel` · `Twinkle+VU Meter` · `Butterfly+Twinkle` · `SingleStrand+VU Meter` ·
+`On+Spirals` · `Shockwave+Twinkle`. The throughline: **Twinkle and On go over everything**, and the
+**beds (VU Meter / Butterfly) carry a chase (SingleStrand) or sparkle (Twinkle) on top.**
+
+> **Reach for masking.** The single biggest gap between our stacks and the community's is the
+> reveal/mask family (§4). A texture bed + a shape (On/Bars/Shape/Text) set `1 is Mask`/`UnMask`
+> on top is the corpus's most distinctive move and costs almost nothing to render.
+
+---
+
 ## 10. Performance & Render Hygiene
 
 - **Group buffers can get huge.** Whole-display group canvases at preview resolution are expensive; xLights enforces a max group buffer size in places, but be deliberate about how many giant-canvas effects run simultaneously.
@@ -225,6 +295,7 @@ Things adjacent to this topic that we likely aren't capturing yet, ranked by imp
 
 | Version | Date | Changes |
 |---|---|---|
+| 0.2 | 2026-06-16 | §9b Per-Effect Layering Roles — curated per-effect reference (role / pairs / typical blend) grounded in 648 multi-layer community models; surfaces duration→role and the under-used masking family |
 | 0.1 | 2026-06-09 | Initial draft: render directions, layers, blend modes, layer settings, render styles, ordering architecture, blending-between-models, recipes, gaps list |
 
 <!--

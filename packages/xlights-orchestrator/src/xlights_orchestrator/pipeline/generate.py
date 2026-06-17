@@ -36,14 +36,55 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
+from .semantic_groups import HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
+    curated_composite,
     diversify_carrier,
+    expand_composite,
     expand_weave,
     fallback_weave,
     section_carrier,
 )
+
+# Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
+# look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
+_PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
+_MIN_EFFECT_MS = 50          # one render frame (seqStepTime); shorter effects snap away and drop
+_OPAQUE_WASH = {"On", "Color Wash", "Fill"}   # solid fills that occlude unless they sit at the bottom
+_WASH_SPAN_MS = 3000         # only a sustained wash counts as a "bed" for occlusion ordering
+
+
+def _guard_wash_occlusion(instrs: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Stop opaque washes from cancelling features on the same group (the 2:15 bug, generalized).
+
+    The emitter assigns layers by list order + each effect's start layer (later/higher = on top).
+    So for every sustained opaque wash on a target: (a) overlapping features blend Max (neither the
+    opaque bed nor a feature's black background occludes the other), and (b) a plain Normal bed has
+    its layer reset to 0 and is emitted first, landing it on the BOTTOM under the features.
+    Intentional blended washes (a Subtractive envelope, etc.) keep their layer and order."""
+    by: dict[str, list[EffectInstruction]] = {}
+    for i in instrs:
+        by.setdefault(i.target, []).append(i)
+
+    def is_wash(e):
+        return e.effect_type in _OPAQUE_WASH and e.end_ms - e.start_ms >= _WASH_SPAN_MS
+
+    sink: set[int] = set()
+    for effs in by.values():
+        washes = [e for e in effs if is_wash(e)]
+        if not washes:
+            continue
+        for f in effs:
+            if not is_wash(f) and any(not (f.end_ms <= w.start_ms or f.start_ms >= w.end_ms)
+                                      for w in washes):
+                f.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
+        for w in washes:
+            if not w.extra_settings.get("T_CHOICE_LayerMethod"):   # a plain Normal bed
+                w.layer = 0
+                sink.add(id(w))
+    return sorted(instrs, key=lambda e: 0 if id(e) in sink else 1)
 
 
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
@@ -80,7 +121,7 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
                else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
         if bed is not None:
             bed.section_index = i
-            kept.append(bed)
+            kept.append(bed)                 # occlusion order/blend handled globally below
         carrier = section_carrier(i)                 # rotate the carrier so the show isn't all one effect
         weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
                                                                   carrier=carrier)
@@ -90,6 +131,17 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
         for ins in woven:
             ins.section_index = i
         kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
+        # composite stacks: LLM-designed multi-effect blended layers, plus a curated stack on the
+        # hero at the peak — effects COMBINED on layers (e.g. counter-Morphs + Max) for a rich look.
+        comp_recipes = list(getattr(out, "composites", None) or [])
+        if i in _peaks and HERO_GROUP in st.available_groups:
+            cc = curated_composite(_PEAK_COMPOSITES[i % len(_PEAK_COMPOSITES)], [HERO_GROUP])
+            if cc is not None:
+                comp_recipes.append(cc)
+        for comp in comp_recipes:
+            for ins in expand_composite(comp, section, _si, st.available_groups):
+                ins.section_index = i
+                kept.append(ins)
         vu = place_vu_meter(section, st.available_groups, _si, seed=i)   # music-reactive feature layer
         if vu is not None:
             vu.section_index = i
@@ -126,4 +178,10 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
     for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
         feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
+    instrs = _guard_wash_occlusion(instrs)   # opaque washes sit under features; features blend Max
+    # every effect must span ≥1 render frame — a sub-frame sliver snaps to start==end and xLights
+    # silently drops it (seen on section seams). Stretch the short ones to a frame.
+    for ins in instrs:
+        if ins.end_ms - ins.start_ms < _MIN_EFFECT_MS:
+            ins.end_ms = ins.start_ms + _MIN_EFFECT_MS
     return instrs

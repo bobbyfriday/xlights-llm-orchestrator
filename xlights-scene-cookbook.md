@@ -343,6 +343,31 @@ Maintenance rule from prior art: **add groups freely** (it doesn't disturb exist
 
 ---
 
+## 7b. Composite Stacks (single-group effect blends)
+
+A *scene* layers effects across MANY groups; a **composite** layers 2–3 effects on the **same**
+group so they COMBINE into one rich look — the depth Morph/Galaxy/Plasma get when stacked. Code
+realizes these (`weave.expand_composite`): each layer shares the group + span, with a blend mode on
+the upper layers and a rotated palette so the effects read distinctly instead of one hiding another.
+The generator may design `composites`; code also drops one curated stack on the hero at the peak.
+
+Curated combos (`weave.CURATED_COMPOSITES`):
+
+| Name | Stack (base → top) | Reads as | Best moment |
+|---|---|---|---|
+| `kaleidoscope` | Morph + Morph (Max) | shifting symmetric wash | peak / instrumental hook |
+| `swirl` | Galaxy + Butterfly (Max) | living organic swirl | dreamy chorus / bridge |
+| `ember` | Plasma + Fire (Brightness) | warm flickering depth | warm build / ballad |
+| `bloom` | Spirals + Fan (Max) | radial bloom | lift into a chorus |
+
+- **Why it works:** blend + per-layer palette makes two effects combine rather than the top one
+  occluding the base; direction-capable layers (Bars/Wave/Garlands/SingleStrand/Butterfly/Galaxy)
+  additionally counter-phase. Keep composites to a FEATURE group — stacking the whole yard is mush.
+- **Failure modes:** >3 layers (layer-budget clamp drops them); two beds with no blend (the top wins
+  and you've wasted a layer); a composite on a tiny prop (the combine needs pixels to read).
+
+---
+
 ## 8. Testing Protocol
 
 How a scene moves through the lifecycle:

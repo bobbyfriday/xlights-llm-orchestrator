@@ -1,0 +1,54 @@
+digraph tooling_stack {
+  rankdir=TB;
+  bgcolor="white";
+  labelloc="t"; fontname="Helvetica-Bold"; fontsize=20;
+  label="Tooling Stack — placing effects into xLights";
+  node [fontname="Helvetica", fontsize=11, style="filled", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  // orchestrator entry
+  instrs [label="EffectInstruction[]\n(target, effect, look,\nlayer, start/end ms, settings)", shape=ellipse, fillcolor="#f0f0f0"];
+
+  // emitter
+  emitter [label="effect_emitter.apply_instructions()\n• close + new clean sequence\n• layer allocation (free / on-top)\n• resolve render style\n• render_all() at the end", shape=box, fillcolor="#dcedda"];
+
+  // editing
+  place [label="editing.place_preset()\n• load Look from preset library\n• palette colors → C_BUTTON_Palette\n• assemble + validate settings\n• verify target exists", shape=box, fillcolor="#cfe9df"];
+
+  // knowledge feeding editing
+  lib [label="Knowledge (xlights-core)\npreset library · colors\nvalue curves · layout semantics", shape=box, fillcolor="#cfe9df"];
+
+  // client
+  client [label="XLightsClient  (async httpx)\nGET/POST  http://127.0.0.1:49913/<cmd>\nwrites serialized via _write_lock", shape=box, fillcolor="#cfe0f2"];
+
+  // xlights
+  xlights [label="xLights\nautomation/REST listener", shape=cylinder, fillcolor="#fff2cc"];
+
+  // offline finalize
+  finalize [label="finalize_sequence()  (OFFLINE)\nsave → close → patch .xsq XML:\naudio · render order · timing tracks", shape=box, fillcolor="#cfe9df"];
+  xsq [label="Saved .xsq", shape=note, fillcolor="#fff2cc"];
+
+  // MCP parallel interface
+  subgraph cluster_mcp {
+    label="External interface (separate from the pipeline)";
+    style="rounded,dashed"; color="#b0a0c8"; fontname="Helvetica-Bold";
+    mcp [label="xlights-mcp server\nFastMCP (stdio JSON-RPC)\nxl_add_effect · xl_render_all · …", shape=box, fillcolor="#e8e3f5"];
+  }
+  mcpclient [label="MCP client\n(e.g. Claude Code)", shape=oval, fillcolor="#e8eaf6"];
+
+  // main flow
+  instrs -> emitter -> place -> client -> xlights;
+  lib -> place [label="looks / palettes", style=dashed];
+  xlights -> finalize [label="save + close", style=dashed];
+  finalize -> xsq;
+
+  // mcp path shares the same client/editing
+  mcpclient -> mcp [dir=both, label="tools"];
+  mcp -> place [style=dashed, label="reuses place_preset"];
+  mcp -> client [style=dashed];
+
+  // quirk callouts
+  note1 [label="newSequence(media) crashes xLights →\naudio attached offline at finalize", shape=plaintext, fontcolor="#b03030", fontsize=9];
+  note1 -> finalize [style=invis];
+  { rank=same; finalize; note1; }
+}

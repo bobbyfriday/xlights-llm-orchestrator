@@ -5,7 +5,7 @@ LLM agents. Point it at a song; it analyzes the music, designs a show, generates
 your props, renders and critiques the result, refines, and saves a playable `.xsq` with the audio
 and timing tracks attached.
 
-> Full walkthrough: **[docs/usage.md](docs/usage.md)**.
+> Full walkthrough: **[docs/usage.md](docs/usage.md)**. Architecture & diagrams: **[docs/architecture/](docs/architecture/README.md)**.
 
 ## What it does
 

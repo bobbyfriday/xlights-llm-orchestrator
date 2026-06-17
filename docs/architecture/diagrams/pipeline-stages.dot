@@ -1,0 +1,43 @@
+digraph pipeline_stages {
+  rankdir=LR;
+  bgcolor="white";
+  labelloc="t"; fontname="Helvetica-Bold"; fontsize=20;
+  label="Pipeline Stages — agents, artifacts, and the refine loop";
+  node [fontname="Helvetica", fontsize=10, style="filled", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  // stage nodes (boxes) with the agent / code that runs them
+  mp3   [label="MP3", shape=note, fillcolor="#fff2cc"];
+
+  analyze   [label="1 · analyze\nAudioAnalyzer\n(VAMP/librosa/stems/lyrics)", shape=box, fillcolor="#e8e3f5"];
+  interpret [label="2 · interpret\npanel of analysts → synthesizer", shape=box, fillcolor="#f3d9e6"];
+  design    [label="3 · design\nDirector agent", shape=box, fillcolor="#f3d9e6"];
+  generate  [label="4 · generate\nGenerator agent (per section)\n+ deterministic realization", shape=box, fillcolor="#f3d9e6"];
+  apply     [label="5 · apply / render\neffect_emitter → XLightsClient", shape=box, fillcolor="#cfe9df"];
+  refine    [label="6 · refine (opt-in)\nQA → Judge → regen", shape=box, fillcolor="#fdebd0"];
+  finalize  [label="7 · finalize\noffline .xsq patch", shape=box, fillcolor="#cfe9df"];
+  out   [label="Saved .xsq\n+ audio + timing", shape=note, fillcolor="#fff2cc"];
+
+  // artifacts (cached, ellipses)
+  sa   [label="SongAnalysis", shape=ellipse, fillcolor="#f0f0f0"];
+  mb   [label="MusicBrief", shape=ellipse, fillcolor="#f0f0f0"];
+  sp   [label="ShowPlan", shape=ellipse, fillcolor="#f0f0f0"];
+  ei   [label="EffectInstruction[]", shape=ellipse, fillcolor="#f0f0f0"];
+
+  // main flow with artifacts between stages
+  mp3 -> analyze -> sa -> interpret -> mb -> design -> sp -> generate -> ei -> apply -> finalize -> out;
+
+  // refine wraps apply: it re-evaluates and regenerates flagged sections
+  apply -> refine [label="draft"];
+  refine -> generate [label="regenerate\nflagged section", style=dashed, constraint=false, color="#cc7a00"];
+  refine -> apply [label="re-emit", style=dashed, constraint=false, color="#cc7a00"];
+  refine -> finalize [label="best draft"];
+
+  // human checkpoints (optional)
+  ckpt1 [label="human gate\n(description.md)", shape=diamond, fillcolor="#fde0dc"];
+  ckpt2 [label="human gate\n(creative_brief.md)", shape=diamond, fillcolor="#fde0dc"];
+  interpret -> ckpt1 [style=dotted]; ckpt1 -> design [style=dotted];
+  design -> ckpt2 [style=dotted]; ckpt2 -> generate [style=dotted];
+
+  { rank=same; sa; mb; sp; ei; }
+}

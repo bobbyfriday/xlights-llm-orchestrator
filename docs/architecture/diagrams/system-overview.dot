@@ -1,0 +1,61 @@
+digraph system_overview {
+  rankdir=TB;
+  bgcolor="white";
+  labelloc="t";
+  fontname="Helvetica-Bold"; fontsize=20;
+  label="xLights LLM Orchestrator — System Overview";
+  node [fontname="Helvetica", fontsize=11, style="filled", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  // entry
+  user  [label="User\n(xlo CLI / MCP client)", shape=oval, fillcolor="#e8eaf6"];
+
+  // orchestrator core
+  subgraph cluster_orch {
+    label="xlights-orchestrator  (the LLM pipeline)";
+    style="rounded,filled"; fillcolor="#f4f7fb"; color="#9fb3c8"; fontname="Helvetica-Bold";
+    pipeline [label="run_pipeline()\nsequential async stages\n+ per-song stage cache", shape=box, fillcolor="#d7e3f4"];
+    det      [label="Deterministic realization\nweave · beats · triggers · QA\n(code owns timing & settings)", shape=box, fillcolor="#dcedda"];
+    refine   [label="Refine loop\nQA → Judge → regen", shape=box, fillcolor="#fdebd0"];
+  }
+
+  // agents side
+  subgraph cluster_agents {
+    label="Agents  (LLM — owns judgment)";
+    style="rounded,filled"; fillcolor="#fbf3f7"; color="#d6a2c0"; fontname="Helvetica-Bold";
+    agents [label="PydanticAI agents\npanel · director · generator\njudge · visual-critic", shape=box, fillcolor="#f3d9e6"];
+    models [label="Model registry\nrole → provider:model", shape=box, fillcolor="#f3d9e6"];
+    prov   [label="Anthropic (Claude)  |  Google (Gemini)\nstructured output only", shape=box, fillcolor="#efc9dc"];
+  }
+
+  // tooling side
+  subgraph cluster_tooling {
+    label="Tooling  (xlights-core — owns the show)";
+    style="rounded,filled"; fillcolor="#eef7f3"; color="#86c7ad"; fontname="Helvetica-Bold";
+    emitter [label="effect_emitter\napply_instructions()", shape=box, fillcolor="#cfe9df"];
+    client  [label="XLightsClient\nasync HTTP automation API", shape=box, fillcolor="#cfe9df"];
+    offline [label="Offline .xsq patch\naudio · render order · timing", shape=box, fillcolor="#cfe9df"];
+    knowledge [label="Knowledge\npreset library · colors\nvalue curves · layout semantics", shape=box, fillcolor="#cfe9df"];
+  }
+
+  // inputs / outputs
+  audio [label="Audio analysis\nVAMP · librosa · stems · lyrics", shape=box, style="filled", fillcolor="#e8e3f5"];
+  xlights [label="xLights\n(running instance, port 49913)", shape=cylinder, fillcolor="#fff2cc"];
+  xsq    [label="Saved .xsq\n+ audio + timing tracks", shape=note, fillcolor="#fff2cc"];
+
+  // edges
+  user -> pipeline;
+  audio -> pipeline [label="SongAnalysis"];
+  pipeline -> agents [label="render_input()"];
+  agents -> models -> prov;
+  prov -> agents [label="pydantic output", style=dashed];
+  agents -> pipeline [label="ShowPlan / SectionEffects /\nJudgeVerdict", style=dashed];
+  pipeline -> det -> emitter;
+  pipeline -> refine [style=dashed];
+  refine -> emitter [style=dashed];
+  emitter -> client;
+  knowledge -> emitter [label="presets / palettes", style=dashed];
+  client -> xlights [label="HTTP: newSequence,\naddEffect, renderAll"];
+  pipeline -> offline -> xsq;
+  xlights -> offline [label="save + close", style=dashed];
+}

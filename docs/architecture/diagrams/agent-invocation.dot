@@ -1,0 +1,42 @@
+digraph agent_invocation {
+  rankdir=TB;
+  bgcolor="white";
+  labelloc="t"; fontname="Helvetica-Bold"; fontsize=20;
+  label="How an Agent Is Called  (structured output, no tool-calling)";
+  node [fontname="Helvetica", fontsize=11, style="filled", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  // construction (left column)
+  subgraph cluster_build {
+    label="Construction  (lazy — no API call)";
+    style="rounded,filled"; fillcolor="#f4f7fb"; color="#9fb3c8"; fontname="Helvetica-Bold";
+    factory [label="agents/<role>.py\ne.g. generator_agent()", shape=box, fillcolor="#d7e3f4"];
+    build   [label="build_agent(role,\n  output_type=<PydanticModel>,\n  system_prompt=...)", shape=box, fillcolor="#d7e3f4"];
+    reg     [label="model registry\nmodel_string(role)\n→ 'anthropic:claude-opus-4-8'\n  or 'google:gemini-3.1-pro'", shape=box, fillcolor="#d7e3f4"];
+    settings[label="role settings\nthinking=adaptive, effort=high\n(Anthropic only)", shape=box, fillcolor="#eaf0f8"];
+    guides  [label="prompt = base .md\n+ injected guides\n(sequencing/effects/scenes/…)", shape=box, fillcolor="#eaf0f8"];
+    agent   [label="PydanticAI Agent\n(model + output_type\n+ system_prompt)", shape=box, fillcolor="#cfe0f2"];
+  }
+
+  factory -> build;
+  build -> reg [label="provider routing"];
+  build -> settings;
+  build -> guides;
+  reg -> agent; settings -> agent; guides -> agent;
+
+  // invocation (right column)
+  subgraph cluster_run {
+    label="Invocation  (per call)";
+    style="rounded,filled"; fillcolor="#eef7f3"; color="#86c7ad"; fontname="Helvetica-Bold";
+    inp   [label="render_input(...)\nbuilds the prompt string\n(plan + looks + palette + revision note)", shape=box, fillcolor="#cfe9df"];
+    run   [label="await agent.run(prompt)", shape=box, fillcolor="#cfe9df"];
+    llm   [label="LLM (Claude / Gemini)\nforced to emit JSON\nmatching output_type", shape=box, fillcolor="#efc9dc"];
+    output[label=".output  (validated\nPydantic model)", shape=box, fillcolor="#cfe9df"];
+    consume[label="pipeline consumes it\n→ deterministic realization", shape=box, fillcolor="#dcedda"];
+  }
+
+  agent -> run [label="reused across calls", style=dashed];
+  inp -> run -> llm;
+  llm -> output [label="schema-validated", style=dashed];
+  output -> consume;
+}

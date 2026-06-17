@@ -66,6 +66,21 @@ through that module.)
 Without SEM_ groups the run still works but targets whatever groups exist; the curated layers
 (rhythm pool, accents, peak fill) assume the SEM_ set.
 
+## Singing faces (lip-sync)
+
+When a song has **timed lyrics** (Genius text aligned to the vocals — needs `GENIUS_ACCESS_TOKEN`) and
+your layout has a **singing-face prop with a node face definition** (a `faceInfo` with the
+`Mouth-AI/E/FV/L/MBP/O/U/WQ/etc/rest` shapes — the standard for HD singing props), the pipeline
+automatically:
+
+- generates phonemes from each lyric word (CMU dictionary, with a letter-based fallback),
+- writes a three-layer **`Faces` timing track** (phrases / words / phonemes) into the `.xsq`, and
+- places an xLights **Faces** effect on each face prop, reading that track, with the mouth resting
+  during instrumental passages (`SuppressWhenNotSinging`) and eyes on Auto.
+
+Install the optional `lyrics` extra for accurate phonemes (`uv sync --extra lyrics`); without it the
+faces still sing using the heuristic fallback. Instrumental songs (no timed lyrics) place no faces.
+
 ## Run a show
 
 ```bash

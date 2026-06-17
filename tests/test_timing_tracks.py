@@ -105,3 +105,49 @@ def test_patch_no_tracks_is_noop(tmp_path):
     f = tmp_path / "s.xsq"; f.write_text(_XSQ)
     assert T.patch_xsq_timing_tracks(f, []) is False
     assert f.read_text() == _XSQ                      # untouched
+
+
+# -- phoneme (Faces) track + multi-layer patcher ------------------------------
+
+_LYRICS = {"lines": [
+    {"text": "red go", "start": 4.0, "end": 5.0, "words": [
+        {"word": "red", "start": 4.0, "end": 4.5},
+        {"word": "go", "start": 4.6, "end": 5.0}]}]}
+
+
+def test_phoneme_track_has_three_layers_with_rest_gap():
+    from xlights_core.audio.phonemes import VISEMES
+    tr = T._phoneme_track(_sa(lyrics=_LYRICS), end_ms=60000)
+    assert tr is not None and tr.layers is not None
+    phrases, words, phonemes = tr.layers
+    assert [m.label for m in phrases] == ["red go"]
+    assert [m.label for m in words] == ["red", "go"]
+    assert phonemes and all(m.label in VISEMES for m in phonemes)   # only valid mouth shapes
+    assert any(m.label == "rest" for m in phonemes)                 # gap 4.5s→4.6s closes the mouth
+    # word phonemes stay within the word span
+    assert phonemes[0].start_ms >= 4000 and phonemes[-1].end_ms <= 5000
+
+
+def test_phoneme_track_none_without_words():
+    assert T._phoneme_track(_sa(lyrics={"lines": [{"text": "no timing"}]}), 60000) is None
+    assert T._phoneme_track(_sa(lyrics=None), 60000) is None
+
+
+def test_patch_writes_one_effectlayer_per_layer(tmp_path):
+    f = tmp_path / "s.xsq"; f.write_text(_XSQ)
+    tr = T.TimingTrack("Faces", layers=[
+        [T.TimingMark("line", 0, 1000)],
+        [T.TimingMark("red", 0, 500), T.TimingMark("go", 600, 1000)],
+        [T.TimingMark("etc", 0, 250), T.TimingMark("E", 250, 500)]])
+    assert T.patch_xsq_timing_tracks(f, [tr]) is True
+    el = [e for e in ET.parse(f).getroot().find("ElementEffects") if e.get("name") == "Faces"][0]
+    layers = el.findall("EffectLayer")
+    assert len(layers) == 3                                         # phrases / words / phonemes
+    assert [m.get("label") for m in layers[2].findall("Effect")] == ["etc", "E"]
+
+
+def test_single_layer_track_unchanged(tmp_path):
+    f = tmp_path / "s.xsq"; f.write_text(_XSQ)
+    T.patch_xsq_timing_tracks(f, [T.TimingTrack("Beats", [T.TimingMark("1", 0, 500)])])
+    el = [e for e in ET.parse(f).getroot().find("ElementEffects") if e.get("name") == "Beats"][0]
+    assert len(el.findall("EffectLayer")) == 1                      # back-compat: one layer

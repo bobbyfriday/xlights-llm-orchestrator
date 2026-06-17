@@ -19,6 +19,11 @@ audio = [
     "soundfile>=0.12",
     "numpy",
 ]
+# Phoneme accuracy for singing faces: the CMU Pronouncing Dictionary (word→ARPABET). Pure data,
+# offline; absent it, phoneme generation falls back to a letter-based heuristic.
+lyrics = [
+    "cmudict>=1.0",
+]
 # Optional stem separation (off by default; enable per-run via stems=True / XLO_STEMS=1).
 # Default backend is demucs-mlx (Apple-Silicon, MLX). Inference is torch-free, BUT the
 # one-time htdemucs→MLX weight conversion needs `pip install 'demucs-mlx[convert]'`

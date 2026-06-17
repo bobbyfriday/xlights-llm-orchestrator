@@ -1980,7 +1980,8 @@
   "effect_type": "On",
   "end_ms": 12150,
   "extra_settings": {
-   "C_SLIDER_Brightness": "300"
+   "C_SLIDER_Brightness": "300",
+   "T_CHOICE_LayerMethod": "Max"
   },
   "knob_values": {},
   "layer": 0,

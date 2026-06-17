@@ -51,6 +51,39 @@ from .weave import (
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
 _PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
 _MIN_EFFECT_MS = 50          # one render frame (seqStepTime); shorter effects snap away and drop
+_OPAQUE_WASH = {"On", "Color Wash", "Fill"}   # solid fills that occlude unless they sit at the bottom
+_WASH_SPAN_MS = 3000         # only a sustained wash counts as a "bed" for occlusion ordering
+
+
+def _guard_wash_occlusion(instrs: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Stop opaque washes from cancelling features on the same group (the 2:15 bug, generalized).
+
+    The emitter assigns layers by list order + each effect's start layer (later/higher = on top).
+    So for every sustained opaque wash on a target: (a) overlapping features blend Max (neither the
+    opaque bed nor a feature's black background occludes the other), and (b) a plain Normal bed has
+    its layer reset to 0 and is emitted first, landing it on the BOTTOM under the features.
+    Intentional blended washes (a Subtractive envelope, etc.) keep their layer and order."""
+    by: dict[str, list[EffectInstruction]] = {}
+    for i in instrs:
+        by.setdefault(i.target, []).append(i)
+
+    def is_wash(e):
+        return e.effect_type in _OPAQUE_WASH and e.end_ms - e.start_ms >= _WASH_SPAN_MS
+
+    sink: set[int] = set()
+    for effs in by.values():
+        washes = [e for e in effs if is_wash(e)]
+        if not washes:
+            continue
+        for f in effs:
+            if not is_wash(f) and any(not (f.end_ms <= w.start_ms or f.start_ms >= w.end_ms)
+                                      for w in washes):
+                f.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
+        for w in washes:
+            if not w.extra_settings.get("T_CHOICE_LayerMethod"):   # a plain Normal bed
+                w.layer = 0
+                sink.add(id(w))
+    return sorted(instrs, key=lambda e: 0 if id(e) in sink else 1)
 
 
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
@@ -87,12 +120,7 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
                else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
         if bed is not None:
             bed.section_index = i
-            kept.insert(0, bed)              # bed FIRST → lowest layer (emitter stacks by order)
-            # a feature sharing the bed's target must blend, or its black background (Fireworks,
-            # Spirals, …) occludes the bed and the opaque bed occludes it — Max keeps both.
-            for ins in kept:
-                if ins is not bed and ins.target == bed.target:
-                    ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
+            kept.append(bed)                 # occlusion order/blend handled globally below
         carrier = section_carrier(i)                 # rotate the carrier so the show isn't all one effect
         weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
                                                                   carrier=carrier)
@@ -145,6 +173,7 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
     for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
         feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
+    instrs = _guard_wash_occlusion(instrs)   # opaque washes sit under features; features blend Max
     # every effect must span ≥1 render frame — a sub-frame sliver snaps to start==end and xLights
     # silently drops it (seen on section seams). Stretch the short ones to a frame.
     for ins in instrs:

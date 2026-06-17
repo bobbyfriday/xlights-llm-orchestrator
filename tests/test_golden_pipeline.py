@@ -201,6 +201,9 @@ def test_golden_is_non_trivial(tmp_path, monkeypatch):
     assert layers[:2] == [0, 1]                                        # ≥2 stacked layers
     assert any(i["extra_settings"].get("T_CHOICE_LayerMethod") for i in focal if i["layer"] > 0)
     assert len({i["effect_type"] for i in focal}) >= 2                 # different effects combined
+    # the energetic (peak) section carries a music-reactive VU Meter; the quiet one does not
+    vu = [i for i in produced if i["effect_type"] == "VU Meter"]
+    assert vu and all(i["section_index"] == 1 for i in vu)
 
 
 def test_bed_does_not_occlude_a_feature_on_the_same_group(tmp_path, monkeypatch):

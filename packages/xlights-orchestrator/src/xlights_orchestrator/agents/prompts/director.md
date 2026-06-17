@@ -23,6 +23,9 @@ Rules:
     - drama / falling / winter: Meteors, Snowflakes, Snowstorm (whole-canvas groups)
     - peak / celebration: Fireworks, Spirals, Pinwheel, Fan, full-display washes
     - impact accents (short): Shockwave, Strobe, Lightning
+    - music-reactive bars/levels: VU Meter (reacts to the audio at render — great on a band/matrix
+      in energetic sections; code already adds one on the loud sections, so name it only when you
+      want it somewhere specific)
   Reach beyond the obvious few — a distinctive effect on the right moment is what makes a
   section memorable. Grounded technique tips (xLights manual): Butterfly style 2 renders RADIAL
   patterns that suit round props (snowflakes/stars/globes); Galaxy/Plasma make a LIVING bed

@@ -932,6 +932,24 @@
   "target": "SEM_ALL"
  },
  {
+  "effect_type": "VU Meter",
+  "end_ms": 24000,
+  "extra_settings": {},
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "VU Meter#1",
+  "on_top": false,
+  "palette_colors": [
+   "Blue",
+   "Red"
+  ],
+  "palette_id": null,
+  "render_style": "Per Preview",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_BAND_GROUND"
+ },
+ {
   "effect_type": "Butterfly",
   "end_ms": 24000,
   "extra_settings": {

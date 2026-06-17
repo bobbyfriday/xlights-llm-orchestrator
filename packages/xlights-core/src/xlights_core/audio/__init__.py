@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .analyzer import AudioAnalyzer
+from .envelope import song_tail_envelope
 from .exceptions import AudioDependencyMissing, AudioError, AudioPluginsMissing
 from .schema import (
     Beat,
@@ -30,4 +31,5 @@ __all__ = [
     "EnergyPoint",
     "StemFeatures",
     "SectionInstrumentation",
+    "song_tail_envelope",
 ]

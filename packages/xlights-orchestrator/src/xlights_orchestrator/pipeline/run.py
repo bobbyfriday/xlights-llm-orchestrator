@@ -73,7 +73,7 @@ from .media import prepare_media
 from .state import State
 from .visual import RealRender, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
-from .generate import generate_instructions
+from .generate import generate_instructions, song_end_fade
 from .finalize import finalize_sequence
 from .meter import resolve_beats_per_bar
 
@@ -309,6 +309,7 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             st.instructions = replace_section(st.instructions, si, await _regen(rev))
             ledger.append(rev)
         st.instructions, _ = clamp_layer_budget(st.instructions)      # rule #10 on regen too
+        st.instructions = song_end_fade(st, st.instructions)          # re-stop/fade the tail after regen
         await client.close_sequence(force=True, quiet=True)
         st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
         obj = await _obj(st.applied)

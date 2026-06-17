@@ -8,7 +8,7 @@ import asyncio
 from xlights_core import XLightsClient
 
 from .config import has_llm_key, load_env
-from .pipeline import run_pipeline
+from .pipeline import format_sections, regen_section, run_pipeline
 from .pipeline.media import safe_name
 from .pipeline.run import _auto_checkpoint, _design_review, _interpret_review
 
@@ -35,6 +35,18 @@ async def _run(args) -> None:
         print(f"  + {p['effect']:<14} → {p['target']}  ({p['start_ms']}-{p['end_ms']}ms, L{p['layer']})")
     name = args.name or safe_name(args.song)
     print(f"\nOpen '{name}' in xLights to play it with audio (File → Open Sequence).")
+
+
+async def _regen(args) -> None:
+    async with XLightsClient() as client:
+        st = await regen_section(
+            args.song, client=client, section_index=args.section, note=args.note or "",
+            save_as=None if args.no_save else (args.name or safe_name(args.song)),
+        )
+    n = sum(1 for i in st.instructions if i.section_index == args.section)
+    print(f"\nRegenerated section {args.section}: {n} effects (other sections unchanged).")
+    name = args.name or safe_name(args.song)
+    print(f"Open '{name}' in xLights to play it with audio (File → Open Sequence).")
 
 
 def _edit_brief(args) -> None:
@@ -70,6 +82,13 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--no-log", action="store_true", help="disable the per-iteration revision log")
     r.add_argument("--no-timing-tracks", action="store_true",
                    help="don't add reference timing tracks (sections/beats/bars/onsets) to the .xsq")
+    g = sub.add_parser("regen", help="regenerate ONE section of a generated show, leaving the rest intact")
+    g.add_argument("--song", required=True, help="path to the audio file (must have been `xlo run` first)")
+    g.add_argument("--section", type=int, default=None, help="section index to regenerate (see --list)")
+    g.add_argument("--list", action="store_true", help="list the show's sections (index, time, look) and exit")
+    g.add_argument("--note", default=None, help="free-text fix to steer the regen (e.g. 'too busy, calm it down')")
+    g.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
+    g.add_argument("--no-save", action="store_true", help="don't save (re-emit only, leave unsaved/open)")
     args = ap.parse_args(argv)
 
     load_env()
@@ -82,6 +101,19 @@ def main(argv: list[str] | None = None) -> None:
                 "No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env"
             )
         asyncio.run(_run(args))
+    if args.cmd == "regen":
+        if args.list or args.section is None:
+            try:
+                print(f"Sections for {args.song}:\n{format_sections(args.song)}")
+            except FileNotFoundError as exc:
+                raise SystemExit(str(exc))
+            return
+        if not has_llm_key():
+            raise SystemExit("No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env")
+        try:
+            asyncio.run(_regen(args))
+        except (FileNotFoundError, IndexError) as exc:
+            raise SystemExit(str(exc))
 
 
 if __name__ == "__main__":

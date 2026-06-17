@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,6 +82,17 @@ log = logging.getLogger(__name__)
 
 REGRESS_MARGIN = 1   # objective_score points; a drop beyond this reverts the revision
 STALL_LIMIT = 2      # consecutive no-objective-progress iterations → terminate
+# Revision-log analysis (42 runs): drafts whose first-pass objective is ≥ this gained ≈0 over the
+# whole loop while paying for every Judge + visual-critique + regen iteration. Skip the loop for them.
+REFINE_SKIP_OBJECTIVE = 88   # tune/disable via XLO_REFINE_SKIP_OBJECTIVE (101 = never skip)
+
+
+def _refine_skip_objective() -> int:
+    """The first-pass objective at/above which refinement is skipped (env-overridable)."""
+    try:
+        return int(os.environ.get("XLO_REFINE_SKIP_OBJECTIVE", REFINE_SKIP_OBJECTIVE))
+    except (TypeError, ValueError):
+        return REFINE_SKIP_OBJECTIVE
 
 
 async def _default_interpret(song_path: str, sa: SongAnalysis) -> MusicBrief:
@@ -195,7 +207,8 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
                        max_iterations, judge, qa, regenerate, checkpoint,
                        visual_critique=None, revlog=None, run_id="run", song_key="",
                        models=None, clock=None, review_base=None,
-                       sampler=None, save_as=None, redesign=None, real_render=None) -> None:
+                       sampler=None, save_as=None, redesign=None, real_render=None,
+                       skip_objective=None) -> None:
     qa_eval = qa or qa_pkg.evaluate
     judge_agent = judge or judge_mod.judge_agent()
     decide = checkpoint or _interactive_checkpoint
@@ -265,6 +278,13 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
                       for f in report.findings],
             judge=({"score": verdict.score, "verdict": verdict.verdict} if verdict else None),
             models=models or {}, review_bundle=_bundle(i), **kw))
+
+    if skip_objective is not None and best_obj >= skip_objective:
+        # already good → accept the draft without spending judge/critic/regen iterations
+        log.info("refine skipped: first-pass objective %d ≥ %d (already good)", best_obj, skip_objective)
+        _record(0, await _report(st.applied), None, kind="finalize",
+                obj_after=best_obj, human_decision="skip-high-objective")
+        return
 
     iters = 0
     prev_sig = None       # plateau detector: scores + flagged sections unchanged → more spend, same answer
@@ -509,7 +529,8 @@ async def run_pipeline(
                            models=model_snapshot(),
                            clock=lambda: datetime.now(timezone.utc).isoformat(),
                            review_base=_cache_root() / key / "visual_review",
-                           sampler=sampler, save_as=save_as, real_render=real)
+                           sampler=sampler, save_as=save_as, real_render=real,
+                           skip_objective=_refine_skip_objective())
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
             _emit_editable_brief(st, _cache_root() / key)   # keep the brief schema-backed after refine
             (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))

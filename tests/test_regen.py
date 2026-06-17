@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from xlights_orchestrator.pipeline.cache import cache_path, song_key
+from xlights_orchestrator.pipeline.generate import song_end_fade
 from xlights_orchestrator.pipeline.regen import (
     list_sections,
     load_cached_state,
@@ -37,10 +38,11 @@ def _ins(target, start, end, sec, etype="On"):
 
 
 def _analysis():
+    # dense envelope, loud until ~5.5s → the song-end fade region is just the final tail (~[5.5s, 6s])
     return SongAnalysis(path="s.mp3", duration_s=6.0, sample_rate=44100,
                         beats=[Beat(time=b / 1000) for b in range(0, 6000, 500)],
                         segments=[Segment(start=0, end=6, segment_id="A")],
-                        energy_arc=[EnergyPoint(time=0, rms=0.3), EnergyPoint(time=6, rms=0.3)])
+                        energy_arc=[EnergyPoint(time=t / 10, rms=0.3) for t in range(0, 61, 5)])
 
 
 def _plan(n=3):
@@ -51,6 +53,13 @@ def _plan(n=3):
 
 def _orig_instructions():
     return [_ins("G1", 0, 2000, 0), _ins("G2", 2000, 4000, 1), _ins("G1", 4000, 6000, 2)]
+
+
+def _faded_orig():
+    """The cached instructions as a real `xlo run` leaves them — song-end fade already applied."""
+    st = State(song_path="s.mp3")
+    st.song_analysis, st.show_plan = _analysis(), _plan(3)
+    return song_end_fade(st, _orig_instructions())
 
 
 def _section_effects():
@@ -82,7 +91,7 @@ def _write_cache(tmp_path, song):
     cache_path(key, "creative_brief").parent.mkdir(parents=True, exist_ok=True)
     cache_path(key, "creative_brief").write_text(_plan(3).model_dump_json())
     cache_path(key, "instructions").write_text(
-        json.dumps([i.model_dump() for i in _orig_instructions()]))
+        json.dumps([i.model_dump() for i in _faded_orig()]))   # as a real run leaves them
     cache_path(key, "song_analysis").write_text(_analysis().model_dump_json())
     return key
 
@@ -167,10 +176,36 @@ def test_regen_section_end_to_end(tmp_path, monkeypatch):
                            save_as=None, generator=_FakeGen(_section_effects()),
                            emitter=fake_emitter))
 
-    orig = _orig_instructions()
-    assert [i.model_dump() for i in st.instructions if i.section_index == 0] == [orig[0].model_dump()]
-    assert [i.model_dump() for i in st.instructions if i.section_index == 2] == [orig[2].model_dump()]
+    faded = _faded_orig()                                                 # the cached (already-faded) baseline
+    assert [i.model_dump() for i in st.instructions if i.section_index == 0] == [faded[0].model_dump()]
+    assert [i.model_dump() for i in st.instructions if i.section_index == 2] == [faded[2].model_dump()]
     assert emitted["instructions"] and emitted["duration"] == 6           # re-emitted the spliced list
     persisted = json.loads(cache_path(key, "instructions").read_text())
     assert any(x["section_index"] == 1 for x in persisted)                # cache updated in place
     assert {x["section_index"] for x in persisted} == {0, 1, 2}           # other sections preserved
+
+
+def test_regen_final_section_keeps_tail_fade(tmp_path, monkeypatch):
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
+    song = tmp_path / "song.mp3"
+    song.write_bytes(b"abc")
+    _write_cache(tmp_path, song)
+
+    async def fake_tg(client, *, cache_root):
+        return list(GROUPS)
+
+    async def fake_emitter(client, instructions, *, duration_secs, **kw):
+        return {"placed": [], "skipped": []}
+
+    monkeypatch.setattr("xlights_orchestrator.pipeline.regen.targetable_groups", fake_tg)
+
+    # the generator returns a fresh final-section effect spanning to the section/file end (no fade)
+    final_fx = SectionEffects(instructions=[EffectInstruction(
+        target="G1", effect_type="On", look_id="On#0", start_ms=4000, end_ms=6000)])
+    st = run(regen_section(str(song), client=object(), section_index=2, note="",
+                           save_as=None, generator=_FakeGen(final_fx), emitter=fake_emitter))
+
+    sec2 = [i for i in st.instructions if i.section_index == 2]
+    assert sec2, "final section regenerated"
+    assert any("T_TEXTCTRL_Fadeout" in i.extra_settings for i in sec2), \
+        "the song-end tail fade is re-applied after regenerating the final section"

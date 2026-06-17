@@ -532,6 +532,34 @@ def feature_prop_contrast(instructions: list[EffectInstruction], section: Sectio
 
 
 
+# -- VU Meter: a music-reactive level/spectrum layer (xLights renders it from the song audio) --
+VU_MIN_INTENSITY = 0.55     # only energetic sections get the meter — it's a feature texture, not a bed
+# wide groups whose buffer reads VU bars/levels well (prefer a horizontal band, fall back broader)
+VU_GROUP_PREFERENCE = ("SEM_BAND_GROUND", "SEM_HOUSE", "SEM_ALL")
+
+
+def place_vu_meter(section: SectionPlan, available_groups: list[str], intensity: float,
+                   seed: int = 0) -> EffectInstruction | None:
+    """A section-spanning VU Meter on a wide group for energetic sections — a music-reactive
+    bars/levels texture (xLights drives it from the audio at render time, so it's reactive for free).
+
+    Returns None when the section is too quiet or no wide group exists. One per qualifying section
+    (a feature layer, not a bed); the look rotates by `seed` so repeats differ."""
+    if (intensity or 0.0) < VU_MIN_INTENSITY:
+        return None
+    target = next((g for g in VU_GROUP_PREFERENCE if g in available_groups), None)
+    if target is None:
+        return None
+    looks = candidate_look_ids("VU Meter")
+    if not looks:
+        return None
+    return EffectInstruction(
+        target=target, effect_type="VU Meter", look_id=looks[seed % len(looks)],
+        render_style="Per Preview",                         # bars span the group as one gesture
+        palette_colors=(getattr(section, "palette", None) or [])[:3],
+        start_ms=section.start_ms, end_ms=section.end_ms)
+
+
 def _bar_ms(rhythm: dict) -> float:
     bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR
     tempo = rhythm.get("tempo")

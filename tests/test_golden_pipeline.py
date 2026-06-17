@@ -195,3 +195,7 @@ def test_golden_is_non_trivial(tmp_path, monkeypatch):
     }
     assert carrier_by_section[0] != carrier_by_section[1]              # rotated, not identical
     assert len({t for ts in carrier_by_section.values() for t in ts}) >= 2
+    # the energetic (peak) section carries a music-reactive VU Meter; the quiet one does not
+    vu = [i for i in produced if i["effect_type"] == "VU Meter"]
+    assert vu and all(i["section_index"] == 1 for i in vu)            # only the loud section
+    assert all(i["start_ms"] < i["end_ms"] for i in vu)              # section-spanning

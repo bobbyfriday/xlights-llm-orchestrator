@@ -26,6 +26,7 @@ from .beats import (
     peak_fill,
     peak_sections,
     place_beat_accents,
+    place_vu_meter,
     section_is_rhythmic,
     section_rhythm,
     trim_coverage,
@@ -89,6 +90,10 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
         for ins in woven:
             ins.section_index = i
         kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
+        vu = place_vu_meter(section, st.available_groups, _si, seed=i)   # music-reactive feature layer
+        if vu is not None:
+            vu.section_index = i
+            kept.append(vu)
         clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
         instrs.extend(kept)
         accents = place_beat_accents(            # beat layer over the wash; the weave's carrier

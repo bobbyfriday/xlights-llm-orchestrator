@@ -13,6 +13,8 @@ from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
 from ..qa.rules import clamp_hard_caps
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects
+from .phrasing import tail_fade_settings
+from xlights_core.audio import song_tail_envelope
 from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
 
 from .beats import (
@@ -85,6 +87,60 @@ def _guard_wash_occlusion(instrs: list[EffectInstruction]) -> list[EffectInstruc
                 w.layer = 0
                 sink.add(id(w))
     return sorted(instrs, key=lambda e: 0 if id(e) in sink else 1)
+
+
+def _merge_fade_out(ins: EffectInstruction, fade_s: float) -> None:
+    """Merge a song-end fade-out into an effect, keeping the LONGER of any existing fade-out."""
+    for k, v in tail_fade_settings(ins.effect_type, fade_s).items():
+        if k == "T_TEXTCTRL_Fadeout":
+            try:
+                if float(ins.extra_settings.get(k, 0)) >= float(v):
+                    continue                          # an existing longer fade already covers it
+            except (TypeError, ValueError):
+                pass
+        ins.extra_settings[k] = v
+
+
+def apply_song_end_fade(
+    instrs: list[EffectInstruction], fade_start_ms: int, music_end_ms: int,
+    *, final_section_start_ms: int | None = None,
+) -> list[EffectInstruction]:
+    """Trim effects to the music's end and fade the song tail (deterministic, idempotent).
+
+    Effects past `music_end_ms` are trimmed there (lights stop when the music stops); those left
+    below one render frame are dropped. Effects overlapping `[fade_start_ms, music_end_ms]` get an
+    opacity fade-out scaled to their portion of that region (lights dim with the music). `music_end`
+    is floored so it can never collapse the final section below a frame.
+    """
+    music_end_ms, fade_start_ms = int(music_end_ms), int(fade_start_ms)
+    if final_section_start_ms is not None:
+        music_end_ms = max(music_end_ms, int(final_section_start_ms) + _MIN_EFFECT_MS)
+    out: list[EffectInstruction] = []
+    for ins in instrs:
+        if ins.start_ms >= music_end_ms:                  # entirely in the silent tail → drop
+            continue
+        if ins.end_ms > music_end_ms:                     # overshoots the music → trim to its end
+            ins.end_ms = music_end_ms
+        if ins.end_ms - ins.start_ms < _MIN_EFFECT_MS:    # collapsed below a frame → drop
+            continue
+        if ins.end_ms > fade_start_ms:                    # overlaps the trailing region → fade out
+            fade_s = (ins.end_ms - max(ins.start_ms, fade_start_ms)) / 1000.0
+            fade_s = min(fade_s, (ins.end_ms - ins.start_ms) / 1000.0)
+            if fade_s > 0:
+                _merge_fade_out(ins, fade_s)
+        out.append(ins)
+    return out
+
+
+def song_end_fade(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Apply the song-end envelope fade for a State (envelope → trim + fade). Idempotent."""
+    sa = st.song_analysis
+    fade_start_s, music_end_s = song_tail_envelope(
+        getattr(sa, "energy_arc", None), getattr(sa, "duration_s", 0.0))
+    final_start = (st.show_plan.sections[-1].start_ms
+                   if (st.show_plan and st.show_plan.sections) else None)
+    return apply_song_end_fade(instrs, int(fade_start_s * 1000), int(music_end_s * 1000),
+                               final_section_start_ms=final_start)
 
 
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
@@ -184,4 +240,6 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     for ins in instrs:
         if ins.end_ms - ins.start_ms < _MIN_EFFECT_MS:
             ins.end_ms = ins.start_ms + _MIN_EFFECT_MS
+    # song-end: stop + fade the lights WITH the music (don't run past it to the file end)
+    instrs = song_end_fade(st, instrs)
     return instrs

@@ -915,7 +915,8 @@
   "effect_type": "On",
   "end_ms": 24000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "6"
   },
   "knob_values": {},
   "layer": 0,
@@ -934,7 +935,9 @@
  {
   "effect_type": "VU Meter",
   "end_ms": 24000,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "6"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "VU Meter#1",
@@ -954,7 +957,8 @@
   "end_ms": 24000,
   "extra_settings": {
    "E_SLIDER_Butterfly_Speed": "37",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadeout": "6"
   },
   "knob_values": {},
   "layer": 1,
@@ -976,7 +980,11 @@
  {
   "effect_type": "Galaxy",
   "end_ms": 24000,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_CHOICE_Out_Transition_Type": "Dissolve",
+   "T_SLIDER_Out_Transition_Adjust": "35",
+   "T_TEXTCTRL_Fadeout": "6"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "Galaxy#0",
@@ -1406,7 +1414,9 @@
  {
   "effect_type": "On",
   "end_ms": 18250,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1427,7 +1437,8 @@
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
    "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1446,7 +1457,8 @@
   "effect_type": "Twinkle",
   "end_ms": 19000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1468,7 +1480,9 @@
  {
   "effect_type": "On",
   "end_ms": 18750,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1485,7 +1499,9 @@
  {
   "effect_type": "On",
   "end_ms": 19250,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1505,7 +1521,8 @@
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
-   "E_TEXTCTRL_Bars_Cycles": "3.7"
+   "E_TEXTCTRL_Bars_Cycles": "3.7",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1524,7 +1541,8 @@
   "effect_type": "Twinkle",
   "end_ms": 20000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1546,7 +1564,9 @@
  {
   "effect_type": "On",
   "end_ms": 19750,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1563,7 +1583,9 @@
  {
   "effect_type": "On",
   "end_ms": 20250,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1584,7 +1606,8 @@
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
    "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1603,7 +1626,8 @@
   "effect_type": "Twinkle",
   "end_ms": 21000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1625,7 +1649,9 @@
  {
   "effect_type": "On",
   "end_ms": 20750,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1642,7 +1668,9 @@
  {
   "effect_type": "On",
   "end_ms": 21250,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1662,7 +1690,8 @@
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
-   "E_TEXTCTRL_Bars_Cycles": "3.7"
+   "E_TEXTCTRL_Bars_Cycles": "3.7",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1681,7 +1710,8 @@
   "effect_type": "Twinkle",
   "end_ms": 22000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1703,7 +1733,9 @@
  {
   "effect_type": "On",
   "end_ms": 21750,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1720,7 +1752,9 @@
  {
   "effect_type": "On",
   "end_ms": 22250,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1741,7 +1775,8 @@
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
    "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_CHOICE_LayerMethod": "Max"
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1760,7 +1795,8 @@
   "effect_type": "Twinkle",
   "end_ms": 23000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1782,7 +1818,9 @@
  {
   "effect_type": "On",
   "end_ms": 22750,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1799,7 +1837,9 @@
  {
   "effect_type": "On",
   "end_ms": 23250,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1819,7 +1859,8 @@
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
-   "E_TEXTCTRL_Bars_Cycles": "3.7"
+   "E_TEXTCTRL_Bars_Cycles": "3.7",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1838,7 +1879,8 @@
   "effect_type": "Twinkle",
   "end_ms": 24000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170"
+   "C_SLIDER_Brightness": "170",
+   "T_TEXTCTRL_Fadeout": "1"
   },
   "knob_values": {},
   "layer": 0,
@@ -1860,7 +1902,9 @@
  {
   "effect_type": "On",
   "end_ms": 23750,
-  "extra_settings": {},
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "0.25"
+  },
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",

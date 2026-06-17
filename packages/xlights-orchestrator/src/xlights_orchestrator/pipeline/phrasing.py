@@ -49,3 +49,19 @@ def soft_edge_settings(effect_type: str, cell_len_ms: int, phrasing: str) -> dic
     fade = round(min(LEGATO_MAX_FADE_S, LEGATO_FADE_FRACTION * max(0, cell_len_ms) / 1000.0), 2)
     s = f"{fade:g}"                            # xLights fade is seconds, e.g. "0.42" | "1.5"
     return {"T_TEXTCTRL_Fadein": s, "T_TEXTCTRL_Fadeout": s}
+
+
+def tail_fade_settings(effect_type: str, fade_out_s: float) -> dict[str, str]:
+    """A fade-OUT scaled to an explicit length, for the song-end envelope fade.
+
+    Same soft-edge primitive as the legato cell path, but the time is given (the trailing region)
+    rather than derived from a cell's own length, and only the OUT edge fades (the song is ending —
+    nothing fades in). A linear opacity fade dims the effect with the music; full-canvas fills/washes
+    additionally melt with a Dissolve-out, matching `soft_edge_settings`.
+    """
+    s = f"{round(max(0.0, fade_out_s), 2):g}"
+    keys = {"T_TEXTCTRL_Fadeout": s}
+    if effect_type in _DISSOLVE_FAMILY:
+        keys["T_CHOICE_Out_Transition_Type"] = "Dissolve"
+        keys["T_SLIDER_Out_Transition_Adjust"] = str(int(round(LEGATO_FADE_FRACTION * 100)))
+    return keys

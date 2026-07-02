@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 
-from ..schema import EnergyPoint, SectionInstrumentation, Segment, StemFeatures
+from ..schema import SectionInstrumentation, Segment, StemFeatures
 
 log = logging.getLogger(__name__)
 

@@ -160,6 +160,11 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
         key, out = r
         outputs[key] = out
 
+    if not outputs:
+        # Without a single analyst output, single mode would StopIteration and full
+        # mode would synthesize an ungrounded (hallucinated) brief.
+        raise RuntimeError("all panel analysts failed; cannot build a music brief")
+
     if synthesizer is None:  # single-musicologist mode → the one output IS the brief
         brief = next(iter(outputs.values()))
         if not isinstance(brief, MusicBrief):

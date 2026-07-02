@@ -97,15 +97,19 @@ def evaluate(instructions, plan) -> tuple[int, list[Finding]]:
             else:
                 events.append((st_, en_, etype, x))
     events.sort(key=lambda e: (e[0], e[1]))
-    for a, b in zip(events, events[1:]):
-        if b[0] < a[1]:
-            x = b[3]
+    # Sweep with a running max-end: a long feature must collide with EVERY later
+    # overlapping event, not just its immediate neighbor in start order.
+    open_end, open_type = None, None
+    for st_, en_, etype, x in events:
+        if open_end is not None and st_ < open_end:
             findings.append(Finding(
                 scope=f"section {getattr(x, 'section_index', None)} / {x.target}",
                 severity="error", metric="rules", objective=True,
                 section_index=getattr(x, "section_index", None),
-                detail=f"{b[2]} overlaps {a[2]} — at most one high-attention "
+                detail=f"{etype} overlaps {open_type} — at most one high-attention "
                        f"feature at a time (catalog rule #4)"))
+        if open_end is None or en_ > open_end:
+            open_end, open_type = en_, etype
     score = max(0, 100 - _PENALTY * len(findings))      # advisories below do NOT gate the score
     # motion-share advisory: an energetic section that is mostly static/punctuation reads as
     # "pulses over a wash", not the community's woven-motion fabric.

@@ -8,6 +8,7 @@ and attach THAT path. See [[xlights-automation-quirks]].
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 from pathlib import Path
@@ -85,7 +86,11 @@ def patch_xsq_media(xsq_path: str | Path, media_path: str | Path, duration_s: fl
         _set("sequenceType", "Media")
         _set("mediaFile", str(media_path))
         _set("sequenceDuration", f"{float(duration_s):.3f}")
-        tree.write(xsq_path, encoding="UTF-8", xml_declaration=True)
+        # Atomic replace (like timing.patch_xsq_timing_tracks): a mid-write failure
+        # must not corrupt the sequence file.
+        tmp = xsq_path.with_suffix(xsq_path.suffix + ".tmp")
+        tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+        os.replace(tmp, xsq_path)
         return True
     except Exception as exc:  # noqa: BLE001 — best-effort; leave the animation .xsq intact
         log.warning("xsq patch failed for %s: %s", xsq_path, exc)

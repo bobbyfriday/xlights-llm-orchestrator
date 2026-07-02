@@ -23,7 +23,7 @@ from ..refine import RevisionBrief, replace_section
 from ..show_plan import EffectInstruction, ShowPlan
 from .cache import cache_path, cache_root, song_key
 from .finalize import finalize_sequence
-from .generate import song_end_fade
+from .generate import finalize_effects
 from .groups import targetable_groups
 from .media import prepare_media
 from .run import regenerate_section
@@ -114,9 +114,9 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
 
     before = sum(1 for i in st.instructions if i.section_index == section_index)
     await regenerate_into(st, section_index, note, gen_agent=gen_agent)
-    # keep the song-end tail fade: a regenerated FINAL section is realized out to the section end,
-    # so re-apply the stop+fade (idempotent — already-faded sections are untouched).
-    st.instructions = song_end_fade(st, st.instructions)
+    # whole-list passes after the splice (idempotent): occlusion guard, sub-frame stretch,
+    # and the song-end stop+fade (a regenerated FINAL section runs out to the section end).
+    st.instructions = finalize_effects(st, st.instructions)
     after = sum(1 for i in st.instructions if i.section_index == section_index)
     log.info("regenerated section %d: %d → %d effects", section_index, before, after)
 

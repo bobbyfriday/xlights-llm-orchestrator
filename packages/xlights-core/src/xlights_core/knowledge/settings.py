@@ -30,11 +30,6 @@ def serialize_settings(pairs: list[tuple[str, str]]) -> str:
     return ",".join(f"{k}={v}" for k, v in pairs)
 
 
-def key_signature(s: str) -> tuple[str, ...]:
-    """Structural signature of a settings string: sorted set of its keys."""
-    return tuple(sorted({k for k, _ in parse_settings(s)}))
-
-
 def parse_value_curve(value: str) -> dict[str, str]:
     """Parse a value-curve value (``Active=..|Type=..|...``) into a field map."""
     fields: dict[str, str] = {}

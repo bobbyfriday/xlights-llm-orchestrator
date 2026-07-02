@@ -56,35 +56,21 @@ def _brighten(hex_color: str, amount: float = 0.65) -> str:
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
-def split_palette(colors: list[str]) -> tuple[list[str], list[str]]:
-    """Split a section palette into (base, accent) so beats CONTRAST the wash.
-
-    ≥2 colors → base = the calmer/darker colors, accent = the single brightest. 1 color →
-    base = it, accent = a brightened variant. Nothing resolvable → ([], []) so callers fall back.
-    Returns hex lists (palette_from_colors accepts hex directly).
-    """
-    hexes: list[str] = []
+def _resolve_unique(colors: list[str] | None, limit: int | None = None) -> list[str]:
+    """Resolve names/hex to unique hexes, preserving order; optionally capped at `limit`."""
+    out: list[str] = []
     for c in colors or []:
         h = _resolve(c)
-        if h and h not in hexes:
-            hexes.append(h)
-    if not hexes:
-        return ([], [])
-    if len(hexes) == 1:
-        return ([hexes[0]], [_brighten(hexes[0])])
-    ranked = sorted(hexes, key=_luminance)        # ascending; brightest last
-    return (ranked[:-1], [ranked[-1]])
+        if h and h not in out:
+            out.append(h)
+            if limit is not None and len(out) >= limit:
+                break
+    return out
 
 
 def palette_from_colors(colors: list[str]) -> str | None:
     """Build a `C_BUTTON_Palette` settings string from named/hex colors, or None if none resolve."""
-    hexes: list[str] = []
-    for c in colors or []:
-        h = _resolve(c)
-        if h and h not in hexes:
-            hexes.append(h)
-        if len(hexes) >= _SLOTS:
-            break
+    hexes = _resolve_unique(colors, limit=_SLOTS)
     if not hexes:
         return None
     parts = [f"C_BUTTON_Palette{i + 1}={hexes[i] if i < len(hexes) else '#000000'}"
@@ -101,11 +87,7 @@ def expand_palette(colors: list[str], n: int = 5) -> list[str]:
     """
     import colorsys
 
-    bases: list[str] = []
-    for c in colors or []:
-        h = _resolve(c)
-        if h and h not in bases:
-            bases.append(h)
+    bases = _resolve_unique(colors)
     if not bases:
         return []
     out = list(bases[:n])

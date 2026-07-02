@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from xlights_core.editing import place_preset
-from xlights_core.knowledge.colors import palette_from_colors, split_palette
+from xlights_core.knowledge.colors import palette_from_colors
 from xlights_core.knowledge.preset_library import get_library
 from xlights_core.knowledge.xsq_extractor import _palette_colors
 from xlights_orchestrator.show_plan import EffectInstruction
@@ -41,24 +41,6 @@ def test_hex_passthrough_and_unknown_skipped():
 def test_empty_or_all_unknown_is_none():
     assert palette_from_colors([]) is None
     assert palette_from_colors(["nope", "alsobad"]) is None
-
-
-# -- split_palette (base wash / accent beats) ---------------------------------
-
-def test_split_palette_two_colors_brightest_is_accent():
-    base, accent = split_palette(["Gold", "Deep Blue"])
-    assert accent == ["#FFD700"] and base == ["#00008B"]     # accent = brighter Gold, base = Deep Blue
-    assert not set(base) & set(accent)                       # disjoint
-
-
-def test_split_palette_mono_accent_differs():
-    base, accent = split_palette(["Warm White"])
-    assert base and accent and base != accent                # brightened accent still distinct
-
-
-def test_split_palette_empty():
-    assert split_palette([]) == ([], [])
-    assert split_palette(["bogus"]) == ([], [])
 
 
 def test_caps_at_eight():

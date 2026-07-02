@@ -15,6 +15,7 @@ import math
 
 from xlights_core.audio import SongAnalysis
 
+from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..agents.catalog import placeable_effect_types
 from ..agents import generator as generator_mod
@@ -30,11 +31,6 @@ from .run import regenerate_section
 from .state import State
 
 log = logging.getLogger(__name__)
-
-
-def _ms(t: int) -> str:
-    s = max(0, int(t)) // 1000
-    return f"{s // 60}:{s % 60:02d}"
 
 
 def _section_label(section) -> str:
@@ -56,7 +52,7 @@ def list_sections(song: str) -> list[tuple[int, str, int, int]]:
 
 def format_sections(song: str) -> str:
     rows = list_sections(song)
-    return "\n".join(f"  {i:>2}  {_ms(a)}–{_ms(b)}  {label}" for i, label, a, b in rows)
+    return "\n".join(f"  {i:>2}  {mmss(a)}–{mmss(b)}  {label}" for i, label, a, b in rows)
 
 
 def load_cached_state(song: str) -> tuple[str, State]:

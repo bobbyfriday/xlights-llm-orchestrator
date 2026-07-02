@@ -79,7 +79,7 @@ async def place_preset(
 
     if start_ms < 0 or end_ms <= start_ms:
         raise ValueError(f"bad timing: start={start_ms} end={end_ms}")
-    if target not in set(await client.get_models()):
+    if target not in await client.get_models():
         raise ValueError(f"target {target!r} not in layout")
 
     worked = await client.add_effect(

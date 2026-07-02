@@ -53,12 +53,18 @@ def prepare_media(song_path: str | Path, show_folder: str | Path | None) -> Path
         return None
 
 
+def resolve_artifact(basename: str, show_folder: str | Path | None) -> Path | None:
+    """Find a saved artifact (e.g. `x.xsq`, `x.fseq`) — the sandbox container Data dir
+    first, then the show folder."""
+    for d in (SANDBOX_DATA, Path(show_folder) if show_folder else None):
+        if d and (d / basename).exists():
+            return d / basename
+    return None
+
+
 def resolve_xsq(save_as: str, show_folder: str | Path | None) -> Path | None:
     """Find the saved `.xsq` — the sandbox container Data dir first, then the show folder."""
-    for d in (SANDBOX_DATA, Path(show_folder) if show_folder else None):
-        if d and (d / f"{save_as}.xsq").exists():
-            return d / f"{save_as}.xsq"
-    return None
+    return resolve_artifact(f"{save_as}.xsq", show_folder)
 
 
 def patch_xsq_media(xsq_path: str | Path, media_path: str | Path, duration_s: float) -> bool:

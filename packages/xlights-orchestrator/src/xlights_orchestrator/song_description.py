@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import statistics
 
+from ._fmt import mmss
 from .music_brief import FeaturedLyricMoment, MusicBrief
 
 
@@ -93,9 +94,6 @@ def featured_lyric_moments(brief: MusicBrief, sa) -> list[FeaturedLyricMoment]:
 
 # -- pure Markdown render of the whole description (human review) -------------------
 
-def _mmss(ms: int) -> str:
-    s = max(0, ms) // 1000
-    return f"{s // 60}:{s % 60:02d}"
 
 
 def render_description(brief: MusicBrief) -> str:
@@ -110,7 +108,7 @@ def render_description(brief: MusicBrief) -> str:
             L.append(f"{idn.character}\n")
     da = brief.dynamic_arc
     if da:
-        clim = f"climax ~{_mmss(da.climax_ms)}" if da.climax_ms is not None else ""
+        clim = f"climax ~{mmss(da.climax_ms)}" if da.climax_ms is not None else ""
         L.append(f"\n**Dynamic arc:** {da.range_note} {clim}\n".rstrip() + "\n")
     if brief.harmony_summary:
         L.append(f"**Harmony:** {brief.harmony_summary}\n")
@@ -119,7 +117,7 @@ def render_description(brief: MusicBrief) -> str:
 
     L.append("\n## Sections\n")
     for i, s in enumerate(brief.sections):
-        L.append(f"\n### {i}. {s.label} · {_mmss(s.start_ms)}–{_mmss(s.end_ms)} · intensity {s.intensity:.2f}\n")
+        L.append(f"\n### {i}. {s.label} · {mmss(s.start_ms)}–{mmss(s.end_ms)} · intensity {s.intensity:.2f}\n")
         if s.musical_description:
             L.append(f"{s.musical_description}\n")
         if s.stem_shares:
@@ -130,10 +128,10 @@ def render_description(brief: MusicBrief) -> str:
         elif s.instrumentation_phrase:
             L.append(f"- instrumentation: {s.instrumentation_phrase}\n")
         if s.accents_ms:
-            L.append(f"- accents: {', '.join(_mmss(a) for a in s.accents_ms[:8])}\n")
+            L.append(f"- accents: {', '.join(mmss(a) for a in s.accents_ms[:8])}\n")
 
     if brief.featured_lyric_moments:
         L.append("\n## Featured lyric moments\n")
         for m in brief.featured_lyric_moments:
-            L.append(f"- **{_mmss(m.start_ms)}** “{m.line}”" + (f" — {m.why}" if m.why else "") + "\n")
+            L.append(f"- **{mmss(m.start_ms)}** “{m.line}”" + (f" — {m.why}" if m.why else "") + "\n")
     return "".join(L)

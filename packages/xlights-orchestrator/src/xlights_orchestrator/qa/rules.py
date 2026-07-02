@@ -37,7 +37,7 @@ _BED_TARGETS = {"SEM_ALL", "SEM_YARD"}                 # exact — NOT SEM_ALL_L
 
 # The community fabric is woven from continuous-motion effects (~58% there vs ~16% ours) —
 # surfaced per energetic section as an ADVISORY so the Judge sees fabric regressions.
-MOTION_EFFECTS = DURATION_CELLABLE | {"Meteors", "Garlands", "Fire", "Galaxy", "Pinwheel"}
+MOTION_EFFECTS = DURATION_CELLABLE | {"Fire", "Galaxy"}   # the rest are already cellable
 MOTION_SHARE_MIN = 0.30
 MOTION_SHARE_INTENSITY = 0.5
 

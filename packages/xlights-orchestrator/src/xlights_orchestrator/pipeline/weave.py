@@ -27,6 +27,7 @@ from .beats import (
     section_is_rhythmic,
     wash_brightness,
 )
+from .meter import DEFAULT_BEATS_PER_BAR as _BEATS_PER_BAR
 from .semantic_groups import ACCENT_GROUPS, BED_PREFERENCE, RHYTHM_GROUPS, RHYTHM_POOL
 
 # Density budget + bed brightness + phrasing dials are show-feel dials (see tuning.py).
@@ -92,7 +93,6 @@ DIRECTION_KNOBS: dict[str, dict[str, tuple[str, str]]] = {
 }
 # effects whose bounce lives INSIDE the effect (no per-bar flipping needed)
 _NATIVE_BOUNCE = {"SingleStrand", "Garlands"}
-_BEATS_PER_BAR = 4
 # a HORIZONTAL/RADIAL sweep on a chase-family effect must travel across the GROUP to be seen —
 # per-model rendering confines it to each prop for half a second (the invisible-sweep failure)
 _SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}

@@ -59,7 +59,7 @@ from .tuning import (
     WASH_MIN_B,
 )
 
-BEATS_PER_BAR = 4                  # derived 4/4 (downbeat = every 4th beat)
+from .meter import DEFAULT_BEATS_PER_BAR as BEATS_PER_BAR  # single fallback-meter constant
 
 
 def wash_brightness(intensity: float) -> float:

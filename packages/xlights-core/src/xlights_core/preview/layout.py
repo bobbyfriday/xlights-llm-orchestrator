@@ -116,7 +116,15 @@ def parse_models(rgbeffects_path: str | Path,
     root = ET.parse(rgbeffects_path).getroot()
     out: list[Model] = []
     total = skipped = 0
-    for m in root.find("models").findall("model"):
+    models_el = root.find("models")
+    if models_el is None:
+        log.warning("layout: no <models> element in %s", rgbeffects_path)
+        return out
+    for m in models_el.findall("model"):
+        # Only the Default preview belongs in the render; models parked in other
+        # layout groups would skew the bounding box/scale.
+        if m.get("LayoutGroup") not in (None, "Default"):  # default preview only
+            continue
         total += 1
         sc = resolve_start_channel(m.attrib.get("StartChannel", "1"), controllers)
         if sc is None:

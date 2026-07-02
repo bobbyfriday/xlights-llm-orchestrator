@@ -249,8 +249,12 @@ class XLightsClient:
         try:
             data = await self._request("getOpenSequence")
             return data if isinstance(data, dict) else {}
-        except XLightsResponseError:
-            return {}
+        except XLightsResponseError as exc:
+            # Only the "no sequence open" reply means an empty result; any other
+            # operational error (busy, transient 503) must surface, not read as "none".
+            if "no sequence" in (exc.message or "").lower():
+                return {}
+            raise
 
     async def export_video_preview(self, filename: str) -> str | None:
         """Export the house-preview video (REQUIRES a media-attached sequence — exporting a

@@ -32,31 +32,45 @@ def load_fseq(path: str | Path) -> tuple[FseqHeader, np.ndarray]:
     channels = struct.unpack_from("<I", raw, 10)[0]
     num_frames = struct.unpack_from("<I", raw, 14)[0]
     step_ms = raw[18]
+    # Byte 20: compression type in the low nibble, high bits of the block count in the
+    # high nibble; byte 21: low bits of the block count.
+    comp_type = raw[20] & 0x0F
+    block_count = ((raw[20] & 0xF0) << 4) | raw[21]
 
-    # Walk the compression-block index: 4-byte first-frame + 4-byte block length.
+    out = np.zeros((num_frames, channels), dtype=np.uint8)
+
+    if comp_type == 0:  # uncompressed: channel data laid out directly at data_offset
+        n = min(num_frames, (len(raw) - data_offset) // channels)
+        arr = np.frombuffer(raw, dtype=np.uint8, count=n * channels, offset=data_offset)
+        out[:n] = arr.reshape(n, channels)
+        return FseqHeader(channels=channels, frames=num_frames, step_ms=step_ms,
+                          data_offset=data_offset), out
+    if comp_type != 1:
+        raise ValueError(f"{path}: unsupported FSEQ compression type {comp_type} (only zstd)")
+
+    # Compression-block index: block_count entries of 4-byte first-frame + 4-byte length.
     blocks = []
-    i = 0
-    while True:
+    for i in range(block_count):
         off = 32 + i * 8
         if off + 8 > data_offset:
             break
         frame_idx = struct.unpack_from("<I", raw, off)[0]
         blen = struct.unpack_from("<I", raw, off + 4)[0]
-        if blen == 0 or frame_idx > num_frames:
-            break
+        if blen == 0:
+            continue  # placeholder/padding entry, occupies no data
         blocks.append((frame_idx, blen))
-        i += 1
 
-    out = np.zeros((num_frames, channels), dtype=np.uint8)
     dctx = zstd.ZstdDecompressor()
     cursor = data_offset
     for frame_idx, blen in blocks:
         block = raw[cursor:cursor + blen]
-        cursor += blen
+        cursor += blen  # data blocks are sequential; advance even if we skip writing
+        if frame_idx >= num_frames:
+            continue
         decompressed = dctx.decompress(block, max_output_size=channels * 200)
-        n = len(decompressed) // channels
-        arr = np.frombuffer(decompressed, dtype=np.uint8).reshape(n, channels)
-        out[frame_idx:frame_idx + n] = arr
+        n = min(len(decompressed) // channels, num_frames - frame_idx)
+        arr = np.frombuffer(decompressed, dtype=np.uint8, count=n * channels)
+        out[frame_idx:frame_idx + n] = arr.reshape(n, channels)
 
     return FseqHeader(channels=channels, frames=num_frames, step_ms=step_ms,
                       data_offset=data_offset), out

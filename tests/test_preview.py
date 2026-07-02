@@ -26,6 +26,8 @@ def _write_fseq(path, channels, frames_data: bytes, n_frames, step_ms=50):
     struct.pack_into("<I", h, 10, channels)
     struct.pack_into("<I", h, 14, n_frames)
     h[18] = step_ms
+    h[20] = 1                                 # compression type: zstd (block-count high bits 0)
+    h[21] = 1                                 # one compression block
     struct.pack_into("<I", h, 32, 0)          # block first-frame
     struct.pack_into("<I", h, 36, len(comp))  # block byte length
     path.write_bytes(bytes(h) + comp)
@@ -39,6 +41,21 @@ def test_fseq_roundtrip(tmp_path):
     header, frames = load_fseq(f)
     assert header.channels == 6 and header.frames == 2 and header.step_ms == 50
     assert frames.shape == (2, 6)
+    assert frames[0, 0] == 10 and frames[1, 1] == 30 and frames[1, 5] == 40
+
+
+def test_fseq_uncompressed(tmp_path):
+    raw = bytes([10, 0, 0, 0, 20, 0,  0, 30, 0, 0, 0, 40])
+    h = bytearray(40)
+    h[0:4] = b"PSEQ"
+    struct.pack_into("<H", h, 4, 40)
+    h[6], h[7] = 0, 2
+    struct.pack_into("<I", h, 10, 6)
+    struct.pack_into("<I", h, 14, 2)
+    h[18] = 50                                # bytes 20-21 stay 0: uncompressed, no blocks
+    f = tmp_path / "u.fseq"
+    f.write_bytes(bytes(h) + raw)
+    _, frames = load_fseq(f)
     assert frames[0, 0] == 10 and frames[1, 1] == 30 and frames[1, 5] == 40
 
 

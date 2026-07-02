@@ -71,7 +71,10 @@ class PreviewRenderer:
         img[:] = _BG
         row = self.frames[fi]
         for k in range(3):
-            img[sy, sx, k] = np.maximum(img[sy, sx, k], row[ch + k])
+            # maximum.at, not fancy-index assignment: several model pixels can land on
+            # the same screen pixel, and an unbuffered scatter would let a dim pixel
+            # written later overwrite a bright one.
+            np.maximum.at(img[:, :, k], (sy, sx), row[ch + k])
         return img
 
     def _fi(self, t_ms: int) -> int:
@@ -107,9 +110,14 @@ class PreviewRenderer:
                    "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
                    "-pix_fmt", "yuv420p", tmp.name]
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            for fi in range(s, e):
-                p.stdin.write(self._frame_img(fi, sx, sy, ch, w_, h_).tobytes())
-            p.stdin.close()
+            try:
+                for fi in range(s, e):
+                    p.stdin.write(self._frame_img(fi, sx, sy, ch, w_, h_).tobytes())
+                p.stdin.close()
+            except (BrokenPipeError, OSError) as exc:  # ffmpeg died mid-stream
+                log.info("ffmpeg pipe failed; skipping clip render: %s", exc)
+                p.wait()
+                return None
             if p.wait() != 0:
                 return None
             return Path(tmp.name).read_bytes()

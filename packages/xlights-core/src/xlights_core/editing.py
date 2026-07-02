@@ -7,10 +7,11 @@ These bridge the low-level :class:`XLightsClient` write methods and the
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from .client import XLightsClient
-from .exceptions import XLightsResponseError, XLightsTargetMissing
+from .exceptions import XLightsError, XLightsResponseError, XLightsTargetMissing
 from .knowledge.colors import palette_from_colors
 from .knowledge.preset_library import PresetLibrary, get_library
 
@@ -19,6 +20,8 @@ from .knowledge.preset_library import PresetLibrary, get_library
 # older versions). Stripped at assembly — they were already non-functional; shipping them only
 # makes the editor log `ApplySetting: Unable to find` on every effect selection.
 DROP_KEYS = {"E_CHECKBOX_Chase_3dFade1"}
+
+log = logging.getLogger(__name__)
 
 
 class PresetPlacementError(Exception):
@@ -165,5 +168,9 @@ async def validate_preset(
         result["accepted"] = True
         return result
     finally:
-        # Discard the scratch (its own changes are disposable).
-        await client.close_sequence(force=True, quiet=True)
+        # Discard the scratch (its own changes are disposable). Best-effort: a failure
+        # closing must not mask the validation result or the body's real exception.
+        try:
+            await client.close_sequence(force=True, quiet=True)
+        except XLightsError as exc:
+            log.warning("could not close scratch sequence: %s", exc)

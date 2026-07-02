@@ -98,7 +98,7 @@ def _normalize(raw: dict, sample_rate: int) -> dict:
         if a.ndim > 1:  # (channels, samples) or (samples, channels) → mono
             ch_axis = 0 if a.shape[0] <= a.shape[-1] else -1
             a = a.mean(axis=ch_axis)
-        a = np.ascontiguousarray(a.reshape(-1).astype(np.float32))
+        a = np.ascontiguousarray(a.reshape(-1))  # already float32 from asarray/mean
         out[name] = a
     return out
 
@@ -108,19 +108,15 @@ def _normalize(raw: dict, sample_rate: int) -> dict:
 def stem_features(stems: dict, sr: int, *, max_points: int = 400) -> list[StemFeatures]:
     """RMS energy arc + onsets per stem."""
     import librosa
-    import numpy as np
+
+    from .librosa_ext import energy_arc
 
     feats: list[StemFeatures] = []
     for name in stems:                           # iterate ACTUAL stems (4-, 6-, any-stem)
         y = stems.get(name)
         if y is None:
             continue
-        rms = librosa.feature.rms(y=y)[0]
-        times = librosa.frames_to_time(np.arange(len(rms)), sr=sr)
-        if len(rms) > max_points:
-            idx = np.linspace(0, len(rms) - 1, max_points).astype(int)
-            rms, times = rms[idx], times[idx]
-        arc = [EnergyPoint(time=float(t), rms=float(r)) for t, r in zip(times, rms)]
+        arc = energy_arc(y, sr, max_points=max_points)
         onsets = [float(t) for t in librosa.onset.onset_detect(y=y, sr=sr, units="time")]
         feats.append(StemFeatures(stem=name, energy_arc=arc, onsets=onsets))
     return feats

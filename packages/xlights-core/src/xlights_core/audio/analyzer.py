@@ -13,7 +13,10 @@ from . import fusion
 from .extractors import vamp_host
 from .schema import ANALYZER_VERSION, SongAnalysis
 
-DEFAULT_CACHE_DIR = Path(os.environ.get("XLO_CACHE_DIR", "data/analyses"))
+def default_cache_dir() -> Path:
+    """Resolve XLO_CACHE_DIR at call time (not import time) so late env changes —
+    e.g. a test monkeypatch after this module is imported — are honored."""
+    return Path(os.environ.get("XLO_CACHE_DIR", "data/analyses"))
 
 
 def _encode_mp3(path: Path, y, sr: int) -> bool:
@@ -51,8 +54,8 @@ def _content_key(path: str) -> str:
 
 
 class AudioAnalyzer:
-    def __init__(self, cache_dir: str | Path = DEFAULT_CACHE_DIR) -> None:
-        self.cache_dir = Path(cache_dir)
+    def __init__(self, cache_dir: str | Path | None = None) -> None:
+        self.cache_dir = Path(cache_dir) if cache_dir is not None else default_cache_dir()
 
     def analyze(self, path: str, *, use_cache: bool = True, stems: bool = False) -> SongAnalysis:
         vamp_host.check_required_plugins()  # fail fast if a required plugin is missing
@@ -98,8 +101,9 @@ class AudioAnalyzer:
         analysis.lyrics = {"title": title, "artist": artist, "text": text,
                            "headers_fetch": True, **aligned}
         from .structure import cap_long_segments, refine_segments_with_lyrics
-        if refine_segments_with_lyrics(analysis):      # lyric markers → the real structure
-            cap_long_segments(analysis)                # then subdivide any long lyric-free span
+        refined = refine_segments_with_lyrics(analysis)  # lyric markers → the real structure
+        capped = cap_long_segments(analysis)             # cap runs regardless (per its docstring):
+        if refined or capped:                            # marker-less lyric songs need it too
             self._refresh_section_instrumentation(analysis, key)
         try:
             (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())

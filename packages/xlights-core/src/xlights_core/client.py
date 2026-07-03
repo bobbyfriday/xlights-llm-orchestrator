@@ -1,7 +1,9 @@
-"""Async, read-only client for the xLights automation REST API.
+"""Async client for the xLights automation REST API — reads plus a serialized write path
+(new/open/save/close sequence, addEffect, render).
 
 Transport (verified against xLights source ``xLightsAutomations.cpp``):
-- Each command is ``GET /<cmd>?param=val`` (or ``POST /<cmd>`` with JSON, unused here).
+- Each command is ``GET /<cmd>?param=val`` (xLights also accepts ``POST /<cmd>`` with
+  JSON, unused here).
 - With ``Accept: application/json`` the body is ``{"<key>": <value>}`` — a quoted string
   for text results (``version``, ``folder``) or raw JSON for structured results
   (``models``, ``model``, ``controllers``).
@@ -34,7 +36,8 @@ DEFAULT_WRITE_TIMEOUT = 300.0
 
 
 class XLightsClient:
-    """Read-only async client. Use as an async context manager or call ``aclose()``."""
+    """Async client (reads + write-locked mutations). Use as an async context manager
+    or call ``aclose()``."""
 
     def __init__(
         self,
@@ -71,23 +74,19 @@ class XLightsClient:
         self,
         cmd: str,
         params: dict[str, Any] | None = None,
-        method: str = "GET",
         timeout: float | None = None,
     ) -> Any:
         kw: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
         try:
-            if method == "GET":
-                # Encode spaces as %20, NOT '+': xLights does not decode '+' as a space, so
-                # form-encoding silently corrupts spaced values ("Per Model Default" arrived as
-                # "Per+Model+Default" → fell back to "Default"; "Rotate 180" stored as "Rotate+180").
-                if params:
-                    qs = urllib.parse.urlencode(
-                        {k: str(v) for k, v in params.items()}, quote_via=urllib.parse.quote)
-                    resp = await self._client.get(f"/{cmd}?{qs}", **kw)
-                else:
-                    resp = await self._client.get(f"/{cmd}", **kw)
+            # Encode spaces as %20, NOT '+': xLights does not decode '+' as a space, so
+            # form-encoding silently corrupts spaced values ("Per Model Default" arrived as
+            # "Per+Model+Default" → fell back to "Default"; "Rotate 180" stored as "Rotate+180").
+            if params:
+                qs = urllib.parse.urlencode(
+                    {k: str(v) for k, v in params.items()}, quote_via=urllib.parse.quote)
+                resp = await self._client.get(f"/{cmd}?{qs}", **kw)
             else:
-                resp = await self._client.post(f"/{cmd}", json=params or {}, **kw)
+                resp = await self._client.get(f"/{cmd}", **kw)
         except httpx.TimeoutException as exc:  # includes connect/read timeouts
             raise XLightsTimeout(f"Request to {cmd!r} timed out") from exc
         except httpx.ConnectError as exc:
@@ -249,8 +248,12 @@ class XLightsClient:
         try:
             data = await self._request("getOpenSequence")
             return data if isinstance(data, dict) else {}
-        except XLightsResponseError:
-            return {}
+        except XLightsResponseError as exc:
+            # Only the "no sequence open" reply means an empty result; any other
+            # operational error (busy, transient 503) must surface, not read as "none".
+            if "no sequence" in (exc.message or "").lower():
+                return {}
+            raise
 
     async def export_video_preview(self, filename: str) -> str | None:
         """Export the house-preview video (REQUIRES a media-attached sequence — exporting a

@@ -105,7 +105,7 @@ def test_write_lock_serializes():
     c = make_client(lambda r: _resp(200, "ok"))
     active = max_active = 0
 
-    async def fake(cmd, params=None, timeout=None, method="GET"):
+    async def fake(cmd, params=None, timeout=None):
         nonlocal active, max_active
         active += 1
         max_active = max(max_active, active)

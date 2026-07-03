@@ -38,9 +38,13 @@ def synthesizer_agent():
 
 def render_input(outputs: dict, sa: SongAnalysis) -> str:
     payload = {k: v.model_dump() for k, v in outputs.items()}
+    # A song is instrumental only when NO lyric evidence exists: neither aligned lyrics
+    # on the analysis nor a lyric analyst in the panel (fetched text can be present even
+    # when alignment failed, and the header must not contradict that analyst's output).
+    instrumental = "lyric" not in outputs and not getattr(sa, "lyrics", None)
     header = {"duration_s": round(sa.duration_s, 1), "tempo_bpm": sa.tempo_overall,
               "key": sa.key_overall, "n_segments": len(sa.segments),
-              "instrumental": getattr(sa, "lyrics", None) is None,   # no lyrics → no fabricated narrative
+              "instrumental": instrumental,   # no lyrics → no fabricated narrative
               "track_id": getattr(sa, "track_id", None),
               "genre": getattr(sa, "genre", None)}
     return ("ANALYSIS HEADER:\n" + json.dumps(header)

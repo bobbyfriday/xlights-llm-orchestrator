@@ -1,11 +1,8 @@
 # uv workspace root (virtual — no root package).
 # Members are the installable packages under packages/.
+# (Each member declares its own [tool.uv.sources] for intra-workspace deps.)
 [tool.uv.workspace]
 members = ["packages/*"]
-
-# Intra-workspace dependency: xlights-mcp depends on xlights-core from the workspace.
-[tool.uv.sources]
-xlights-core = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]

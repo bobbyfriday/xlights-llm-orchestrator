@@ -116,7 +116,7 @@ def refine_segments_with_lyrics(analysis: SongAnalysis) -> bool:
             merged.append([a, b, None])             # placeholder: fold into the NEXT section
         else:
             if merged and merged[-1][2] is None:
-                a, lbl = merged.pop()[0], lbl
+                a = merged.pop()[0]
             merged.append([a, b, lbl])
     if merged and merged[-1][2] is None:            # degenerate: everything was tiny
         merged[-1][2] = filled[0][2]

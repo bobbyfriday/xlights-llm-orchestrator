@@ -59,7 +59,7 @@ _PAGE = r"""<!doctype html>
 </style></head>
 <body>
 <header><h1>Creative Brief</h1><button id="save">Save</button><span id="status"></span>
- <span class="muted" id="path"></span></header>
+ <span class="muted" id="path">__PATH__</span></header>
 <main>
  <div class="card">
   <h2>Show</h2>
@@ -148,10 +148,12 @@ render();
 
 
 def render_page(brief: dict, schema: dict, colors: dict, brief_path: str = "") -> str:
+    import html
     return (_PAGE
             .replace("__BRIEF__", json.dumps(brief))
             .replace("__SCHEMA__", json.dumps(schema))
-            .replace("__COLORS__", json.dumps(colors)))
+            .replace("__COLORS__", json.dumps(colors))
+            .replace("__PATH__", html.escape(brief_path)))
 
 
 def save_brief(brief_path: Path, payload: dict) -> None:

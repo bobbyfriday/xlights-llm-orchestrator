@@ -11,11 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..song_description import _timed_lines
-from .meter import resolve_beats_per_bar
+from .meter import DEFAULT_BEATS_PER_BAR as BEATS_PER_BAR, resolve_beats_per_bar
 
 log = logging.getLogger(__name__)
 
-BEATS_PER_BAR = 4   # default/fallback only; the real meter is resolved per song
 LAST_MARK_MS = 500            # clamp a final tiled mark so it isn't a giant block
 MAX_ONSET_STEMS = 3           # selective: drums + lead/bass, not all six
 _MIN_ENERGY_SHARE = 0.10      # a stem needs ≥10% of the loudest stem's mean energy to get a track

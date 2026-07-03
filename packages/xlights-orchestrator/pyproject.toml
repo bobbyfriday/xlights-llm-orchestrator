@@ -5,12 +5,17 @@ description = "LLM orchestration: turn a SongAnalysis into a placed, rendered xL
 requires-python = ">=3.11"
 dependencies = [
     "xlights-core",
+    "pydantic>=2.7",
     "pydantic-ai>=1.0",
     "python-dotenv>=1.0",
     "pyyaml>=6",
     "lyricsgenius>=3",
     "mutagen>=1.47",
 ]
+
+# The visual-critique/preview path degrades gracefully without these; opt in to enable it.
+[project.optional-dependencies]
+preview = ["xlights-core[preview]"]
 
 [project.scripts]
 xlo = "xlights_orchestrator.cli:main"

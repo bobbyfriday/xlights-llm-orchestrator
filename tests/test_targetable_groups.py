@@ -27,6 +27,9 @@ class _FakeClient:
     async def get_group_names(self):
         return list(self._names)
 
+    async def get_model_names(self):
+        return ["M1", "M2"]
+
     async def close_sequence(self, *, force=False, quiet=False):
         self.closes += 1
 

@@ -39,7 +39,8 @@ closing them out (live-verify + archive) is cheap hygiene.
 
 ## Part 1 — Functionality improvements
 
-Ordered by leverage. I1–I3 unblock roadmap features; I4–I7 harden what exists.
+Ordered by leverage. I1–I3 and I8 unblock roadmap features (and cut run cost); I4–I7 harden what
+exists.
 
 ### I1. Token & cost telemetry ⭐ (unblocks F6 and F7)
 
@@ -132,6 +133,40 @@ partially closed this. Re-run the corpus comparison on a current generated show 
 remaining gap, then tune cell density / motion-vs-punctuation ratios in `weave.py` against it.
 Pairs naturally with improve-musicality Phase 2 (treatments change what "dense" should mean per
 section). **Complexity: M, analysis-first.**
+
+### I8. Cheaper visual analysis: fseq metrics + a tiered critique ⭐
+
+Today each refine iteration sends up to 6 sections × (still + 10s MP4 clip) to the **planner-tier**
+visual critic with two full guides in its prompt (`pipeline/visual.py`, `agents/visual_critic.py`)
+— roughly 30–40k multimodal tokens per iteration on the most expensive model, for findings that
+are **advisory only**. But the critic's four aspects (`coverage`, `color`, `motion`, `energy`) are
+largely computable from data we already have: the `.fseq` is the exact per-node RGB of every frame,
+and the layout gives node→group mapping (`make_lit_sampler` already samples it pointwise).
+
+**Tier 0 — deterministic fseq metrics (every iteration, ~free, no LLM).** Per-section, per-group
+time series from the channel data: brightness/lit-fraction (coverage; "dark during the peak"),
+frame-to-frame delta (motion; "static during a high-energy moment", with exact group attribution),
+brightness-derivative × beat-grid cross-correlation (music-sync as a score), dominant hues vs the
+planned palette with hue-distance checks (catches the "gold + amber + warm white reads as one
+color" failure), and section-signature similarity — which is the pixel-level version of the
+`repetition-rhyme` / `dynamic-range` metrics the improve-musicality proposal defines on
+instructions. Unlike the LLM critique, these can enter the **objective** gate.
+
+**Tier 1 — contact sheets on a cheap model (flagged/changed sections only).** Tile 6–9
+beat-aligned frames per section into one montage (~1–2k tokens vs ~2.5k+ per clip), downscaled to
+~512px, plus an optional per-pixel-std motion heatmap; drop the guides from the critic prompt;
+route to the worker/cheap tier. Critique only sections whose instructions changed since the last
+iteration (hash them like the stage caches) — `regen` is section-scoped but the critique currently
+re-judges all sections every iteration.
+
+**Tier 2 — today's still+clip on the pro model, rarely.** Only when Tiers 0–1 disagree or a
+section keeps churning; the gestalt "random vs intentional" judgment is the one thing that needs a
+strong multimodal model, and it doesn't need asking six times per iteration.
+
+Caveat: fseq metrics inherit offline-render fidelity (the reason `RealRender` exists) — fine for
+coverage/motion/energy, but keep one real-render check near the end of a run as the ground-truth
+gate. Net effect: >10× cheaper visual analysis while *adding* objective metrics that don't exist
+today. **Complexity: M (Tier 0+1); Tier 2 is the current code, demoted.**
 
 ---
 
@@ -252,13 +287,14 @@ the live app (render fidelity is the open question).
 | Order | Item | Why |
 | --- | --- | --- |
 | 1 | I1 (token/cost telemetry) + I4 (mypy gate) | Small, mechanical; every later run becomes eval data |
-| 2 | F-A Phase 1 (repetition identity) + I5 (degradation logging) | Biggest show-quality lever; logging pays off during its live-verify |
-| 3 | I3 (refine-loop decomposition + constants) | Required ground for F-A Phase 2 |
-| 4 | F-A Phases 2–3 | Treatments, transitions, color script |
-| 5 | F-B + F-C (asset path, matrix Text) | Highest-payoff contained feature; closes the craft roadmap's biggest gap |
-| 6 | F-E (`xlo init-layout`) | The product unlock — do it once the show quality is worth sharing |
-| 7 | F-G/F-H (dashboard, A/B) | Harvest the telemetry from step 1 |
-| 8 | I2, I6, I7 | Continuous hardening, slotted between features |
+| 2 | I8 Tiers 0–1 (fseq metrics, contact-sheet critique) | Slashes the cost of every refine iteration before the refine-heavy work below; its metrics feed F-A's QA |
+| 3 | F-A Phase 1 (repetition identity) + I5 (degradation logging) | Biggest show-quality lever; logging pays off during its live-verify |
+| 4 | I3 (refine-loop decomposition + constants) | Required ground for F-A Phase 2 |
+| 5 | F-A Phases 2–3 | Treatments, transitions, color script |
+| 6 | F-B + F-C (asset path, matrix Text) | Highest-payoff contained feature; closes the craft roadmap's biggest gap |
+| 7 | F-E (`xlo init-layout`) | The product unlock — do it once the show quality is worth sharing |
+| 8 | F-G/F-H (dashboard, A/B) | Harvest the telemetry from step 1 |
+| 9 | I2, I6, I7 | Continuous hardening, slotted between features |
 
 The honest one-liner this month: the codebase is healthy and the June infrastructure debt is mostly
 paid — the leverage now is **musicality** (the improve-musicality proposal), **observability**

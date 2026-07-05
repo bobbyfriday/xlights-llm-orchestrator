@@ -57,11 +57,13 @@ The orchestrator targets **semantic groups** (`SEM_FOCAL`, `SEM_ARCHES`, `SEM_SI
 position. These are written into your `xlights_rgbeffects.xml` once, and xLights loads them on the
 next restart.
 
-`xlights_core.knowledge.layout_semantics` builds and patches them (`build_sem_groups`,
-`patch_rgbeffects`, `patch_sem_gridsize`, `patch_view`). Run it against your layout once (with
-xLights **closed** so it doesn't overwrite the file on exit), then restart xLights. Re-run it after
-adding props. (A dedicated `xlo layout` command is a planned convenience; today it's invoked
-through that module.)
+`xlights_core.knowledge.layout_semantics` plans the groups and patches their settings
+(`build_sem_groups`, `patch_sem_gridsize`, `patch_view`) — but classifying props into roles and
+writing the SEM_ modelGroups into `rgbeffects.xml` is a manual/agent step today, following
+[`xlights-layout-semantics-spec.md`](../xlights-layout-semantics-spec.md). Do it once with xLights
+**closed** (so it doesn't overwrite the file on exit), then restart xLights. Re-do it after adding
+props. (A guided `xlo init-layout` command that automates classification, group creation, and
+validation is planned — see [`roadmap-2026-07.md`](roadmap-2026-07.md).)
 
 Without SEM_ groups the run still works but targets whatever groups exist; the curated layers
 (rhythm pool, accents, peak fill) assume the SEM_ set.

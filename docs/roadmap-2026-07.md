@@ -162,11 +162,65 @@ Stock effect, no assets, lyric timing track already exists. Highest visible payo
 
 ### Horizon 3 — Generalize beyond one layout (the product unlock)
 
-**F-E. `xlo init-layout` onboarding** (L) — the system is coupled to one `rgbeffects.xml` and
-hand-built SEM_ groups; `docs/usage.md` still documents SEM setup as a manual module invocation.
-`layout_semantics.py` already classifies props and builds the groups — wrap it in a guided CLI
-command with a review step for low-confidence classifications. This is what turns a personal tool
-into a shareable one, and every craft feature multiplies in value across layouts it can run on.
+#### Prop-grouping assessment (2026-07)
+
+The SEM_ grouping **architecture is the right contract** — choreographing against roles and
+ensembles instead of raw models matches community sequencing practice and the hard xLights
+constraint that groups load only at startup (so a static, pre-built vocabulary is the only
+practical design; dynamic per-section groups are impossible, and targeting individual models would
+lose group-canvas spatial rendering and explode effect counts). Several specifics beat the obvious
+alternatives:
+
+- **Subtractive ensembles** (`SEM_ALL_LESS_FOCAL*`, `layout_semantics.py`) — the bed goes on
+  "everything except the feature," killing bed-ghosting with zero blending arithmetic.
+- **Empirical targetability probing** (`pipeline/groups.py`) — a throwaway effect per group on a
+  disposable sequence, cached per layout fingerprint; targetability genuinely isn't derivable from
+  the XML, so probing beats parsing.
+- **One source of truth for names** (`pipeline/semantic_groups.py`) — a typo is an import error,
+  not a silently dark prop — and name-derived canonical render order (`canonical_order`).
+- Flat groups, no nesting — sidesteps xLights' unpredictable group-of-group rendering.
+
+But the implementation covers only **half of `xlights-layout-semantics-spec.md`**:
+
+1. **The classifier is prose, not code.** Spec §3 (DisplayAs mapping → pixel-count disambiguation →
+   name heuristics → group hints → LLM fallback) has no implementation; `layout_semantics.py`
+   starts from already-classified `Prop` objects. This layout was classified once, by hand — the
+   root of the single-layout coupling. (No code writes the SEM_ modelGroups either; group creation
+   is agent/manual today.)
+2. **The manifest is designed but never emitted or consumed — the biggest miss.** Spec §6's
+   `layout_semantics.json` (node counts, normalized positions, capability classes, sweep order,
+   mirror pairs, focal flags) exists nowhere. The Director receives a flat list of group names
+   (`agents/director.py::render_input`), so the LLM plans knowing nothing of scale, geometry, or
+   symmetry; QA fakes capability gating with name prefixes (`qa/rules.py::_LINEAR_PREFIXES`).
+3. **Group render modes aren't code-managed.** Spec §5.7 requires "Per Preview" on ensembles and
+   "Horizontal Per Model" on `_LTR` groups (or chases don't traverse in order), but only `GridSize`
+   is patched (`patch_sem_gridsize`) — a wrong mode silently breaks every sweep on that group.
+4. **The choreography vocabulary is hardcoded to this layout's prop mix.** `METRIC_RING`, backbeat
+   and bed preferences are constants; they degrade gracefully via `if g in avail` filters, but a
+   layout with a different prop mix gets a weaker beat anchor by accident, not by decision.
+5. **Validation is manual.** The spec's role-color test and sweep test (§7) are described but not
+   implemented, even though the offline preview renderer and visual critic could run them —
+   misclassification poisons every downstream decision.
+
+A minor accepted tension: membership overlap (a prop sits in ALL + band + side + role + focal
+simultaneously) is resolved implicitly by render order and the occlusion guards rather than by
+explicit partitions. It works; it's just render-order-load-bearing.
+
+**F-E. `xlo init-layout` onboarding** (L) — the fix for all of the above is finishing the spec as
+one guided CLI command, which is what turns a personal tool into a shareable one:
+
+- Implement the §3 classifier + §4 spatial derivation as real code (LLM fallback only for the
+  unresolved tail), with a review step for low-confidence classifications.
+- Write the SEM_ groups, per-group **layout modes**, and grid size into `rgbeffects.xml`
+  idempotently (extend the existing `patch_sem_gridsize`/`patch_view` pattern).
+- **Emit the §6 manifest**, and consume it: a compact traits/props block in the Director's input
+  ("SEM_ARCHES: 6 arches, ~50 nodes each, ground band, mirror-symmetric" — ~1 KB of prompt for
+  much better-grounded designs), capability-class gating in QA instead of name prefixes, and
+  mirror-pair/sweep-order data for true call-and-response and center-out waves.
+- Derive the choreography orderings (metric ring, backbeat/bed preferences) from the manifest —
+  rank rhythm families by count, spread, and node budget — keeping today's constants as fallback.
+- Auto-run the §7 role-color and sweep validation via the offline preview renderer + visual
+  critic after any layout (re)setup.
 
 **F-F. Submodel targeting** (L, conditional) — unblocks with F-E once layouts that *have*
 submodels arrive (tree zones/rings, drum-kit mapping, vertical runs). Deferred, not dead.

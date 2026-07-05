@@ -7,6 +7,11 @@ A fresh assessment of the orchestrator after ~63 OpenSpec changes. Successor to
 does two things: catalogs the concrete **functionality improvements** still worth making, and lays
 out a **feature roadmap** in dependency-ordered horizons.
 
+> **Per-item design docs:** every item below (I1–I8, F-A–F-J) has a thorough standalone design
+> document under [`docs/roadmap-2026-07/`](roadmap-2026-07/index.html) — problem, current-state
+> code walkthrough, proposed design, implementation plan, testing strategy, risks, and acceptance
+> criteria — written before the execution phase.
+
 ## Where the project stands
 
 ~9,400 lines of source across the 3 workspace packages (`xlights-core` ~3,270, `xlights-orchestrator`

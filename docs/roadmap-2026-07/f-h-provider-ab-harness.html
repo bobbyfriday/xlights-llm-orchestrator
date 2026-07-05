@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-H — Provider A/B eval harness · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-H — Provider A/B eval harness</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-H in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>M (needs I1)</dd>
+<dt>Depends on</dt><dd>I1 (token &amp; cost telemetry); F-G (report surface, soft)</dd>
+<dt>Unblocks</dt><dd>Informed model-tier routing decisions in <code>models/config.yaml</code></dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/models/config.yaml</code>, <code>models/registry.py</code>, <code>pipeline/run.py</code>, <code>pipeline/cache.py</code>, <code>pipeline/regen.py</code>, <code>qa/__init__.py</code>, <code>revision_log.py</code>, <code>cli.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>Every model-routing decision in <code>models/config.yaml</code> today is justified by an informal,
+undocumented experiment. The evidence is literally a YAML comment. From
+<code>packages/xlights-orchestrator/src/xlights_orchestrator/models/config.yaml</code> (lines 11 and 20),
+verbatim:</p>
+<pre><code>  generator:                                  # per-section effects (worker tier)
+    anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
+    gemini:    {model: gemini-3.1-flash-lite}   # live A/B'd: valid structured output, rules 92</code></pre>
+<pre><code>  judge:                                      # scores the draft + scoped revisions (planner)
+    anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
+    gemini:    {model: gemini-3.5-flash}      # scoring a structured QA report ≠ pro-tier work</code></pre>
+<p>"live A/B'd: valid structured output, rules 92" is one hand-run comparison, on one song, at one
+point in time, recorded as a comment. There is no way to re-run it, no record of what was held
+constant, and no cost dimension at all (the June roadmap's F7 was explicitly "blocked on missing
+token telemetry"). Meanwhile the config header advertises exactly the switch an A/B harness needs
+(<code>config.yaml</code> lines 1–3, verbatim):</p>
+<pre><code># Per-role model routing. Pick the provider with `default_provider` or the XLO_PROVIDER
+# env var (no code change). Each role lists a model per provider. IDs are bare.
+default_provider: anthropic   # override at runtime with XLO_PROVIDER=gemini</code></pre>
+<p>F-H formalizes that manual practice: run a fixture song through two (or more) provider routings
+under controlled conditions, and report per-role and overall differences in QA scores, refine
+convergence, wall time, and — once I1 lands — token cost. The output is decision support for
+<code>config.yaml</code>: "route the judge to <code>gemini-3.5-flash</code>" becomes a claim backed by
+runs you can point at and repeat.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 Provider routing is global, env-switched, consulted at agent-construction time</h3>
+<p><code>models/registry.py</code> (72 lines) is the whole routing layer. The provider in effect is a
+single global (lines 26–28):</p>
+<pre><code>def active_provider() -&gt; str:
+    """Provider in effect: XLO_PROVIDER env override, else config default."""
+    return os.environ.get("XLO_PROVIDER") or _cfg().get("default_provider", "anthropic")</code></pre>
+<p><code>model_string(role, *, provider=None)</code> (line 31) and <code>_settings(role, *, provider=None)</code>
+(line 48) both already accept an explicit per-call <code>provider</code> — but nothing passes it:
+<code>build_agent</code> (lines 64–71) calls both with defaults, so <code>XLO_PROVIDER</code> is the
+only runtime switch and it flips <em>all six roles at once</em> (director, generator, analyst,
+synthesizer, judge, visual_critic). There is <strong>no per-role override today</strong>. The env var is
+read at each call, not cached (<code>_cfg()</code> caches the YAML via <code>functools.lru_cache</code>,
+line 21, but <code>active_provider()</code> re-reads <code>os.environ</code> every time), and agents are
+built lazily inside the pipeline (e.g. <code>director_mod.director_agent()</code> at
+<code>pipeline/run.py:413</code>, <code>judge_mod.judge_agent()</code> at <code>run.py:142</code>, the panel
+inside <code>_default_interpret</code> at <code>run.py:77</code>) — so changing the env between
+in-process pipeline runs genuinely re-routes them. <code>model_snapshot()</code> (registry lines 38–45)
+records role → <code>provider:model</code> into every revision-log record via <code>run.py:466</code>.</p>
+<p>Sampling control: there is none, deliberately. Registry docstring (lines 4–5): "sampling params
+(temperature/top_p/top_k) are never set (removed on Opus 4.8 → 400)", enforced at line 60
+("Deliberately never set temperature/top_p/top_k") and asserted by
+<code>tests/test_orchestrator.py::test_registry_claude_settings_thinking_no_sampling</code> (line 56).
+Gemini gets provider defaults (<code>_settings</code> returns <code>None</code> for non-anthropic, line 51).
+No seed, no temperature — <strong>runs are not reproducible</strong>; section 3.5 takes this seriously.</p>
+
+<h3>2.2 Stage caching is keyed by song content only — provider is NOT in any cache key</h3>
+<p><code>pipeline/cache.py</code> is 23 lines; the entire key scheme (lines 10–23, verbatim):</p>
+<pre><code>def cache_root() -&gt; Path:
+    return Path(os.environ.get("XLO_CACHE_DIR", "data")) / "orchestrator"
+
+def song_key(path: str) -&gt; str:
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 &lt;&lt; 20), b""):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+
+def cache_path(key: str, stage: str) -&gt; Path:
+    return cache_root() / key / f"{stage}.json"</code></pre>
+<p>Call sites (all of them, from grep): <code>run.py:380</code> (<code>song_analysis</code>, written for
+<code>xlo regen</code> rehydration), <code>run.py:391</code> (<code>song_description</code> — the LLM panel
+output), <code>run.py:409</code> (<code>creative_brief</code> — the Director's LLM output),
+<code>run.py:426</code> (<code>instructions</code> — the generator's LLM output), <code>run.py:474</code>
+(post-refine instructions rewrite), plus <code>regen.py:46,61–62,69,71,122</code> which rehydrate the
+same four stages, and <code>cli.py:59</code> (<code>edit-brief</code> locates the cached brief). The read
+path for the LLM stages, e.g. <code>run.py:391–394</code>:</p>
+<pre><code>    mb_cache = _cache_path(key, "song_description")
+    if use_cache and mb_cache.exists():
+        try:
+            st.music_brief = MusicBrief.model_validate_json(mb_cache.read_text())</code></pre>
+<p><strong>This is the design issue at the heart of F-H.</strong> The cache key is
+<code>sha1(audio bytes)[:16]</code> + stage name — nothing else. Provider and model appear nowhere.
+Concretely, today:</p>
+<pre><code>xlo run --song x.mp3 --auto                     # anthropic (default) — populates the cache
+XLO_PROVIDER=gemini xlo run --song x.mp3 --auto # "gemini run" — silently REUSES anthropic's
+                                                # song_description, creative_brief, instructions</code></pre>
+<p>The second run's revision log would even record <code>models: {director: google:gemini-3.1-pro-preview, ...}</code>
+(from <code>model_snapshot()</code>) against outputs that Claude produced. Any naive A/B built on top of
+<code>xlo run</code> is invalid unless it passes <code>--no-cache</code> — and <code>--no-cache</code> throws
+away the one thing the arms <em>should</em> share (see below). Note the two caches that are provider-independent
+and correctly shared today: <code>song_analysis</code> (deterministic audio feature extraction — in fact
+<code>run_pipeline</code> re-analyzes every run regardless of <code>use_cache</code>; the JSON at
+<code>run.py:380</code> exists only for <code>regen.py:71</code> rehydration) and the targetable-groups probe
+cache, keyed by a <em>layout</em> fingerprint, not the song (<code>pipeline/groups.py:53</code>:
+<code>targetable_groups_{_fingerprint(names, model_names)}.json</code>).</p>
+
+<h3>2.3 The comparison metrics already exist (except cost)</h3>
+<p><code>qa/__init__.py::evaluate</code> (lines 16–35) produces the deterministic
+<code>QAReport</code>: <code>objective_score</code> (mean of sync/placement/rules, plus coverage when a
+frame sampler exists), <code>advisory_score</code> (variety), per-metric <code>subscores</code>, and
+findings. Only the objective drives the refine loop's revert/stall gate; both are logged.
+<code>revision_log.py::RevisionLogRecord</code> (lines 33–52) captures per-iteration
+<code>objective_score</code>, <code>advisory_score</code>, <code>obj_before/obj_after/obj_delta</code>,
+<code>reverted</code>, <code>regenerated_sections</code>, judge score/verdict, a <code>ts</code> timestamp,
+and — crucially for A/B — <code>models: dict[str, str]</code>, the per-role routing snapshot. The JSONL
+at <code>cache_root()/&lt;song_key&gt;/revision_log.jsonl</code> is append-only across runs
+(<code>run.py:457–459</code>), with <code>run_id</code> a UTC timestamp. So per-arm score trajectories,
+iteration counts, and convergence behavior are <em>already recorded and already attributable to a
+routing</em> — what is missing is (a) a safe way to produce the two arms, and (b) an analyzer. Token
+cost is entirely absent (I1; no <code>result.usage()</code> capture exists anywhere — grep confirms no
+<code>RunUsage</code> references in <code>packages/</code>).</p>
+
+<h3>2.4 CLI and test conventions the harness must fit</h3>
+<p><code>cli.py</code> uses one <code>argparse</code> parser with subcommands <code>run</code>,
+<code>regen</code>, <code>edit-brief</code> (lines 67–116), each a small <code>async _cmd(args)</code>
+driven by <code>asyncio.run</code> inside an <code>async with XLightsClient()</code>. Unattended mode is
+already a first-class path: <code>--auto</code> wires <code>checkpoint=_auto_checkpoint</code> and passes
+<code>None</code> for the interpret/design gates (<code>cli.py:27–29</code>), so no <code>input()</code>
+blocks. Tests: the repo is hermetic-first — <code>test_golden_pipeline.py</code> drives
+<code>run_pipeline</code> end-to-end with <code>TestModel</code> agents, a <code>_FakeClient</code>, an
+injected <code>analyze</code> and <code>emitter</code>, and <code>XLO_CACHE_DIR</code> pointed at
+<code>tmp_path</code>; the single opt-in marker is <code>live</code>
+(<code>pyproject.toml</code>: <code>addopts = "-m 'not live'"</code>,
+<code>markers = ["live: requires a running xLights instance (opt in with -m live)"]</code>).</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 Harness shape: CLI command vs pytest suite</h3>
+<table>
+<tr><th></th><th>Option A — <code>xlo ab</code> CLI command</th><th>Option B — pytest-marked eval suite (e.g. <code>-m ab</code>)</th></tr>
+<tr><td>Fit with repo</td><td>Exactly the <code>cli.py</code> subcommand pattern (<code>run</code>/<code>regen</code>/<code>edit-brief</code>); reuses <code>run_pipeline</code> with the <code>--auto</code> wiring that already exists</td><td>Fits the existing <code>live</code>-marker precedent, but stretches it: a marker gates a <em>test</em>, and an A/B run is not a test</td></tr>
+<tr><td>Semantics</td><td>Produces <em>data</em> (score/cost distributions) — the honest output of a stochastic comparison</td><td>pytest wants pass/fail; any threshold assertion on stochastic LLM output is a flaky test by construction</td></tr>
+<tr><td>Runtime reality</td><td>Each arm is a full refine run against live xLights: tens of minutes, real API spend, sequential (one xLights instance, write-locked). A long-running CLI with progress output is the right UX</td><td>Same runtime buried inside a test runner; no incremental output; a Ctrl-C loses everything; CI cannot run it anyway until F-J (headless mode) exists</td></tr>
+<tr><td>Repeats/arms</td><td>Natural flags (<code>--repeat</code>, repeated <code>--arm</code>)</td><td>Parametrize-able but awkward to vary from the command line</td></tr>
+</table>
+<p><strong>Recommendation: Option A, the CLI command, with a thin hermetic pytest layer under the
+normal (non-marked) suite.</strong> The pytest layer does not run providers at all — it tests the
+harness itself with the same fakes the golden test uses: arm-spec parsing, per-arm env isolation and
+restoration, cache namespacing (section 3.4), and summary computation over synthetic
+<code>revision_log.jsonl</code> lines. A pytest-based <em>live</em> eval suite is the wrong tool until
+F-J makes a CI-runnable pipeline possible; if that lands, the same <code>run_ab()</code> entry point
+can be invoked from an <code>ab</code>-marked test without redesign.</p>
+
+<h3>3.2 <code>xlo ab</code> — command surface (Proposed)</h3>
+<pre><code>xlo ab --song fixtures/song.mp3 \
+       --arm anthropic \
+       --arm gemini \
+       --arm "gemini+judge=anthropic,visual_critic=anthropic" \
+       --repeat 3 --max-iterations 3 [--name-prefix ab] [--keep-sequences]</code></pre>
+<ul>
+<li><code>--arm SPEC</code> (repeatable, ≥2): <code>SPEC = base_provider *("+" role "=" provider)</code>.
+<code>anthropic</code> flips everything; <code>gemini+judge=anthropic</code> is the per-role mixing
+experiment (Gemini generator/director, Claude judge). Roles and providers validate against
+<code>_cfg()["roles"]</code> / <code>_cfg()["providers"]</code> so a typo dies at parse time, before any
+spend.</li>
+<li><code>--repeat N</code> (default 1): N pipeline runs per arm, interleaved A,B,A,B,… (not A,A,B,B)
+so slow drift in the environment (xLights session state, network) spreads across arms.</li>
+<li>Always unattended: the harness hard-wires <code>refine=True</code>,
+<code>checkpoint=_auto_checkpoint</code>, <code>interpret_checkpoint=None</code>,
+<code>design_checkpoint=None</code>, <code>log_revisions=True</code> — an A/B with a human in the loop
+is measuring the human.</li>
+<li>Key preflight: unlike <code>xlo run</code>'s <code>has_llm_key()</code> (either key suffices,
+<code>config.py:25–26</code>), <code>ab</code> checks that <em>every provider named by any arm</em> has
+its key (<code>ANTHROPIC_API_KEY</code> / <code>GEMINI_API_KEY</code>) and refuses to start otherwise —
+failing arm B after arm A spent money is the worst outcome.</li>
+</ul>
+<p>New module <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/ab.py</code> (Proposed):</p>
+<pre><code># Proposed — pipeline/ab.py
+@dataclass(frozen=True)
+class ArmSpec:
+    label: str                      # the literal --arm string
+    provider: str                   # base provider
+    role_overrides: dict[str, str]  # role -&gt; provider
+
+def parse_arm(spec: str) -&gt; ArmSpec: ...
+
+@contextmanager
+def arm_env(arm: ArmSpec):
+    """Set XLO_PROVIDER (+ XLO_PROVIDER_&lt;ROLE&gt; per override) for the duration of one
+    pipeline run; restore prior values on exit, even on failure."""
+
+async def run_arm(arm: ArmSpec, song: str, *, client, analysis: SongAnalysis,
+                  max_iterations: int, save_as: str | None) -&gt; ArmRunResult: ...
+
+async def run_ab(song: str, arms: list[ArmSpec], *, repeat: int, ...) -&gt; ABResult: ...</code></pre>
+<p><code>run_arm</code> calls <code>run_pipeline</code> in-process under <code>arm_env</code>. This works
+because of the facts established in §2.1: agents are constructed lazily inside the run, and the
+registry consults <code>os.environ</code> at construction time. Arms run sequentially — the
+<code>XLightsClient</code> mutation lock and single live app make parallel arms impossible, and the
+process-global env swap requires it anyway (enforce with a comment and the context manager; do not
+attempt concurrency here).</p>
+
+<h3>3.3 Per-role provider overrides in the registry (Proposed)</h3>
+<p>The mixing experiment needs role-level routing at runtime. The registry already has the
+per-role <code>provider=</code> parameter on <code>model_string</code>/<code>_settings</code>; what is
+missing is a resolution rule and its plumbing. Extend <code>models/registry.py</code>:</p>
+<pre><code># Proposed — models/registry.py
+def provider_for(role: str) -&gt; str:
+    """Provider for a role: XLO_PROVIDER_&lt;ROLE&gt; &gt; XLO_PROVIDER &gt; config default."""
+    return (os.environ.get(f"XLO_PROVIDER_{role.upper()}")
+            or os.environ.get("XLO_PROVIDER")
+            or _cfg().get("default_provider", "anthropic"))</code></pre>
+<ul>
+<li><code>model_string</code> line 33 and <code>_settings</code> line 49 change
+<code>provider or active_provider()</code> → <code>provider or provider_for(role)</code>.</li>
+<li><code>model_snapshot()</code> (lines 38–45) switches from one global
+<code>prov = active_provider()</code> to <code>provider_for(role)</code> per role — this is what makes a
+mixed arm's revision-log <code>models</code> field truthful (e.g.
+<code>{"generator": "google:gemini-3.1-flash-lite", "judge": "anthropic:claude-opus-4-8", ...}</code>).</li>
+<li><code>build_agent</code> needs no signature change — it routes through <code>model_string(role)</code>
+which now resolves per-role.</li>
+<li><code>active_provider()</code> stays (used as the fallback and by any external callers) but becomes
+the base of <code>provider_for</code>.</li>
+</ul>
+<p>Env vars (rather than a new function parameter threaded through six agent factories) match the
+config header's stated philosophy — "no code change" runtime re-pointing — and mean the mechanism
+also works for plain manual runs: <code>XLO_PROVIDER_JUDGE=gemini xlo run …</code> is useful on its own,
+independent of the harness. Role names in the env var are the literal <code>config.yaml</code> role keys,
+uppercased; <code>provider_for</code> validation errors (unknown provider for a role) surface as the same
+<code>KeyError</code> path <code>model_string</code> raises today.</p>
+
+<h3>3.4 Cache isolation: model fingerprint in the LLM-stage cache key (the fix)</h3>
+<p>Requirements derived from §2.2: (a) two arms must <strong>never</strong> read each other's LLM-stage
+artifacts; (b) both arms <strong>should</strong> share the audio analysis and the targetable-groups probe
+(provider-independent, expensive — stems separation and live probing respectively); (c)
+<code>xlo regen</code> and <code>xlo edit-brief</code>, which rehydrate the same caches
+(<code>regen.py:46,61–71</code>, <code>cli.py:59</code>), must keep working and must pick up the artifacts
+of the <em>current</em> routing.</p>
+<p>Proposed change to <code>pipeline/cache.py</code> — add a models-fingerprint namespace, opt-in per stage:</p>
+<pre><code># Proposed — pipeline/cache.py
+def models_fingerprint() -&gt; str:
+    """Stable 8-hex digest of the ACTIVE role-&gt;provider:model routing."""
+    from ..models.registry import model_snapshot
+    snap = model_snapshot()                      # per-role after 3.3
+    blob = ",".join(f"{k}={v}" for k, v in sorted(snap.items()))
+    return hashlib.sha1(blob.encode()).hexdigest()[:8]
+
+def cache_path(key: str, stage: str, *, models: bool = False) -&gt; Path:
+    base = cache_root() / key
+    if models:                                   # LLM-stage artifacts: provider/model-scoped
+        base = base / f"m-{models_fingerprint()}"
+    return base / f"{stage}.json"</code></pre>
+<p>Call-site policy (every <code>cache_path</code> call site enumerated in §2.2 gets an explicit
+decision):</p>
+<table>
+<tr><th>Stage / artifact</th><th>Call sites</th><th>Namespaced?</th><th>Why</th></tr>
+<tr><td><code>song_analysis</code></td><td><code>run.py:380</code>, <code>regen.py:71</code></td><td>No — shared</td><td>Deterministic audio feature extraction; no LLM involved</td></tr>
+<tr><td><code>song_description</code></td><td><code>run.py:391</code>, <code>regen.py:69</code></td><td><strong>Yes</strong></td><td>Panel analysts + synthesizer output</td></tr>
+<tr><td><code>creative_brief</code></td><td><code>run.py:409</code>, <code>regen.py:46,62</code>, <code>cli.py:59</code></td><td><strong>Yes</strong></td><td>Director output</td></tr>
+<tr><td><code>instructions</code></td><td><code>run.py:426,474</code>, <code>regen.py:61,122</code></td><td><strong>Yes</strong></td><td>Generator output (+ refined splices)</td></tr>
+<tr><td><code>targetable_groups_*</code></td><td><code>groups.py:53</code></td><td>No — shared</td><td>Layout-fingerprinted, provider-independent probe</td></tr>
+<tr><td><code>revision_log.jsonl/.md</code></td><td><code>run.py:458–459</code></td><td>No — shared</td><td>Deliberate: one per-song log containing <em>all</em> arms, distinguished by <code>run_id</code> + <code>models</code>; this is what the F-G analyzer groups by</td></tr>
+<tr><td><code>visual_review/iter*</code></td><td><code>visual.py:96</code>, <code>run.py:468</code></td><td><strong>Yes</strong> (same <code>m-*</code> dir)</td><td>Frames belong to one arm's render; a shared dir would let arms overwrite each other's <code>review_bundle</code> pointers mid-A/B</td></tr>
+</table>
+<p>One whole-snapshot fingerprint (rather than per-stage "only the roles that feed this stage") is
+deliberate: it over-invalidates slightly (changing only the judge model re-namespaces the
+generation caches) but it is impossible to get wrong, and stage inputs are transitively coupled
+anyway (instructions realize the brief, which renders the description). Human-facing companions
+(<code>description.md</code>, <code>creative_brief.md</code>, <code>creative_brief.json</code>) follow their
+stage: they are written next to the cache file (<code>run.py:402,416–418</code>), so they land in the
+namespace directory automatically. No legacy-path read fallback: falling back to the un-namespaced
+path re-opens the exact cross-provider reuse bug this fixes. Existing caches are simply cold after
+the change — acceptable, they regenerate on the next run (and <code>regen.py</code>'s
+<code>FileNotFoundError</code> message already says "run <code>xlo run</code> first").</p>
+<p>This fix is valuable <em>independent of the harness</em>: it turns
+<code>XLO_PROVIDER=gemini xlo run</code> from silently-wrong (§2.2) into correct, and it should land
+first (see §4).</p>
+
+<h3>3.5 What is held constant, and the honest nondeterminism inventory</h3>
+<p>Held constant across arms, by construction:</p>
+<ul>
+<li><strong>Audio analysis</strong> — the harness analyzes once and injects the same
+<code>SongAnalysis</code> object into every arm via <code>run_pipeline</code>'s existing
+<code>analyze</code> parameter (<code>run.py:326,350–351</code>). This is stronger than "shared cache":
+identical by identity, and it skips the expensive stems separation on every repeat.</li>
+<li><strong>Layout and group vocabulary</strong> — same live xLights instance, and the harness warms the
+targetable-groups probe cache once before arm 1 so no arm pays (or races) the probe
+(<code>groups.py:25</code>: <code>_SETTLE_SECS = 0.8</code>, commented "racy — mirrors the emitter").</li>
+<li><strong>Refine parameters</strong> — same <code>--max-iterations</code> (default 3,
+<code>cli.py:81</code>); the skip gate <code>XLO_REFINE_SKIP_OBJECTIVE</code> (<code>run.py:62–70</code>,
+default 88) is recorded in the arm result, since a first pass at/above it skips refinement entirely
+(<code>run.py:211–216</code>) and makes iteration counts incomparable if it differs.</li>
+<li><strong>Deterministic downstream</strong> — the weave expansion, beds, accents, occlusion guard, and
+QA scoring are pure functions of the LLM outputs (that is what the golden test proves), so
+differences in scores are attributable to the LLM stages plus render sampling.</li>
+</ul>
+<p>Not constant, and not controllable today — the harness compares <em>distributions, not outputs</em>:</p>
+<table>
+<tr><th>Source</th><th>Detail</th><th>Mitigation</th></tr>
+<tr><td>LLM sampling</td><td>No temperature/seed anywhere: registry deliberately sets no sampling params for Claude (registry line 60; removed because Opus 4.8 returns 400) and passes <code>None</code> settings for Gemini (line 51). Every agent call is stochastic.</td><td>Repeats (<code>--repeat</code>); report medians + ranges, never single numbers</td></tr>
+<tr><td>Analyst panel composition</td><td>A transient failure drops an analyst silently (no retry until I2), changing the brief that everything downstream follows.</td><td>Record analyst count per run once I2/I5 land; until then, note it as unexplained variance</td></tr>
+<tr><td>Probe/render timing</td><td><code>_SETTLE_SECS</code> race in probing; the frame sampler and <code>RealRender</code> read whatever xLights has rendered when asked, so the coverage subscore can jitter.</td><td>Warm probe cache (above); keep repeats on the same machine/session</td></tr>
+<tr><td>Wall-clock behavior</td><td><code>run_id</code>/timestamps; lyrics fetch is a live network call (<code>fetch_lyrics</code>, <code>run.py:361</code>) that can succeed in one arm and fail in another, flipping the vocal/instrumental path.</td><td>Injected shared <code>SongAnalysis</code> already carries attached lyrics — both arms see the same lyrics state</td></tr>
+<tr><td>Refine-path divergence</td><td>Judge verdicts steer which sections regenerate, whether design escalation fires, when the loop stops — arms legitimately take different trajectories.</td><td>This is signal, not noise: convergence behavior is one of the reported metrics</td></tr>
+</table>
+
+<h3>3.6 Metrics and the comparison report</h3>
+<p>Per run (one row per <code>run_id</code>, extracted from <code>revision_log.jsonl</code> plus harness
+timing): first-pass <code>objective_score</code> and <code>advisory_score</code>; final scores (the
+<code>kind == "finalize"</code> record, <code>run.py:305</code>); iteration count; per-iteration
+<code>obj_delta</code> trajectory; revert count (<code>reverted</code> flags) and plateau/stall exits
+(<code>human_decision</code> values <code>"plateau"</code>/<code>"skip-high-objective"</code>, judge
+<code>accept</code>/<code>stop</code>); regenerated-section counts; QA <code>subscores</code> per metric
+(sync/placement/rules/variety/coverage — the per-role diagnostic: a generator change moves
+rules/placement, a director change moves variety/coverage patterns); wall time per stage and total,
+measured by the harness (the log's <code>ts</code> gives per-iteration deltas but not stage splits).</p>
+<p><strong>Without I1</strong> the harness fully supports: scores, subscores, iteration counts,
+convergence shape, wall time. <strong>With I1</strong> (per-role, per-iteration token counts captured from
+PydanticAI <code>result.usage()</code> into the same JSONL records, priced from a rate table in
+<code>config.yaml</code>) it adds: tokens and dollars per run, per role, and the roadmap's real target
+metric, <em>cost per objective point gained</em>. The harness should land after I1 (roadmap sequencing
+step 8 vs step 1) but nothing in its design blocks on it — cost columns simply appear when the
+records carry usage.</p>
+<p><strong>Results land in the F-G surface, not a new format.</strong> The
+<a href="f-g-cost-quality-dashboard.html">F-G cost &amp; quality dashboard</a> is an analyzer over
+revision-log JSONL with terminal/HTML report output. Because arms share one per-song
+<code>revision_log.jsonl</code> (§3.4) and every record carries the per-role <code>models</code> dict
+(truthful after §3.3), A/B analysis is a <em>group-by</em> in that analyzer — group records by
+<code>run_id</code>, label each run by its models signature, aggregate per label. The harness
+additionally writes a tiny manifest, <code>cache_root()/&lt;song_key&gt;/ab_runs.json</code>
+(Proposed): <code>{ab_id, song_key, arms: [{label, run_ids: [...], models, wall_time_s, ...}]}</code> —
+so the reporter can distinguish "runs that belong to this deliberate A/B" from ordinary historical
+runs, and so interrupted A/Bs are visible. <code>xlo ab</code> prints the terminal summary itself
+(medians and ranges per arm, per-metric deltas) and defers anything richer to F-G's HTML report,
+which gains an "A/B" section keyed off the manifest.</p>
+
+<h3>3.7 Statistical honesty with n=1 songs</h3>
+<p>One song × one run per arm — the current manual practice, per the <code>config.yaml</code> comment —
+supports almost no conclusion: with unseeded sampling, within-arm variance on
+<code>objective_score</code> is nonzero and unmeasured, so a 3-point between-arm gap is
+uninterpretable. The harness's posture:</p>
+<ul>
+<li><strong>Fixture set</strong>: a small committed set of 3–5 short songs spanning the axes the pipeline
+branches on — vocal vs instrumental (different panel/synthesizer path, <code>run.py:354–377</code>),
+high vs low energy (drives the skip gate and peak treatments), simple vs complex sectioning.
+Short (≤90s) keeps per-arm wall time and spend sane. These live next to
+<code>tests/fixtures/</code> conventions but are real audio, so likely
+<code>data/ab_fixtures/</code> with a README, not in-repo MP3s if licensing forbids.</li>
+<li><strong>Repeats</strong>: <code>--repeat 3</code> minimum before believing any delta; report per-arm
+median and min–max range for every metric. Within-arm range is the noise floor: an arm-vs-arm delta
+smaller than either arm's range is reported as "indistinguishable".</li>
+<li><strong>Valid conclusions</strong>: categorical failures ("gemini flash-lite emitted invalid
+structured output in 2/3 runs"), consistent large gaps (non-overlapping ranges across ≥3 repeats on
+≥2 songs), cost ratios (token counts are far less noisy than scores). <strong>Invalid</strong>:
+"provider A is better", any single-run comparison, extrapolation beyond the fixture songs or the
+current prompt set — a prompt edit invalidates prior A/B data (the models fingerprint does not hash
+prompts; note this in the report header).</li>
+<li>No significance tests in v1 — with n ≤ 5 songs × 3 repeats, a sign-test veneer would imply rigor
+the data cannot carry. Ranges and honest wording instead.</li>
+</ul>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong>Registry per-role overrides</strong> — add <code>provider_for(role)</code> to
+<code>models/registry.py</code>; switch <code>model_string</code> (line 33), <code>_settings</code>
+(line 49), and <code>model_snapshot</code> (line 40) to it. Tests alongside the existing routing tests
+in <code>tests/test_orchestrator.py</code> (§2.4).</li>
+<li><strong>Cache namespacing</strong> — add <code>models_fingerprint()</code> and the
+<code>models: bool</code> parameter to <code>cache_path</code> in <code>pipeline/cache.py</code>; flip the
+call sites per the §3.4 table (<code>run.py:391,409,426,474</code>; <code>regen.py:46,61,62,69,122</code>;
+<code>cli.py:59</code>; <code>visual.py</code> review-dir base and <code>run.py:468</code>
+<code>review_base</code>). Ship this even if nothing else in F-H lands.</li>
+<li><strong><code>pipeline/ab.py</code></strong> — <code>ArmSpec</code>, <code>parse_arm</code>,
+<code>arm_env</code>, <code>run_arm</code>, <code>run_ab</code> (§3.2): analyze-once + inject; warm
+<code>targetable_groups</code>; interleaved repeats; per-arm <code>save_as</code> names
+(<code>{name_prefix}_{arm_i}_{repeat_j}</code> via <code>safe_name</code>) so sequences don't clobber;
+write <code>ab_runs.json</code> incrementally after each run so an aborted A/B keeps its data.</li>
+<li><strong>Summary extraction</strong> — a pure function
+<code>summarize_runs(jsonl_lines, run_ids) -&gt; ArmSummary</code> (first/final scores, iterations,
+reverts, subscores, per-iteration deltas) shared with F-G's analyzer — implement it in the F-G
+analyzer module if that lands first, import it here.</li>
+<li><strong>CLI wiring</strong> — <code>ab</code> subparser in <code>cli.py</code> following the
+<code>run</code> parser's shape; strict multi-key preflight; terminal summary table.</li>
+<li><strong>Post-I1</strong> — no harness change: cost columns appear in
+<code>summarize_runs</code> once records carry usage; add price-per-arm and cost-per-point rows.</li>
+<li><strong>Docs</strong> — replace the <code>config.yaml</code> "live A/B'd" comment convention with a
+pointer to the harness; record future routing changes with the <code>ab_runs.json</code> they came from.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first, per repo convention (no key, no xLights, no network; the default suite excludes
+<code>live</code>):</p>
+<ul>
+<li><strong>Registry</strong>: <code>XLO_PROVIDER_JUDGE=gemini</code> +
+<code>XLO_PROVIDER=anthropic</code> → <code>model_string("judge").startswith("google:")</code> while
+<code>model_string("director").startswith("anthropic:")</code>; <code>model_snapshot()</code> reflects the
+mix; unknown role/provider raises. Mirrors <code>test_registry_reroute_via_env</code>
+(<code>tests/test_orchestrator.py:64–67</code>), via <code>monkeypatch.setenv</code>.</li>
+<li><strong>Cache isolation</strong>: with <code>XLO_CACHE_DIR</code> at <code>tmp_path</code> (the golden
+test's pattern, <code>test_golden_pipeline.py:167</code>), run the fake-agent pipeline under provider A,
+flip to provider B, assert the B run does <em>not</em> read A's <code>creative_brief</code>/<code>instructions</code>
+(distinct <code>m-*</code> dirs on disk) while <code>song_analysis</code> and
+<code>targetable_groups_*</code> paths are shared. This is the regression test for the §2.2 bug and the
+most important test in the change.</li>
+<li><strong>Arm spec parsing</strong>: round-trips, validation failures, env set/restore including on
+exception inside <code>arm_env</code>.</li>
+<li><strong>Harness orchestration</strong>: <code>run_ab</code> over the golden-test fakes
+(<code>TestModel</code> agents, <code>_FakeClient</code>, fake emitter, injected analysis) with 2 arms × 2
+repeats: assert 4 runs, interleaved order, distinct <code>run_id</code>s, one shared
+<code>revision_log.jsonl</code>, correct <code>ab_runs.json</code>, and truthful per-arm
+<code>models</code> in the records.</li>
+<li><strong>Summary math</strong>: <code>summarize_runs</code> over hand-written JSONL (reuse
+<code>test_revision_log.py</code> record-building style) — medians, ranges, revert counts, the
+"indistinguishable when ranges overlap" wording rule.</li>
+<li><strong>Regen compatibility</strong>: <code>regen.load_cached_state</code> finds the namespaced
+artifacts written by a run under the same routing, and raises the existing
+<code>FileNotFoundError</code> under a different routing.</li>
+<li><strong>Live</strong> (opt-in, <code>-m live</code>, manual): one short two-arm, one-repeat run against
+real providers and xLights as the end-to-end verify before archiving the change — the harness's own
+output doubles as the evidence.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>Cache namespacing invalidates all existing per-song LLM caches</td><td>One-time re-spend on next run per song</td><td>Accepted and documented; caches regenerate; <code>song_analysis</code> (the expensive deterministic part) is untouched</td></tr>
+<tr><td>Env-var override leaks out of an arm (exception mid-run)</td><td>Later runs silently mis-routed</td><td><code>arm_env</code> is a context manager with finally-restore; test the exception path explicitly</td></tr>
+<tr><td>Conclusions over-read from tiny n</td><td>Bad routing decisions with a veneer of rigor</td><td>Report medians+ranges only; hard-code the "indistinguishable" rule; no significance stats in v1 (§3.7)</td></tr>
+<tr><td>Arms diverge for non-provider reasons (dropped analyst, render jitter)</td><td>Noise attributed to providers</td><td>Shared injected analysis, warmed probe cache, interleaved repeats; land I2 (retry) and I5 (degradation summary) nearby so variance is at least visible</td></tr>
+<tr><td>Cost: a 3-arm × 3-repeat A/B is ~9 full refine runs</td><td>Real money per invocation</td><td>Short fixture songs; strict key/arm preflight; print an estimated-spend warning (post-I1, an actual estimate from historical per-run cost)</td></tr>
+<tr><td>Prompt edits silently invalidate old A/B data</td><td>Stale comparisons</td><td>Manifest records a code identifier (e.g. package version) per A/B; report header states the caveat; fingerprinting prompts is an open question (§8)</td></tr>
+<tr><td>Judge role differs across arms → the "referee" changes with the "player"</td><td>Scores not comparable</td><td>Objective/advisory scores come from deterministic QA (<code>qa/__init__.py</code>), not the judge — the primary comparison metric is provider-neutral by construction; judge verdicts only steer trajectories, which is reported as convergence behavior</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li><code>XLO_PROVIDER=gemini xlo run --song x.mp3</code> after an anthropic run does <strong>not</strong>
+reuse anthropic's <code>song_description</code>/<code>creative_brief</code>/<code>instructions</code>
+caches (regression test exists), while re-using the shared <code>song_analysis</code> and
+<code>targetable_groups_*</code> caches.</li>
+<li><code>XLO_PROVIDER_&lt;ROLE&gt;</code> overrides route exactly one role;
+<code>model_snapshot()</code> and revision-log <code>models</code> reflect the true mix.</li>
+<li><code>xlo ab --song S --arm anthropic --arm gemini --repeat 2</code> completes unattended, produces
+2×2 runs with distinct namespaced caches, one shared <code>revision_log.jsonl</code>, an
+<code>ab_runs.json</code> manifest, and a terminal summary showing per-arm median/range for first/final
+objective, advisory, iterations, reverts, and wall time.</li>
+<li>A mixed arm (<code>gemini+judge=anthropic</code>) runs and is labeled truthfully everywhere.</li>
+<li>Refusal before spend: missing key for any named provider, malformed arm spec, unknown role.</li>
+<li>An interrupted A/B leaves a valid manifest covering completed runs.</li>
+<li>All new logic (parsing, env isolation, cache namespacing, summaries) covered by hermetic tests;
+default <code>pytest</code> run stays key-less and xLights-less; golden pipeline test unchanged.</li>
+<li>Post-I1: per-arm token/cost columns and cost-per-objective-point appear with no harness change
+beyond the summary function.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li>Should the models fingerprint also hash the agents' system prompts (or a package version), so
+prompt edits auto-invalidate LLM caches and A/B comparability is machine-checked rather than a
+report caveat? (Broader than F-H — it changes cache behavior for everyone.)</li>
+<li>Fixture songs: real licensed MP3s under <code>data/</code> (not committed) vs synthesized short
+audio committed to the repo — synthesized audio is hermetic but may not exercise stems/lyrics paths
+meaningfully.</li>
+<li>Same-provider A/B (e.g. <code>anthropic</code> vs <code>anthropic</code> with a different
+<code>effort</code>, or sonnet-vs-opus per role): the arm grammar covers providers only; extending it
+to inline model/settings overrides (<code>anthropic+generator.model=claude-haiku-4-5</code>) is easy to
+parse but starts duplicating <code>config.yaml</code> — alternatively support
+<code>--config path/to/alt-config.yaml</code> per arm.</li>
+<li>Interaction with F-J (headless mode): once offline-render iteration exists, should
+<code>xlo ab</code> gain a <code>--headless</code> flag and a CI/pytest entry point? The
+<code>run_ab()</code> seam is designed so this is additive.</li>
+<li>Does the visual critic belong in A/B arms at all pre-I8? It is the most expensive role, advisory
+only, and doubles arm cost; a <code>--no-visual</code> flag (mapping to
+<code>visual_critique=None</code>… note <code>run_pipeline</code> currently builds a real critique when
+<code>None</code> is passed and <code>refine=True</code>, <code>run.py:451–454</code> — an explicit off
+switch would be a small new parameter).</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> — F-H (Horizon 4), I1 (token &amp; cost telemetry),
+F-G (cost &amp; quality dashboard), F-J (headless mode); June scorecard row "F6 Cost dashboard / F7
+A/B harness … blocked on missing token telemetry".</li>
+<li>Sibling design docs: <a href="i1-token-cost-telemetry.html">I1 — token &amp; cost telemetry</a>
+(provides the cost columns), <a href="f-g-cost-quality-dashboard.html">F-G — cost &amp; quality
+dashboard</a> (the shared reporting surface this harness feeds),
+<a href="i2-retry-backoff.html">I2</a> / <a href="i5-degradation-logging.html">I5</a> (variance
+visibility), <a href="f-j-headless-mode.html">F-J — headless mode</a> (future CI evals).</li>
+<li>Code: <code>packages/xlights-orchestrator/src/xlights_orchestrator/models/config.yaml</code>;
+<code>models/registry.py</code>; <code>pipeline/cache.py</code>; <code>pipeline/run.py</code>
+(stage caching lines 380–433, refine loop 135–305, revision-log wiring 455–470);
+<code>pipeline/regen.py</code> (cache rehydration 44–77); <code>pipeline/groups.py</code>
+(layout-fingerprinted probe cache); <code>qa/__init__.py</code>; <code>revision_log.py</code>;
+<code>cli.py</code>; <code>tests/test_golden_pipeline.py</code>, <code>tests/test_orchestrator.py</code>
+(registry routing tests, lines 51–67).</li>
+<li>OpenSpec: no existing change under <code>openspec/changes/</code> covers F-H (current entries:
+<code>add-refine-skip-high-objective</code>, <code>add-song-end-envelope-fade</code>,
+<code>add-targeted-section-regen</code>, <code>improve-musicality</code>, plus <code>archive/</code>) — F-H
+implementation should open a new change, likely split as
+<code>add-provider-cache-namespacing</code> (steps 1–2, independently valuable) and
+<code>add-provider-ab-harness</code> (steps 3–7). <code>improve-musicality</code> is related insofar as it
+will add advisory metrics that automatically become A/B comparison columns.</li>
+</ul>
+</body>
+</html>

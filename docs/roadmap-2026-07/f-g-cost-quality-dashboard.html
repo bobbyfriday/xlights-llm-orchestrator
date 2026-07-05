@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-G — Cost &amp; quality dashboard · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-G — Cost &amp; quality dashboard</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-G in <code>docs/roadmap-2026-07.md</code> (Horizon 4 — Operability &amp; evaluation; June scorecard carry-over "F6 Cost dashboard")</dd>
+<dt>Complexity</dt><dd>S (once I1 lands)</dd>
+<dt>Depends on</dt><dd>I1 (token &amp; cost telemetry)</dd>
+<dt>Unblocks</dt><dd>F-H (provider A/B harness report surface)</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/revision_log.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/run.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/cache.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/qa/__init__.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/cli.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/models/config.yaml</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/models/registry.py</code>, <code>tests/test_revision_log.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The refine loop already writes a flight recorder — <code>revision_log.jsonl</code>, one record per iteration plus a finalize record — and that data has already paid for itself twice <em>by hand</em>: the <code>REFINE_SKIP_OBJECTIVE = 88</code> threshold in <code>pipeline/run.py:62</code> is annotated <em>"Revision-log analysis (42 runs): drafts whose first-pass objective is ≥ this gained ≈0 over the whole loop"</em>, and the <code>add-refine-skip-high-objective</code> OpenSpec proposal quotes the same 42-run / 122-iteration analysis (runs starting ≥ 88 gained +0.6; runs below gained +19.2). That analysis was a one-off ad-hoc script; the numbers rot the moment the next tuning question arrives.</p>
+<p>Meanwhile the project runs an active cost-reduction campaign (tiered model routing, guide-extract trimming, the skip gate, I8's tiered visual critique) justified entirely by <em>estimated</em> cost, because — per roadmap I1 — there is no token accounting anywhere. Once I1 threads per-role token counts and a cost summary into the revision log, every run becomes evaluation data. F-G is the harvest: a small, deterministic analyzer that answers, without any LLM or xLights, the questions the team keeps asking manually:</p>
+<ul>
+<li>What did this show cost, and what did each objective point of refinement cost?</li>
+<li>Does the loop actually improve scores, per iteration, per song, per model routing?</li>
+<li>Which sections churn (get regenerated repeatedly), and how often do revisions regress and get reverted?</li>
+<li>How often does the skip gate fire — is 88 still the right threshold?</li>
+<li>Which model tier (planner vs worker) dominates spend? (This is F-H's comparison axis too.)</li>
+</ul>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 What one iteration record contains</h3>
+<p><code>revision_log.py:33-52</code> defines the canonical JSONL schema (verbatim):</p>
+<pre><code>class RevisionLogRecord(BaseModel):
+    run_id: str
+    iteration: int
+    song_key: str
+    ts: str
+    kind: Literal["iteration", "finalize"] = "iteration"
+    objective_score: int
+    advisory_score: int
+    findings: list[LogFinding] = []
+    judge: dict | None = None                 # {"score": int, "verdict": str}
+    revisions: list[LogRevision] = []
+    regenerated_sections: list[int] = []
+    obj_before: int | None = None
+    obj_after: int | None = None
+    obj_delta: int | None = None
+    reverted: bool = False
+    human_decision: str | None = None
+    models: dict[str, str] = {}
+    review_bundle: str | None = None
+</code></pre>
+<p>Every field the quality half of the dashboard needs already exists: score trajectory (<code>obj_before</code>/<code>obj_after</code>/<code>obj_delta</code>), churn (<code>regenerated_sections</code>, <code>revisions</code> with <code>origin: "judge" | "backstop"</code>), reverts (<code>reverted</code>), the Judge's view (<code>judge</code>), and a per-role model snapshot (<code>models</code>, filled from <code>model_snapshot()</code> in <code>models/registry.py:38-45</code>, e.g. <code>{"director": "anthropic:claude-opus-4-8", ...}</code>). The module docstring (<code>revision_log.py:1-6</code>) fixes the contract the analyzer relies on: JSONL is <em>canonical/programmatic</em>, Markdown is the human view, and logging is pure observability.</p>
+
+<h3>2.2 What the loop records, and the two gates the dashboard must surface</h3>
+<p>Records are written by the <code>_record</code> closure in <code>_refine_loop</code> (<code>pipeline/run.py:201-209</code>). The <strong>skip-high-objective gate</strong> (<code>run.py:211-216</code>) short-circuits the whole loop and leaves a distinctive fingerprint — a <code>finalize</code> record at iteration 0 with <code>human_decision="skip-high-objective"</code>:</p>
+<pre><code>    if skip_objective is not None and best_obj &gt;= skip_objective:
+        # already good → accept the draft without spending judge/critic/regen iterations
+        log.info("refine skipped: first-pass objective %d ≥ %d (already good)", best_obj, skip_objective)
+        _record(0, await _report(st.applied), None, kind="finalize",
+                obj_after=best_obj, human_decision="skip-high-objective")
+        return
+</code></pre>
+<p>The <strong>objective-regression revert</strong> (<code>run.py:275-284</code>) marks an iteration whose regeneration made things worse; <code>REGRESS_MARGIN = 1</code> (<code>run.py:58</code>) and <code>STALL_LIMIT = 2</code> (<code>run.py:59</code>) govern it:</p>
+<pre><code>        reverted = obj &lt; best_obj - REGRESS_MARGIN
+        if reverted:                                      # objective REGRESSION → revert it
+            st.instructions, st.applied = list(best), best_applied
+</code></pre>
+<p>The iteration record then carries <code>obj_before/obj_after/obj_delta</code> and <code>reverted=True</code> (<code>run.py:290-296</code>). Other terminal states also leave markers: an accept/stop decision logs <code>human_decision="accept"|"stop"</code> with <code>obj_delta=0</code> (<code>run.py:233-234</code>); the plateau detector logs <code>human_decision="plateau"</code> (<code>run.py:240-241</code>); every run that enters the loop ends with a <code>kind="finalize"</code> record carrying the best objective (<code>run.py:304-305</code>). Two stop causes are <em>not</em> distinguishable today: the stall stop (<code>run.py:297-298</code>) and the <code>max_iterations</code> cap both just fall through to finalize — see §3.6.</p>
+
+<h3>2.3 Where the log lives — the cache layout</h3>
+<p><code>pipeline/cache.py</code> (entire file is 24 lines) defines the layout:</p>
+<pre><code>def cache_root() -&gt; Path:
+    return Path(os.environ.get("XLO_CACHE_DIR", "data")) / "orchestrator"
+
+def song_key(path: str) -&gt; str:
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 &lt;&lt; 20), b""):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+</code></pre>
+<p>and <code>run_pipeline</code> wires the log per song (<code>run.py:455-459</code>):</p>
+<pre><code>        revlog, run_id = NullRevisionLog(), "run"
+        if log_revisions:
+            run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            base = _cache_root() / key
+            revlog = RevisionLog(base / "revision_log.jsonl", base / "revision_log.md")
+</code></pre>
+<p>So the on-disk tree the analyzer walks is:</p>
+<pre><code>data/orchestrator/                        # or $XLO_CACHE_DIR/orchestrator
+├── targetable_groups_&lt;fp&gt;.json          # layout-fingerprint caches (pipeline/groups.py:53) — NOT songs
+└── &lt;song_key&gt;/                          # 16-hex sha1 prefix of the MP3 bytes
+    ├── song_analysis.json / song_description.json / description.md
+    ├── creative_brief.json / creative_brief.md / instructions.json
+    ├── revision_log.jsonl                # ← canonical input; APPEND-mode across runs
+    ├── revision_log.md
+    └── visual_review/iter&lt;N&gt;/            # frame bundles referenced by review_bundle
+</code></pre>
+<p>Two consequences matter. First, <code>RevisionLog.write</code> opens with <code>"a"</code> (<code>revision_log.py:108</code>), so one <code>revision_log.jsonl</code> accumulates <em>many runs</em> — grouping key is <code>(song_key, run_id)</code>, never the file. Second, the song's human name appears nowhere in the key; the analyzer can recover a display name from the sibling <code>description.md</code> / <code>creative_brief.md</code> or just show the key.</p>
+
+<h3>2.4 What the scores mean</h3>
+<p><code>qa/__init__.py:16-35</code> composes them: <code>objective_score</code> is the rounded mean of <code>sync</code>, <code>placement</code>, <code>rules</code> (plus <code>coverage</code> when a rendered-frame sampler exists — <code>lines 24-29</code>), and it alone drives the revert/stall gate; <code>advisory_score</code> is the <code>variety</code> subscore and only informs the Judge/human. The Judge's own <code>JudgeVerdict</code> (<code>refine.py:36-39</code>: <code>score</code>, <code>verdict: "accept"|"iterate"|"stop"</code>, <code>revisions</code>) is logged as the <code>judge</code> dict. The dashboard must keep the objective/advisory distinction visible — conflating them would misreport the loop's actual gate.</p>
+
+<h3>2.5 The CLI and the missing pieces</h3>
+<p><code>cli.py</code> uses <strong>argparse</strong> (not click): <code>main()</code> at <code>cli.py:67-116</code> builds subparsers <code>edit-brief</code>, <code>run</code>, <code>regen</code> and dispatches on <code>args.cmd</code>. There is no analysis/reporting code anywhere in the package, no token/usage capture (a repo-wide grep for <code>usage</code> in <code>src/</code> returns nothing), and <code>models/config.yaml</code> has role→model routing (lines 5-23) but no pricing table. Existing test coverage for the log is <code>tests/test_revision_log.py</code>: pure-unit record/rendering tests plus hermetic <code>_refine_loop</code> integration via an in-memory <code>_MemLog</code> and injected fakes — the exact conventions F-G's tests should follow.</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 Shape: a <code>reporting.py</code> module behind an <code>xlo report</code> subcommand</h3>
+<p><strong>Module vs standalone script.</strong> A standalone script under <code>scripts/</code> would have to re-declare the record schema or import the package anyway; it would drift the way the original 42-run analysis script did (it no longer exists in the repo). A package module gets the real <code>RevisionLogRecord</code> for parsing, the real <code>cache_root()</code> for discovery, and pytest coverage for free. <strong>Recommendation: module.</strong> Proposed: <code>packages/xlights-orchestrator/src/xlights_orchestrator/reporting.py</code> — a sibling of <code>revision_log.py</code>, deliberately <em>not</em> under <code>pipeline/</code> (it never touches a live run; it reads what the pipeline wrote). If it outgrows one file (~250 lines expected), split into <code>reporting/{load,metrics,render_text,render_html}.py</code> later.</p>
+<p><strong>CLI subcommand vs script entry point.</strong> An <code>xlo report</code> subparser costs ~10 lines in the existing argparse structure, inherits <code>load_env()</code>, and — unlike <code>run</code>/<code>regen</code> — must <em>not</em> gate on <code>has_llm_key()</code> (<code>cli.py:99-101</code>): reporting is deterministic and works offline. <strong>Recommendation: <code>xlo report</code> subcommand</strong>, consistent with the roadmap's other operability surfaces (<code>xlo regen</code>, the planned <code>xlo init-layout</code>).</p>
+<p>Proposed public API (all signatures are <em>proposed</em>, none exist yet):</p>
+<pre><code># Proposed — packages/xlights-orchestrator/src/xlights_orchestrator/reporting.py
+"""Cost &amp; quality reporting over revision-log JSONL. Deterministic: no LLM, no xLights."""
+
+def discover_logs(root: Path | None = None) -&gt; dict[str, Path]:
+    """song_key -&gt; revision_log.jsonl under cache_root() (or an explicit root).
+    Globs root.glob("*/revision_log.jsonl") — skips targetable_groups_*.json by shape."""
+
+def load_records(path: Path) -&gt; list[RevisionLogRecord]:
+    """Tolerant line-by-line parse; a malformed line is counted+skipped, never fatal."""
+
+def group_runs(records: list[RevisionLogRecord]) -&gt; dict[str, list[RevisionLogRecord]]:
+    """run_id -&gt; ordered records (one JSONL file holds many runs; append-mode)."""
+
+def summarize_run(records: list[RevisionLogRecord],
+                  pricing: dict[str, ModelRate] | None = None) -&gt; RunSummary: ...
+
+def build_report(root: Path | None = None, *, song: str | None = None) -&gt; Report:
+    """Compute once: discover -&gt; load -&gt; group -&gt; summarize -&gt; aggregate."""
+
+def render_text(report: Report) -&gt; str: ...       # terminal tables (stdlib formatting)
+def render_html(report: Report) -&gt; str: ...       # self-contained static page
+</code></pre>
+<p><code>RunSummary</code> and <code>Report</code> are pydantic models (matching the codebase's typed-contract habit in <code>refine.py</code>/<code>revision_log.py</code>), so the computed layer is itself serializable — F-H's A/B harness can consume <code>Report.model_dump()</code> directly instead of scraping rendered output.</p>
+
+<h3>3.2 The I1 contract this design consumes</h3>
+<p>I1 (token &amp; cost telemetry) is described in the roadmap as: capture <code>result.usage()</code> from PydanticAI agent runs, thread it into <code>revision_log.py</code> per-role/per-iteration, and add a per-run cost summary from tokens × published rates in <code>models/config.yaml</code>. F-G designs against these concrete field names (to be finalized in I1's own doc; <em>proposed</em> here, additive and default-valued so every pre-I1 record still validates):</p>
+<pre><code># Proposed I1 extension — revision_log.py
+class RoleUsage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    requests: int = 0                # &gt;1 when a role runs multiple times in one iteration
+
+class RevisionLogRecord(BaseModel):
+    ...                              # existing fields unchanged
+    usage: dict[str, RoleUsage] = {}     # role -&gt; tokens spent in THIS iteration
+    cost_usd: float | None = None        # this iteration, from usage × pricing
+    # finalize records additionally aggregate:
+    run_usage: dict[str, RoleUsage] = {} # whole-run per-role totals
+    run_cost_usd: float | None = None
+</code></pre>
+<p>and a pricing table in <code>models/config.yaml</code>, keyed by the bare model IDs already used in <code>roles:</code> (rates in USD per million tokens; values below are placeholders for I1 to fill from published price lists):</p>
+<pre><code># Proposed I1 extension — models/config.yaml
+pricing:                       # USD per 1M tokens
+  claude-opus-4-8:        {input: 0.00, output: 0.00}
+  claude-sonnet-4-6:      {input: 0.00, output: 0.00}
+  gemini-3.1-pro-preview: {input: 0.00, output: 0.00}
+  gemini-3.1-flash-lite:  {input: 0.00, output: 0.00}
+  gemini-3.5-flash:       {input: 0.00, output: 0.00}
+</code></pre>
+<p>The analyzer resolves a record's role to a model via the record's own <code>models</code> snapshot (already logged per iteration — correct even across provider switches mid-history), strips the <code>provider:</code> prefix, and looks up <code>pricing</code>. It prefers the record's stored <code>cost_usd</code> when present (rates as-of-run-time beat rates as-of-report-time) and only recomputes from tokens when asked (<code>--reprice</code>) or when <code>cost_usd</code> is absent but <code>usage</code> is present.</p>
+<p><strong>Graceful degradation on pre-I1 logs</strong> is a hard requirement — the existing corpus (the 42-run history) predates I1. Because all new fields default to empty, old lines parse cleanly. Per run, the analyzer sets <code>has_cost: bool</code>; when false, every cost cell renders <code>—</code>, cost-derived metrics (cost/show, cost/point, tier attribution) are omitted from that run's row, aggregate cost totals count only costed runs (with an explicit <code>"12 of 42 runs have cost data"</code> caveat line), and all quality metrics (trajectory, churn, reverts, skip rate) work at full fidelity. A <em>proxy-cost mode is deliberately rejected</em>: estimating tokens for old runs would fabricate exactly the numbers this tool exists to make real.</p>
+
+<h3>3.3 Metrics catalog</h3>
+<table>
+<tr><th>Metric</th><th>Definition</th><th>Source fields (record → math)</th><th>Pre-I1?</th></tr>
+<tr><td>Cost per show</td><td>Total spend for one <code>run_id</code></td><td><code>run_cost_usd</code> from the finalize record, else Σ <code>cost_usd</code> over iterations</td><td>—</td></tr>
+<tr><td>Cost per objective point gained</td><td>Refine spend ÷ objective gain</td><td>Σ iteration <code>cost_usd</code> ÷ (<code>obj_after</code> of finalize − first record's <code>obj_before</code>); gain ≤ 0 renders as <code>∞ (no gain)</code>, never a division error</td><td>—</td></tr>
+<tr><td>Score trajectory</td><td>Objective per iteration, advisory alongside</td><td><code>iteration</code>, <code>obj_before → obj_after (obj_delta)</code>, <code>advisory_score</code>; kept/reverted flag per step</td><td>Yes</td></tr>
+<tr><td>Section churn</td><td>Which sections get regenerated, how often, and who asked</td><td><code>regenerated_sections</code> counts per <code>section_index</code>; <code>revisions[].origin</code> splits judge vs backstop (the visual-error floor, <code>refine.py:57-74</code>)</td><td>Yes</td></tr>
+<tr><td>Revert / regression frequency</td><td>Fraction of iterate-iterations with <code>reverted=True</code>; plus <em>wasted spend</em> = Σ <code>cost_usd</code> of reverted iterations</td><td><code>reverted</code>, <code>obj_delta</code>, <code>cost_usd</code></td><td>Rate yes; waste no</td></tr>
+<tr><td>Skip-gate hit rate</td><td>Runs accepted at iteration 0 by the gate ÷ all runs; plus the first-pass objective distribution around the 88 threshold</td><td><code>kind=="finalize"</code> ∧ <code>iteration==0</code> ∧ <code>human_decision=="skip-high-objective"</code> (written at <code>run.py:214-215</code>); distribution from each run's first <code>objective_score</code></td><td>Yes</td></tr>
+<tr><td>Model-tier attribution</td><td>Spend per role and per tier (planner: director/synthesizer/judge/visual_critic; worker: generator/analyst — tiers per <code>models/config.yaml</code> comments)</td><td><code>usage</code> per role × pricing; role→model from the record's <code>models</code> snapshot</td><td>—</td></tr>
+<tr><td>Stop-reason mix</td><td>How runs end: skip-gate / accept / stop / plateau / stall / iteration-cap</td><td><code>human_decision</code> markers; stall vs cap need §3.6's one-field assist</td><td>Partially</td></tr>
+<tr><td>Judge-vs-objective agreement</td><td>Correlation of <code>judge.score</code> with <code>objective_score</code>; verdict mix</td><td><code>judge</code> dict</td><td>Yes</td></tr>
+<tr><td>Finding mix</td><td>Findings per source (<code>sync/placement/rules/variety/visual</code>) and severity — which QA dimension drives iteration</td><td><code>findings[].source</code> (via <code>source_of</code>, <code>revision_log.py:54-56</code>), <code>severity</code></td><td>Yes</td></tr>
+</table>
+
+<p>The computed layer that all of the above lands in (<em>proposed</em>; pydantic so <code>--json</code> is free):</p>
+<pre><code># Proposed — reporting.py
+class IterationPoint(BaseModel):
+    iteration: int
+    obj_before: int | None; obj_after: int | None; obj_delta: int | None
+    advisory: int
+    reverted: bool
+    cost_usd: float | None = None            # None on pre-I1 records
+
+class RunSummary(BaseModel):
+    run_id: str; song_key: str
+    iterations: int
+    first_objective: int; final_objective: int; final_advisory: int
+    trajectory: list[IterationPoint]
+    churn: dict[int, int]                    # section_index -&gt; regen count
+    revisions_by_origin: dict[str, int]      # judge / backstop
+    reverts: int
+    stop_reason: str                         # skip-gate|accept|stop|plateau|stall-or-cap|incomplete
+    skipped_by_gate: bool
+    has_cost: bool
+    role_usage: dict[str, RoleUsage] = {}
+    cost_usd: float | None = None
+    cost_per_point: float | None = None      # None when gain &lt;= 0 or no cost data
+    models: dict[str, str] = {}              # last-seen role -&gt; provider:model
+
+class Report(BaseModel):
+    generated_at: str; cache_root: str
+    runs: list[RunSummary]
+    skipped_lines: int                       # malformed JSONL lines, surfaced not hidden
+    # fleet rollups: skip rate, stop-reason mix, tier cost shares, finding mix, churn top-N
+    fleet: dict[str, object] = {}
+</code></pre>
+
+<h3>3.4 Output formats: compute once, render twice</h3>
+<p>Both formats are worth shipping, and the marginal cost of the second is one pure function over the same <code>Report</code> model. <strong>Terminal</strong> is the daily driver — it composes with the CLI workflow (<code>xlo run --refine</code> then <code>xlo report --song …</code>) and works over SSH; it uses plain <code>str.format</code> column alignment (the package depends on <code>pydantic-ai</code> only — no <code>rich</code>/<code>tabulate</code>, and this feature does not justify adding one). <strong>Static HTML</strong> is where trajectory and churn become legible — per-run score sparklines and per-section churn bars as inline SVG, no JavaScript, no external resources, using this design doc's own CSS variables so it inherits light/dark. It is also the natural artifact to attach to an OpenSpec change or an F-H A/B comparison. <strong>Recommendation: ship both</strong> — <code>render_text</code> prints by default; <code>--html [PATH]</code> writes <code>report.html</code> (default: <code>cache_root()/report.html</code>). Anything divergent between the two renderers is a bug in the split, not a feature: all arithmetic lives in <code>summarize_run</code>/<code>build_report</code>, renderers only format.</p>
+<p>Proposed terminal sketch:</p>
+<pre><code>$ xlo report
+song      run              iters  obj      adv  cost     $/pt   reverts  end
+1f0c9a..  20260701T041133Z     3  71→90    62   $1.84    $0.10  0/3      accept
+1f0c9a..  20260703T182207Z     0  91       70   $0.41    —      —        skip-gate
+8ab2e0..  20260629T101502Z     3  64→78    55   $2.31    $0.17  1/3      cap
+(cost columns: 3 of 3 runs have I1 telemetry)
+
+by role (costed runs)          in-tok     out-tok    cost     share
+director (planner)             182k       31k        $1.21    38%
+visual_critic (planner)        141k       12k        $0.98    31%
+...
+</code></pre>
+
+<h3>3.5 CLI wiring</h3>
+<pre><code># Proposed — cli.py additions inside main()
+p = sub.add_parser("report", help="cost &amp; quality dashboard from the revision logs")
+p.add_argument("--song", default=None, help="one song (path; keyed via song_key) — default: all cached songs")
+p.add_argument("--cache-dir", default=None, help="override the cache root (default: $XLO_CACHE_DIR/data)")
+p.add_argument("--html", nargs="?", const="", default=None, help="also write a static HTML report [PATH]")
+p.add_argument("--json", action="store_true", help="emit the computed Report as JSON (for F-H tooling)")
+p.add_argument("--reprice", action="store_true", help="recompute costs from tokens × current config.yaml rates")
+</code></pre>
+<p>Dispatch is synchronous (no <code>asyncio.run</code>, no <code>XLightsClient</code>, no <code>has_llm_key()</code> gate). <code>--song</code> reuses <code>_song_key</code> from <code>pipeline/cache.py</code> exactly the way <code>_edit_brief</code> already does (<code>cli.py:52-64</code>). Discovery via <code>root.glob("*/revision_log.jsonl")</code> naturally ignores the top-level <code>targetable_groups_*.json</code> layout caches (<code>pipeline/groups.py:53</code>) because those are files, not song directories.</p>
+
+<h3>3.6 One tiny logger assist (optional but cheap): <code>stop_reason</code></h3>
+<p>The finalize record at <code>run.py:304-305</code> — <code>_record(iters, final, None, kind="finalize", obj_after=best_obj)</code> — cannot distinguish a stall stop from the <code>max_iterations</code> cap (both fall through the loop), and design escalations (<code>run.py:252-265</code>) are visible only in <code>log.info</code>, not the record. Proposed, additive, default-valued (so it rides along with I1's schema touch or I3's loop decomposition):</p>
+<pre><code># Proposed — revision_log.py
+    stop_reason: str | None = None   # skip-gate | accept | stop | plateau | stall | cap
+    redesigned_sections: list[int] = []   # design escalations this iteration
+</code></pre>
+<p>The dashboard treats these as best-effort: absent → the stop-reason mix reports <code>stall-or-cap</code> as one bucket for old runs. This is the only change F-G wants inside the pipeline; everything else is read-only.</p>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong>Land after I1's schema.</strong> Confirm final field names (<code>usage</code>, <code>cost_usd</code>, <code>run_usage</code>, <code>run_cost_usd</code>, <code>pricing</code>) against I1's implementation; adjust §3.2 names if I1 chose differently. F-G's loader must match I1's writer exactly.</li>
+<li><strong><code>reporting.py</code> — load layer.</strong> <code>discover_logs</code>, <code>load_records</code> (line-tolerant: <code>RevisionLogRecord.model_validate_json</code> per line, count-and-skip on <code>ValidationError</code>/<code>JSONDecodeError</code>), <code>group_runs</code> (ordered dict keyed by <code>run_id</code>, records in file order).</li>
+<li><strong><code>reporting.py</code> — metrics layer.</strong> <code>RunSummary</code> (run_id, song_key, iterations, first/final objective, advisory, trajectory list, churn <code>Counter</code>, revert count, stop_reason, has_cost, per-role usage/cost, cost_per_show, cost_per_point) and <code>summarize_run</code>; <code>Report</code> + <code>build_report</code> aggregating per-song and fleet-wide (skip-rate, stop-reason mix, tier attribution, finding mix). Pricing loaded via a small <code>pricing()</code> accessor next to <code>_cfg()</code> in <code>models/registry.py</code> (added by I1; F-G only reads it).</li>
+<li><strong>Renderers.</strong> <code>render_text(report)</code> — fixed-width tables, the costed-runs caveat line, <code>—</code> for missing cost. <code>render_html(report)</code> — one self-contained page, this doc's CSS block, tables + inline-SVG sparklines (score trajectory per run) and horizontal churn bars; escape all detail strings.</li>
+<li><strong>CLI.</strong> The <code>report</code> subparser and dispatch branch per §3.5; <code>--json</code> prints <code>report.model_dump_json(indent=1)</code>.</li>
+<li><strong>Logger assist (optional).</strong> <code>stop_reason</code> + <code>redesigned_sections</code> per §3.6 — coordinate with I3, which is rewriting <code>_refine_loop</code>'s seams anyway.</li>
+<li><strong>Docs.</strong> One paragraph in <code>README.md</code>'s CLI section; note in the roadmap scorecard that F6 is closed by F-G.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first, matching <code>tests/test_revision_log.py</code>: no LLM, no xLights, no network — the analyzer is pure functions over files, so this is easy. New file <code>tests/test_reporting.py</code>, fixture JSONL under <code>tests/fixtures/revision_logs/</code>.</p>
+<ul>
+<li><strong>Fixture construction two ways.</strong> (a) Programmatic: build <code>RevisionLogRecord</code> objects and write them through the real <code>RevisionLog</code> writer into <code>tmp_path</code> — guarantees writer/reader agreement forever. (b) Checked-in raw JSONL fixtures: one <em>pre-I1</em> file (fields exactly as today's schema — copy real lines, keys anonymized) and one <em>post-I1</em> file with <code>usage</code>/<code>cost_usd</code> — these freeze backward compatibility: if a future schema change breaks parsing of historical logs, a test fails, not a report.</li>
+<li><strong>Load layer:</strong> malformed line is skipped and counted; multiple <code>run_id</code>s in one file group correctly and preserve order; <code>discover_logs</code> on a synthetic <code>tmp_path</code> tree (two <code>&lt;song_key&gt;/</code> dirs + a decoy <code>targetable_groups_x.json</code>) finds exactly two logs — with <code>XLO_CACHE_DIR</code> monkeypatched, per the <code>cache_root()</code> env contract.</li>
+<li><strong>Metrics:</strong> golden-value tests per metric on a hand-built run: trajectory 71→78→76(revert)→90 yields revert count 1, gain 19, cost/point = Σcost/19; skip-gate fixture (single finalize, <code>human_decision="skip-high-objective"</code>, iteration 0) counts as a skip and contributes no cost/point; zero-gain run renders <code>∞ (no gain)</code>; mixed pre/post-I1 corpus reports <code>has_cost</code> correctly and totals only costed runs.</li>
+<li><strong>Renderers:</strong> substring assertions on <code>render_text</code> (the caveat line, the <code>—</code> cells) mirroring <code>test_render_md_shows_origin_and_scores</code>; <code>render_html</code> output contains no <code>http://</code>/<code>https://</code>/<code>&lt;script</code> (self-containment guard) and escapes a finding detail containing <code>&lt;b&gt;&amp;</code>.</li>
+<li><strong>CLI:</strong> <code>main(["report", "--cache-dir", str(tmp)])</code> end-to-end via capsys, and <code>--json</code> round-trips through <code>Report.model_validate_json</code> — this doubles as a down payment on roadmap I6's "cli.py argument wiring" gap.</li>
+<li><strong>Loop integration (only if §3.6 lands):</strong> extend the existing <code>_MemLog</code>-style <code>_refine_loop</code> tests to assert <code>stop_reason</code> on stall vs cap.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>I1 lands with different field names than §3.2 proposes</td><td>Loader mismatch; dashboard reads nothing</td><td>F-G explicitly sequenced after I1 (roadmap step 8 vs step 1); step 1 of the plan is reconciliation; the post-I1 fixture is written from I1's actual output, not this doc</td></tr>
+<tr><td>Historical JSONL predating today's schema (fields added over 63 changes) fails validation</td><td>Old runs silently vanish from reports</td><td>Tolerant per-line parse with a skipped-line counter surfaced in the report footer; pydantic defaults absorb missing fields; checked-in raw fixtures pin the oldest shape we promise to read</td></tr>
+<tr><td>Stale <code>config.yaml</code> pricing misstates costs</td><td>Wrong optimization decisions</td><td>Prefer the record's run-time <code>cost_usd</code>; <code>--reprice</code> is explicit and labeled in output; pricing table carries a <code># rates as of YYYY-MM</code> comment (I1)</td></tr>
+<tr><td>Cost-per-point divides by zero/negative gain (skip-gate runs, regressing runs)</td><td>Crash or nonsense number</td><td>Defined rendering (<code>∞ (no gain)</code>); skip-gate runs excluded from the cost-per-point aggregate by construction; golden test</td></tr>
+<tr><td>Append-mode file mixes aborted/partial runs (no finalize record)</td><td>Skewed aggregates</td><td>Runs without a finalize record are summarized from their last iteration and flagged <code>incomplete</code> in output; counted separately in fleet stats</td></tr>
+<tr><td>Report grows into a second rendering codebase</td><td>Maintenance drag on an S-sized item</td><td>Hard rule: arithmetic only in <code>summarize_run</code>/<code>build_report</code>; renderers are formatting-only; no JS, no new dependencies</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>[ ] <code>xlo report</code> exists, runs with no LLM key, no xLights, no network, and exits 0 on an empty cache with a clear "no revision logs found under &lt;root&gt;" message.</li>
+<li>[ ] Against a cache with post-I1 logs it prints, per run: iterations, first→final objective, advisory, cost per show, cost per objective point, revert count, stop reason.</li>
+<li>[ ] Fleet aggregates include skip-gate hit rate, stop-reason mix, per-section churn, finding mix by source, and per-role/per-tier cost attribution.</li>
+<li>[ ] Pre-I1 logs (fixture-pinned) parse fully; cost cells show <code>—</code>; quality metrics are complete; the costed-runs caveat line appears.</li>
+<li>[ ] <code>--html</code> writes one self-contained file (no external URLs, no scripts) that renders correctly in light and dark; <code>--json</code> round-trips through the <code>Report</code> model.</li>
+<li>[ ] Multiple runs appended to one <code>revision_log.jsonl</code> are reported as separate runs keyed by <code>run_id</code>; a malformed line never aborts the report.</li>
+<li>[ ] All of the above covered by hermetic tests in <code>tests/test_reporting.py</code> with fixtures under <code>tests/fixtures/revision_logs/</code>; the full suite stays green.</li>
+<li>[ ] No behavioral change to the pipeline itself beyond (optionally) the additive <code>stop_reason</code>/<code>redesigned_sections</code> fields, which default such that every existing test and log line remains valid.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li><strong>Where does I1 put non-refine spend?</strong> Analyst panel, synthesizer, and Director first-pass calls happen <em>before</em> <code>_refine_loop</code> — today the revision log only exists during refine (<code>run.py:449-459</code>). If I1 logs pre-loop usage as an <code>iteration 0</code>-style record (or a new <code>kind="generate"</code>), cost-per-show is truly whole-show; if not, F-G must label its number "refine cost" honestly. To be settled in I1's design.</li>
+<li><strong>Cache-hit accounting:</strong> a run resumed from cached brief/instructions spends nothing on those stages — should <code>RunSummary</code> mark which stages were cache hits (I1 could log a zero-usage marker) so cost-per-show comparisons across runs are apples-to-apples?</li>
+<li><strong>Song display names:</strong> derive from <code>description.md</code>'s first heading, or add a tiny <code>meta.json</code> (song filename) to the cache dir at run time? The latter touches the pipeline; the former is heuristic but read-only.</li>
+<li><strong>Should <code>stop_reason</code> ride with I1 or I3?</strong> I3 rewrites <code>_refine_loop</code> into named guard functions — the natural moment to make each guard record its own name.</li>
+<li><strong>F-H interface:</strong> is <code>Report.model_dump()</code> + <code>--json</code> sufficient as the A/B harness's comparison input, or does F-H want <code>summarize_run</code> granularity? (Design F-H against the JSON schema this item ships.)</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <a href="../roadmap-2026-07.md">docs/roadmap-2026-07.md</a> — F-G (Horizon 4), I1 (token &amp; cost telemetry), June scorecard row "F6 Cost dashboard / F7 A/B harness … blocked on missing token telemetry"; sequencing table step 8 ("Harvest the telemetry from step 1").</li>
+<li>Sibling design docs: <a href="i1-token-cost-telemetry.html">I1 — token &amp; cost telemetry</a> (schema this item consumes), <a href="i3-refine-loop-decomposition.html">I3 — refine-loop decomposition</a> (co-owner of the §3.6 logger assist), <a href="f-h-provider-ab-harness.html">F-H — provider A/B harness</a> (consumer of the <code>Report</code> model).</li>
+<li>OpenSpec: <code>openspec/changes/add-refine-skip-high-objective/</code> — the 42-run revision-log analysis that motivated the skip gate and, by existing as a lost one-off script, motivates this dashboard; <code>openspec/changes/add-targeted-section-regen/</code> (the <code>xlo regen</code> CLI precedent); <code>openspec/changes/improve-musicality/</code> (will add advisory metrics that flow through the same log).</li>
+<li>Code: <code>revision_log.py</code> (schema + writers), <code>pipeline/run.py:135-305</code> (<code>_refine_loop</code>, <code>_record</code>, skip gate, revert), <code>pipeline/cache.py</code> (layout), <code>qa/__init__.py</code> (score composition), <code>models/registry.py</code> + <code>models/config.yaml</code> (routing, future pricing), <code>cli.py</code> (argparse structure), <code>tests/test_revision_log.py</code> (test conventions).</li>
+</ul>
+
+</body>
+</html>

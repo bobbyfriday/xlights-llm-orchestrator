@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I5 — Diagnosable best-effort failures · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I5 — Diagnosable best-effort failures</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I5 in <code>docs/roadmap-2026-07.md</code> (carries forward June's R5 — "❌ Open — 45 <code>except Exception</code> blocks across 20 files, most silent")</dd>
+<dt>Complexity</dt><dd>S — recommended sequencing slot #3, paired with F-A Phase 1 ("logging pays off during its live-verify")</dd>
+<dt>Depends on</dt><dd>Nothing (synergy with I2 — retry WARNING lines feed the same summary; with I1 — same ContextVar collector pattern)</dd>
+<dt>Unblocks</dt><dd>Every future live-verify and refine-loop debugging session; gives F-G dashboard a degradations signal per run</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/run.py</code>, <code>pipeline/visual.py</code>, <code>pipeline/groups.py</code>, <code>qa/coverage.py</code>, <code>effect_emitter.py</code>, <code>pipeline/weave.py</code>, <code>packages/xlights-core/src/xlights_core/audio/analyzer.py</code>, plus 13 more files (§2.2)</dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The orchestrator's best-effort posture is deliberate and correct: lyrics, stems, visual critique, real-render export, timing tracks, and caching are all <em>enrichments</em> — a run should finish without them rather than die. But the implementation of that posture is 45 <code>except Exception</code> blocks across 20 files (measured 2026-07-05; matches the roadmap count exactly), and they are wildly inconsistent about saying what was lost: 12 of them are <strong>completely silent</strong> (<code>pass</code> or a bare fallback with no log line at all), the rest scatter across <code>log.debug</code>/<code>log.info</code>/<code>log.warning</code> with no rule for which level means what.</p>
+<p>The failure mode is concrete: when a show "looks off," the operator today cannot distinguish "stems failed, so the brief had no instrument features" from "the visual critic never ran because ffmpeg was missing" from "coverage QA was flying blind because the <code>.fseq</code> didn't resolve" — all three degrade silently or near-silently. The roadmap's target state: <em>it turns "the show looks off" into "stems failed, brief had no instruments."</em> Two cheap steps get there: (1) one logging convention applied to every block, (2) a per-run degradations summary — what was skipped and why — printed at the end and written next to the run's other artifacts.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 The shape of the problem</h3>
+<p>Distribution of the 45 blocks (verified by grep; 9 in <code>pipeline/run.py</code>, 6 in <code>pipeline/visual.py</code>, 5 in <code>pipeline/groups.py</code> — matching the roadmap's callouts):</p>
+<table>
+<tr><th>Current handling</th><th>Count</th><th>Examples</th></tr>
+<tr><td>Fully silent (<code>pass</code>, or fallback assignment with no log)</td><td>12</td><td><code>run.py:178</code> (sampler flush), <code>run.py:440</code> (show folder), <code>qa/coverage.py:31</code> (returns neutral 100), <code>weave.py:316</code>, <code>groups.py:50,57,93</code>, <code>analyzer.py:110,124,142</code>, <code>stems.py:76</code>, <code>visual.py:151,198</code> (helpers returning None), <code>effect_emitter.py:84</code>, <code>regen.py:128</code></td></tr>
+<tr><td><code>log.debug</code></td><td>2</td><td><code>lyrics.py:37</code> (tag read), <code>agents/guide.py:39</code> (guide not loaded)</td></tr>
+<tr><td><code>log.info</code></td><td>6</td><td><code>run.py:367,376,383</code>, <code>visual.py:65,188</code>, <code>lyrics_align.py:129</code></td></tr>
+<tr><td><code>log.warning</code></td><td>17</td><td><code>run.py:227,264,476</code>, <code>visual.py:44,75</code>, <code>groups.py:43,62(+66)</code>, <code>panel.py</code>'s analyst drop (a <code>gather</code> filter rather than an except block — same convention applies), etc.</td></tr>
+<tr><td>Re-raises / reports upward (not a swallow — out of scope)</td><td>4</td><td><code>xlights-mcp/server.py:205,209,220</code> (wrap as <code>RuntimeError</code> tool errors), <code>brief_editor.py:200</code> (HTTP 400 to the form)</td></tr>
+</table>
+
+<h3>2.2 Full per-block inventory</h3>
+<p>Every <code>except Exception</code> in <code>packages/*/src</code>, with what actually degrades when it fires and the level the §3.1 convention assigns. <strong>Legend for "target":</strong> <em>debug</em> = cosmetic/expected fallback; <em>warning</em> = a whole capability is lost (also reported to the collector, §3.2); <em>keep</em> = already correct; <em>re-raise?</em> = candidate discussed in §3.4.</p>
+
+<h4><code>pipeline/run.py</code> — 9 blocks (the orchestration hub)</h4>
+<table>
+<tr><th>Line</th><th>Guarded operation</th><th>Capability degraded when it fires</th><th>Today</th><th>Target</th></tr>
+<tr><td>:178</td><td><code>_report()</code>: <code>save_sequence</code> + <code>real_render.refresh</code> before sampling</td><td>Coverage QA and the visual critic measure a <em>stale</em> render this iteration — scores judge the wrong frame data</td><td><strong>silent <code>pass</code></strong></td><td><code>warning</code> + collector (<code>capability="qa:render-flush"</code>) — this one can misdirect the whole refine iteration</td></tr>
+<tr><td>:227</td><td><code>visual_critique(st)</code> inside the loop</td><td>No visual findings this iteration (advisory channel dark)</td><td><code>log.warning</code></td><td>keep warning + collector (<code>visual:critique</code>)</td></tr>
+<tr><td>:264</td><td><code>_redesign(rev, findings)</code> design escalation</td><td>Section keeps its old (repeatedly-flagged) design; only regen runs</td><td><code>log.warning</code></td><td>keep + collector (<code>refine:redesign</code>, with section index in detail)</td></tr>
+<tr><td>:367</td><td><code>fetch_lyrics</code> + <code>attach_lyrics</code></td><td>No timed lyrics → no lyric analyst grounding, no lyric-timed sections/features</td><td><code>log.info</code></td><td><code>warning</code> + collector (<code>audio:lyrics</code>) — whole-capability loss for vocal songs</td></tr>
+<tr><td>:376</td><td><code>refine_instrumental</code> subdivision</td><td>Instrumental songs keep &gt;32s single-look sections</td><td><code>log.info</code></td><td>keep info→<code>debug</code>-vs-warning split: warning + collector only when the song had no timed lines (i.e. the path was actually load-bearing)</td></tr>
+<tr><td>:383</td><td><code>song_analysis</code> cache write</td><td><code>xlo regen</code> later must re-analyze audio; run itself unaffected</td><td><code>log.info</code></td><td><code>debug</code> (cosmetic for this run)</td></tr>
+<tr><td>:395</td><td>Cached <code>MusicBrief</code> validate</td><td>None — stale cache → recompute (by design)</td><td>silent → recompute</td><td><code>debug</code> ("stale song_description cache, recomputing")</td></tr>
+<tr><td>:440</td><td><code>client.get_show_folder()</code></td><td><code>show_folder=None</code> → <code>prepare_media</code> can't stage the song → finalize's audio patch fails → <strong>a silent animation-only sequence</strong></td><td><strong>silent</strong></td><td><code>warning</code> + collector (<code>finalize:media</code>) — see §3.4 (re-raise candidate)</td></tr>
+<tr><td>:476</td><td>Persisting revised brief/instructions post-refine</td><td>Cache no longer matches the emitted show; next <code>xlo regen</code> works from pre-refine state</td><td><code>log.warning</code></td><td>keep + collector (<code>cache:post-refine</code>)</td></tr>
+</table>
+
+<h4><code>pipeline/visual.py</code> — 6 blocks (visual critique / real render)</h4>
+<table>
+<tr><th>Line</th><th>Guarded operation</th><th>Capability degraded</th><th>Today</th><th>Target</th></tr>
+<tr><td>:44</td><td><code>_persist_bundle</code> (review PNG/MP4/md)</td><td>No human review bundle for the iteration; findings themselves survive</td><td><code>log.warning</code></td><td><code>debug</code> — cosmetic (nothing downstream reads the bundle)</td></tr>
+<tr><td>:65</td><td><code>save_sequence</code> / <code>get_show_folder</code> in <code>_vc</code></td><td>Critique proceeds on possibly-stale <code>.fseq</code>, or skips at the next guard</td><td><code>log.info</code></td><td><code>warning</code> + collector (<code>visual:critique</code>)</td></tr>
+<tr><td>:75</td><td><code>PreviewRenderer(...)</code> init</td><td>Visual critique skipped entirely this iteration (returns <code>[]</code>)</td><td><code>log.warning</code></td><td>keep + collector (<code>visual:critique</code>)</td></tr>
+<tr><td>:151</td><td><code>_ffprobe_duration</code></td><td>Real-render lead-in offset guessed as 0 → frames sampled slightly off-time</td><td>silent <code>None</code></td><td><code>debug</code> (caller at :184 compensates with duration fallback)</td></tr>
+<tr><td>:188</td><td><code>RealRender.refresh</code> (export_video_preview etc.)</td><td>Critic and sampler fall back to the <em>offline</em> renderer — ground-truth render feedback lost</td><td><code>log.info</code></td><td><code>warning</code> + collector (<code>visual:real-render</code>) — this is the reason <code>RealRender</code> exists</td></tr>
+<tr><td>:198</td><td><code>_ff</code> (ffmpeg frame/clip extraction)</td><td>Single frame/clip missing → offline fallback per call</td><td>silent <code>None</code></td><td><code>debug</code> (per-call; the :188 warning already covers the capability)</td></tr>
+</table>
+
+<h4><code>pipeline/groups.py</code> — 5 blocks (targetability probing)</h4>
+<table>
+<tr><th>Line</th><th>Guarded operation</th><th>Capability degraded</th><th>Today</th><th>Target</th></tr>
+<tr><td>:43</td><td><code>get_group_names()</code></td><td>Returns <code>[]</code> → <code>st.available_groups</code> empty → Director plans against nothing → effectively a dead run that limps on</td><td><code>log.warning</code></td><td><strong>re-raise?</strong> — §3.4 candidate #1</td></tr>
+<tr><td>:50</td><td><code>get_model_names()</code> (cache fingerprint enrichment)</td><td>Cache key ignores model membership → a membership-only layout edit won't invalidate</td><td>silent → <code>[]</code></td><td><code>debug</code></td></tr>
+<tr><td>:57</td><td>Cache file read/parse</td><td>None — corrupt cache → re-probe (by design)</td><td>silent <code>pass</code></td><td><code>debug</code></td></tr>
+<tr><td>:62 (+:66)</td><td><code>_probe()</code> setup / non-target errors (and the empty-probe guard)</td><td>Falls back to the <em>full</em> group list → untargetable groups reach the Director → skipped effects → dark props</td><td><code>log.warning</code></td><td>keep + collector (<code>groups:probe</code>)</td></tr>
+<tr><td>:93</td><td><code>close_sequence</code> of the disposable probe sequence</td><td>A stray open sequence left behind (next <code>apply_instructions</code> force-closes it anyway)</td><td>silent <code>pass</code></td><td><code>debug</code></td></tr>
+</table>
+
+<h4>Remaining orchestrator blocks</h4>
+<table>
+<tr><th>File:line</th><th>Capability degraded</th><th>Today</th><th>Target</th></tr>
+<tr><td><code>revision_log.py:112</code></td><td>Flight-recorder entry lost (observability only)</td><td><code>log.warning</code></td><td>keep (do <em>not</em> report to collector — the collector must never depend on the log path it feeds)</td></tr>
+<tr><td><code>effect_emitter.py:84</code></td><td>Sequence created on the <em>default view</em> instead of "SEM Master" → non-canonical render order for the whole show</td><td><strong>silent</strong> fallback</td><td><code>warning</code> + collector (<code>emit:view</code>) — render order is load-bearing (see render-order archive change)</td></tr>
+<tr><td><code>lyrics.py:37</code></td><td>Audio tags unreadable → filename fallback for title</td><td><code>log.debug</code></td><td>keep debug</td></tr>
+<tr><td><code>lyrics.py:69</code></td><td>Genius fetch failed → no lyric text at all</td><td><code>log.warning</code></td><td>keep + collector (<code>audio:lyrics</code>)</td></tr>
+<tr><td><code>qa/coverage.py:31</code></td><td>Coverage subscore neutralized to 100 — <strong>the objective gate goes blind on darkness</strong> ("never gate blind" is intended, but today it's also never <em>said</em>)</td><td><strong>silent</strong></td><td><code>warning</code> + collector (<code>qa:coverage-blind</code>) — once per run, not per sample (guard with a flag; the sampler is called many times)</td></tr>
+<tr><td><code>pipeline/timing.py:185</code></td><td>Beat/bar/lyric timing tracks missing from the saved <code>.xsq</code></td><td><code>log.warning</code></td><td>keep + collector (<code>finalize:timing-tracks</code>)</td></tr>
+<tr><td><code>pipeline/finalize.py:39</code></td><td>Offline <code>.xsq</code> patch step failed → saved sequence missing audio attach / render-order patches</td><td><code>log.warning</code></td><td>keep + collector (<code>finalize:xsq-patch</code>)</td></tr>
+<tr><td><code>pipeline/triggers.py:294</code></td><td>One curated trigger detector's placements missing (per-trigger)</td><td><code>log.warning</code></td><td>keep; collector only if ≥1 detector failed (<code>generate:triggers</code>, aggregated detail)</td></tr>
+<tr><td><code>pipeline/media.py:101</code></td><td><code>.xsq</code> audio patch failed → animation-only sequence</td><td><code>log.warning</code></td><td>keep + collector (<code>finalize:media</code>)</td></tr>
+<tr><td><code>pipeline/regen.py:128</code></td><td>Same as <code>run.py:440</code> for the regen path</td><td><strong>silent</strong></td><td><code>warning</code> + collector (<code>finalize:media</code>)</td></tr>
+<tr><td><code>pipeline/weave.py:316</code></td><td>LTR-direction detection fails → weave loses directional sweep phrasing (returns <code>""</code>)</td><td><strong>silent</strong></td><td><code>debug</code> (graceful per-section fallback with modest visual cost)</td></tr>
+<tr><td><code>agents/guide.py:39</code></td><td>A markdown guide missing from an agent's prompt ("no guide is a valid state")</td><td><code>log.debug</code></td><td>keep debug</td></tr>
+<tr><td><code>brief_editor.py:200</code></td><td>N/A — error reported to the browser form as HTTP 400</td><td>reports</td><td>out of scope (correct as-is)</td></tr>
+</table>
+
+<h4><code>xlights-core</code> blocks</h4>
+<table>
+<tr><th>File:line</th><th>Capability degraded</th><th>Today</th><th>Target</th></tr>
+<tr><td><code>audio/lyrics_align.py:129</code></td><td>No word/line-timed lyrics (alignment backend unavailable)</td><td><code>log.info</code></td><td><code>warning</code> (core can't reach the orchestrator's collector — see §3.3 boundary rule)</td></tr>
+<tr><td><code>audio/analyzer.py:110,124</code></td><td>Analysis cache writes lost (recompute next time)</td><td>silent <code>pass</code> ×2</td><td><code>debug</code></td></tr>
+<tr><td><code>audio/analyzer.py:142</code></td><td>Section-instrumentation enrichment skipped ("overlap-matching covers the gap")</td><td>silent <code>pass</code></td><td><code>debug</code></td></tr>
+<tr><td><code>audio/analyzer.py:180</code></td><td>A separated stem not persisted → downstream stem features weaker</td><td><code>log.warning</code></td><td>keep warning</td></tr>
+<tr><td><code>audio/extractors/stems.py:46</code></td><td>Stem-separation backend failed (tries next backend; if all fail → no stems, no instrument features anywhere)</td><td><code>log.warning</code> per backend</td><td>keep; the orchestrator detects the terminal all-backends case via <code>sa.stems</code> emptiness and reports <code>audio:stems</code> to the collector (§3.3)</td></tr>
+<tr><td><code>audio/extractors/stems.py:76</code></td><td>Device detection fails → CPU fallback (slow, correct)</td><td>silent</td><td><code>debug</code></td></tr>
+<tr><td><code>knowledge/layout_semantics.py:171,208</code></td><td><code>patch_view</code> / <code>patch_xsq_render_order</code> failed → wrong render order in saved artifacts</td><td><code>log.warning</code> ×2</td><td>keep warning (callers return <code>False</code>; finalize's collector entry covers the run-level view)</td></tr>
+<tr><td><code>xlights-mcp/server.py:205,209,220</code></td><td>N/A — deliberately re-raised as <code>RuntimeError</code> tool errors for the MCP client</td><td>re-raise</td><td>out of scope (correct as-is)</td></tr>
+</table>
+
+<h3>2.3 What "the run log doesn't say why" looks like today</h3>
+<p>A run where stems, the real render, and coverage sampling all failed produces — at default INFO level — <em>two</em> mid-run lines (<code>real render unavailable: ...</code> at INFO, one stems WARNING from core, possibly scrolled off among placement logs) and <em>zero</em> mention of coverage blindness. Nothing at the end of the run aggregates them. The operator reads the final scores as if all subsystems had been live.</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 The logging convention (one rule, applied 45 times)</h3>
+<ul>
+<li><strong><code>log.debug("&lt;what&gt; skipped/fallback: %s", exc)</code></strong> — cosmetic degradations: cache misses/write failures, per-call fallbacks inside an already-reported capability, expected recompute paths. Silent <code>pass</code> is <strong>banned</strong>; every block logs at least debug with the exception value.</li>
+<li><strong><code>log.warning("&lt;capability&gt; lost: %s", exc)</code></strong> — a whole capability is gone for the run or the iteration: no lyrics, no stems, no visual critique, offline-only render, coverage blind, dropped analyst, default view, failed media patch. Warnings for per-iteration capabilities fire per occurrence but the collector dedupes (§3.2).</li>
+<li><strong>Message shape</strong>: start with the capability name used in the collector (greppable), include <code>%s</code>-formatted <code>exc</code> (never bare <code>except: pass</code>), keep the repo's existing <code># noqa: BLE001 — &lt;reason&gt;</code> comment convention on the <code>except</code> line.</li>
+<li><strong>Level ≠ audience trick</strong>: INFO stays for <em>positive</em> progress lines (as today: "timed lyrics attached", "targetable_groups: 12/19 …"); degradations are only ever DEBUG or WARNING, so <code>grep -i warning</code> over a run log is a complete degradation list even without the collector.</li>
+</ul>
+
+<h3>3.2 The degradations collector (proposed: <code>xlights_orchestrator/degradations.py</code>)</h3>
+<p>Same ContextVar pattern as I1's telemetry (no signature churn; reaches closures like <code>make_visual_critique._vc</code> and <code>make_lit_sampler.sampler</code>), same best-effort guarantee (the collector itself may never raise):</p>
+<pre><code># PROPOSED — new module xlights_orchestrator/degradations.py
+from __future__ import annotations
+import logging
+from contextvars import ContextVar
+from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
+
+class Degradation(BaseModel):
+    capability: str            # taxonomy key: "audio:lyrics", "visual:real-render", ...
+    detail: str                # first occurrence's message ("%s" % exc, truncated ~300ch)
+    count: int = 1             # occurrences (dedup key = capability)
+    stage: str | None = None   # optional: "interpret" | "generate" | "refine" | "finalize"
+
+class DegradationLog:
+    def __init__(self) -&gt; None:
+        self.items: dict[str, Degradation] = {}      # keyed by capability → dedup
+    def note(self, capability: str, detail: str, *, stage: str | None = None) -&gt; None: ...
+    def summary(self) -&gt; list[Degradation]: ...       # insertion-ordered
+
+_current: ContextVar[DegradationLog | None] = ContextVar("xlo_degradations", default=None)
+
+def start_run() -&gt; DegradationLog: ...
+def current() -&gt; DegradationLog | None: ...
+
+def note(capability: str, exc_or_detail: object, *, stage: str | None = None,
+         level: int = logging.WARNING) -&gt; None:
+    """Log AND record in one call — the convention's warning branch is exactly:
+        degradations.note("visual:critique", exc)
+    Logs `"%s lost: %s" % (capability, exc)` at `level`; records into the active
+    DegradationLog if any (no active log → log-only, e.g. bare xlo regen helpers).
+    BEST-EFFORT: wraps itself in except Exception → log.debug."""</code></pre>
+<p><strong>Capability taxonomy</strong> (closed set, documented in the module docstring — free-form keys would defeat dashboard aggregation): <code>audio:lyrics</code>, <code>audio:stems</code>, <code>audio:instrumental-refine</code>, <code>groups:probe</code>, <code>emit:view</code>, <code>qa:coverage-blind</code>, <code>qa:render-flush</code>, <code>visual:critique</code>, <code>visual:real-render</code>, <code>refine:redesign</code>, <code>refine:analyst-drop</code> (from I2's panel change), <code>generate:triggers</code>, <code>finalize:media</code>, <code>finalize:timing-tracks</code>, <code>finalize:xsq-patch</code>, <code>cache:post-refine</code>.</p>
+<p><strong>End-of-run summary</strong> — emitted at the tail of <code>run_pipeline()</code> (just before <code>return st</code>, after finalize) and likewise in <code>regen_section()</code>:</p>
+<pre><code>== degradations (3) =====================================
+  audio:stems          all separation backends failed: demucs-mlx: ... (×1, interpret)
+  visual:real-render   real render unavailable: export_video_preview ... (×3, refine)
+  qa:coverage-blind    no .fseq for 'MyShow' (×1, refine)
+=========================================================
+(or) run completed with no degradations</code></pre>
+<p>Rendered via <code>log.warning</code> when non-empty (one block, not per-line — a run that degrades should end loudly) and <code>log.info</code> "no degradations" otherwise. Additionally written best-effort as <code>cache_root()/&lt;song_key&gt;/degradations.json</code> (<code>[{capability, detail, count, stage}, ...]</code> plus <code>run_id</code>/<code>ts</code>), sitting beside <code>revision_log.jsonl</code> and I1's <code>usage.json</code> so F-G can correlate "expensive run" × "degraded run" × "low score".</p>
+<p><strong>Optional revision-log tie-in</strong> (cheap, recommended): the finalize <code>RevisionLogRecord</code> gains <code>degradations: list[str] = []</code> (capability keys only) — same backward-compatible default posture as I1's fields, giving the JSONL analyzer the signal without parsing a second file.</p>
+
+<h3>3.3 The core/orchestrator boundary rule</h3>
+<p><code>xlights-core</code> must not import the orchestrator's collector (dependency direction) and shouldn't grow its own: core's blocks get the <em>convention</em> only (debug/warning per §2.2). The orchestrator reports core-owned capabilities by <strong>observing outcomes at the seam</strong>, which it already can:</p>
+<ul>
+<li><code>audio:stems</code> — after <code>AudioAnalyzer().analyze(song_path, stems=True)</code> in <code>run_pipeline</code> step 1: <code>if stems and not getattr(st.song_analysis, "stems", None): degradations.note("audio:stems", "no stems in analysis (separation failed or unavailable)", stage="interpret")</code>.</li>
+<li><code>audio:lyrics</code> — the existing <code>run.py:367</code> block plus the "still no lines" condition at :371 already bracket the outcome.</li>
+<li>Render-order patches — <code>patch_view</code>/<code>patch_xsq_render_order</code> return <code>bool</code>; finalize checks the return value it currently discards.</li>
+</ul>
+<p>This keeps core reusable (the MCP server links core without any orchestrator machinery) while the run-level story stays complete.</p>
+
+<h3>3.4 Blocks that should arguably re-raise instead</h3>
+<table>
+<tr><th>Block</th><th>Argument to re-raise</th><th>Recommendation</th></tr>
+<tr><td><code>groups.py:43</code> (<code>get_group_names</code> fails → <code>return []</code>)</td><td>If xLights can't even list groups, the client is down; every later stage (probe, emit, render, save) will fail anyway — but only after paying for analysis, panel, and director tokens. An empty <code>available_groups</code> also poisons the Director's prompt ("choose from: <em>nothing</em>") producing a garbage cached <code>creative_brief</code>.</td><td><strong>Re-raise.</strong> The docstring's "caller's problem, but degrade" hedge is wrong for this one: unlike a failed <em>probe</em> (line 62, which has the sane full-list fallback), a failed <em>listing</em> has no useful degraded mode. Raising <code>XLightsConnectionError</code> early fails the run before any LLM spend.</td></tr>
+<tr><td><code>run.py:440</code> / <code>regen.py:128</code> (<code>get_show_folder</code> → <code>None</code>)</td><td>Downstream, <code>prepare_media(song, None)</code> can't stage audio, so the final <code>.xsq</code> ships without its song — arguably a failed deliverable, and <code>_resolve_fseq(..., None)</code> also blinds coverage + critique for the whole run.</td><td><strong>Keep best-effort, but warning + collector</strong> (the run still produces a reviewable animation and the client call sits right next to a successful <code>emitter()</code> call, so real occurrences are rare); revisit to re-raise if <code>degradations.json</code> ever shows it firing in practice. This is exactly the kind of decision the summary exists to inform.</td></tr>
+<tr><td><code>run.py:178</code> (render flush before QA sampling)</td><td>A stale flush means the objective gate scores the <em>previous</em> iteration's pixels — worse than no sampling, because <code>reverted</code>/kept decisions key off it.</td><td>Keep (revert logic tolerates one noisy reading; <code>REGRESS_MARGIN</code> absorbs jitter) but upgrade to warning + collector so a systematically failing flush is visible instead of silently steering the loop.</td></tr>
+<tr><td><code>effect_emitter.py:84</code> (view fallback)</td><td>Wrong render order silently changes every layered look.</td><td>Keep fallback (first run after xLights restart legitimately lacks the view) with warning + collector; re-raising would break bootstrap flows.</td></tr>
+<tr><td><code>run.py:395</code>, <code>groups.py:57</code>, <code>analyzer.py:110/124</code> (cache validate/write)</td><td>—</td><td>Never re-raise; these are the canonical correct best-effort blocks. Debug only.</td></tr>
+</table>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong>Create <code>degradations.py</code></strong> (§3.2): <code>Degradation</code>, <code>DegradationLog</code>, ContextVar plumbing, <code>note()</code>, <code>render_summary()</code> (pure list → text, for testing), the capability-key docstring taxonomy.</li>
+<li><strong>Install per run</strong>: <code>degradations.start_run()</code> at the top of <code>run_pipeline()</code> and <code>regen_section()</code>; summary emission + <code>degradations.json</code> write at both exits (including the early-return checkpoints at <code>run.py:405,423</code> — a declined checkpoint still prints what degraded up to that point).</li>
+<li><strong>Sweep <code>pipeline/run.py</code></strong> (9 blocks) to the §2.2 targets — the highest-value file; includes the <code>audio:stems</code> seam check from §3.3.</li>
+<li><strong>Sweep <code>pipeline/visual.py</code> (6), <code>pipeline/groups.py</code> (5)</strong> — including the <code>groups.py:43</code> re-raise (delete the block, or narrow it to re-raise; update its docstring and the "returns []" contract in callers — <code>run_pipeline</code> needs no change since it currently just stores the list).</li>
+<li><strong>Sweep the remaining orchestrator files</strong>: <code>effect_emitter.py:84</code>, <code>qa/coverage.py:31</code> (once-per-run flag on the closure), <code>weave.py:316</code>, <code>media.py</code>, <code>timing.py</code>, <code>finalize.py</code>, <code>triggers.py</code>, <code>lyrics.py</code>, <code>regen.py</code>, <code>revision_log.py</code> (level check only).</li>
+<li><strong>Sweep <code>xlights-core</code></strong> (convention only, no collector): <code>analyzer.py</code> ×4, <code>stems.py</code> ×2, <code>lyrics_align.py</code>, <code>preview</code>/<code>knowledge</code> files per §2.2.</li>
+<li><strong>Wire I2 synergies if landed</strong>: panel analyst drop → <code>note("refine:analyst-drop", ...)</code>; retry-exhaustion warnings need no collector entry (the terminal failure surfaces elsewhere).</li>
+<li><strong>Optional finalize-record field</strong>: add <code>degradations: list[str] = []</code> to <code>RevisionLogRecord</code> and populate at both finalize call sites (skip-gate and end-of-loop).</li>
+<li><strong>Docs</strong>: taxonomy table + "reading a degradations summary" paragraph in <code>docs/usage.md</code>; add a repo convention note (CLAUDE.md/openspec project conventions) that new best-effort blocks must log per §3.1 — the mechanism that keeps the count honest as the roadmap's "zero TODO markers" culture intends.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first (<code>pytest -m "not live"</code>, injected fakes per <code>tests/test_refine.py</code> / <code>test_orchestrator.py</code> conventions):</p>
+<ul>
+<li><strong><code>tests/test_degradations.py</code> (new)</strong>:
+  <ul>
+  <li><code>note()</code> with no active log is a no-op that still logs (caplog assertion) and never raises (call it with a raising fake detail object).</li>
+  <li>Dedup: two <code>note("visual:critique", ...)</code> ⇒ one item, <code>count == 2</code>, first detail kept.</li>
+  <li><code>render_summary()</code>: empty ⇒ "no degradations" text; non-empty ⇒ one line per capability with count and stage.</li>
+  <li>ContextVar isolation: two sequential <code>start_run()</code>s don't leak items across runs.</li>
+  </ul></li>
+<li><strong>Pipeline integration (extend <code>test_orchestrator.py</code>)</strong>: run the hermetic pipeline with an injected <code>visual_critique</code> fake that raises ⇒ finalize summary contains <code>visual:critique</code> ×N and the run still completes; with all fakes healthy ⇒ empty summary, <code>degradations.json</code> absent or empty list.</li>
+<li><strong>Per-block caplog tests</strong> for the upgraded silent blocks (representative, not exhaustive): <code>qa/coverage</code> with a raising sampler logs the blind warning exactly once across many <code>evaluate</code> calls; <code>effect_emitter</code> with a client whose view-create raises logs <code>emit:view</code> and falls back (extend the existing emitter tests' fake client).</li>
+<li><strong><code>groups.py:43</code> re-raise</strong>: update <code>tests/test_targetable_groups.py</code> — client whose <code>get_group_names</code> raises now propagates <code>XLightsConnectionError</code> (was: returned <code>[]</code>); keep the probe-failure fallback tests unchanged (they pin the still-degrading path).</li>
+<li><strong>Back-compat pins</strong>: golden pipeline snapshot unchanged (logging-only edits must not touch artifacts); if the optional revision-log field ships, reuse I1's old-JSONL-line-validates test pattern.</li>
+<li><strong>Log-level audit test (cheap guard)</strong>: a unit test that greps the two packages' source for <code>except Exception</code> blocks whose body contains neither a <code>log.</code> call, a <code>note(</code> call, nor a <code>raise</code> — pinning "no silent swallows" as a structural invariant rather than a review habit. (Simple AST walk; skip <code>server.py</code>/<code>brief_editor.py</code> re-raise patterns automatically since they contain <code>raise</code>.)</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>The collector itself fails and takes a run down (observability must never break the run)</td><td>High</td><td><code>note()</code> is internally best-effort (<code>except Exception → log.debug</code>), mirroring <code>RevisionLog.write()</code>; summary emission and JSON write sit in their own guard.</td></tr>
+<tr><td><code>groups.py:43</code> re-raise breaks a flow that relied on the empty-list limp-through</td><td>Medium</td><td>Audit shows the only caller is <code>run_pipeline</code>/<code>regen_section</code> storing the list; both would fail a few lines later at emit anyway. Change is test-pinned and called out in the PR; if a legitimate empty-layout flow exists it distinguishes cleanly (empty list from a <em>successful</em> call still returns normally at :46–47).</td></tr>
+<tr><td>Warning fatigue: per-iteration capabilities (critique, real render) warn every iteration</td><td>Medium</td><td>Collector dedupes with counts; consider first-occurrence-WARNING/subsequent-DEBUG for the noisiest keys if live runs show fatigue (knob left out of v1 deliberately).</td></tr>
+<tr><td>Capability-key taxonomy drifts (typos create phantom capabilities)</td><td>Low</td><td>Keys are module-level constants (or a <code>Literal</code> once I4's mypy gate lands — then a typo is a type error); dashboard consumers read the same constants.</td></tr>
+<tr><td>Level changes alter test expectations (caplog assertions on existing INFO lines)</td><td>Low</td><td>Grep tests for asserted log text before the sweep; the suite has few caplog assertions today.</td></tr>
+<tr><td>Double-reporting once I2 lands (retry warning + drop warning + collector note)</td><td>Low</td><td>Convention: retries log their own WARNINGs; only the <em>terminal</em> loss calls <code>note()</code>. Documented in both modules.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>☐ Zero fully-silent <code>except Exception</code> blocks remain in <code>packages/*/src</code>: every block logs (≥ debug with the exception value), reports via <code>note()</code>, or re-raises — enforced by the structural audit test.</li>
+<li>☐ Every whole-capability loss in the §2.2 inventory logs at WARNING and appears in the end-of-run summary with its taxonomy key.</li>
+<li>☐ A completed run (including early-checkpoint exits and <code>xlo regen</code>) ends with either the degradations block or an explicit "no degradations" line, and writes <code>degradations.json</code> beside the revision log when non-empty.</li>
+<li>☐ <code>qa/coverage.py</code> blindness is reported exactly once per run; <code>effect_emitter</code> default-view fallback is reported; <code>run.py:178</code> flush failure is reported.</li>
+<li>☐ <code>targetable_groups</code> raises on a failed group listing (test-pinned) while retaining all existing probe-failure fallbacks.</li>
+<li>☐ <code>xlights-core</code> gains no orchestrator imports; its blocks follow the level convention only.</li>
+<li>☐ Full hermetic suite + golden pipeline snapshot pass; <code>ruff check</code> clean; no new runtime dependencies.</li>
+<li>☐ The summary demonstrably answers the roadmap's motivating question: an injected stems failure produces a run whose tail says <code>audio:stems — ...</code> instead of nothing.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>Merge with I1's collector?</strong> Telemetry (<code>UsageLog</code>) and degradations (<code>DegradationLog</code>) are structurally twin ContextVar collectors installed at the same two entry points. One <code>runinfo.py</code> module holding both would halve the plumbing — but couples two independently-landable items. Proposal: keep separate modules, extract a shared <code>_ContextCollector</code> helper only if a third collector ever appears.</li>
+<li><strong>Stage attribution</strong> — pass <code>stage=</code> explicitly at each call site (proposed, zero magic) vs. a stage ContextVar the pipeline sets as it advances (less call-site noise, more machinery)? Explicit wins for 20-odd sites.</li>
+<li><strong>Attended-mode surfacing</strong> — should the interactive checkpoints (<code>_interactive_checkpoint</code>, <code>_design_review</code>) print degradations-so-far, so a human can abort a stems-less run before paying for generation? Cheap once the collector exists; F-I's browser progress UI is the eventual home.</li>
+<li><strong>Severity beyond two levels</strong> — is a third tier ("degraded-but-scored" vs "advisory-only lost") worth encoding, or does the capability key already imply it? Leaning: the key implies it; keep two levels.</li>
+<li><strong><code>run.py:440</code> escalation criteria</strong> — after N observed <code>finalize:media</code> occurrences in real <code>degradations.json</code> files, promote to re-raise? Record the decision rule now so the data collection has a purpose.</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> §I5; June scorecard row R5 ("❌ Open — 45 <code>except Exception</code> blocks across 20 files, most silent"); sequencing row 3 (paired with F-A Phase 1); §I2 (retry warnings feeding the same story).</li>
+<li>Prior roadmap: <code>docs/roadmap-2026-06.md</code> §R5 (the original "log swallowed exceptions" item this design executes).</li>
+<li>Inventory ground truth (2026-07-05 grep, 45 blocks / 20 files): <code>pipeline/run.py:178,227,264,367,376,383,395,440,476</code>; <code>pipeline/visual.py:44,65,75,151,188,198</code>; <code>pipeline/groups.py:43,50,57,62,93</code>; <code>xlights_core/audio/analyzer.py:110,124,142,180</code>; <code>xlights-mcp/server.py:205,209,220</code>; <code>lyrics.py:37,69</code>; <code>stems.py:46,76</code>; <code>layout_semantics.py:171,208</code>; plus single blocks in <code>revision_log.py:112</code>, <code>effect_emitter.py:84</code>, <code>qa/coverage.py:31</code>, <code>timing.py:185</code>, <code>finalize.py:39</code>, <code>triggers.py:294</code>, <code>media.py:101</code>, <code>regen.py:128</code>, <code>weave.py:316</code>, <code>brief_editor.py:200</code>, <code>agents/guide.py:39</code>, <code>lyrics_align.py:129</code>.</li>
+<li>Sibling designs: <code>i1-token-cost-telemetry.html</code> (ContextVar collector pattern, JSONL back-compat posture), <code>i2-retry-backoff.html</code> (§3.5 analyst drop → <code>refine:analyst-drop</code>; retry-vs-terminal reporting rule).</li>
+<li>OpenSpec: <code>openspec/specs/show-orchestration/</code> and <code>openspec/specs/visual-critique/</code> (graceful-degradation requirements these blocks implement — spec deltas should name the new summary); archived <code>2026-06-10-add-coverage-qa</code> ("never gate blind" posture), <code>2026-06-10-add-real-render-feedback</code>, <code>2026-06-11-add-render-order</code> (why <code>emit:view</code> matters), <code>2026-06-09-add-targetable-group-filter</code> (the probe fallback contract §3.4 partially revises).</li>
+<li>Related docs: <code>docs/usage.md</code> (run-artifact layout — gains <code>degradations.json</code>).</li>
+</ul>
+</body>
+</html>

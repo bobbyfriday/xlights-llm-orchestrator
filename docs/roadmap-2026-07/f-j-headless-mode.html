@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-J — Headless / preview-only iteration mode · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-J — Headless / preview-only iteration mode</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-J in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>M–L (exploratory spike)</dd>
+<dt>Depends on</dt><dd>Nothing hard; synergizes with I8 (fseq metrics) and F-I</dd>
+<dt>Unblocks</dt><dd>CI full-pipeline evals, cloud execution, faster refine loops</dd>
+<dt>Key files</dt><dd><code>packages/xlights-core/src/xlights_core/preview/render.py</code>, <code>packages/xlights-core/src/xlights_core/preview/fseq.py</code>, <code>packages/xlights-core/src/xlights_core/preview/layout.py</code>, <code>packages/xlights-core/src/xlights_core/client.py</code>, <code>packages/xlights-core/src/xlights_core/editing.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/effect_emitter.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/visual.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/finalize.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/groups.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/run.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>Every full pipeline run today requires a live, GUI-visible xLights instance reachable over its
+automation REST API (<code>XLightsClient</code>, <code>packages/xlights-core/src/xlights_core/client.py</code>).
+That single dependency has three costs:</p>
+<ul>
+<li><strong>No CI full-pipeline evals.</strong> The hermetic tests fake the client (see §2.4), so CI
+exercises the orchestration logic but never a real render. A golden test can freeze instruction
+JSON (<code>tests/test_golden_pipeline.py</code>), but nothing in CI can answer "does this change make
+the <em>show</em> better?" — the eval loop (F-G/F-H) is capped at instruction-level diffs.</li>
+<li><strong>No cloud execution.</strong> The run must be co-located with a desktop app; today that is a
+macOS machine with xLights open (the <code>.fseq</code> is even written into the macOS sandbox container,
+<code>pipeline/media.py:21</code> — <code>SANDBOX_DATA = Path.home() / "Library/Containers/org.xlights/Data"</code>).</li>
+<li><strong>Slow refine iterations.</strong> Each refine iteration re-emits every effect over REST —
+one <code>getModels</code> plus one <code>addEffect</code> round-trip <em>per placement</em>
+(<code>editing.py:82</code> and <code>:85</code>), then a full <code>renderAll</code>
+(<code>effect_emitter.py:134</code>, write timeout 300&nbsp;s, <code>client.py:35</code>) and a
+<code>saveSequence</code> flush before QA can sample coverage (<code>run.py:174-179</code>).
+With ~270+ effects per show this is minutes of serialized REST traffic per iteration.</li>
+</ul>
+<p>The tantalizing fact: an offline renderer that needs no xLights already exists
+(<code>xlights_core.preview</code>) and already feeds the visual critic and the coverage sampler. The
+core question this spike must answer honestly: <strong>what in the loop truly requires live
+xLights?</strong> The answer, previewed here and verified in §2: only two things — the once-per-layout
+targetability probe, and <em>the render itself</em>. xLights renders effects (settings strings in the
+<code>.xsq</code>) into per-node pixels (the <code>.fseq</code>); the offline
+<code>PreviewRenderer</code> only <em>replays</em> an already-rendered <code>.fseq</code>. Everything
+else is either already file-based or trivially fakeable. The render is the crux, and this doc analyzes
+the three ways around it.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 What the offline PreviewRenderer actually does</h3>
+<p><code>packages/xlights-core/src/xlights_core/preview/</code> is a three-file, xLights-free replayer:</p>
+<ul>
+<li><code>fseq.py</code> — <code>load_fseq()</code> (line 24) parses FSEQ v2 (<code>PSEQ</code> magic,
+line 28): fixed header (channels, frame count, step ms), a compression-block index, and either
+uncompressed channel data or zstd blocks (lines 42–73). It returns a dense
+<code>uint8 [num_frames, channels]</code> array — the exact per-node RGB of every frame, as rendered
+by xLights.</li>
+<li><code>layout.py</code> — <code>parse_controllers()</code> (line 57) walks
+<code>xlights_networks.xml</code> to build absolute channel ranges; <code>parse_models()</code>
+(line 113) walks <code>rgbeffects.xml</code> top-level <code>&lt;model&gt;</code> elements
+(Default preview only, line 126) and <code>model_world_pixels()</code> (line 248) places every pixel
+in world coordinates with per-<code>DisplayAs</code> geometry: Arches, Single Line, Custom grids,
+Horiz/Vert Matrix (with strand zig-zag), Cube, Star, Tree — everything else degrades to a line.</li>
+<li><code>render.py</code> — <code>PreviewRenderer</code> (line 29) precomputes an orthographic
+projection once, then serves <code>render_frame()</code> (still PNG, line 84),
+<code>render_clip()</code> (silent MP4 via an ffmpeg pipe, line 93), and
+<code>brightest_frame_ms()</code> (line 130, the "representative moment" picker the critique uses).
+Overlapping pixels take the max, not last-write (<code>np.maximum.at</code>, lines 73–77).</li>
+</ul>
+<p>What it does <em>not</em> do — and this is the whole crux — is render <em>effects</em>. It has no
+notion of an effect, a settings string, a value curve, or a buffer style. Input is channel data that
+xLights has already rendered. Its fidelity limits versus the xLights house preview are also known:
+point-splat pixels (no bulb size/glow), no background image, approximate geometry (e.g. arch peak
+height is a <code>0.5 × span</code> heuristic, <code>layout.py:192</code>), and only the Default
+layout group.</p>
+
+<h3>2.2 RealRender: why the offline render is not trusted as ground truth</h3>
+<p><code>pipeline/visual.py:155-158</code> — quoted verbatim:</p>
+<pre><code>class RealRender:
+    """The REAL xLights render, exported via automation (media-attached sequences ONLY — a
+    media-less export crashes xLights). Cached by the `.xsq` mtime; serves offset-corrected
+    frames/clips via ffmpeg. Everything best-effort: consumers fall back to the offline renderer."""</code></pre>
+<p>It exists because the offline replay differs visually from what xLights shows (roadmap I8:
+"fseq metrics inherit offline-render fidelity (the reason <code>RealRender</code> exists)"). Its
+guardrail is the <strong>media-attach quirk</strong> — <code>visual.py:171-174</code>:</p>
+<pre><code>seq = await client.get_open_sequence()
+if not (seq.get("media") or "").strip():
+    return False                              # GUARDRAIL: never export media-less</code></pre>
+<p>backed by <code>client.py:258-260</code>: <code>export_video_preview()</code>
+"REQUIRES a media-attached sequence — exporting a media-less sequence crashes xLights with a
+bitrate-0 null-deref". And media cannot be attached live at all —
+<code>effect_emitter.py:70-72</code> (docstring of <code>apply_instructions</code>):</p>
+<pre><code>Create a clean-slate ANIMATION sequence (replacing any open one) and additively place
+the instructions. Audio is NOT attached here — `newSequence(mediaFile)` crashes xLights
+(LoadAudioData modal); the song is attached by an offline `.xsq` patch at finalize instead.</code></pre>
+<p><strong>An important consequence, verified by reading the flow (confirm live in the spike):</strong>
+because the in-run sequence is always a media-less ANIMATION (media is patched offline only at
+finalize, <code>finalize.py:26-33</code>, i.e. <em>after</em> the refine loop), the
+<code>RealRender</code> guardrail returns <code>False</code> mid-run and both the visual critique
+(<code>visual.py:79</code>, <code>use_real</code>) and the coverage sampler
+(<code>visual.py:124-128</code>) fall back to the offline <code>PreviewRenderer</code>. In other words,
+<strong>the refine loop's in-flight decisions already run on offline renders today</strong> — the live
+app's irreplaceable contribution mid-run is producing the <code>.fseq</code>, not the pictures.</p>
+
+<h3>2.3 The client-call inventory: everything that requires live xLights</h3>
+<p>Complete inventory of <code>client.*</code> call sites across
+<code>packages/xlights-orchestrator/src/</code> plus the two calls made inside
+<code>xlights_core.editing.place_preset</code> (invoked per placement by the emitter and the probe).
+Verified by grep on 2026-07-05; re-verify at spike time (spike step S2).</p>
+<table>
+<tr><th>Call site</th><th><code>XLightsClient</code> method (REST cmd)</th><th>Purpose</th><th>Frequency</th></tr>
+<tr><td><code>pipeline/groups.py:42</code></td><td><code>get_group_names</code> (<code>getModels</code>)</td><td>List layout groups for targetability</td><td>Once per run</td></tr>
+<tr><td><code>pipeline/groups.py:49</code></td><td><code>get_model_names</code> (<code>getModels</code>)</td><td>Layout fingerprint for the probe cache</td><td>Once per run</td></tr>
+<tr><td><code>pipeline/groups.py:79-80, 92</code></td><td><code>close_sequence</code>, <code>new_sequence</code> (probe setup/teardown)</td><td>Disposable sequence for the targetability probe</td><td>Once per <em>layout</em> (cache miss only)</td></tr>
+<tr><td><code>pipeline/groups.py:86</code> → <code>editing.py:82,85</code></td><td><code>get_models</code>, <code>add_effect</code></td><td>Trivial effect per group — empirical targetability</td><td>Once per layout (cache miss only)</td></tr>
+<tr><td><code>pipeline/run.py:439</code>, <code>pipeline/regen.py:127</code></td><td><code>get_show_folder</code></td><td>Locate show folder for media staging + artifact resolution</td><td>Once per run</td></tr>
+<tr><td><code>effect_emitter.py:77</code></td><td><code>close_sequence</code></td><td>Clean slate before emit (modal-avoidance path)</td><td>Per emit (first pass + each refine re-emit)</td></tr>
+<tr><td><code>effect_emitter.py:82-85</code></td><td><code>new_sequence</code></td><td>Fresh ANIMATION sequence (SEM Master view when loaded)</td><td>Per emit</td></tr>
+<tr><td><code>effect_emitter.py:116-122</code> → <code>editing.py:82</code></td><td><code>get_models</code></td><td>Target-exists check inside <code>place_preset</code></td><td><strong>Per placement</strong> (hundreds per emit)</td></tr>
+<tr><td><code>effect_emitter.py:116-122</code> → <code>editing.py:85</code></td><td><code>add_effect</code></td><td>Place one effect (settings + palette + timing + layer)</td><td><strong>Per placement</strong></td></tr>
+<tr><td><code>effect_emitter.py:134</code></td><td><code>render_all</code></td><td><strong>The render</strong>: settings → pixels; side effect writes the <code>.fseq</code> on the next save</td><td>Per emit</td></tr>
+<tr><td><code>pipeline/run.py:175</code>, <code>pipeline/visual.py:63</code></td><td><code>save_sequence</code></td><td>Flush the <code>.fseq</code> so sampler/critique see <em>this</em> render</td><td>Per refine iteration</td></tr>
+<tr><td><code>pipeline/visual.py:64</code></td><td><code>get_show_folder</code></td><td>Resolve layout files for the offline renderer</td><td>Per critique call</td></tr>
+<tr><td><code>pipeline/visual.py:171, 179</code></td><td><code>get_open_sequence</code>, <code>export_video_preview</code></td><td><code>RealRender.refresh</code> — media guardrail + house-preview export</td><td>Per refine iteration (but see §2.2: no-ops mid-run)</td></tr>
+<tr><td><code>pipeline/run.py:272, 281, 302</code></td><td><code>close_sequence</code></td><td>Refine loop re-emit / revert re-emit / final rebuild</td><td>Per refine iteration</td></tr>
+<tr><td><code>pipeline/finalize.py:23, 27</code></td><td><code>save_sequence</code>, <code>close_sequence</code></td><td>Save, then release the <code>.xsq</code> for offline patching</td><td>Once per run</td></tr>
+</table>
+<p><strong>Distinct <code>XLightsClient</code> methods hit during a run: 11</strong>
+(<code>get_group_names</code>, <code>get_model_names</code>, <code>get_models</code>,
+<code>get_show_folder</code>, <code>get_open_sequence</code>, <code>new_sequence</code>,
+<code>close_sequence</code>, <code>save_sequence</code>, <code>add_effect</code>,
+<code>render_all</code>, <code>export_video_preview</code>) — mapping to <strong>9 distinct REST
+commands</strong> (the three model-listing methods all wrap <code>getModels</code>).
+<code>open_sequence</code>, <code>get_version</code>, <code>get_model</code>, and
+<code>get_controllers</code> exist on the client (<code>client.py:139-178, 205</code>) but are not
+called by the pipeline.</p>
+<p>Classified by when they matter:</p>
+<ul>
+<li><strong>Layout-setup-once</strong> (cached): the targetability probe. <code>groups.py:53</code>
+caches per layout fingerprint (<code>_fingerprint</code>, lines 28–32, keyed on group <em>and</em>
+model names) — so this is a once-per-layout dependency, not per-run. A headless run against a known
+layout only needs the cache file <code>targetable_groups_&lt;fp&gt;.json</code> pre-seeded.</li>
+<li><strong>Per-run bookkeeping</strong>: <code>get_show_folder</code>, finalize save/close. All
+resolvable to plain paths/files in a headless mode.</li>
+<li><strong>Per-emit / per-refine-iteration — the real dependency</strong>: sequence lifecycle
+(<code>close</code>/<code>new</code>), placement (<code>get_models</code>+<code>add_effect</code>
+per instruction), <code>render_all</code>, <code>save_sequence</code>. Of these, only
+<code>render_all</code> is genuinely hard: placement is just building an effect list, and the
+<code>.xsq</code> is XML we already know how to patch — but only xLights can turn that XML into
+channel data.</li>
+</ul>
+
+<h3>2.4 What is already offline, and what the test fakes already cover</h3>
+<ul>
+<li><strong><code>finalize.py</code> is the existence proof for offline mutation.</strong> Media
+attach, canonical render order, and timing tracks are all patched into the saved <code>.xsq</code>
+with the file released — <code>finalize.py:26</code>: <code># patch the .xsq OFFLINE (live edits
+crash xLights)</code>, calling <code>patch_xsq_media</code> (<code>media.py:70</code>),
+<code>patch_xsq_render_order</code>, <code>patch_xsq_timing_tracks</code>. The <code>.xsq</code>
+format is fully writable by this codebase.</li>
+<li><strong>The offline renderer already carries QA and critique.</strong> The coverage sampler
+(<code>make_lit_sampler</code>, <code>visual.py:105</code>) and the visual critique both consume
+the <code>.fseq</code> through <code>PreviewRenderer</code>; per §2.2 this is the path actually
+exercised mid-run.</li>
+<li><strong>A fake client for CI already exists — several, in fact.</strong>
+<code>tests/test_golden_pipeline.py:129</code> (<code>_FakeClient</code> with only
+<code>get_group_names</code>/<code>get_show_folder</code>), <code>tests/test_refine.py:93</code>
+(only <code>close_sequence</code>, paired with a fake emitter), plus per-area fakes in
+<code>test_targetable_groups.py:17</code>, <code>test_orchestrator.py:95</code>,
+<code>test_value_curves.py:43</code>. These prove the <em>logic</em> runs headless today — but the
+fake emitter returns <code>{"placed": ..., "rendered": True}</code> without producing any channel
+data, so nothing downstream can measure the show. Fakes cover logic; they cannot cover rendering.</li>
+</ul>
+
+<h2>3. Proposed design</h2>
+<p>Headless mode needs a source of rendered <code>.fseq</code> data that does not require a
+human-attended GUI. Three options, then the spike that decides among them.</p>
+
+<h3>3.1 Option (a) — xLights batch / CLI render</h3>
+<p><strong>What the repo actually says (verified):</strong> the automation surface has a
+<code>batchRender</code> command that this project has deliberately deferred, twice:
+<code>openspec/changes/archive/2026-06-08-add-xlights-mcp-effect-editing/proposal.md:13</code> lists
+"<code>batchRender</code>" under non-goals, and
+<code>openspec/changes/archive/2026-06-08-add-visual-critic/design.md:38-39</code> concluded
+"<strong>no <code>batchRender</code>, no extra render step</strong> — the <code>.fseq</code> is a
+side effect of the render+save we already do (<code>renderAll</code> is also safe/fast, ~2s)". So the
+repo has evidence that a batch-render <em>concept</em> exists in xLights, and evidence that
+<code>renderAll</code> on the current layout is cheap — but it has never run xLights without a GUI.</p>
+<p><strong>Not verified in this repo — must verify in the spike:</strong> xLights is known to ship a
+command-line render mode on some platforms (an <code>xlights -render &lt;seq.xsq&gt;</code>-style
+invocation / batch render entry point), and Linux builds exist (AppImage). Whether it (1) exists in
+the current release, (2) runs without a display or needs Xvfb/offscreen wx, (3) produces a
+<code>.fseq</code> equivalent to the GUI's <code>renderAll</code>+<code>saveSequence</code>, and
+(4) how long it takes, are precisely the spike questions. Do not design against it until S3 answers
+them.</p>
+<p><strong>Shape if it works (proposed, does not exist):</strong> a file-based emitter that writes
+effects straight into a <code>.xsq</code> (extending the <code>finalize.py</code>/<code>media.py</code>
+XML-patching pattern to effect placement — the <code>.xsq</code> stores the same
+settings/palette strings <code>place_preset</code> assembles, <code>editing.py:63-78</code>), then
+shells out to the CLI render:</p>
+<pre><code># Proposed sketch — signatures only, contingent on S3
+async def apply_instructions_headless(
+    workdir: Path, instructions: list[EffectInstruction], *,
+    duration_secs: int, layout: LayoutFiles, renderer: BatchRenderer,
+) -&gt; dict[str, Any]:
+    """Write effects into a .xsq offline, invoke `xlights -render`, return the applied report."""
+
+class BatchRenderer(Protocol):
+    async def render(self, xsq: Path) -&gt; Path: ...   # returns the .fseq path</code></pre>
+<p>Risks: writing <code>.xsq</code> effect XML ourselves replaces the live <code>addEffect</code>
+validation (targetability, <code>worked=false</code> on overlap — <code>client.py:234-244</code>)
+with our own correctness; the targetability probe stays a live-once-per-layout step; layer/row
+semantics must match what <code>addEffect</code> produces. This is real work (M–L on its own) — which
+is why it is a spike question, not a commitment.</p>
+
+<h3>3.2 Option (b) — reimplement effect rendering in Python: non-starter</h3>
+<p>Rendering the <code>.xsq</code> ourselves means reimplementing the xLights render engine:
+hundreds of effect types (the mined catalog alone spans dozens of stock types, each with its own
+settings vocabulary — see the <code>E_*</code>/<code>B_*</code> keys assembled in
+<code>editing.py:63-78</code>), value curves with their own DSL
+(<code>knowledge/value_curves.py</code>), per-model vs per-preview buffer styles
+(<code>pipeline/render_style.py</code>'s <code>resolve_buffer_style</code>, and the roadmap's
+Horizon-3 note that a wrong buffer mode "silently breaks every sweep"), layer blend modes, transitions,
+group-canvas rendering, and per-version behavior drift in upstream C++. Exact parity is unattainable
+and approximate parity is worse than useless here — the whole point of the render is to be the ground
+truth the offline replay is measured <em>against</em>. Any divergence would be invisible until a human
+watches the real show. Permanently chasing the upstream renderer is an unmaintainable liability for a
+two-package Python project. <strong>Rejected without a spike task.</strong></p>
+
+<h3>3.3 Option (c) — hybrid: cache a rendered <code>.fseq</code>, iterate offline on it</h3>
+<p>Keep one live render per "look generation", then iterate offline against the cached
+<code>.fseq</code>. Honest analysis of what that supports, given that the <code>.fseq</code> is a
+flat <code>[frames, channels]</code> array with every effect already baked in:</p>
+<table>
+<tr><th>Iteration activity</th><th>Offline on cached .fseq?</th><th>Why</th></tr>
+<tr><td>QA / objective score (coverage sampler), I8 Tier-0 fseq metrics, offline critique stills/clips, judge/checkpoint decisions</td><td><strong>Yes</strong></td><td>Pure reads of channel data — this is exactly what runs today (§2.2)</td></tr>
+<tr><td>Muting/dimming a group or a time window (drop an effect, reduce brightness)</td><td>Partial</td><td>Zero/scale the group's channel range over the window — channel ranges are known from <code>layout.py</code>; but layered effects on the same target are baked together, so "remove layer 2 only" is impossible</td></tr>
+<tr><td>Time-shifting a whole section (re-timing)</td><td>Partial</td><td>Frame-slice copy; boundaries show discontinuities for motion effects; sub-section effect re-timing inherits the same problem</td></tr>
+<tr><td>Retargeting an existing look to a different group</td><td>Mostly no</td><td>Copying channel ranges ignores the target's geometry/buffer — a matrix look pasted onto arches is garbage</td></tr>
+<tr><td><strong>New effects, changed knobs/settings, palette changes, buffer-style changes, section regeneration</strong></td><td><strong>No</strong></td><td>All require the render engine. And section regen is what <code>_refine_loop</code> actually does — <code>regenerate_section</code> (<code>run.py:124</code>) produces brand-new <code>EffectInstruction</code>s</td></tr>
+</table>
+<p>Conclusion: the hybrid cannot make the <em>current</em> refine loop headless, because every
+accepted revision regenerates instructions and needs a re-render. What it <em>can</em> do is
+restructure the loop so that evaluation and decision-making (report → judge → checkpoint → revision
+selection) run offline and renders are batched: accumulate all of an iteration's section regens, do
+<strong>one</strong> live emit+render, refresh the cache. That is not "no xLights"; it is "xLights as
+a render server touched once per iteration" — which is roughly what the loop already does, minus the
+per-placement <code>get_models</code> chatter. The hybrid's genuine wins are (1) CI evals against
+<em>pre-rendered fixture</em> <code>.fseq</code>s (the whole I8 Tier-0 metric suite, judge, and QA
+run hermetically on a checked-in fixture), and (2) trusting offline pictures for inner-loop decisions
+with one real-render gate at the end — exactly the caveat I8 already states ("keep one real-render
+check near the end of a run as the ground-truth gate").</p>
+
+<h3>3.4 The spike plan</h3>
+<ol>
+<li><strong>S1 — measure the offline-vs-real fidelity gap on a fixture.</strong> Take one finished,
+media-attached show (post-finalize, so <code>RealRender</code> engages). Script:
+(1) <code>RealRender.refresh()</code> → house-preview MP4; (2) for each section, sample N=8
+beat-aligned timestamps plus <code>brightest_frame_ms</code>; (3) render each timestamp both ways —
+<code>PreviewRenderer.render_frame(t)</code> and <code>RealRender.frame_png(t)</code>
+(offset-corrected, <code>visual.py:201-206</code>); (4) compute per-frame global and per-group
+deltas — per-group masks come from projecting each group's member-model pixels through the same
+<code>_project()</code> the renderer uses — mean brightness delta, lit-fraction agreement at the
+sampler's threshold (<code>&gt;30</code>, <code>visual.py:140</code>), and hue-histogram distance.
+Output a small JSON report per fixture.</li>
+<li><strong>S2 — client-call inventory.</strong> Done in §2.3 of this document; re-run the grep at
+spike time and diff against the table (the codebase moves fast — 63 changes in ~5 weeks).</li>
+<li><strong>S3 — prototype xLights batch/CLI render on the target platform.</strong> On macOS first
+(known-good install), then Linux (AppImage + Xvfb): discover the actual CLI flags
+(<code>xlights --help</code> / upstream docs), render the S1 fixture's <code>.xsq</code>, compare the
+produced <code>.fseq</code> byte-for-byte and channel-for-channel against the REST-rendered one, and
+time it against <code>renderAll</code>+<code>saveSequence</code> over REST (repo baseline: "~2s" for
+<code>renderAll</code> on this layout, per the add-visual-critic design). Also test: does it run with
+no display at all, or only under a virtual display?</li>
+</ol>
+
+<h3>3.5 Decision criteria</h3>
+<table>
+<tr><th>Evidence from spike</th><th>Decision</th></tr>
+<tr><td>S3: CLI render works headless on Linux (Xvfb acceptable) AND the <code>.fseq</code> is byte-identical or within ≤1 LSB per channel of the REST render AND wall time ≤ 2× REST <code>renderAll</code></td><td><strong>Option (a)</strong>: build the file-based emitter + <code>BatchRenderer</code> behind the existing <code>emitter=</code> injection seam (<code>run_pipeline(..., emitter=...)</code>, <code>run.py:328</code>); live xLights remains only for the once-per-layout probe (pre-seeded cache in CI)</td></tr>
+<tr><td>S1: per-group lit-fraction decisions agree ≥95% and hue/brightness deltas small enough that refine keep/revert outcomes match on the fixture (replay the revision log's decisions against both render paths)</td><td><strong>Hybrid viable</strong> for inner iterations: offline evaluation + batched renders, with one real-render gate before finalize — mirrors I8's caveat, and shares its Tier-0 metric code</td></tr>
+<tr><td>S3 fails (no CLI render, or crashes headless, or divergent <code>.fseq</code>) and S1 gap is large</td><td><strong>Fallback</strong>: keep live xLights, batch the interactions (§3.6)</td></tr>
+</table>
+
+<h3>3.6 Recommendation</h3>
+<p><strong>Run the spike; expect the hybrid + fallback to be the near-term reality.</strong> The
+honest prior: option (a) is the only true headless path and is worth one focused day of S3 evidence
+before betting on it — but it carries the hidden cost of reimplementing <code>addEffect</code>-side
+validation as <code>.xsq</code> writing, so even a "yes" from S3 makes it an M–L follow-up, not a
+quick win. Meanwhile two cheap results are available regardless of S3:</p>
+<ul>
+<li><strong>CI evals on fixture <code>.fseq</code>s now.</strong> Check in one rendered fixture
+(layout XMLs + a small <code>.fseq</code>); run QA, I8 Tier-0 metrics, and judge flows against it
+hermetically. This needs zero new render capability and unblocks most of the "CI full-pipeline eval"
+value.</li>
+<li><strong>Keep live xLights, but batch the interactions</strong> (the explicit fallback): cache the
+<code>get_models()</code> list per emit instead of one REST call per placement
+(<code>editing.py:82</code> — with ~270 placements this halves emitter round-trips), reuse I8's
+tiering so critique/QA reads stay offline, and investigate section-scoped renders (xLights'
+automation render command takes the whole sequence today; a scoped render is another S3 question).
+The refine loop already renders only once per iteration, so the win here is placement chatter and
+avoided re-critique, not render count.</li>
+</ul>
+<p>If S3 surprises positively (headless Linux render, equivalent <code>.fseq</code>), promote option
+(a) to a proper OpenSpec change: it flips cloud execution and true CI full-pipeline evals from
+"impossible" to "engineering".</p>
+
+<h2>4. Implementation plan (spike protocol)</h2>
+<ol>
+<li><strong>Fixture prep</strong> — pick one finished show (e.g. the current test song), run the
+normal pipeline with <code>--save-as</code>, finalize (media attached), keep:
+<code>&lt;seq&gt;.xsq</code>, <code>&lt;seq&gt;.fseq</code>, <code>xlights_rgbeffects.xml</code>,
+<code>xlights_networks.xml</code>, the staged MP3, and the revision log.</li>
+<li><strong>S1 script</strong> — <code>scripts/spike_fj_fidelity.py</code> (proposed, spike-only):
+build <code>PreviewRenderer(fseq, rgb, net)</code> and a <code>RealRender(save_as, duration_s)</code>
+against a live xLights with the fixture open; emit
+<code>fidelity_report.json</code> with per-section, per-group
+<code>{brightness_delta, lit_fraction_agreement, hue_distance}</code>. Add a
+<code>--group-masks</code> debug mode that writes the per-group projected masks as PNGs for eyeball
+sanity.</li>
+<li><strong>S1 decision replay</strong> — re-run <code>qa.evaluate</code> with a sampler backed by
+each render path over the fixture's iteration history; count objective-score and keep/revert
+disagreements.</li>
+<li><strong>S2 verification</strong> — re-grep <code>client\.</code> across
+<code>packages/xlights-orchestrator/src/</code> and <code>xlights_core/editing.py</code>; diff
+against §2.3.</li>
+<li><strong>S3 prototype</strong> — document the exact xLights version and invocation tried; on
+Linux: AppImage under Xvfb; capture (a) exit behavior with no display, (b) the produced
+<code>.fseq</code>, (c) wall time. Compare <code>.fseq</code>s with a small
+<code>numpy</code> diff script reusing <code>load_fseq</code> (max/mean per-channel delta, count of
+differing frames).</li>
+<li><strong>Write-up + decision point</strong> — a short findings section appended to this doc (or a
+sibling <code>f-j-spike-findings</code> note) applying §3.5; if option (a) passes, open an OpenSpec
+change for the file-based emitter + <code>BatchRenderer</code>; if only the hybrid passes, fold its
+work into I8 (shared fixture, shared metrics) and implement the fallback batching
+(<code>get_models</code> cache in <code>place_preset</code> — one-line seam: pass a prefetched
+name set through <code>apply_instructions</code>).</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first, per repo convention (all current tests run without xLights, an API key, or the
+network):</p>
+<ul>
+<li><strong>The fidelity measurement is itself a script, not a session.</strong>
+<code>spike_fj_fidelity.py</code> takes paths + a base URL, writes JSON; re-runnable on any future
+layout or xLights version. Its pure parts (mask projection, delta metrics, <code>.fseq</code> diff)
+get hermetic unit tests against a tiny synthetic <code>.fseq</code> (the <code>load_fseq</code>
+format is simple enough to write in a fixture builder — uncompressed variant, <code>fseq.py:42-47</code>).</li>
+<li><strong>Fixture <code>.fseq</code> in CI.</strong> Regardless of the option chosen, land the
+checked-in fixture (small: low channel count or a truncated frame range) and a test that runs the
+sampler + Tier-0-style metrics over it — this is the durable artifact of the spike and the seed of
+the CI eval suite.</li>
+<li><strong>Live steps are gated and batched</strong>, mirroring the archived changes' pattern
+("Live (batched): ..." tasks): S1's real-render half and S3 run only when
+<code>XLO_LIVE=1</code>-style gating is present, never in CI.</li>
+<li><strong>No production code changes required for the spike</strong> except, if convenient, the
+<code>get_models</code> prefetch seam — which gets a hermetic test with the existing fake-client
+pattern (<code>tests/test_palette_realization.py:54</code> already fakes placement).</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>xLights CLI render doesn't exist / crashes headless on Linux</td><td>Option (a) dead; cloud execution stays blocked</td><td>That is a valid spike outcome — the fallback (§3.6) and fixture-based CI evals still land; re-check on future xLights releases</td></tr>
+<tr><td>CLI render produces a subtly different <code>.fseq</code> than the GUI path</td><td>Silent eval drift between CI and real runs</td><td>Byte/channel-level diff is spike step S3's hard gate; anything beyond ≤1 LSB fails option (a)</td></tr>
+<tr><td>Fidelity gap is scene-dependent (fine on washes, bad on sparse chases)</td><td>A single global threshold from S1 misleads</td><td>Report per-group, per-section deltas, not one number; require agreement on the <em>decisions</em> (lit-fraction, keep/revert), not pixel equality</td></tr>
+<tr><td>Writing effect XML into <code>.xsq</code> bypasses <code>addEffect</code> validation (targetability, overlap <code>worked=false</code>)</td><td>Corrupt or silently-dropped placements in headless runs</td><td>Keep the once-per-layout live probe; add an offline structural validator; consider xLights' file-based <code>checkSequence</code> (deferred in the MCP change, <code>proposal.md:13</code>) as a post-write lint</td></tr>
+<tr><td>macOS sandbox pathing (<code>SANDBOX_DATA</code>, <code>media.py:21</code>) hard-codes assumptions a Linux/headless run breaks</td><td>Artifact resolution fails off-macOS</td><td><code>resolve_artifact</code> already falls back to the show folder (<code>media.py:56-62</code>); S3 verifies where a Linux build writes and extends the search list if needed</td></tr>
+<tr><td>Spike scope creep into building the file-based emitter</td><td>Weeks spent before the decision evidence exists</td><td>The spike ends at the §3.5 decision table + write-up; implementation is a separate OpenSpec change</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<p>This is a spike: acceptance is questions answered with evidence, not shipped features.</p>
+<ul>
+<li>[ ] A <code>fidelity_report.json</code> for at least one fixture show: per-section, per-group
+brightness/lit-fraction/hue deltas between <code>PreviewRenderer</code> and
+<code>RealRender</code>, plus the decision-agreement rate for the coverage sampler.</li>
+<li>[ ] The §2.3 client-call inventory re-verified by grep at spike time, with any drift noted.</li>
+<li>[ ] A definitive, version-stamped answer on xLights batch/CLI render: exact invocation, platform
+behavior (macOS, Linux, with/without display), <code>.fseq</code> equivalence numbers, and wall time
+vs REST <code>renderAll</code>.</li>
+<li>[ ] Confirmation (or refutation) of the §2.2 inference that <code>RealRender</code> never engages
+mid-run on media-less sequences — observed on a live run's logs.</li>
+<li>[ ] A written go/no-go against the §3.5 criteria, with the chosen follow-up
+(option (a) OpenSpec change, hybrid folded into I8, or fallback batching) named.</li>
+<li>[ ] A checked-in fixture <code>.fseq</code> + layout pair and one hermetic test exercising the
+sampler/metrics over it (the spike's durable artifact).</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li>Does the automation REST <code>batchRender</code> command (deferred by the MCP change) render
+<em>saved</em> sequences without opening them in the UI — and would that be a lighter path than the
+process-level CLI, while still requiring a running GUI app?</li>
+<li>Can <code>renderAll</code> be scoped to a time range or a set of models (for section-scoped
+re-renders in the fallback), or is whole-sequence the only granularity?</li>
+<li>Where does a Linux xLights write the <code>.fseq</code> — show folder, or an XDG equivalent of
+the macOS container? (<code>resolve_artifact</code> needs the answer.)</li>
+<li>Is the targetability cache portable across platforms/installs of the same layout, or does
+targetability itself vary by xLights version (would force a per-environment probe)?</li>
+<li>If option (a) lands, does the emitter keep the REST path as the attended-mode default (live
+watching has UX value) with headless opt-in, or become the single path?</li>
+<li>How large can a CI fixture <code>.fseq</code> be before repo bloat matters — truncate frames,
+reduce channels, or store zstd-recompressed?</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> — F-J (Horizon 4, line 282) and
+<strong>I8 "Cheaper visual analysis"</strong> (lines 142–174), whose caveat — "fseq metrics inherit
+offline-render fidelity (the reason <code>RealRender</code> exists) ... keep one real-render check
+near the end of a run as the ground-truth gate" — is the same fidelity question this spike measures;
+S1's numbers directly de-risk I8 Tier 0. Sibling design doc:
+<a href="i8-tiered-visual-analysis.html">i8-tiered-visual-analysis.html</a>.</li>
+<li>Offline renderer: <code>packages/xlights-core/src/xlights_core/preview/render.py</code>,
+<code>fseq.py</code>, <code>layout.py</code>.</li>
+<li>Real render + media quirk: <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/visual.py</code>
+(<code>RealRender</code>, line 155), <code>client.py:258-262</code>
+(<code>export_video_preview</code>), <code>effect_emitter.py:62-93</code>
+(<code>apply_instructions</code> docstring and clean-slate dance).</li>
+<li>Offline mutation existence proof: <code>pipeline/finalize.py</code>, <code>pipeline/media.py</code>
+(<code>patch_xsq_media</code>), <code>pipeline/timing.py</code>,
+<code>knowledge/layout_semantics.py</code> (<code>patch_xsq_render_order</code>).</li>
+<li>Targetability probe + cache: <code>pipeline/groups.py</code> (fingerprint lines 28–32, cache line 53).</li>
+<li>OpenSpec archive: <code>openspec/changes/archive/2026-06-08-add-visual-critic/</code>
+(design.md §".fseq resolution (no batchRender ...)" — sandbox-container finding, "renderAll is also
+safe/fast, ~2s"); <code>archive/2026-06-08-add-xlights-mcp-effect-editing/proposal.md</code>
+(<code>batchRender</code> and <code>checkSequence</code> deferred);
+<code>archive/2026-06-10-add-real-render-feedback/</code> (offset-corrected real-render timing,
+now <code>openspec/specs/show-orchestration/spec.md:614</code>).</li>
+<li>Architecture overview: <code>docs/architecture/README.md</code> (stage 5 "apply / render",
+write-lock serialization notes).</li>
+<li>Test fakes: <code>tests/test_golden_pipeline.py:129</code>, <code>tests/test_refine.py:93</code>,
+<code>tests/test_targetable_groups.py:17</code>.</li>
+</ul>
+</body>
+</html>

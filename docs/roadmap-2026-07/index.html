@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap 2026-07 — per-item design docs · xLights LLM Orchestrator</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+p.lead { color:var(--muted); }
+</style>
+</head>
+<body>
+<p class="crumb">xLights LLM Orchestrator · companion to <code>docs/roadmap-2026-07.md</code></p>
+<h1>Roadmap 2026-07 — per-item design docs</h1>
+<p class="lead">One thorough, standalone design document per roadmap item, written before the
+execution phase to capture as much design intent as possible. Each doc grounds its proposal in the
+current code (real paths, functions, constants) and ends with an implementation plan, testing
+strategy, risks, and acceptance criteria. The prioritization and sequencing live in the
+<a href="../roadmap-2026-07.md">roadmap</a>; these docs carry the depth.</p>
+
+<h2>Part 1 — Functionality improvements</h2>
+<table>
+<tr><th>Item</th><th>Design doc</th><th>One-liner</th></tr>
+<tr><td>I1</td><td><a href="i1-token-cost-telemetry.html">Token &amp; cost telemetry</a></td><td>Capture PydanticAI usage into the revision log; per-run cost summary. Unblocks F-G/F-H.</td></tr>
+<tr><td>I2</td><td><a href="i2-retry-backoff.html">Retry/backoff for transient failures</a></td><td>Bounded retries on transient LLM + xLights errors; analysts retry before dropping.</td></tr>
+<tr><td>I3</td><td><a href="i3-refine-loop-decomposition.html">Refine-loop decomposition &amp; constants</a></td><td>Extract the guards from <code>_refine_loop</code> into testable functions; finish tuning consolidation.</td></tr>
+<tr><td>I4</td><td><a href="i4-mypy-gate.html">mypy hard gate + <code>py.typed</code></a></td><td>Burn down the backlog, flip <code>continue-on-error</code>, ship typing markers.</td></tr>
+<tr><td>I5</td><td><a href="i5-degradation-logging.html">Diagnosable best-effort failures</a></td><td>Log every swallowed exception; end-of-run degradations summary.</td></tr>
+<tr><td>I6</td><td><a href="i6-edge-test-coverage.html">Edge test coverage</a></td><td>CLI, registry, brief editor, MCP server tests; agent output-schema drift guards.</td></tr>
+<tr><td>I7</td><td><a href="i7-density-motion-gap.html">Density/motion gap</a></td><td>Re-measure vs the community corpus; tune the weave's density and motion share.</td></tr>
+<tr><td>I8</td><td><a href="i8-tiered-visual-analysis.html">Tiered visual analysis</a></td><td>Deterministic fseq metrics + contact-sheet critique; pro-model clips demoted to rare escalation.</td></tr>
+</table>
+
+<h2>Part 2 — Feature roadmap</h2>
+<table>
+<tr><th>Item</th><th>Design doc</th><th>One-liner</th></tr>
+<tr><td>F-A</td><td><a href="f-a-improve-musicality.html">Land <code>improve-musicality</code></a></td><td>Repetition identity, section treatments, transitions/color script — execution guide for the open proposal.</td></tr>
+<tr><td>F-B</td><td><a href="f-b-asset-bound-placement.html">Asset-bound placement path</a></td><td>A placement route for Faces/Text outside the mined preset library. Enables F-C/F-D.</td></tr>
+<tr><td>F-C</td><td><a href="f-c-matrix-text.html">Matrix narrative Text</a></td><td>Section labels, song title, featured lyric phrases on the matrix.</td></tr>
+<tr><td>F-D</td><td><a href="f-d-lyric-faces.html">Lyric-driven Faces</a></td><td>Singing faces from phoneme timing; vocal songs only.</td></tr>
+<tr><td>F-E</td><td><a href="f-e-init-layout.html"><code>xlo init-layout</code> onboarding</a></td><td>Classifier, spatial derivation, group writer, manifest, validation — the product unlock.</td></tr>
+<tr><td>F-F</td><td><a href="f-f-submodel-targeting.html">Submodel targeting</a></td><td>Tree zones/rings, outline segments — conditional on layouts that have submodels.</td></tr>
+<tr><td>F-G</td><td><a href="f-g-cost-quality-dashboard.html">Cost &amp; quality dashboard</a></td><td>Analyzer over the revision-log JSONL; cost per show, score per iteration, churn.</td></tr>
+<tr><td>F-H</td><td><a href="f-h-provider-ab-harness.html">Provider A/B eval harness</a></td><td>Anthropic vs Gemini per-role comparison on fixture songs: quality, convergence, cost.</td></tr>
+<tr><td>F-I</td><td><a href="f-i-live-progress-ui.html">Live progress UI</a></td><td>Stdlib-browser pipeline view; non-blocking checkpoints replacing <code>input()</code>.</td></tr>
+<tr><td>F-J</td><td><a href="f-j-headless-mode.html">Headless / preview-only mode</a></td><td>Spike: what truly requires live xLights; batch-render options; CI-runnable pipeline.</td></tr>
+</table>
+</body>
+</html>

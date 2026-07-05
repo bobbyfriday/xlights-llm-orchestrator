@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I7 — Close the remaining density/motion gap · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I7 — Close the remaining density/motion gap</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I7 in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>M, analysis-first</dd>
+<dt>Depends on</dt><dd>Nothing hard; pairs naturally with F-A improve-musicality Phase 2 (treatments redefine what “dense” means per section) and benefits from I8 Tier 0 (pixel-level motion metric as ground truth)</dd>
+<dt>Unblocks</dt><dd>Show quality (the “fabric” dimension of it); informs the MOTION_SHARE advisory thresholds in QA</dd>
+<dt>Key files</dt><dd><code>docs/effects-layering-analysis.md</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/weave.py</code>, <code>pipeline/generate.py</code>, <code>pipeline/beats.py</code>, <code>pipeline/tuning.py</code>, <code>qa/rules.py</code>, <code>tests/fixtures/golden_instructions.json</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The 2026-06-11 corpus study (<code>docs/effects-layering-analysis.md</code> — 130,229 effects mined from 17 community/vendor <code>.xsq</code> files vs 2,265 effects across our two generated shows) found the generated fabric <strong>inverted</strong> relative to community practice: community shows are ~58% continuous-motion effects at ~1,300 effects/min placed as 0.3–0.9s beat-quantized cells; ours were ~16% motion at ~270 effects/min, dominated by punctuation (On 22%, Twinkle 23%) over long washes. That analysis drove a burst of changes (cell fabric, counterphase chases, motion value curves, blend modes, transitions, duration taxonomy v0.3) which <em>partially</em> closed the gap — but nobody has re-measured since. The number that justified the whole cell-fabric paradigm is a month stale, the tuning dials in <code>weave.py</code>/<code>tuning.py</code> were set by judgment rather than against a measurement, and improve-musicality Phase 2 is about to make “density” a per-treatment concept. This item is: <strong>re-measure, then tune against the measurement — with treatment-aware targets, not one global number.</strong></p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 What the analysis found (2026-06-11)</h3>
+<table>
+<tr><th>Metric</th><th>Community</th><th>Ours (then)</th></tr>
+<tr><td>Continuous-motion share (SingleStrand, Spirals, Pinwheel, Ripple, Wave, Bars)</td><td>~58%</td><td>~16%</td></tr>
+<tr><td>Punctuation/static share (On, Twinkle, Strobe, Shockwave, Lightning, Shimmer)</td><td>~31%</td><td>~83%</td></tr>
+<tr><td><code>On</code> / <code>Twinkle</code> alone</td><td>3% / &lt;1%</td><td>22% / 23%</td></tr>
+<tr><td>Effects per minute</td><td>~1,300 typical (up to 3,200)</td><td>~270</td></tr>
+<tr><td>Median effect duration (top types)</td><td>0.3–0.9s (p90 ≤ ~2–3s)</td><td>49–88s washes existed</td></tr>
+<tr><td>Blend modes set</td><td>Brightness 36%, Layered 23%, masks ~16%</td><td>none</td></tr>
+<tr><td>Value-curved params</td><td>motion params (Rotation 30%, Twist, Radius)</td><td>66% Brightness</td></tr>
+<tr><td>Layer depth</td><td>up to 19; 22% of rows multi-layer</td><td>max 4</td></tr>
+</table>
+
+<h3>2.2 What shipped in response</h3>
+<table>
+<tr><th>Change (archived)</th><th>What it addressed</th></tr>
+<tr><td><code>2026-06-11-add-cell-fabric</code></td><td>The paradigm fix: LLM-designed <code>CellRecipe</code>s expanded deterministically by <code>pipeline/weave.py</code> into beat-snapped cells; fallback weave (SingleStrand carrier on the rhythm pool); beat-layer rebalance (<code>carrier_covers</code> drops the every-beat On chase when a carrier owns the pool, weave.py:183–193); motion-share advisory in QA; blend-mode correction; duration taxonomy v0.3 (“sustained” → “cell-able”, 1–2 bar cells, <code>normalize_durations</code> chops).</td></tr>
+<tr><td><code>2026-06-13-add-counterphase-chases</code></td><td>Opposed ltr/rtl chase pairs upgrade to per-bar counter-phase (weave.py:281–298) — the woven figure instead of a perpetual head-on collision.</td></tr>
+<tr><td><code>2026-06-14-unblock-color-wash</code></td><td>Color Wash restored as a placeable bed (was a stale blacklist from the GET-encoding bug).</td></tr>
+<tr><td><code>2026-06-09-add-value-curve-synthesis</code>, <code>2026-06-12-add-directional-sweeps</code>, <code>2026-06-12-add-settings-hygiene</code></td><td>Motion value curves, per-effect direction knobs (<code>DIRECTION_KNOBS</code>), real per-effect speed keys (<code>SPEED_KEYS</code>) — the “shape movement, not just loudness” recommendations.</td></tr>
+<tr><td>Since then</td><td>Carrier rotation across sections (<code>CARRIER_ROTATION = ("SingleStrand", "Bars", "Garlands", "Wave")</code>, weave.py:198), composite stacks (multi-effect blended layers, weave.py:446–499), in/out transitions (<code>_VALID_TRANSITIONS</code>, weave.py:106–112), phrasing soft edges, VU meter layer.</td></tr>
+</table>
+
+<h3>2.3 The dials as they stand (candidate tuning levers)</h3>
+<table>
+<tr><th>Lever</th><th>Current value / location</th><th>Effect on fabric</th></tr>
+<tr><td>Cell budget</td><td><code>BUDGET_BASE = 120.0</code>, <code>BUDGET_SCALE = 480.0</code> (<code>tuning.py:46–47</code>); <code>cell_budget()</code> = <code>section_min × (120 + 480·intensity)</code>, floor 4 (weave.py:155–158). Peak ≈ 600 cells/min.</td><td>The primary density dial. The tuning.py comment already records the normalization decision: <em>“the community's ~1,300/min was per-prop rows; ours weaves group rows (~15 targets), so scaled.”</em> Over budget, cells are thinned via <code>_downsample</code> (weave.py:430–434) — raising the budget directly raises kept cells.</td></tr>
+<tr><td>Recipes per section</td><td><code>MAX_WOVEN_RECIPES = 3</code> (weave.py:43) — one carrier + two textures/accents</td><td>Caps layer pressure; community hero rows stack far deeper. Raising to 4 (the layer budget) adds one texture voice per section.</td></tr>
+<tr><td>Alternation patterns</td><td><code>_slot_targets</code> (weave.py:243–255): <code>chase</code> lights 1 group/slot, <code>sparse</code> half the slots, <code>all</code> every group</td><td>Per-slot multiplicity — <code>all</code> on an n-group recipe multiplies instruction count ×n.</td></tr>
+<tr><td>Cell length</td><td><code>cell_beats</code> 1–8 (CellRecipe, show_plan.py:88); sweep floor <code>_SWEEP_MIN_BEATS = 2</code> (weave.py:100); legato floor <code>LEGATO_CELL_BEATS_FLOOR = 2</code> (tuning.py:29)</td><td>Shorter cells = more cells = higher density and busier motion; community medians (0.3–0.9s) are ~1 beat at 120 BPM.</td></tr>
+<tr><td>Fallback weave richness</td><td>1 carrier + at most 1 texture; non-rhythmic sections get <em>no</em> fabric at all (weave.py:219–240)</td><td>When the LLM omits the weave, the fabric is thin by construction. Adding a second texture or an accent recipe to the fallback lifts the floor.</td></tr>
+<tr><td>Beat-accent layer composition</td><td><code>MAX_ACCENTS_PER_SECTION = 80</code>, <code>SPARKLE_TOP_N = 12</code>, <code>HERO_MAX_ONSETS = 40</code>, <code>BASS_MAX_ONSETS = 16</code> (tuning.py:40–52)</td><td>These place <em>punctuation</em> (On/Twinkle) — the very share the analysis said to demote. They interact with <code>carrier_covers</code>: lowering accents while raising cells shifts the ratio without changing totals.</td></tr>
+<tr><td>Motion-share advisory</td><td><code>MOTION_SHARE_MIN = 0.30</code>, <code>MOTION_SHARE_INTENSITY = 0.5</code>, <code>MOTION_EFFECTS = DURATION_CELLABLE ∪ {Fire, Galaxy}</code> (qa/rules.py:40–42)</td><td>The Judge-visible target. 0.30 was set below the community's 0.58 deliberately; re-measurement should decide whether to raise it and/or make it energy-scaled.</td></tr>
+</table>
+
+<h3>2.4 A fresh data point: the golden fixture, measured today</h3>
+<p>The corpus-comparison metrics can be computed from any instruction list. Running them over <code>tests/fixtures/golden_instructions.json</code> (the hermetic 24s, 2-section fixture) gives:</p>
+<pre><code>total: 103 instructions over 24s  ≈ 258 effects/min
+by type: On 40, Twinkle 24, SingleStrand 12, Bars 12, Shockwave 12, VU Meter 1, Butterfly 1, Galaxy 1
+motion share (DURATION_CELLABLE set): 24.3%      punctuation (On+Twinkle+Shockwave): 73.8%
+median duration: 1,000 ms</code></pre>
+<p>Caveats — this fixture <em>understates</em> the real pipeline (24s song; a TestModel weave with a single Twinkle texture; no LLM-designed recipes; the second section is a peak whose fill/flash layers are punctuation-heavy by design) — but it demonstrates three things: the measurement is trivially reproducible in-repo; the median duration collapsed from 49–88s washes to 1.0s (the duration fix landed); and the <em>share</em> inversion is still visibly present in what the deterministic layers emit on their own (On is still the #1 effect). The real re-measurement (§3.1) must use a full generated show, but the direction is clear.</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 Re-measurement methodology — <code>scripts/measure_fabric.py</code> (proposed)</h3>
+<p>One script, two input modes, one report shape, so community files and our shows produce directly comparable tables:</p>
+<pre><code># scripts/measure_fabric.py  (proposed)
+def stats_from_instructions(instrs: list[dict], duration_s: float) -&gt; FabricStats: ...
+def stats_from_xsq(path: Path) -&gt; FabricStats:
+    """Parse &lt;Effect&gt; elements from an .xsq (community shows AND our finalized output)."""
+
+@dataclass
+class FabricStats:
+    effects_per_min: float
+    share_by_family: dict[str, float]        # motion / punctuation / bed / feature / other
+    share_by_type: dict[str, float]          # top-N effect types
+    duration_p50_by_type: dict[str, float]   # ms
+    blend_mode_share: float                  # rows with T_CHOICE_LayerMethod set
+    transition_share: float                  # rows with T_CHOICE_In/Out_Transition_Type
+    value_curve_kinds: dict[str, float]      # brightness vs motion params
+    layer_depth_hist: dict[int, int]
+    per_prop_expansion: float | None         # see normalization below
+    per_section: list[SectionStats]          # effects/min + motion share + treatment (Phase 2)</code></pre>
+<ul>
+<li><strong>Inputs on our side:</strong> (a) the <code>instructions</code> cache of any real run (<code>&lt;cache_root&gt;/&lt;song_key&gt;/instructions</code> — a JSON list of <code>EffectInstruction</code> dumps, persisted at run.py:432–433 and refreshed post-refine at run.py:474–475), and (b) the golden fixture as the hermetic canary. Mode (b) makes the measurement runnable in CI forever; mode (a) is the honest number.</li>
+<li><strong>Inputs on the community side:</strong> the original 17 <code>.xsq</code> live in the user's xLights show folder, not the repo. The script's <code>.xsq</code> mode re-derives their stats on demand; additionally, <em>freeze the community aggregates</em> (the table in §2.1) into the script as constants so the comparison still runs without the corpus (see open question 1).</li>
+<li><strong>Normalization (the critical fix to the original comparison):</strong> community sequences target individual prop rows; ours target ~15 SEM_ groups, where one group-level effect animates every member prop. Define <code>per_prop_expansion</code> = mean member-count of the groups we actually target (derivable from <code>rgbeffects.xml</code> modelGroups — parsing already exists in <code>xlights_core/knowledge/layout_semantics.py</code>). Report both raw effects/min and prop-row-equivalent effects/min (<code>raw × expansion</code> for group-targeted rows). The tuning.py comment made this argument qualitatively; the script makes it a number.</li>
+<li><strong>Per-section, energy-bucketed:</strong> every stat is also reported per section with the section's intensity (and, post-Phase 2, its <code>treatment</code>), because a single whole-show number hides exactly the contrast improve-musicality is trying to create.</li>
+</ul>
+
+<h3>3.2 Targets — what “closed” means</h3>
+<p>Do <em>not</em> chase 58%/1,300 blindly. The community numbers come from different layouts (mega-displays sequenced per-prop), different tools (copy-paste reuse inflates counts), and a different authoring economy. Proposed target definition, energetic sections only (intensity ≥ 0.5, and post-Phase 2 treatments <code>full</code>/<code>feature</code>):</p>
+<ol>
+<li><strong>Motion share ≥ 0.45</strong> of instructions in energetic sections (today's advisory floor is 0.30; the fixture measures 0.24). Quiet/<code>rest</code>/<code>gesture</code> sections are exempt — deliberate stillness is a feature, not a regression.</li>
+<li><strong>On + Twinkle combined ≤ 0.30</strong> in energetic sections (they are ~62% of the golden fixture today). This targets the inversion directly rather than the total.</li>
+<li><strong>Prop-row-equivalent density within ~2× of community typical</strong> in peak sections — i.e. raw group-row density ≈ 600–900/min at peak once expansion is accounted for, vs <code>cell_budget</code>'s current 600/min ceiling.</li>
+<li><strong>Pixel-level motion corroborates:</strong> I8's Tier 0 frame-delta metric (per-group motion from the <code>.fseq</code>) must rise alongside instruction-level motion share. Instruction counts are a proxy; photons are the product. If instruction share rises but rendered motion doesn't (e.g. cells too dim, occluded, or per-model-confined), the tuning is wrong even though the proxy improved.</li>
+</ol>
+
+<h3>3.3 Tuning sequence (one lever at a time, golden-regen per step)</h3>
+<ol>
+<li><strong>Rebalance before adding:</strong> reduce punctuation first — lower <code>SPARKLE_TOP_N</code> (12 → ~8) and let <code>carrier_covers</code> suppress more of the On accent layer (audit why 40 <code>On</code> rows survive in a fixture whose both sections have carriers — some are beds/washes, some are accents; the measurement's per-type-per-source breakdown answers this by tagging which realization layer emitted each instruction, see §3.5).</li>
+<li><strong>Raise the weave's voice count:</strong> <code>MAX_WOVEN_RECIPES</code> 3 → 4 and add a second texture to <code>fallback_weave</code> when the section's vocabulary offers one.</li>
+<li><strong>Raise the budget:</strong> <code>BUDGET_SCALE</code> 480 → ~700 (peak ≈ 820 cells/min) only after 1–2, and only if the I8 motion metric and a live watch agree the added cells read as fabric, not noise.</li>
+<li><strong>Raise the advisory floor:</strong> <code>MOTION_SHARE_MIN</code> 0.30 → 0.40–0.45 (and consider scaling with intensity) so the Judge defends the new fabric.</li>
+</ol>
+
+<h3>3.4 Interaction with improve-musicality Phase 2 (treatments)</h3>
+<p>Phase 2 introduces <code>treatment ∈ {full, feature, pulse, gesture, rest}</code> and makes <code>realize_section</code> <em>withhold</em> layers — deliberate sparseness. Consequences for this item:</p>
+<ul>
+<li><strong>Per-treatment density targets, not one number.</strong> The measurement report groups by treatment; the gap is evaluated only on <code>full</code>/<code>feature</code> sections. A show-level effects/min that <em>drops</em> after Phase 2 is expected and correct.</li>
+<li><strong>Ordering:</strong> run the baseline measurement <em>before</em> Phase 2 lands (so the current gap is quantified against current semantics), but do the <em>tuning</em> after or alongside Phase 2 — otherwise dials get tuned for a realization model that's about to change. The roadmap's sequencing table (I7 in the “continuous hardening” slot, after F-A phases) agrees.</li>
+<li><strong>Shared metric plumbing:</strong> Phase 2's advisory <code>dynamic-range</code>/<code>focus-budget</code> metrics (planned <code>qa/musicality.py</code>) and this item's motion/density stats want the same per-section instruction aggregation — build <code>FabricStats.per_section</code> so <code>qa/musicality.py</code> can import it rather than re-deriving.</li>
+</ul>
+
+<h3>3.5 Attribution: which layer emits what</h3>
+<p>Tuning blind-spots come from not knowing whether an <code>On</code> row is a bed, an accent, or an LLM wash. <code>EffectInstruction</code> carries no provenance. Proposed: a transient <code>source</code> tag (e.g. <code>"weave" | "accents" | "bed" | "triggers" | "flash" | "generator" | "vu" | "composite"</code>) — either an excluded-from-dump field on <code>EffectInstruction</code> or a parallel counter returned by <code>realize_section</code> — surfaced only in the measurement report. This keeps the cache/golden formats unchanged (mark as a design decision: if it must persist, the golden fixture regenerates once).</p>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong><code>scripts/measure_fabric.py</code></strong> with <code>stats_from_instructions</code> + <code>stats_from_xsq</code> + frozen community aggregates; unit tests for both parsers (a tiny synthetic .xsq fixture; the golden instructions file).</li>
+<li><strong>Baseline report:</strong> run it on (a) the golden fixture, (b) at least one full real run's <code>instructions</code> cache (Candy Cane Lane / Mad Russian Christmas re-run on current code), and — if the show folder is at hand — (c) 2–3 community .xsq to validate the parser against the 2026-06-11 numbers. Commit the report as <code>docs/effects-layering-analysis-2026-07.md</code> (the successor snapshot).</li>
+<li><strong>Per-group expansion factor:</strong> compute from rgbeffects modelGroups; add the prop-row-equivalent column.</li>
+<li><strong>Decide targets</strong> (per §3.2) in that doc; get the numbers into <code>tuning.py</code> comments so the dials cite their evidence, matching house style (“Revision-log analysis (42 runs): …”).</li>
+<li><strong>Tune levers in §3.3 order</strong>, one per commit, each with: golden regen (<code>XLO_REGEN_GOLDEN=1</code>), a re-measurement delta in the commit message, and (for budget raises) an I8-Tier-0 or live spot-check.</li>
+<li><strong>Guard the result:</strong> a hermetic <code>tests/test_fabric_stats.py</code> asserting loose bounds on the golden fixture (e.g. motion share ≥ 0.35, On+Twinkle ≤ 0.45 in the energetic section) so a future change can't silently re-invert the fabric.</li>
+<li><strong>Advisory floor update</strong> (<code>MOTION_SHARE_MIN</code>) once the generated shows clear it — raising the floor before the generator clears it just spams the Judge.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Hermetic measurement tests:</strong> <code>stats_from_instructions</code> against hand-built instruction lists (known shares/durations); <code>stats_from_xsq</code> against a ≤20-effect synthetic .xsq written by the test (ElementTree — no xLights needed); golden-fixture stats as a canary with loose bounds.</li>
+<li><strong>Golden discipline:</strong> every deliberate dial change regenerates the golden snapshot exactly once, in its own commit, so <code>git log fixtures/golden_instructions.json</code> reads as the tuning history. Non-tuning commits must leave it byte-identical.</li>
+<li><strong>QA-threshold tests:</strong> extend the existing motion-share advisory tests in <code>tests/</code> (rules QA) when <code>MOTION_SHARE_MIN</code> moves — assert the finding fires below and stays silent above the new floor, at the intensity gate.</li>
+<li><strong>Live verification (non-CI):</strong> one attended run per major dial change, watched against the review bundles (<code>visual_review/iterN</code>), because “denser” can read as “noisier” — the failure mode no instruction-count test can see. I8's motion heatmap makes this cheaper.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>Density increases read as visual noise (the “random, not intentional” failure)</td><td>Worse shows with better numbers</td><td>Target the <em>inversion</em> (shares) before totals; per-step live/I8 checks; the Judge + visual critic remain the taste gate</td></tr>
+<tr><td>Chasing per-prop community numbers on a group-row architecture</td><td>Pointless 5× density, render-time blowups, layer-clamp churn (<code>clamp_layer_budget</code> drops overflow)</td><td>The prop-row-equivalent normalization (§3.1); the 2× band in target 3; watch <code>clamp_layer_budget</code>'s dropped-count log line</td></tr>
+<tr><td>Phase 2 treatments land mid-tuning and shift what sections even get fabric</td><td>Dials tuned twice</td><td>Baseline before Phase 2; tune after; per-treatment targets from day one</td></tr>
+<tr><td>Emitter/render cost scales with instruction count (each cell = one addEffect call)</td><td>Slower runs, slower refine loops</td><td>Measure wall-clock per 100 instructions during step 5; budget raises are the last lever, not the first</td></tr>
+<tr><td>Community corpus unavailable (show folder machine-local)</td><td>Can't re-validate the 2026-06 numbers</td><td>Frozen aggregates in the script keep the comparison runnable; parser validated opportunistically when the folder is reachable</td></tr>
+<tr><td>Provenance tag (§3.5) leaks into persisted schemas</td><td>Cache invalidation / golden churn / I6 drift-guard trip</td><td>Keep it transient (excluded from <code>model_dump</code>) or as a side-channel counter; decide explicitly before coding</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>[ ] <code>scripts/measure_fabric.py</code> produces the §3.1 report from both an instructions cache and an .xsq, with unit tests for both paths.</li>
+<li>[ ] A committed 2026-07 re-measurement doc quantifies the current gap on ≥1 full real show, with the prop-row-equivalent normalization and per-section (intensity-bucketed) breakdown.</li>
+<li>[ ] Explicit targets (motion share, On+Twinkle share, density band) are recorded with rationale, replacing “community does 58%” as the goalpost.</li>
+<li>[ ] At least the rebalance levers (accents down, recipes/fallback up) are tuned against the measurement, each with a golden regen and a before/after delta.</li>
+<li>[ ] <code>MOTION_SHARE_MIN</code> reflects the new floor and its comment cites the re-measurement.</li>
+<li>[ ] A hermetic fabric-stats canary test guards against re-inversion.</li>
+<li>[ ] Density targets are treatment-aware: the measurement and the canary exempt quiet/<code>rest</code>/<code>gesture</code> sections, so improve-musicality Phase 2's deliberate sparseness cannot register as a density regression.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>Community corpus custody:</strong> should a redacted per-file stats JSON (not the .xsq themselves — they're licensed vendor content) be checked into <code>docs/</code> so the comparison is fully reproducible in-repo?</li>
+<li><strong>Measure the .fseq instead?</strong> Instruction counts are the author-side proxy; I8's Tier 0 measures the rendered result. Should the canary bounds eventually move to pixel metrics entirely and let instruction stats be diagnostic only? (Leaning yes, post-I8.)</li>
+<li><strong>Layer depth:</strong> community stacks to 19 layers; our hard cap is 4 (<code>clamp_layer_budget</code>, catalog rule #10). Is raising the cap on the hero/focal group (only) in scope here, or a separate change? The composite stacks already push against it.</li>
+<li><strong>Where do the frozen targets live</strong> — tuning.py comments, the analysis doc, or a small <code>fabric_targets.py</code> the canary test imports? (Recommend: doc for prose + the canary's literals as the single enforced copy.)</li>
+<li><strong>Density vs song genre:</strong> the two generated shows are both high-energy Christmas pop. Should targets be conditioned on the brief's overall energy (a ballad show legitimately measuring “sparse”)? Per-section intensity bucketing may already cover this.</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <a href="../roadmap-2026-07.md">docs/roadmap-2026-07.md</a> §I7; sequencing row 9.</li>
+<li>The source analysis: <code>docs/effects-layering-analysis.md</code> (2026-06-11) — read in full; its §6 recommendations are the shipped-changes checklist.</li>
+<li>OpenSpec: <code>openspec/changes/archive/2026-06-11-add-cell-fabric/</code> (design + the ≥3× density target), <code>archive/2026-06-13-add-counterphase-chases/</code>, <code>archive/2026-06-14-unblock-color-wash/</code>, <code>archive/2026-06-11-add-effect-durations/</code>, <code>archive/2026-06-12-add-directional-sweeps/</code>, <code>archive/2026-06-12-add-settings-hygiene/</code>; <code>changes/improve-musicality/proposal.md</code> (Phase 2 treatments — the density-semantics change).</li>
+<li>Code: <code>pipeline/weave.py</code> (<code>cell_budget</code>, <code>MAX_WOVEN_RECIPES</code>, <code>fallback_weave</code>, <code>_slot_targets</code>, <code>CARRIER_ROTATION</code>), <code>pipeline/tuning.py</code> (<code>BUDGET_BASE/SCALE</code>, accent caps), <code>qa/rules.py</code> (<code>MOTION_EFFECTS</code>, <code>MOTION_SHARE_MIN</code>), <code>pipeline/generate.py::realize_section</code> (the full per-section stack).</li>
+<li>Related items: <a href="i8-tiered-visual-analysis.html">I8</a> (pixel-level motion ground truth), <a href="i3-refine-loop-decomposition.html">I3</a> (consolidates the constants this item tunes).</li>
+</ul>
+</body>
+</html>

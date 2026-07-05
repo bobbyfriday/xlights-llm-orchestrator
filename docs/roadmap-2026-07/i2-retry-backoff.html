@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I2 — Retry/backoff for transient failures · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I2 — Retry/backoff for transient failures</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I2 in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>S–M — sequencing slot #9 ("continuous hardening, slotted between features")</dd>
+<dt>Depends on</dt><dd>Nothing (pairs well with I5 degradation logging; retry outcomes feed its summary)</dd>
+<dt>Unblocks</dt><dd>More reliable long runs generally; F-J (headless/CI full-pipeline evals) indirectly — unattended runs can't shrug off a 529</dd>
+<dt>Key files</dt><dd><code>packages/xlights-core/src/xlights_core/client.py</code>, <code>packages/xlights-core/src/xlights_core/exceptions.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/agents/panel.py</code>, <code>lyrics.py</code>, <code>effect_emitter.py</code>, <code>models/registry.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>A full pipeline run makes on the order of 10–20 LLM requests (3–4 analysts, synthesizer, director, one generator call per section, then judge + visual critic + regens per refine iteration) and <em>hundreds</em> of xLights REST calls (one <code>addEffect</code> per placed effect via <code>effect_emitter.apply_instructions</code>, plus probe/save/render/export calls). Today a single transient failure at any of those points either degrades quality silently or kills the run:</p>
+<ul>
+<li>A 429/529 on one <strong>panel analyst</strong> drops that analyst from the brief (<code>agents/panel.py:142–145</code>) — the synthesizer fuses the survivors and the show is built on a thinner brief, with only a single <code>log.warning</code> that doesn't even name which analyst died.</li>
+<li>A 529 on the <strong>director or synthesizer</strong> propagates out of <code>run_pipeline</code> and aborts the run after audio analysis (and possibly stem separation) already spent minutes of work.</li>
+<li>A momentary xLights hiccup (app busy during render, socket reset) during <code>apply_instructions</code> raises <code>XLightsConnectionError</code>/<code>XLightsTimeout</code> from <code>client._request</code> (<code>client.py:90–97</code>) and fails the whole emit stage — even though the very next request would have succeeded.</li>
+</ul>
+<p>The only explicit retry in the entire codebase is <code>lyricsgenius.Genius(token, timeout=timeout, retries=1, ...)</code> in <code>lyrics.py:60–62</code> — for the one integration that is genuinely optional. LLM calls rely on whatever PydanticAI's provider client defaults happen to be, and the xLights client has a typed error taxonomy and a write lock but zero backoff. This item adds one thin, shared retry primitive and applies it at three seams.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 xLights client: typed errors, serialized writes, no retry</h3>
+<p><code>xlights_core/exceptions.py</code> defines the taxonomy callers branch on:</p>
+<pre><code>XLightsError
+├── XLightsConnectionError      # nothing listening / transport failure (client.py:92–97)
+├── XLightsTimeout              # connect/read timeout (client.py:90)
+├── XLightsNotImplemented       # HTTP 504 "not implemented" (client.py:118–122)
+└── XLightsResponseError        # any other non-200; carries status_code + message
+    ├── XLightsTargetMissing    # 503 "target element" on addEffect (client.py:124)
+    └── XLightsUnsavedChanges   # 504 disambiguated by message (client.py:118)</code></pre>
+<p><code>XLightsClient._request</code> (<code>client.py:73</code>) maps <code>httpx.TimeoutException → XLightsTimeout</code>, <code>httpx.ConnectError → XLightsConnectionError</code>, any other <code>httpx.HTTPError → XLightsConnectionError</code>. All mutations funnel through <code>_mutate</code>, which serializes on <code>self._write_lock</code> (an <code>asyncio.Lock</code>, <code>client.py:58</code>) with a generous write timeout (<code>DEFAULT_WRITE_TIMEOUT = 300.0</code>, line 35) because "render/check on a real (large) open sequence can take a while":</p>
+<pre><code>async def _mutate(self, cmd, params=None):
+    async with self._write_lock:
+        return await self._request(cmd, params=params, timeout=self._write_timeout)</code></pre>
+<p>Note xLights' quirk: it reports operational errors as <strong>503</strong> (busy, "Unknown model.", "No sequence open.") and overloads <strong>504</strong> for both not-implemented and unsaved-changes — so "HTTP 5xx ⇒ retryable", the usual web heuristic, is <em>wrong here</em>. The 5xx codes carry semantic, non-transient meanings.</p>
+
+<h3>2.2 LLM calls: PydanticAI defaults only</h3>
+<p><code>models/registry.py::build_agent</code> constructs a plain <code>Agent(model_string, output_type=..., system_prompt=..., model_settings=...)</code> — no retry configuration. The installed PydanticAI (2.5.0) raises, from <code>pydantic_ai.exceptions</code> (verified in-venv):</p>
+<ul>
+<li><code>ModelHTTPError(status_code, model_name, body)</code> — provider HTTP errors (429 rate limit, 500, 529 overloaded…), subclass of <code>ModelAPIError</code>;</li>
+<li><code>UnexpectedModelBehavior</code> — the model exceeded output-validation retries, returned malformed structured output, etc.;</li>
+<li><code>UsageLimitExceeded</code>, <code>ContentFilterError</code>, <code>FallbackExceptionGroup</code> — policy/limit outcomes;</li>
+<li>plus underlying <code>httpx</code> transport errors that can escape as connection failures.</li>
+</ul>
+<p>PydanticAI's own <code>retries</code> setting governs <em>output-validation</em> re-prompting (asking the model to fix schema errors), not transport-level retries — a different mechanism from what this item adds, and the two must not be conflated: schema failures should <em>never</em> get a transport retry (same input ⇒ likely same failure, at full token cost).</p>
+
+<h3>2.3 The panel drop path</h3>
+<pre><code># agents/panel.py:130–145 (today)
+async def _run(spec: AnalystSpec):
+    async with sem:
+        res = await spec.agent.run(spec.render(sa, lyrics))
+        return spec.key, res.output
+
+results = await asyncio.gather(*[_run(s) for s in analysts], return_exceptions=True)
+for r in results:
+    if isinstance(r, Exception):
+        log.warning("analyst failed, dropping: %s", r)   # ← which analyst? unknown
+        continue</code></pre>
+<p>Because <code>gather(return_exceptions=True)</code> returns the bare exception, the analyst's <code>key</code> is lost by the time the drop is logged — the operator can't tell whether structure or lyrics went missing. If <em>all</em> analysts fail, <code>run_panel</code> raises <code>RuntimeError("all panel analysts failed...")</code> (line 150) — correct, but today one burst of 429s across 3 concurrent analysts (they launch within the <code>Semaphore(3)</code> window) can produce exactly that.</p>
+
+<h3>2.4 The bulk-write path</h3>
+<p><code>effect_emitter.apply_instructions</code> loops <code>place_preset()</code> per instruction, catching only the <em>semantic</em> skip set <code>_SKIPPABLE = (PresetPlacementError, XLightsTargetMissing, ValueError, KnobValueError, KeyError)</code> (line 16). Transport errors (<code>XLightsConnectionError</code>, <code>XLightsTimeout</code>) are deliberately not in that set — they abort the whole emit. That posture is right (a dead xLights shouldn't be 400 skipped effects) but brittle for a <em>one-request</em> blip.</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 Retryable vs. non-retryable — the classification table</h3>
+<table>
+<tr><th>Domain</th><th>Retry</th><th>Never retry</th><th>Rationale</th></tr>
+<tr><td>LLM (PydanticAI)</td><td><code>ModelHTTPError</code> with <code>status_code in (408, 429, 500, 502, 503, 529)</code>; <code>httpx.TimeoutException</code>/<code>httpx.ConnectError</code>/<code>httpx.RemoteProtocolError</code> escaping the provider client</td><td><code>UnexpectedModelBehavior</code> (schema/validation — deterministic-ish, expensive), <code>ModelHTTPError</code> 400/401/403/404/413/422 (bad request/auth/model id), <code>UsageLimitExceeded</code>, <code>ContentFilterError</code>, <code>pydantic.ValidationError</code></td><td>Rate-limit/overload/timeout are time-correlated and clear on their own; schema and auth failures repeat identically and re-bill full input tokens.</td></tr>
+<tr><td>xLights REST</td><td><code>XLightsConnectionError</code>, <code>XLightsTimeout</code> (reads); <code>XLightsConnectionError</code> only (mutations — see idempotency note)</td><td><code>XLightsNotImplemented</code>, <code>XLightsTargetMissing</code>, <code>XLightsUnsavedChanges</code>, <code>XLightsResponseError</code> generally (xLights' 503/504 are semantic, §2.1)</td><td>Only transport-level failures are transient; every typed subclass encodes a state that retrying cannot change (and <code>UnsavedChanges</code> needs a <em>decision</em>, not a repeat).</td></tr>
+<tr><td>Genius lyrics</td><td>(unchanged — library-internal <code>retries=1</code>)</td><td>—</td><td>Already graceful: any failure returns <code>None</code> and the panel runs without the lyric analyst.</td></tr>
+</table>
+<p>One deliberate judgment call: an <code>XLightsResponseError</code> whose message indicates busy-ness could arguably be retried, but the message strings are not a stable API; keep the first iteration conservative and extend the predicate only with observed, logged evidence (the I5 degradations summary will surface exactly which errors occur in practice).</p>
+
+<h3>3.2 The primitive (proposed: <code>xlights_core/retry.py</code>)</h3>
+<p>One thin async helper in <strong>xlights-core</strong> (the bottom of the dependency graph — core cannot import from the orchestrator, but the orchestrator can reuse core's helper for LLM calls). No <code>tenacity</code> dependency: the need is ~30 lines, the codebase style is stdlib-first, and tenacity's decorator indirection fights the injected-fake test pattern.</p>
+<pre><code># PROPOSED — packages/xlights-core/src/xlights_core/retry.py
+from __future__ import annotations
+import asyncio, logging, random
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
+
+log = logging.getLogger(__name__)
+T = TypeVar("T")
+
+async def with_retry(
+    fn: Callable[[], Awaitable[T]],
+    *,
+    retryable: Callable[[BaseException], bool],
+    attempts: int = 3,                 # total tries, incl. the first
+    base_delay: float = 1.0,           # first backoff, seconds
+    factor: float = 2.0,               # exponential growth
+    max_delay: float = 20.0,
+    jitter: float = 0.5,               # ± fraction of the computed delay
+    label: str = "",                   # for the log line ("judge", "addEffect", ...)
+) -&gt; T:
+    """Run fn(); on a retryable exception sleep (exponential backoff, full jitter
+    band) and re-run, up to `attempts` total. Non-retryable exceptions and the
+    final failure propagate unchanged (same type — callers' except clauses keep
+    working). Each retry logs at WARNING with the label, attempt count, and cause."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return await fn()
+        except BaseException as exc:
+            if attempt == attempts or not retryable(exc):
+                raise
+            delay = min(max_delay, base_delay * factor ** (attempt - 1))
+            delay *= 1 + random.uniform(-jitter, jitter)
+            log.warning("%s: transient failure (attempt %d/%d), retrying in %.1fs: %s",
+                        label or getattr(fn, "__name__", "call"), attempt, attempts, delay, exc)
+            await asyncio.sleep(delay)
+    raise AssertionError("unreachable")</code></pre>
+<p>Shape notes:</p>
+<ul>
+<li><strong>Callable-wrapping, not decorating.</strong> Call sites do <code>await with_retry(lambda: agent.run(prompt), retryable=llm_transient, label="judge")</code>. This keeps the retry visible at the seam, composes with the I1 telemetry split (<code>record()</code> happens after the successful attempt; failed attempts' tokens are the provider's loss report, not ours), and doesn't wrap injected fakes invisibly.</li>
+<li><strong>Exception transparency.</strong> The original exception type propagates on exhaustion — <code>panel.run_panel</code>'s <code>isinstance(r, Exception)</code>, <code>_refine_loop</code>'s best-effort <code>except Exception</code> blocks, and <code>effect_emitter</code>'s <code>_SKIPPABLE</code> all keep working unchanged.</li>
+<li><strong>Full jitter</strong> (±50% band) because the panel launches 3 analysts near-simultaneously — synchronized retries would re-collide on the same rate-limit window.</li>
+<li>Defaults 3/1s/2×/20s ⇒ worst-case added latency ≈ 1s + 2s ≈ 3–4.5s per call — negligible against LLM latencies and the 300s xLights write timeout.</li>
+</ul>
+<p>Two predicate helpers live next to their taxonomies:</p>
+<pre><code># PROPOSED — xlights_core/retry.py (transport predicate; core knows its own exceptions + httpx)
+def xlights_transient(exc: BaseException) -&gt; bool:
+    return isinstance(exc, (XLightsConnectionError, XLightsTimeout))
+
+# PROPOSED — xlights_orchestrator/models/registry.py (or a sibling llm_retry.py):
+# the orchestrator owns the pydantic_ai dependency, so the LLM predicate lives here
+_TRANSIENT_HTTP = {408, 429, 500, 502, 503, 529}
+def llm_transient(exc: BaseException) -&gt; bool:
+    if isinstance(exc, ModelHTTPError):
+        return exc.status_code in _TRANSIENT_HTTP
+    return isinstance(exc, (httpx.TimeoutException, httpx.TransportError))</code></pre>
+
+<h3>3.3 Where it wraps — agent runs</h3>
+<p>Rather than editing all seven LLM call sites (enumerated in the I1 doc §2.2), add <strong>one</strong> wrapper in <code>models/registry.py</code> and route the high-value, run-fatal sites through it:</p>
+<pre><code># PROPOSED — models/registry.py
+async def run_agent(agent, prompt, *, role: str, attempts: int = 3):
+    """agent.run(prompt) with transient-only retry. Fakes without real transports
+    never raise transient classes, so tests pass through on the first attempt."""
+    return await with_retry(lambda: agent.run(prompt),
+                            retryable=llm_transient, attempts=attempts, label=role)</code></pre>
+<table>
+<tr><th>Call site</th><th>Treatment</th><th>Why</th></tr>
+<tr><td>Director (<code>pipeline/run.py:415</code>), synthesizer (<code>panel.py:158</code>), generator (<code>generate.py:158</code>)</td><td><code>run_agent(..., attempts=3)</code></td><td>Failure aborts the run (or a whole section) — full backoff is worth it.</td></tr>
+<tr><td>Panel analysts (<code>panel.py:135</code>)</td><td><code>run_agent(..., attempts=2)</code> — §3.5</td><td>Roadmap: "retry once before being dropped"; the drop path remains the backstop.</td></tr>
+<tr><td>Judge (<code>run.py:229</code>)</td><td><code>run_agent(..., attempts=3)</code></td><td>A judge failure currently escapes <code>_refine_loop</code> (it is <em>not</em> in a best-effort block) and kills the run mid-refine.</td></tr>
+<tr><td>Visual critic (<code>visual.py:94</code>), section redesigner (<code>run.py:163</code>)</td><td><code>run_agent(..., attempts=2)</code></td><td>Both already sit under best-effort <code>except Exception</code> guards (<code>run.py:227, 264</code>) — one cheap retry converts "advisory capability silently lost this iteration" into "usually fine"; more would just slow the loop.</td></tr>
+</table>
+
+<h3>3.4 Where it wraps — xLights REST, and the mutation-lock interaction</h3>
+<p>Wrap at the <strong>transport boundary inside the client</strong>, not at call sites — every read and mutation funnels through two methods:</p>
+<pre><code># client.py — PROPOSED shape
+async def _request_with_retry(self, cmd, params=None, timeout=None, *, retryable):
+    return await with_retry(lambda: self._request(cmd, params, timeout),
+                            retryable=retryable, attempts=3, label=cmd)
+
+# reads (get_models, get_model, get_show_folder, getOpenSequence, ...):
+#   retryable = xlights_transient          (ConnectionError AND Timeout)
+# mutations (_mutate):
+async def _mutate(self, cmd, params=None):
+    async with self._write_lock:
+        return await self._request_with_retry(
+            cmd, params, self._write_timeout,
+            retryable=lambda e: isinstance(e, XLightsConnectionError))  # NOT Timeout</code></pre>
+<p>Three deliberate points:</p>
+<ol>
+<li><strong>Retry happens <em>inside</em> the lock.</strong> The write lock exists because "xLights has one shared open sequence" (<code>client.py:57</code>) — interleaving another mutation between a failed attempt and its retry could change the open-sequence state the retried command assumes (e.g. a <code>closeSequence</code> sneaking between two <code>addEffect</code> attempts). Holding the lock across backoff (worst case ~4.5s extra) preserves the ordering invariant; other writers queue exactly as they do today behind a slow render.</li>
+<li><strong>Mutations do not retry on timeout.</strong> <code>XLightsTimeout</code> after a mutation is ambiguous — the command may have been applied (e.g. an <code>addEffect</code> that landed but whose response was lost would, on retry, either double-place an effect on another layer via <code>_free_layer</code> stacking, or return <code>worked=false</code>). <code>XLightsConnectionError</code> from <code>httpx.ConnectError</code> means the TCP connection was never established, so the request provably did not reach xLights — always safe. (The catch-all "other transport failure → XLightsConnectionError" at <code>client.py:96–97</code> should be split out as part of this work: re-raise send-failures distinctly, or exclude them from the mutation predicate — see Open questions #1.)</li>
+<li><strong><code>render_all</code>/<code>export_video_preview</code> are excluded</strong> from mutation retry entirely (long-running; a timeout usually means "still rendering", and re-issuing piles work onto the app). They keep today's behavior.</li>
+</ol>
+<p><code>effect_emitter.apply_instructions</code> and <code>pipeline/groups._probe</code> need <strong>no change</strong>: their per-call semantics (skip vs abort, <code>XLightsTargetMissing</code> as the only exclusion reason) sit above the now-self-healing transport.</p>
+
+<h3>3.5 Panel analysts: retry-before-drop, and name the body</h3>
+<pre><code># agents/panel.py — PROPOSED
+async def _run(spec: AnalystSpec):
+    async with sem:
+        res = await run_agent(spec.agent, spec.render(sa, lyrics),
+                              role=f"analyst:{spec.key}", attempts=2)
+        return spec.key, res.output
+
+results = await asyncio.gather(*[_run(s) for s in analysts], return_exceptions=True)
+outputs: dict[str, object] = {}
+for spec, r in zip(analysts, results):            # ← pair result with its spec: gather
+    if isinstance(r, Exception):                  #    preserves input order, so zip is safe
+        log.warning("analyst %r failed after retry, dropping: %s", spec.key, r)
+        continue
+    key, out = r
+    outputs[key] = out</code></pre>
+<p>Changes: (a) one transient retry inside the semaphore slot before the analyst is dropped; (b) the drop log names <em>which</em> analyst was lost, at WARNING level (this is a whole-capability loss — exactly the I5 convention, and the event should also be reported to the I5 degradations collector once that lands: <code>degradations.note("analyst:" + spec.key, ...)</code>); (c) the retry stays <em>inside</em> the semaphore so concurrency never exceeds the free-tier cap of 3 even while retrying.</p>
+
+<h3>3.6 What stays untouched</h3>
+<ul>
+<li><code>lyrics.py</code> — <code>lyricsgenius(retries=1)</code> already retries internally and the whole path degrades to <code>None</code>; adding our wrapper would double-retry. Leave as is; note the asymmetry in the module docstring.</li>
+<li>PydanticAI's output-validation <code>retries</code> — untouched and orthogonal (§2.2).</li>
+<li>Best-effort <code>except Exception</code> blocks — none get retries by default; they are the subject of I5, not I2.</li>
+</ul>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong><code>xlights_core/retry.py</code></strong>: implement <code>with_retry()</code> + <code>xlights_transient()</code> as §3.2; export from <code>xlights_core/__init__.py</code> alongside the client/exceptions.</li>
+<li><strong><code>XLightsClient</code></strong>: add <code>_request_with_retry</code>; route read commands through it with <code>xlights_transient</code>; change <code>_mutate</code> to the connection-only predicate inside the lock; exempt <code>render_all</code>/<code>export_video_preview</code>. Add a constructor knob <code>retry_attempts: int = 3</code> (0/1 disables — tests that assert single-call behavior can opt out).</li>
+<li><strong>Split transport mapping</strong> in <code>_request</code> (<code>client.py:96</code>): map generic <code>httpx.HTTPError</code> to a distinguishable state (e.g. keep <code>XLightsConnectionError</code> but set a <code>request_sent: bool</code> attribute, or introduce <code>XLightsTransportError</code>) so the mutation predicate can be precise about "provably never sent". Decision per Open question #1.</li>
+<li><strong><code>models/registry.py</code></strong>: add <code>llm_transient()</code> and <code>run_agent()</code>; unit-test the predicate against constructed <code>ModelHTTPError</code>s.</li>
+<li><strong>Route the seven call sites</strong> through <code>run_agent()</code> with the attempt counts from §3.3 (this dovetails with I1's telemetry split at the same lines — if I1 lands first, <code>run_agent</code> is also the natural single home for <code>telemetry.record(role, res)</code>, collapsing seven instrumentation points to one).</li>
+<li><strong>Panel</strong>: apply §3.5 (zip specs with results; WARNING with analyst key).</li>
+<li><strong>Docs</strong>: note retry behavior + env knob (if any; see Open question #3) in <code>docs/usage.md</code>; update <code>openspec/specs/show-orchestration</code>/<code>xlights-sequence-editing</code> deltas if the specs assert single-attempt semantics.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first, per repo convention (<code>-m "not live"</code>; fake agents as in <code>tests/test_refine.py</code>; <code>httpx.MockTransport</code>-injected client as in <code>tests/test_client.py</code> — the client constructor already accepts an injected <code>httpx.AsyncClient</code> precisely for this, <code>client.py:47–56</code>).</p>
+<ul>
+<li><strong><code>tests/test_retry.py</code> (new)</strong> — pure <code>with_retry</code> semantics with a counting fake and <code>base_delay=0</code>:
+  <ul>
+  <li>succeeds first try ⇒ one call, no sleep;</li>
+  <li>transient, transient, success ⇒ three calls, returns value;</li>
+  <li>non-retryable first try ⇒ one call, original exception type propagates;</li>
+  <li>exhaustion ⇒ <code>attempts</code> calls, last exception propagates unchanged;</li>
+  <li>backoff sequence monotone and capped (patch <code>random.uniform</code> and capture <code>asyncio.sleep</code> args via monkeypatch);</li>
+  <li>predicate tests: <code>llm_transient(ModelHTTPError(429, "m"))</code> true; 400 false; <code>UnexpectedModelBehavior</code> false; <code>xlights_transient</code> over the whole exception taxonomy.</li>
+  </ul></li>
+<li><strong><code>tests/test_client.py</code> (extend)</strong> — <code>MockTransport</code> handlers that fail N times then succeed:
+  <ul>
+  <li>read (<code>getModels</code>): <code>httpx.ConnectError</code> ×2 then 200 ⇒ result returned, 3 transport calls observed;</li>
+  <li>mutation (<code>addEffect</code>): <code>ConnectError</code> then 200 ⇒ placed once (assert the mock saw exactly one <em>successful</em> add);</li>
+  <li>mutation timeout ⇒ <em>no</em> retry: raise <code>httpx.ReadTimeout</code> once, assert <code>XLightsTimeout</code> after exactly one attempt;</li>
+  <li>503 "Unknown model." ⇒ no retry, <code>XLightsResponseError</code> immediately;</li>
+  <li><strong>lock-hold test</strong>: start a mutation that retries (with a short real delay); concurrently fire a second mutation; assert the second's transport call happens only after the first completes (ordering via a recorded call log) — pins the retry-inside-lock invariant.</li>
+  </ul></li>
+<li><strong><code>tests/test_orchestrator.py</code> / panel tests (extend)</strong> — fake analyst agent whose <code>run()</code> raises a transient <code>ModelHTTPError(529, ...)</code> once then succeeds ⇒ brief contains that analyst's output and no drop warning; always-failing analyst ⇒ dropped after exactly 2 calls with a WARNING naming its key (use <code>caplog</code>); all-analysts-fail ⇒ still <code>RuntimeError</code>.</li>
+<li><strong>Refine loop</strong>: fake judge raising 529-once ⇒ iteration completes (previously fatal); fake visual critique raising twice ⇒ findings skipped for the iteration, loop continues (unchanged outer behavior, now with one retry observed).</li>
+<li><strong>No-sleep guarantee for the suite</strong>: all retry tests pass <code>base_delay=0</code> or monkeypatch <code>asyncio.sleep</code>; add a conftest guard if suite time regresses.</li>
+<li><strong>Live (<code>-m live</code>, optional)</strong>: kill-and-restart xLights mid-<code>get_models</code> loop is not practically scriptable; instead a live test that points the client at a socket that drops the first connection (tiny local TCP stub) to exercise the real httpx path once.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>Retrying a non-idempotent xLights mutation double-applies it (duplicate effect, double close)</td><td>High</td><td>Mutations retry only on <code>ConnectError</code> (request provably unsent); timeouts surface immediately; <code>render_all</code>/export excluded entirely.</td></tr>
+<tr><td>Backoff inside the write lock stalls other writers</td><td>Low–Medium</td><td>Bounded (≤ ~4.5s worst case, vs. the existing 300s write timeout); alternative (retry outside the lock) breaks ordering — documented trade-off, chosen deliberately.</td></tr>
+<tr><td>Retries mask a persistently sick provider/xLights, tripling time-to-failure</td><td>Medium</td><td>Attempts hard-capped at 3; every retry logs WARNING with cause; the terminal failure is unchanged in type and content.</td></tr>
+<tr><td>Rate-limit retry storms across concurrent analysts</td><td>Medium</td><td>Full jitter; retries stay inside the <code>Semaphore(3)</code>; analysts get only 2 attempts.</td></tr>
+<tr><td>PydanticAI exception surface shifts between versions (it did between 0.x and 2.x)</td><td>Medium</td><td>Predicate isolated in one function with direct unit tests constructing real exception instances; a rename fails a test, not a run.</td></tr>
+<tr><td>Token cost of retried LLM calls</td><td>Low</td><td>Only transient-class failures retry (typically billed zero or trivially by the provider); schema failures — the expensive repeat — are explicitly excluded. I1 telemetry counts only successful attempts' usage.</td></tr>
+<tr><td>Hidden coupling: <code>run_agent</code> wrapper changes fake-agent call counts in existing tests</td><td>Low</td><td>Fakes don't raise transient classes ⇒ single attempt, identical behavior; verified by running the full suite unmodified.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>☐ <code>xlights_core.retry.with_retry</code> exists with exponential backoff + jitter, propagates original exception types, and is unit-tested for all four outcome shapes (§5).</li>
+<li>☐ A transient 429/529/timeout on director, synthesizer, generator, or judge no longer aborts a run on first occurrence (proven by fake-agent tests).</li>
+<li>☐ A panel analyst gets exactly one transient retry before being dropped, and the drop is logged at WARNING <em>naming the analyst key</em>.</li>
+<li>☐ xLights reads retry on connection error and timeout; mutations retry on connection error only, inside the write lock; <code>XLightsTargetMissing</code>/<code>UnsavedChanges</code>/<code>NotImplemented</code>/generic 503 never retry.</li>
+<li>☐ Ordering invariant pinned by test: no second mutation's request is sent between a first mutation's attempts.</li>
+<li>☐ Schema/validation failures (<code>UnexpectedModelBehavior</code>, <code>ValidationError</code>) are never transport-retried (test-pinned).</li>
+<li>☐ Full hermetic suite passes with no fixture changes and no measurable slowdown (retry tests use zero delays).</li>
+<li>☐ Every retry emits a WARNING log line with label, attempt count, and cause (feeds the I5 degradations summary later).</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>The catch-all transport mapping</strong> (<code>client.py:96</code>: any <code>httpx.HTTPError</code> → <code>XLightsConnectionError</code>) conflates "never sent" with "sent, response lost". Split into a new subclass (cleaner, but a public-taxonomy addition) or a boolean attribute on <code>XLightsConnectionError</code>? Leaning: new <code>XLightsTransportError(XLightsConnectionError)</code> for the sent-but-failed case so existing <code>except XLightsConnectionError</code> callers keep catching both.</li>
+<li><strong>Should the generator retry budget differ during refine?</strong> A regen failure inside <code>_refine_loop</code> currently propagates out of <code>_regen</code> and kills the run (it is <em>not</em> in a best-effort block, <code>run.py:266</code>). With retry it's rarer; do we additionally want I5-style skip-this-revision handling there, or is fail-fast correct for a corrupted-state risk? (Fail-fast is current behavior; keep, revisit with I5.)</li>
+<li><strong>Env knobs</strong> — expose <code>XLO_RETRY_ATTEMPTS</code>/<code>XLO_RETRY_BASE</code> like <code>XLO_REFINE_SKIP_OBJECTIVE</code>, or keep constants until a need appears? Leaning constants-first (roadmap R3/R4 is still consolidating existing knobs).</li>
+<li><strong>Anthropic <code>retry-after</code> header</strong> — <code>ModelHTTPError.body</code> may carry it; honoring it beats blind exponential backoff for 429s. Worth it in v1, or note as an extension once telemetry shows 429s actually occur?</li>
+<li><strong>Should <code>save_sequence</code> during <code>_report</code>/<code>RealRender.refresh</code> retry?</strong> They sit in best-effort blocks (<code>run.py:174–179</code>, <code>visual.py:63–66</code>) where failure only degrades sampling — retry adds latency per iteration for an advisory capability. Proposal: inherit the mutation policy (connection-only) and measure.</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> §I2; §I5 (logging convention this item's WARNING lines feed); sequencing row 9.</li>
+<li>Code: <code>xlights_core/client.py</code> (<code>_request</code> :73–99, <code>_handle</code> :101–128, <code>_mutate</code> :182–184, write lock :58), <code>xlights_core/exceptions.py</code> (full taxonomy), <code>agents/panel.py:130–150</code>, <code>lyrics.py:58–62</code>, <code>effect_emitter.py</code> (<code>_SKIPPABLE</code> :16, <code>apply_instructions</code> :62), <code>pipeline/groups.py:75–95</code> (probe semantics), <code>models/registry.py:64–71</code> (<code>build_agent</code>).</li>
+<li>PydanticAI 2.5.0 exception taxonomy (verified in-venv): <code>ModelHTTPError(status_code, model_name, body)</code>, <code>ModelAPIError</code>, <code>UnexpectedModelBehavior</code>, <code>UsageLimitExceeded</code>, <code>ContentFilterError</code>.</li>
+<li>OpenSpec: <code>openspec/specs/xlights-sequence-editing/</code>, <code>openspec/specs/show-orchestration/</code> (spec deltas needed); archived <code>2026-06-09-add-targetable-group-filter</code> (probe fallback posture this design preserves).</li>
+<li>Related docs: <code>docs/architecture/</code> (client transport notes), xLights source <code>xLightsAutomations.cpp</code> (503/504 semantics cited in <code>client.py</code> docstring).</li>
+</ul>
+</body>
+</html>

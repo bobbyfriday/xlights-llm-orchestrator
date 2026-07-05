@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-E — `xlo init-layout` onboarding · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-E — <code>xlo init-layout</code> onboarding</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-E in <code>docs/roadmap-2026-07.md</code> (Horizon 3 — "Generalize beyond one layout")</dd>
+<dt>Complexity</dt><dd>L — split into seven landable slices below</dd>
+<dt>Depends on</dt><dd>Nothing hard. Roadmap sequencing puts it after F-A/F-B/F-C ("do it once the show quality is worth sharing"). I5 (degradation logging) pays off during its live-verify.</dd>
+<dt>Unblocks</dt><dd>F-F (submodel targeting), sharing the tool with any layout, manifest-grounded Director designs, capability-class QA</dd>
+<dt>Key files</dt><dd><code>packages/xlights-core/src/xlights_core/knowledge/layout_semantics.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/groups.py</code>, <code>pipeline/semantic_groups.py</code>, <code>pipeline/beats.py</code>, <code>agents/director.py</code>, <code>qa/rules.py</code>, <code>cli.py</code>, <code>brief_editor.py</code>, <code>packages/xlights-core/src/xlights_core/preview/</code>, <code>xlights-layout-semantics-spec.md</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The orchestrator's entire choreography stack targets <code>SEM_</code> semantic groups — roles
+(<code>SEM_ARCHES</code>), ensembles (<code>SEM_ALL</code>, <code>SEM_ALL_LESS_FOCAL</code>), bands and sides. The
+July roadmap's <em>Prop-grouping assessment</em> concluded this architecture is the right contract:
+it matches community practice, respects the hard xLights constraint that groups load only at
+startup (so a static pre-built vocabulary is the only practical design), and several specifics —
+subtractive ensembles, empirical targetability probing, one source of truth for names, flat
+groups — beat the obvious alternatives.</p>
+<p>But the implementation covers only <strong>half of
+<code>xlights-layout-semantics-spec.md</code></strong>. The five gaps, verbatim from the assessment:</p>
+<ol>
+<li><strong>The classifier is prose, not code.</strong> Spec §3 (DisplayAs mapping → pixel-count
+disambiguation → name heuristics → group hints → LLM fallback) has no implementation;
+<code>layout_semantics.py</code> starts from already-classified <code>Prop</code> objects. This layout was
+classified once, by hand — the root of the single-layout coupling. No code writes the
+<code>SEM_</code> modelGroups either.</li>
+<li><strong>The §6 manifest is designed but never emitted or consumed — the biggest miss.</strong>
+<code>layout_semantics.json</code> exists nowhere. The Director receives a flat list of group names,
+so the LLM plans knowing nothing of scale, geometry, or symmetry; QA fakes capability gating with
+name prefixes.</li>
+<li><strong>Group render modes aren't code-managed.</strong> Spec §5.7 requires "Per Preview" on
+ensembles and "Horizontal Per Model" on <code>_LTR</code> groups, but only <code>GridSize</code> is patched.
+A wrong mode silently breaks every sweep on that group.</li>
+<li><strong>The choreography vocabulary is hardcoded to this layout's prop mix</strong>
+(<code>METRIC_RING</code>, backbeat/bed preferences). A different prop mix gets a weaker beat anchor by
+accident, not by decision.</li>
+<li><strong>Validation is manual.</strong> The spec's §7 role-color and sweep tests are described but
+not implemented, even though the offline preview renderer and visual critic could run them —
+and misclassification poisons every downstream decision.</li>
+</ol>
+<p>F-E closes all five as one guided CLI command, <code>xlo init-layout</code> — the step that turns a
+personal tool into a shareable one. Today, onboarding a new layout means a human (or an ad-hoc
+agent session) reading the spec and hand-editing <code>xlights_rgbeffects.xml</code>; that is exactly what
+<code>docs/usage.md</code> ("One-time layout setup", lines 53–69) documents as a "manual/agent step
+today".</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 What exists — the realization half</h3>
+<p><code>packages/xlights-core/src/xlights_core/knowledge/layout_semantics.py</code> implements
+everything <em>downstream</em> of classification:</p>
+<ul>
+<li><strong><code>Prop</code> dataclass</strong> (lines 23–40) — already carries every spec §4/§6 field
+except <code>mirror_of</code> and submodels:
+<pre><code>@dataclass
+class Prop:
+    name: str
+    display_as: str
+    role: str = "CUSTOM_PROP"
+    res: str = "POINT"
+    nodes: int = 0
+    x: float = 0.0
+    y: float = 0.0
+    band: str = "MID"
+    side: str = "CENTER"
+    center_dist: float = 0.0
+    sweep_order: int | None = None
+    focal: bool = False
+    confidence: float = 1.0
+    wx: float = 0.0
+    wy: float = 0.0
+    groups: list[str] = field(default_factory=list)</code></pre></li>
+<li><strong><code>build_sem_groups(props) -&gt; dict[str, list[str]]</code></strong> (lines 50–80) — the
+complete §5 group <em>plan</em>: role groups via <code>_ROLE_GROUP</code>, <code>_LTR</code> ordered groups for
+ARCH/MINI_TREE/CANE, band/side groups, ensembles including the subtractive
+<code>SEM_ALL_LESS_FOCAL</code>/<code>SEM_ALL_LESS_FOCAL_RHYTHM</code>. Pure, hermetic, tested
+(<code>tests/test_scene_cookbook.py:38-42</code>).</li>
+<li><strong><code>patch_sem_gridsize(rgb_path, size=SEM_GRID_SIZE)</code></strong> (lines 89–108) — the
+in-place XML patcher pattern this design extends: <code>ET.parse</code>, mutate only
+<code>modelGroup[@name^="SEM_"]</code>, write to <code>.tmp</code>, <code>os.replace</code>. Idempotent
+(<code>tests/test_led_readability.py:142-152</code>).</li>
+<li><strong><code>patch_view(rgb_path, view_name="SEM Master")</code></strong> (lines 142–173) and
+<strong><code>patch_xsq_render_order(xsq_path)</code></strong> (lines 176–210) — the same atomic
+offline-patch pattern applied to views and sequence row order, driven by
+<code>canonical_order()</code> and the <code>_ORDER_TIERS</code> table (lines 113–124).</li>
+</ul>
+<p>Around it, the orchestrator package has the operational pieces:</p>
+<ul>
+<li><strong>Empirical targetability probe</strong> —
+<code>pipeline/groups.py::targetable_groups()</code> (line 35) places a throwaway <code>On</code> effect per
+group on a disposable sequence, keeps the ones xLights accepts, and caches by a layout
+fingerprint of sorted group <em>and model</em> names (<code>_fingerprint</code>, line 28). This is the
+run-time source of <code>st.available_groups</code>
+(<code>pipeline/run.py:386</code>).</li>
+<li><strong>The name vocabulary</strong> — <code>pipeline/semantic_groups.py</code> holds the constants the
+deterministic layers import: <code>METRIC_RING</code> (line 41), <code>BACKBEAT_GROUP_PREFERENCE</code>
+(line 46), <code>BED_PREFERENCE</code> (line 33), <code>RHYTHM_POOL</code>, <code>ACCENT_GROUPS</code>,
+<code>HERO_GROUP</code>, <code>MELODIC_STEMS</code>. Consumed by
+<code>pipeline/beats.py::select_rhythm_groups()</code> (lines 260–284), which degrades gracefully via
+<code>if g in avail</code> filters — but the <em>order</em> is this layout's opinion baked in.</li>
+<li><strong>Director input</strong> — <code>agents/director.py::render_input()</code> (line 23) passes the
+group list as a bare JSON array:
+<pre><code>+ "\n\nAVAILABLE GROUPS (choose targets only from these):\n" + json.dumps(groups)</code></pre>
+No node counts, no geometry, no symmetry, no capability classes.</li>
+<li><strong>QA capability gating by name prefix</strong> — <code>qa/rules.py</code> (lines 46, 53–54):
+<pre><code>_LINEAR_PREFIXES = ("SEM_ARCHES", "SEM_OUTLINE", "SEM_CANES", "SEM_ICICLES", "SEM_PATH")
+
+def _is_linear(target: str) -&gt; bool:
+    return target.startswith(_LINEAR_PREFIXES)</code></pre>
+This works only because the SEM_ naming convention encodes role — a Custom prop classified as
+LINEAR by geometry but grouped elsewhere escapes rule #2; a user's own group named freely is
+invisible to the gate.</li>
+<li><strong>Offline preview renderer</strong> — <code>xlights_core/preview/</code>:
+<code>parse_models()</code> (<code>layout.py:113</code>) already parses <code>DisplayAs</code>, <code>parm1-3</code>,
+<code>WorldPosX/Y/Z</code>, <code>Scale</code>/<code>Rotate</code>, <code>CustomModel</code> grids;
+<code>model_world_pixels()</code> (<code>layout.py:248</code>) gives per-pixel world coordinates;
+<code>PreviewRenderer</code> (<code>render.py:29</code>) renders <code>.fseq</code> frames to PNG/MP4. This is the
+machinery §7 validation needs.</li>
+<li><strong>Visual critic</strong> — <code>agents/visual_critic.py</code> (multimodal, advisory findings)
+can optionally inspect validation renders.</li>
+<li><strong>CLI</strong> — <code>cli.py::main()</code> (line 67) has an argparse subcommand pattern
+(<code>run</code>, <code>regen</code>, <code>edit-brief</code>) that <code>init-layout</code> slots into; entry point
+<code>xlo = "xlights_orchestrator.cli:main"</code> in the package's <code>pyproject.toml</code>.</li>
+</ul>
+
+<h3>2.2 What doesn't exist — the judgment half</h3>
+<p>There is <strong>no classifier, no spatial deriver, no group writer, no manifest</strong> in the
+package. A grep for <code>layout_semantics.json</code> across <code>packages/</code> returns nothing; the only
+callers of <code>build_sem_groups</code> are tests. Historical note: the archived change
+<code>openspec/changes/archive/2026-06-10-add-layout-semantics/</code> designed (and its tasks.md checks
+off) a classifier + spatial derivation + rgbeffects writer + manifest — but only the group-plan and
+patch functions survived into <code>layout_semantics.py</code>. The classification and group creation for
+the current layout were executed as a one-time agent/manual step; the July roadmap's assessment
+("the classifier is prose, not code … group creation is agent/manual today") is the authoritative
+statement of what is actually in the tree, and this doc designs against that reality. The archived
+change's <em>decisions</em> (DisplayAs map, tree threshold, outlier handling, backup/atomic write,
+xLights-closed guard) remain valid prior art and are folded in below.</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.0 Architecture at a glance</h3>
+<pre><code>xlo init-layout
+  │
+  ├─ 1 ANALYZE   knowledge/layout_classify.py           (new, xlights-core)
+  │              parse_props(rgbeffects) → classify(props) → derive_spatial(props)
+  │              LLM fallback: agents/layout_classifier.py (new, orchestrator)
+  │
+  ├─ 2 REVIEW    pipeline/init_layout.py                 (new, orchestrator)
+  │              terminal review queue for confidence &lt; 0.8 (web UX deferred)
+  │
+  ├─ 3 WRITE     knowledge/layout_semantics.py           (extended)
+  │              write_sem_groups(): idempotent modelGroup create incl. §5.7
+  │              layout modes + GridSize + patch_view; timestamped backup;
+  │              xLights-must-be-closed guard
+  │
+  ├─ 4 MANIFEST  knowledge/layout_manifest.py            (new, xlights-core)
+  │              LayoutManifest pydantic model; emit layout_semantics.json
+  │
+  ├─ 5 VALIDATE  pipeline/layout_validate.py             (new, orchestrator)
+  │              synthetic .fseq → PreviewRenderer role-color frames +
+  │              deterministic sweep-centroid check; optional visual critic
+  │
+  └─ CONSUME     director.py (traits block) · qa/rules.py (capability gating)
+                 semantic_groups.py (derived vocabulary w/ constant fallback)</code></pre>
+<p>Package split follows the existing convention: everything that reads/writes xLights artifacts
+and is LLM-free lives in <code>xlights-core/knowledge</code>; the CLI flow, the LLM fallback agent, and
+manifest <em>consumption</em> live in <code>xlights-orchestrator</code>.</p>
+
+<h3>3.1 The classifier — spec §3 as real code (<code>knowledge/layout_classify.py</code>, proposed)</h3>
+<p><strong>Parsing.</strong> The preview module's <code>parse_models()</code> is close but wrong-shaped for
+this: it requires <code>networks.xml</code> controllers to resolve start channels (irrelevant to
+classification) and drops models it can't channel-resolve. Propose a dedicated, dependency-free
+parser that also captures what classification needs and <code>parse_models</code> ignores —
+<code>StringType</code>, <code>&lt;subModel&gt;</code> children (preserved for F-F), and user group membership:</p>
+<pre><code># knowledge/layout_classify.py  (proposed)
+
+def parse_props(rgb_path: str | Path, *, layout_group: str = "Default") -&gt; list[Prop]:
+    """One Prop per &lt;model&gt; in the given preview (spec §8: default preview only).
+    Populates name, display_as, nodes (CustomModel grid max / parm math per DisplayAs,
+    mirroring preview/layout.py), wx/wy (WorldPosX/Y), groups (from &lt;modelGroups&gt;
+    membership, reverse-indexed), submodel names. Roles/spatial left at defaults."""</code></pre>
+<p>Node counting reuses the proven rules in <code>preview/layout.py:141-149</code>: Custom →
+<code>max(CustomModel grid)</code> via the <code>_parse_custom_model</code> logic; Cube →
+<code>parm1*parm2*parm3</code>; everything else → <code>parm1*parm2</code>. <code>Prop</code> gains three fields
+(defaulted, backward-compatible): <code>mirror_of: str | None = None</code>,
+<code>string_type: str = ""</code>, <code>submodels: list[str] = field(default_factory=list)</code>.</p>
+
+<p><strong>Classification steps</strong> (each step only touches props not yet resolved, spec §3):</p>
+<pre><code>#  Step 1 — DisplayAs direct map (data, not code):
+DISPLAYAS_ROLE = {
+    "Arches": "ARCH", "Icicles": "ICICLES", "Candy Canes": "CANE", "Star": "STAR",
+    "Spinner": "SPINNER", "Matrix": "MATRIX", "Horiz Matrix": "MATRIX",
+    "Vert Matrix": "MATRIX", "Window Frame": "WINDOW",
+}
+
+#  Step 2 — tree pixel-count disambiguation:
+MEGA_TREE_NODES = 600
+def _tree_role(p: Prop, all_props: list[Prop]) -&gt; str:
+    # Tree 360 / Tree Flat / Tree 180: ≥600 nodes → MEGA_TREE, else MINI_TREE;
+    # a sole tree that is also the layout's largest prop → MEGA_TREE regardless.
+
+#  Step 3 — name heuristics (case-insensitive substring, spec table verbatim):
+NAME_HEURISTICS: list[tuple[tuple[str, ...], str]] = [
+    (("roof", "gutter", "eave", "ridge", "outline", "peak", "fascia",
+      "column", "garage"), "OUTLINE"),
+    (("window", "door"), "WINDOW"),
+    (("flood", "wash", "up light", "uplight"), "FLOOD"),
+    (("face", "sing", "carol", "mouth"), "SINGING_FACE"),
+    (("sign", "tune"), "SIGN"),
+    (("drive", "walk", "path", "fence", "yard line"), "PATH"),
+    (("flake",), "SNOWFLAKE"),
+]
+
+#  Step 4 — group hints: an unresolved prop inherits the role its user group's
+#  name matches under the same heuristics (e.g. member of "All Outline" → OUTLINE).
+
+def classify(props: list[Prop]) -&gt; ClassifyResult:
+    """Steps 1–4 in order; sets role + confidence per prop; returns the resolved
+    props plus the unresolved tail for step 5. Confidence: step 1–2 → 1.0,
+    step 3 → 0.9, step 4 → 0.85, unresolved → CUSTOM_PROP @ 0.5."""</code></pre>
+<p><strong>Capability classes</strong> (spec §2) are derived from role + geometry, replacing today's
+implicit assumption that names encode capability:</p>
+<pre><code>def capability(role: str, nodes: int, string_type: str) -&gt; str:
+    # MATRIX → 2D_SURFACE;  MEGA_TREE/SPINNER/STAR → 2D_RADIAL;
+    # OUTLINE/PATH → LINEAR_HIGH if nodes ≥ 100 else LINEAR_LOW;
+    # ARCH/CANE/ICICLES/SNOWFLAKE/WINDOW/MINI_TREE → LINEAR_LOW;
+    # FLOOD/CUSTOM_PROP low-count → POINT;  SINGING_FACE → SPECIAL;
+    # spec §8: non-RGB StringType → POINT override regardless of role;
+    # spec §8: very large dense Custom (node density + area) → MATRIX/2D_SURFACE.</code></pre>
+
+<p><strong>Step 5 — LLM fallback</strong> (new agent, orchestrator side, so xlights-core keeps zero
+LLM deps). One <em>batched</em> call for the whole unresolved tail, not one call per prop —
+these are compact records and a single worker-tier request:</p>
+<pre><code># agents/layout_classifier.py  (proposed)
+class PropRoleGuess(BaseModel):
+    name: str
+    role: Literal["OUTLINE","WINDOW","MEGA_TREE","MINI_TREE","MATRIX","ARCH",
+                  "SPINNER","STAR","ICICLES","CANE","SNOWFLAKE","FLOOD",
+                  "SINGING_FACE","SIGN","PATH","CUSTOM_PROP"]
+    confidence: float          # 0..1
+    rationale: str = ""
+
+class PropRoleGuesses(BaseModel):
+    guesses: list[PropRoleGuess] = []
+
+def layout_classifier_agent():
+    return build_agent("classifier", output_type=PropRoleGuesses, system_prompt=_PROMPT)
+
+def render_input(unresolved: list[Prop]) -&gt; str:
+    # per prop, the spec §3.5 compact record:
+    # {"name": ..., "DisplayAs": ..., "nodes": ..., "width_m": ..., "height_m": ...,
+    #  "groups": [...]}</code></pre>
+<p>A new <code>classifier</code> role goes into <code>models/config.yaml</code> routed to the worker tier
+(same as <code>analyst</code>/<code>generator</code>). The enum-constrained <code>output_type</code> makes an
+invented role a schema failure, not a silent bad group. Per spec §3.5/§6, any guess with
+<code>confidence &lt; 0.8</code> — and every prop the LLM didn't return — goes to the
+<strong>review queue</strong>, never silently into a group. The fallback is optional: with no LLM key,
+<code>init-layout</code> still runs fully deterministic (steps 1–4) with the tail defaulting to
+<code>CUSTOM_PROP</code> + review, matching the archived change's v1 posture.</p>
+
+<h3>3.2 Spatial derivation — spec §4 (<code>derive_spatial()</code>, same module)</h3>
+<pre><code>@dataclass
+class SpatialSummary:
+    width_units: float          # bbox extent in world units (spec's width_m if units are m)
+    focal_x: float              # normalized x of the focal center
+    symmetric: bool             # ≥1 mirror pair found
+    excluded: list[str]         # parked/outlier models (→ review, spec §8)
+
+def derive_spatial(props: list[Prop], *, invert_x: bool = False) -&gt; SpatialSummary:</code></pre>
+<ol>
+<li><strong>Outlier exclusion first</strong> (spec §8, archived-change decision): models positioned
+&gt; 2× the display span outside the main bounding box, or with zero nodes, are excluded from the
+bbox and appended to review — the X = −907 parked model must not stretch normalization.</li>
+<li><strong>Normalize</strong>: <code>p.x = (wx - min_x) / (max_x - min_x)</code>, <code>p.y</code> likewise
+from <code>WorldPosY</code>, ground → top. <code>invert_x</code> flips the x axis — this is the knob the §7
+sweep test turns when a mirrored preview is detected (spec §8 "inverted previews").</li>
+<li><strong>Bands</strong>: <code>GROUND</code>/<code>MID</code>/<code>ROOF</code> at y cuts 0.33/0.66; optionally
+adjusted upward if the OUTLINE models' minimum y clearly defines a roofline above 0.66 (spec §4.2
+"adjusted if the outline models clearly define a roofline").</li>
+<li><strong>Sides</strong>: <code>LEFT</code> x&lt;0.45, <code>CENTER</code> 0.45–0.55, <code>RIGHT</code> &gt;0.55
+(spec §5.4), filling the existing <code>Prop.side</code> field.</li>
+<li><strong>Sweep order</strong>: within each multi-instance role in
+{ARCH, MINI_TREE, CANE, WINDOW, SNOWFLAKE, SPINNER}, sort by x, assign
+<code>sweep_order = 1..N</code> — exactly what <code>build_sem_groups</code> already expects for its
+<code>_LTR</code> groups (line 60–63).</li>
+<li><strong>Mirror pairs</strong>: same role, |x₁ + x₂ − 1| ≤ 0.05 (mirrored around the centerline)
+and |y₁ − y₂| ≤ 0.05 → set <code>mirror_of</code> on <em>both</em> props (spec §4.4 "record both
+directions").</li>
+<li><strong>Center distance</strong>: normalized Euclidean distance from the focal center — the
+MEGA_TREE if present, else bbox center — into <code>Prop.center_dist</code>.</li>
+<li><strong>Focal flags</strong>: MEGA_TREE, MATRIX, and any prop whose approximate visual area
+(scale-derived bbox from <code>ScaleX/Y</code> × model extent, the same inputs
+<code>model_world_pixels()</code> uses) exceeds ~15% of the display area.</li>
+</ol>
+
+<h3>3.3 The SEM_ group writer — spec §5 + §5.7 (<code>write_sem_groups()</code>, extends <code>layout_semantics.py</code>)</h3>
+<p>This is the piece with no precedent in the package: <em>creating</em>
+<code>&lt;modelGroup&gt;</code> elements rather than patching attributes on existing ones. It extends the
+exact pattern of <code>patch_sem_gridsize</code>/<code>patch_view</code> (ET parse → mutate → tmp +
+<code>os.replace</code>), plus the archived change's safety decisions (timestamped backup;
+xLights must be closed):</p>
+<pre><code># knowledge/layout_semantics.py  (proposed addition)
+
+LAYOUT_MODE_ORDERED  = "Horizontal Per Model"   # SEM_*_LTR — chases traverse member order
+LAYOUT_MODE_ENSEMBLE = "Per Preview"            # SEM_ALL / SEM_BAND_* / ensembles — spatial map
+
+def layout_modes(groups: dict[str, list[str]]) -&gt; dict[str, str]:
+    """Spec §5.7: name → mode. _LTR → ordered mode; everything else → ensemble mode."""
+
+@dataclass
+class WriteReport:
+    created: list[str]; replaced: list[str]; kept_user_groups: int; backup: Path | None
+
+def write_sem_groups(rgb_path, groups: dict[str, list[str]], *,
+                     modes: dict[str, str] | None = None,
+                     grid_size: int = SEM_GRID_SIZE,
+                     backup: bool = True) -&gt; WriteReport:
+    """Idempotently (re)create the SEM_ modelGroups:
+      1. timestamped backup rgbeffects.&lt;ts&gt;.bak (unless backup=False)
+      2. remove every existing modelGroup whose name matches ^SEM_   (regenerable,
+         spec §6: 'rerunning deletes and recreates all SEM_ groups, touching nothing else')
+      3. append one &lt;modelGroup&gt; per plan entry:
+         name=..., models=",".join(members), LayoutGroup="Default",
+         GridSize=str(grid_size), + the §5.7 layout-mode attribute
+      4. atomic tmp + os.replace
+    NEVER touches non-SEM_ groups (spec §5.6: do not delete/rename the user's groups)."""</code></pre>
+<p><strong>The layout-mode attribute is the one deliberately unresolved fact in this design.</strong>
+xLights stores the group dialog's "Preview/Buffer Layout" choice as a <code>modelGroup</code> XML
+attribute, but the exact attribute name and the serialized strings for "Per Preview" vs
+"Horizontal Per Model" must be established by <em>round-tripping</em>, not guessed: create one group
+in each mode in the target xLights build's UI, save, and diff the XML (implementation plan step
+3.1). The doc pins the behavioral requirement — ordered groups must traverse members in order,
+ensemble groups must map effects across the display spatially — and the writer takes the mode
+strings from one confirmed constant pair. Note this is a <em>different</em> setting from the
+per-effect <code>B_CHOICE_BufferStyle</code> already handled in
+<code>pipeline/render_style.py</code>; the group-level default matters because it's what an effect
+gets when the buffer style is "Default" (the archived
+<code>add-metric-rhythm</code> design found the <code>_LTR</code> groups "don't render a chase" precisely
+because their group mode was never set).</p>
+<p><strong>xLights-must-be-closed guard.</strong> xLights rewrites <code>rgbeffects.xml</code> from memory
+on exit, silently clobbering offline edits. The guard is a cheap connectivity probe: attempt
+<code>XLightsClient.get_version()</code> with a short timeout; if it answers, refuse to write and print
+"close xLights, then re-run" (or in the guided flow: wait-and-poll with a countdown). This inverts
+the pipeline's usual expectation (xLights <em>running</em>), so <code>init-layout</code> must not share
+<code>_run()</code>'s <code>async with XLightsClient()</code> assumption.</p>
+<p><strong>Two known ET caveats, accepted deliberately:</strong> <code>xml.etree.ElementTree</code> does not
+preserve comments or attribute order. This is already the shipped behavior of
+<code>patch_view</code>/<code>patch_sem_gridsize</code> on the same file, and xLights regenerates the file
+itself anyway; the timestamped backup covers the residual risk.</p>
+<p><strong>Cache interaction:</strong> rewriting groups changes the group-name set, which changes
+<code>pipeline/groups.py::_fingerprint</code> — the targetable-groups probe re-runs automatically on
+the next pipeline run. <code>init-layout</code> should say so in its summary ("first run will re-probe
+group targetability").</p>
+
+<h3>3.4 The manifest — spec §6, emitted <em>and</em> consumed (<code>knowledge/layout_manifest.py</code>, proposed)</h3>
+<pre><code>class PropRecord(BaseModel):
+    id: str; role: str; res: str; nodes: int
+    pos: PropPos                      # x, y, band, center_dist
+    sweep_order: int | None = None
+    mirror_of: str | None = None
+    focal: bool = False
+    confidence: float = 1.0
+    submodels: list[str] = []         # F-F seam; empty today
+
+class GroupRecord(BaseModel):
+    members: list[str]; ordered: bool = False; layout_mode: str = ""
+
+class LayoutManifest(BaseModel):
+    version: int = 1
+    generated: str                    # ISO-8601
+    display: DisplayBlock             # width_m + traits (has_matrix, has_megatree,
+                                      # arch_count, symmetric, focal_x, ...)
+    props: list[PropRecord]
+    groups: dict[str, GroupRecord]
+    review: list[str] = []
+
+def emit_manifest(m: LayoutManifest, show_dir: Path) -&gt; Path      # layout_semantics.json
+def load_manifest(show_dir_or_path) -&gt; LayoutManifest | None      # tolerant: None if absent</code></pre>
+<p>Written to the show directory (spec §6: "the only layout representation downstream LLM planners
+receive"), kept under ~10 KB, plus a copy under the cache root so hermetic runs and the dashboard
+can read it without the show folder mounted. Consumption is three independent, individually
+landable integrations:</p>
+
+<p><strong>(a) Director traits/props block.</strong> A compact renderer, ~1 KB of prompt:</p>
+<pre><code># agents/director.py  (proposed)
+def render_layout_block(manifest: LayoutManifest, groups: list[str]) -&gt; str:
+    """Per targetable SEM_ group: role, member count, ~nodes, band, symmetry/order.
+    e.g.  SEM_ARCHES: 6 arches, ~50 nodes each, ground band, mirror-symmetric,
+          ordered variant SEM_ARCHES_LTR (left→right)
+          SEM_FOCAL: MegaTree (1600 nodes, 2D radial) + Matrix_P10 (2D surface)
+    Plus one display line: 'display ~18m wide, focal center x=0.50, symmetric'."""
+
+def render_input(brief, groups, placeable_types,
+                 manifest: LayoutManifest | None = None) -&gt; str:
+    # unchanged flat AVAILABLE GROUPS list (the hard constraint the plan is
+    # validated against), plus, when a manifest exists:
+    #   "\n\nLAYOUT (what each group physically is — ground your looks in this):\n"
+    #   + render_layout_block(manifest, groups)</code></pre>
+<p>The flat list stays (it is the authoritative "choose targets only from these" constraint fed
+from the live probe at <code>pipeline/run.py:414</code>); the block adds the grounding. Wired in
+<code>run.py</code> behind <code>load_manifest()</code> — absent manifest, byte-identical prompt to today,
+so cached briefs stay valid.</p>
+
+<p><strong>(b) QA capability gating.</strong> Replace the name-prefix proxy in
+<code>qa/rules.py</code> with manifest-derived capability classes, keeping the prefix table as the
+no-manifest fallback:</p>
+<pre><code># qa/rules.py  (proposed)
+def _target_res(target: str, manifest) -&gt; set[str]:
+    """res classes of the target: the prop's own class, or the union of member
+    classes for a group. Cached per manifest."""
+
+def _is_linear(target: str, manifest=None) -&gt; bool:
+    if manifest and (res := _target_res(target, manifest)):
+        return res &lt;= {"LINEAR_HIGH", "LINEAR_LOW"}      # ALL members linear
+    return target.startswith(_LINEAR_PREFIXES)            # legacy fallback</code></pre>
+<p>This also unlocks rules the prefix hack can't express: texture effects legal on a mixed group
+whose canvas is dominated by a 2D surface; <code>POINT</code>-only groups rejecting anything but
+washes; <code>SPECIAL</code> (faces) excluded from general placement — enforcement moves from "what
+the group is named" to "what the pixels are". <code>evaluate(instructions, plan)</code> grows an
+optional <code>manifest=None</code> keyword; existing tests pass unchanged.</p>
+
+<p><strong>(c) Choreography data.</strong> Mirror pairs and sweep orders feed true call-and-response
+(left prop ↔ its recorded mirror, not just <code>SEM_SIDE_LEFT</code>/<code>RIGHT</code>) and center-out
+waves ordered by <code>center_dist</code>. First consumer: the weave's counterphase/directional sweeps
+and <code>pipeline/triggers.py</code> group rotation; the seam is that both currently take group name
+lists, so the manifest only needs to <em>order</em> those lists.</p>
+
+<h3>3.5 Derived choreography vocabulary — constants as fallback</h3>
+<p>Today <code>semantic_groups.py</code> hardcodes this layout's judgment calls. The generalization is
+a small pure function over the manifest, with today's tuples as both the tie-break prior and the
+no-manifest fallback:</p>
+<pre><code># pipeline/semantic_groups.py  (proposed addition)
+@dataclass(frozen=True)
+class ChoreoVocabulary:
+    metric_ring: tuple[str, ...]
+    backbeat_preference: tuple[str, ...]
+    bed_preference: tuple[str, ...]
+    peak_broad: tuple[str, ...]
+    accent_groups: tuple[str, ...]
+    hero_group: str
+    bass_band_group: str
+
+DEFAULT_VOCAB = ChoreoVocabulary(METRIC_RING, BACKBEAT_GROUP_PREFERENCE, ...)  # today's constants
+
+def derive_vocabulary(manifest: LayoutManifest | None) -&gt; ChoreoVocabulary:
+    if manifest is None:
+        return DEFAULT_VOCAB
+    # RING: rank the rhythm-family role groups present (ARCH, CANE, MINI_TREE,
+    #   SNOWFLAKE, SPINNER, WINDOW) by score = f(instance count, x-spread, node budget):
+    #   count → a walkable family needs ≥2 members; spread → the walk should traverse
+    #   the yard; node budget → readable at distance. Take the top 4.
+    # BACKBEAT: SEM_SIDE_* when ≥2 sides are populated (spatial contrast beats family
+    #   contrast), else the point/accent families not consumed by the ring.
+    # BED: SEM_BAND_GROUND if the ground band holds ≥~25% of props, else SEM_ALL;
+    #   PEAK_BROAD is the reverse (broadest first), preserving today's deliberate asymmetry.
+    # HERO: SEM_FOCAL if any focal prop, else the largest 2D_RADIAL/2D_SURFACE prop.</code></pre>
+<p>Consumers change minimally: <code>beats.py::select_rhythm_groups(section, available_groups)</code>
+gains a <code>vocab: ChoreoVocabulary = DEFAULT_VOCAB</code> parameter (its internal references to
+<code>METRIC_RING</code>/<code>BACKBEAT_GROUP_PREFERENCE</code>/etc. switch to <code>vocab.*</code>), and
+<code>weave.py:398</code>'s <code>BED_PREFERENCE</code> lookup does the same. <code>run.py</code> computes the
+vocabulary once per run from the loaded manifest. Every existing
+<code>if g in avail</code> guard stays — the vocabulary proposes, the live probe disposes. The
+decision the roadmap asked for lands here: a layout with no arches gets its beat anchor
+<em>by ranking</em>, not by accident of tuple order.</p>
+
+<h3>3.6 The guided CLI flow</h3>
+<pre><code>xlo init-layout [--show-folder PATH] [--dry-run] [--yes] [--no-validate]
+                [--no-llm] [--invert-x] [--review-web]</code></pre>
+<ol>
+<li><strong>Locate.</strong> <code>--show-folder</code>, else ask a running xLights via
+<code>get_show_folder()</code> (and remember it for the write step's close-xLights guard), else prompt.</li>
+<li><strong>Analyze.</strong> <code>parse_props</code> → <code>classify</code> → LLM fallback (skipped with
+<code>--no-llm</code> or no key) → <code>derive_spatial</code>. Print the classification table: name,
+DisplayAs, nodes, role, res, band/side, confidence, source step.</li>
+<li><strong>Review.</strong> For each prop with <code>confidence &lt; 0.8</code> (and each excluded
+outlier): a numbered terminal prompt offering the role enum, "accept as CUSTOM_PROP", or
+"exclude". <code>--yes</code> accepts all suggestions unattended (they still land in the manifest's
+<code>review</code> array so the state is visible; spec §7.4 requires resolution before the manifest is
+"final" — an unreviewed manifest is marked <code>"review": [...]</code> non-empty and the CLI exits
+with a warning).
+<br><em>Terminal vs browser:</em> the <code>brief_editor.py</code> stdlib-<code>http.server</code> pattern
+(line 205 <code>serve()</code>) was weighed and deferred: the review payload is a short list of
+enum choices with no visual assets to show (the validation render doesn't exist yet at this stage),
+so a numbered prompt is strictly simpler; the browser form wins only when we can show each prop
+highlighted in a preview render, which is a natural v2 once the validator exists
+(<code>--review-web</code> reserved for it).</li>
+<li><strong>Plan + diff.</strong> <code>build_sem_groups(props)</code> → diff against the SEM_ groups
+currently in the file (see §3.8 migration). <code>--dry-run</code> stops here, printing the diff and
+the would-be manifest.</li>
+<li><strong>Write.</strong> Enforce the closed guard → <code>write_sem_groups</code> +
+<code>patch_view</code> → <code>emit_manifest</code>. Print the backup path.</li>
+<li><strong>Validate.</strong> §3.7 below (skippable via <code>--no-validate</code>); on a sweep-test
+failure, offer to re-run with <code>--invert-x</code> automatically (spec §7.3's prescribed fix).</li>
+<li><strong>Finish.</strong> "Restart xLights to load the groups; the first <code>xlo run</code> will
+re-probe targetability."</li>
+</ol>
+<p>CLI wiring is the existing pattern in <code>cli.py::main()</code>: a new
+<code>sub.add_parser("init-layout", ...)</code> beside <code>run</code>/<code>regen</code>/<code>edit-brief</code>,
+dispatching to <code>pipeline/init_layout.py::run_init_layout(args)</code>. Unlike <code>run</code>, it
+must not require an LLM key (deterministic path) and must not require xLights to be running.</p>
+
+<h3>3.7 Automated §7 validation — offline, deterministic-first</h3>
+<p>The key realization: <strong>validation needs no xLights at all.</strong>
+<code>PreviewRenderer(fseq, rgbeffects, networks)</code> renders any channel data against the layout,
+and we know each model's absolute channel range from
+<code>parse_controllers()</code> + <code>resolve_start_channel()</code> (<code>preview/layout.py:57-92</code>).
+So the validator <em>synthesizes</em> the test frames' channel data directly instead of asking
+xLights to render a test sequence:</p>
+<pre><code># pipeline/layout_validate.py  (proposed)
+
+def write_fseq_v2_uncompressed(path, frames: np.ndarray, frame_ms: int = 50) -&gt; None:
+    """Minimal ESEQ/FSEQ v2 writer (uncompressed, single sparse-range-free block) —
+    the read side (preview/fseq.py::load_fseq) round-trips it; used only for tests
+    and validation renders."""
+
+ROLE_COLORS = {"OUTLINE": white, "ARCH": red, "MINI_TREE": green, "CANE": ...}  # hue-distant
+
+def role_color_frames(manifest, models: list[Model]) -&gt; np.ndarray:
+    """One frame per role present: that role's member channels at its color, rest dark
+    (spec §7.1). Returns (n_roles, channels) uint8."""
+
+def sweep_frames(group: GroupRecord, models) -&gt; np.ndarray:
+    """K frames for an _LTR group, member i lit alone in frame i (spec §7.3)."""
+
+def check_sweep(frames, renderer) -&gt; bool:
+    """DETERMINISTIC sweep check: per frame, the lit-pixel world-x centroid
+    (renderer.world[ch] weighted by channel value) must be strictly increasing.
+    Backward → the x axis is inverted; the CLI offers --invert-x."""
+
+def role_color_sheet(renderer, frames, labels) -&gt; Path:
+    """Contact sheet PNG (one labeled tile per role frame) written next to the
+    manifest for human inspection (spec §7.2)."""</code></pre>
+<p>Split of labor, following the repo's judgment-vs-realization convention:</p>
+<ul>
+<li><strong>Deterministic (always):</strong> the sweep-order centroid check — pure geometry, exact,
+enters the pass/fail gate. Also cheap structural checks: every SEM_ member exists as a model;
+no SEM_ group is empty; <code>SEM_ALL</code> excludes SINGING_FACE/SIGN; every <code>_LTR</code> member
+order matches <code>sweep_order</code>.</li>
+<li><strong>Vision (optional, LLM key present):</strong> send the role-color contact sheet to the
+visual critic (<code>agents/visual_critic.py</code> — multimodal, advisory) with the question spec
+§7.2 poses: "does each colored region correspond to its labeled role?" plus the known
+common failures (mega vs mini tree confusion, outline-as-PATH). Findings are advisory and printed;
+they flag, never auto-mutate.</li>
+<li><strong>Human (always available):</strong> the contact sheet on disk; the CLI prints its path.</li>
+</ul>
+<p>Caveat, inherited from the roadmap's I8 discussion: offline-render fidelity is approximate
+(that's why <code>RealRender</code> exists). For role-color/sweep purposes — "which pixels lit,
+where" — the offline renderer is exact by construction (it maps channels to world positions
+deterministically); fidelity concerns apply to effect <em>appearance</em>, which validation doesn't
+judge. One live render remains the ground-truth gate at the end of the first real run, unchanged.</p>
+
+<h3>3.8 Migration: the existing hand-built layout must converge</h3>
+<p>The first user of <code>init-layout</code> is the current layout, which already has hand-created
+SEM_ groups the whole pipeline depends on. Requirement: running
+<code>xlo init-layout --dry-run</code> against it produces a plan whose group membership
+<strong>matches the file byte-for-byte or with explained diffs only</strong> — misclassification would
+show up as a membership diff, making the dry-run diff double as the classifier's acceptance test
+on real data. Mechanics:</p>
+<ul>
+<li><code>--dry-run</code> renders a three-way diff per group: <em>only-in-file / only-in-plan /
+member-order-changed</em>.</li>
+<li>Convergence fixture: a sanitized copy of the real <code>rgbeffects.xml</code> (names kept, any
+personal metadata stripped) checked in under <code>tests/fixtures/</code>, with a golden manifest —
+the same golden-snapshot discipline as <code>test_golden_pipeline.py</code>.</li>
+<li>Divergences found during bring-up are resolved by <em>fixing the classifier or recording an
+explicit per-layout override</em>, never by weakening the diff. Overrides live in the manifest's
+review resolutions (a small <code>layout_overrides.json</code> beside the manifest:
+<code>{"prop_name": {"role": ...}}</code>, applied after step 4, before the LLM step).</li>
+<li>A converged re-run is a <strong>no-op write</strong>: <code>write_sem_groups</code> compares the
+serialized SEM_ subtree before replacing and skips the file write (and the backup) when identical
+— same idempotency contract as <code>patch_sem_gridsize</code> returning 0.</li>
+<li>One accepted divergence to resolve at bring-up: the file may contain hand-set attributes on
+SEM_ groups the plan doesn't know about. Policy: the writer owns SEM_ groups
+<em>entirely</em> (spec §6 regenerability); anything worth keeping must become part of the plan
+(e.g. grid size, layout mode) — discovered extras are printed in the diff so nothing silently
+vanishes.</li>
+</ul>
+
+<h2>4. Implementation plan</h2>
+<p>Seven slices, each landable and independently valuable; 1–2 and 6a–c are pure/hermetic, 3–5
+touch files or live xLights. This is the L-complexity decomposition the roadmap asks for.</p>
+<table>
+<tr><th>#</th><th>Slice</th><th>Contents</th><th>Lands as</th></tr>
+<tr><td>1</td><td>Classifier + spatial (core)</td><td><code>knowledge/layout_classify.py</code>: <code>parse_props</code>, <code>DISPLAYAS_ROLE</code>, <code>_tree_role</code>, <code>NAME_HEURISTICS</code>, group hints, <code>capability()</code>, <code>derive_spatial()</code> (+ <code>Prop.mirror_of/string_type/submodels</code> fields). Hermetic tests on synthetic fixtures.</td><td>Pure code + tests; no behavior change anywhere.</td></tr>
+<tr><td>2</td><td>Manifest emit + convergence</td><td><code>knowledge/layout_manifest.py</code> (pydantic models, <code>emit_manifest</code>/<code>load_manifest</code>); sanitized real-layout fixture; golden manifest; the dry-run diff engine (<code>plan_diff(file_groups, plan_groups)</code>).</td><td>Pure code + the convergence acceptance test.</td></tr>
+<tr><td>3</td><td>Writer</td><td>3.1 the layout-mode round-trip spike (create both modes in the target xLights UI, diff XML, pin the constants + a fixture); 3.2 <code>write_sem_groups()</code> + closed-guard + backup + no-op detection; extend <code>patch_sem_gridsize</code> usage into it.</td><td>Core function + hermetic round-trip tests; live-verified once on the real layout (expected no-op).</td></tr>
+<tr><td>4</td><td>CLI flow</td><td><code>pipeline/init_layout.py::run_init_layout</code>; <code>cli.py</code> subcommand + flags; terminal review queue; overrides file; <code>docs/usage.md</code> layout-setup section rewritten around the command.</td><td>The command works end-to-end minus validation.</td></tr>
+<tr><td>5</td><td>Validation</td><td><code>write_fseq_v2_uncompressed</code>; <code>pipeline/layout_validate.py</code> (role-color frames, sweep frames, centroid check, contact sheet); <code>--invert-x</code> loop; optional visual-critic pass.</td><td>Deterministic checks gate; vision advisory.</td></tr>
+<tr><td>6a</td><td>Consume: Director</td><td><code>render_layout_block()</code>; <code>render_input(..., manifest=None)</code>; <code>run.py</code> wiring behind <code>load_manifest()</code>.</td><td>Prompt unchanged when no manifest; A/B a run with/without and eyeball the brief.</td></tr>
+<tr><td>6b</td><td>Consume: QA</td><td><code>_target_res()</code> + manifest-aware <code>_is_linear()</code> in <code>qa/rules.py</code>; prefix fallback retained; new rule opportunities (POINT/SPECIAL gating) as a follow-up flag.</td><td>Existing rule tests pass; new manifest-driven cases added.</td></tr>
+<tr><td>6c</td><td>Consume: vocabulary</td><td><code>ChoreoVocabulary</code> + <code>derive_vocabulary()</code>; thread <code>vocab</code> through <code>select_rhythm_groups</code> / <code>place_beat_accents</code> / weave bed selection; <code>DEFAULT_VOCAB</code> keeps golden pipeline byte-identical on this layout.</td><td>Golden test proves no drift; synthetic-layout tests prove the ranking.</td></tr>
+<tr><td>7</td><td>LLM fallback</td><td><code>agents/layout_classifier.py</code>; <code>classifier</code> role in <code>models/config.yaml</code>; batched call; review-queue integration; <code>--no-llm</code>.</td><td>Last, because everything works deterministically without it.</td></tr>
+</table>
+<p>Sequencing rationale: 1→2 gives the convergence proof before anything writes; 3's spike is the
+highest-uncertainty item so it front-runs the writer; 6a–c are independent of 3–5 (the manifest
+can be emitted for the already-onboarded layout from slice 2) and can land in parallel; 7 is
+deferred because the current layout resolves fully via steps 1–4 (per the archived change, the 33
+Custom models resolved via name/group heuristics + manual review).</p>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first, per repo convention (<code>pytest</code> = no xLights, no network;
+<code>pytest -m live</code> opt-in).</p>
+<ul>
+<li><strong>Fixture rgbeffects files</strong> (small, synthetic, committed):
+<ul>
+<li><code>layout_basic.xml</code> — mega tree (Tree 360, 1600 nodes), 6 arches at mirrored x
+positions, 4 canes, outline Single Lines named <code>Roof Left</code>/<code>Gutter R</code>, a
+<code>Window Frame</code>, a Custom named <code>Snowflake 1</code>: exercises steps 1–3, bands, sweep
+order, mirror pairs, focal flags.</li>
+<li><code>layout_tricky.xml</code> — sole 400-node tree (sole-largest → MEGA_TREE), a parked model
+at X = −900 (outlier → review + excluded), a dense whole-house Custom mesh (→ MATRIX by
+density), a non-RGB StringType prop (→ POINT override), a model in a non-Default LayoutGroup
+(excluded per §8), a group named "All Outline" hinting an unnamed Custom.</li>
+<li><code>layout_real.xml</code> — the sanitized copy of the user's actual layout (81 models) + its
+golden manifest: the convergence test.</li>
+<li><code>layout_modes_roundtrip.xml</code> — the slice-3 spike artifact: groups saved by real
+xLights in both §5.7 modes, asserting our writer emits byte-compatible attributes.</li>
+</ul></li>
+<li><strong>Classifier tests</strong> — table-driven: every DisplayAs mapping; tree threshold at
+599/600/601; each name-heuristic family; group-hint inheritance; unresolved → CUSTOM_PROP @ 0.5
+→ review; capability matrix incl. the LINEAR_HIGH/LOW node cut and the StringType override.</li>
+<li><strong>Spatial tests</strong> — normalization with and without outliers; band cuts; side cuts at
+0.449/0.451; sweep order; mirror tolerance edges (0.049/0.051); center_dist with/without a mega
+tree; <code>invert_x</code> flips sweep order and mirror pairs consistently.</li>
+<li><strong>Writer tests</strong> — write → re-parse → equal plan; re-run → no-op (mtime unchanged);
+user groups and views untouched; backup created once per real write; SEM_ groups fully replaced
+(a stale <code>SEM_OLD</code> disappears); GridSize + mode attributes present; output re-parses under
+<code>parse_models()</code> (the preview parser as a cross-check consumer).</li>
+<li><strong>Manifest tests</strong> — schema round-trip; &lt;0.8 confidence → <code>review</code>;
+&lt;10 KB on the real fixture; <code>load_manifest</code> returns None on absence and on
+version-mismatch (forward-compat guard).</li>
+<li><strong>Validation tests</strong> — <code>write_fseq_v2_uncompressed</code> →
+<code>load_fseq</code> round-trip; sweep centroid check passes on <code>layout_basic</code>, fails (and
+recommends invert) on the same layout with x negated; role frames light exactly the member
+channels; the contact sheet renders (skip if <code>[preview]</code> extras absent, mirroring
+<code>test_preview.py</code>).</li>
+<li><strong>Consumption tests</strong> — Director: <code>render_input</code> without manifest is
+byte-identical to today (snapshot); with manifest contains the expected group lines and stays
+under a size budget. QA: manifest-gated <code>_is_linear</code> flags a texture on a linear-membered
+group with a non-SEM name, and un-flags a matrix-dominated group that the prefix rule would
+wrongly pass. Vocabulary: <code>derive_vocabulary(None) == DEFAULT_VOCAB</code>; an arch-less
+synthetic manifest ranks canes/minis into the ring; golden pipeline snapshot unchanged on the
+real-layout manifest.</li>
+<li><strong>CLI tests</strong> — argument wiring (also an I6 item), review-queue answer parsing, and
+<code>--dry-run</code> on the convergence fixture printing an empty diff, driven through
+<code>main(argv)</code> with a stubbed flow.</li>
+<li><strong>Live (opt-in, <code>-m live</code>)</strong> — against a real xLights + a scratch show
+folder: write groups with xLights closed, start xLights, confirm <code>get_group_names()</code>
+contains the SEM_ set, run <code>targetable_groups</code>, place one effect per <code>_LTR</code> group and
+export a preview. Perceptual sweep direction gets one human watch, per the repo's
+live-verify convention.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>Misclassification poisons every downstream decision (roadmap gap #5's warning)</td><td>Wrong groups → wrong choreography for the layout's whole lifetime</td><td>Confidence thresholds + mandatory review queue (spec §7.4); deterministic sweep/structural validation gates the command; role-color contact sheet for human/vision inspection; convergence test against the known-good real layout; overrides file for the irreducible judgment calls.</td></tr>
+<tr><td>xLights open during write → file silently clobbered on xLights exit</td><td>Groups vanish; user confusion</td><td>Connectivity-probe guard refuses to write while the automation port answers; guided flow polls until closed; timestamped backup before every real write; post-restart verification instructions printed.</td></tr>
+<tr><td>xLights file-format drift (attribute names/values change across versions)</td><td>Writer emits attributes a new xLights ignores or rejects</td><td>Layout-mode strings pinned by a per-version round-trip fixture (slice 3.1), not guessed; writer touches only SEM_ elements and never rewrites unknown attributes elsewhere; version string logged into the manifest (<code>generated</code> block) for forensics.</td></tr>
+<tr><td>Wrong §5.7 layout mode silently breaks every sweep on a group (roadmap gap #3)</td><td>Chases don't traverse; hard to attribute</td><td>The sweep-centroid validation test exists precisely for this — it fails deterministically at init time instead of visually at show time.</td></tr>
+<tr><td>ElementTree drops XML comments / reorders attributes</td><td>Cosmetic diff noise in a user-owned file</td><td>Already the accepted, shipped behavior of <code>patch_view</code>/<code>patch_sem_gridsize</code> on the same file; xLights itself rewrites the file; backups retained.</td></tr>
+<tr><td>LLM fallback hallucinates roles or burns cost</td><td>Bad tail classifications</td><td>Enum-constrained <code>output_type</code> (invalid role = schema error); worker-tier routing; one batched call; &lt;0.8 → review, never silent; fully optional (<code>--no-llm</code>).</td></tr>
+<tr><td>Group rewrite invalidates the targetable-groups cache mid-season</td><td>One slow re-probe run</td><td>By design — <code>_fingerprint</code> keys on group+model names; CLI summary warns the next run re-probes.</td></tr>
+<tr><td>Derived vocabulary changes shows on the <em>current</em> layout</td><td>Regression on the one layout that matters today</td><td><code>DEFAULT_VOCAB</code> equals today's constants; golden pipeline snapshot asserts byte-stability; derivation must reproduce the constants from the real-layout manifest before it ships as default.</td></tr>
+<tr><td>Membership overlap remains render-order load-bearing (accepted tension in the roadmap)</td><td>A future reordering silently changes occlusion</td><td>Out of scope to fix; <code>canonical_order</code>/<code>patch_view</code> stay the single ordering authority, and the manifest records group membership so the overlap is at least inspectable.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>☐ <code>xlo init-layout --dry-run</code> on the current real layout prints an empty (or
+explicitly accepted) membership diff — the convergence/no-op requirement.</li>
+<li>☐ <code>xlo init-layout</code> on a fresh fixture show folder produces: SEM_ groups in
+<code>rgbeffects.xml</code> with GridSize and correct §5.7 layout modes, a "SEM Master" view, and a
+valid <code>layout_semantics.json</code> &lt; 10 KB — with xLights closed, atomically, with a
+backup.</li>
+<li>☐ Re-running the command is a byte-level no-op on an unchanged layout (no new backup, no
+write).</li>
+<li>☐ Every spec §3 step is a tested code path; props resolved below 0.8 confidence appear in the
+review queue and the manifest's <code>review</code> array, never silently in groups.</li>
+<li>☐ Spatial fields (band, side, sweep_order, mirror_of, center_dist, focal) populate correctly
+on the fixtures, including outlier exclusion and <code>--invert-x</code>.</li>
+<li>☐ The deterministic sweep validation fails on an x-inverted fixture and passes after
+<code>--invert-x</code>; the role-color contact sheet is written and (with a key) critiqued.</li>
+<li>☐ The Director prompt contains the layout block when a manifest exists and is byte-identical
+to today's prompt when it doesn't; cached briefs remain loadable.</li>
+<li>☐ <code>qa/rules.py</code> gates texture-on-linear via manifest capability classes when available,
+prefix fallback otherwise; existing QA tests unmodified and green.</li>
+<li>☐ <code>derive_vocabulary()</code> reproduces today's constants from the real-layout manifest
+(golden pipeline snapshot unchanged) and produces a sane ring on an arch-less synthetic
+layout.</li>
+<li>☐ Deterministic classifier path works with no LLM key configured.</li>
+<li>☐ <code>docs/usage.md</code>'s "One-time layout setup" section describes the command instead of
+the manual procedure.</li>
+<li>☐ Live-verified once: groups load after xLights restart, are probe-targetable, and a
+generated show runs against them.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>Layout-mode serialization</strong> — the exact <code>modelGroup</code> attribute
+name/values for "Per Preview" vs "Horizontal Per Model" in the target xLights build. Resolved by
+the slice-3.1 round-trip spike before any writer code merges (deliberately not guessed here).</li>
+<li><strong>Manifest home</strong> — spec §6 says the show directory; the pipeline caches under
+<code>data/analyses/</code>. Proposal: show dir is canonical, cache copy for hermetic consumers —
+confirm the copy doesn't create a staleness trap (mtime check on load?).</li>
+<li><strong><code>SEM_ALL_LESS_FOCAL*</code> vs the spec</strong> — the subtractive ensembles exist in
+code but not in spec §5.5. Proposal: treat code as the spec's superset and amend the spec doc;
+the writer emits them (it already must, for convergence).</li>
+<li><strong>Numbered-group removal</strong> — the 2026-06-10 change deleted the user's 47
+<code>0[1-8]_</code> groups as a one-time, explicitly-consented cleanup. <code>init-layout</code> must
+<em>not</em> generalize that (spec §5.6 forbids touching user groups). Is a separate
+<code>--prune-groups REGEX</code> opt-in worth having, or leave cleanup manual?</li>
+<li><strong>Multiple previews / layoutGroups</strong> — spec §8 says default preview only. Is a
+<code>--layout-group NAME</code> escape hatch needed at v1, or defer until a real second-preview
+user appears?</li>
+<li><strong>Roofline-adjusted band cuts</strong> — implement the §4.2 adjustment at v1 or ship fixed
+0.33/0.66 cuts and revisit when a layout misbands? (Leaning: fixed cuts + a manifest field
+recording them, so the adjustment is a data change later.)</li>
+<li><strong>Where does the Director block stop?</strong> ~1 KB of traits is the roadmap's number;
+should <code>group_motifs</code>-style per-prop detail (colors that read well on sparse props, e.g.)
+ever ride along, or is that the guides' job? (Leaning: traits only; guides own craft.)</li>
+<li><strong>Review UX v2</strong> — browser review with per-prop preview-render highlights once the
+validator exists (<code>--review-web</code>), reusing the <code>brief_editor.py</code> pattern. Worth
+scheduling with F-I (live progress UI) which extends the same pattern?</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> — Horizon 3, "Prop-grouping assessment (2026-07)"
+and item F-E (lines 198–260); sequencing table row 7.</li>
+<li>The spec: <code>xlights-layout-semantics-spec.md</code> — §2 roles/capabilities, §3
+classification, §4 spatial, §5 groups (§5.6 what-not-to-do, §5.7 layout modes), §6 manifest,
+§7 validation, §8 edge cases.</li>
+<li>Prior OpenSpec change:
+<code>openspec/changes/archive/2026-06-10-add-layout-semantics/</code> (proposal/design/tasks) — the
+v1 decisions this design inherits (DisplayAs map, tree threshold, outlier policy, backup + atomic
+write, xLights-closed constraint) and the history of what survived into the package. Related:
+<code>2026-06-11-add-render-order</code>, <code>2026-06-11-add-scene-cookbook</code> (subtractive
+ensembles), <code>2026-06-17-add-metric-rhythm-and-instrument-overlay</code> (the <code>_LTR</code>
+render-mode gap), <code>2026-06-09-add-targetable-group-filter</code>.</li>
+<li>Code: <code>packages/xlights-core/src/xlights_core/knowledge/layout_semantics.py</code>;
+<code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/groups.py</code>,
+<code>pipeline/semantic_groups.py</code>, <code>pipeline/beats.py</code>, <code>pipeline/run.py</code>
+(lines 386, 414), <code>agents/director.py</code>, <code>agents/visual_critic.py</code>,
+<code>qa/rules.py</code>, <code>cli.py</code>, <code>brief_editor.py</code>;
+<code>packages/xlights-core/src/xlights_core/preview/</code> (<code>layout.py</code>,
+<code>render.py</code>, <code>fseq.py</code>).</li>
+<li>Docs: <code>docs/usage.md</code> "One-time layout setup (SEM_ groups)";
+<code>docs/craft-roadmap.md</code> (grounding notes on the current layout).</li>
+<li>Downstream: <a href="f-f-submodel-targeting.html">F-F — Submodel targeting</a> (consumes the
+classifier's submodel discovery and the writer).</li>
+</ul>
+</body>
+</html>

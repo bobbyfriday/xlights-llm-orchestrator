@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I3 — Decompose _refine_loop; finish constants consolidation · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I3 — Decompose <code>_refine_loop</code>; finish constants consolidation</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I3 in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>M</dd>
+<dt>Depends on</dt><dd>Nothing (best done after improve-musicality Phase 1 per the recommended sequencing, but independent)</dd>
+<dt>Unblocks</dt><dd>F-A improve-musicality Phase 2 (treatments + energy-keyed coverage QA flow through this loop); indirectly I8 Tier 0 (new objective metrics enter the same gate)</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/run.py</code>, <code>pipeline/tuning.py</code>, <code>pipeline/beats.py</code>, <code>pipeline/weave.py</code>, <code>qa/rules.py</code>, <code>tests/test_refine.py</code>, <code>tests/test_golden_pipeline.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p><code>_refine_loop</code> (<code>pipeline/run.py</code> lines 135–305, ~170 lines) is now the most complex, highest-risk function in the codebase. It began life (change <code>2026-06-08-add-refine-loop</code>) as a simple test→judge→regenerate cycle with three terminators; five subsequent changes each threaded a new guard through the same function body:</p>
+<ul>
+<li><strong>Objective-regression revert</strong> with re-emit of the reverted best (revision-log change, 2026-06-09).</li>
+<li><strong>Plateau detector</strong> (llm-cost-bundle, 2026-06-13).</li>
+<li><strong>Design escalation</strong> to the Director's <code>section_redesigner</code> (test_design_escalation.py era).</li>
+<li><strong>Skip-high-objective gate</strong> (<code>add-refine-skip-high-objective</code>, implemented but not yet archived).</li>
+<li><strong>Visual-revision backstop flooring</strong> (<code>floor_visual_revisions</code>) and revision-log observability (<code>_record</code>, <code>_bundle</code>).</li>
+</ul>
+<p>The result: seven distinct control-flow guards, five nested closures (<code>_regen</code>, <code>_redesign</code>, <code>_report</code>, <code>_obj</code>, <code>_record</code>, plus <code>_bundle</code> and <code>_design_implicated</code>), and a 20-parameter signature. Every guard is only testable through the whole loop (see <code>tests/test_refine.py</code> — each test constructs a full fake State/Judge/emitter to probe one branch). The <a href="f-a-improve-musicality.html">improve-musicality</a> proposal's Phase 2 (section treatments + energy-keyed coverage QA) and Phase 1's new advisory metrics flow through <em>exactly</em> this code — the roadmap explicitly sequences I3 before Phase 2. Meanwhile roadmap R3/R4 (constants consolidation) is only half done: <code>pipeline/tuning.py</code> gathers the show-feel dials, but the refine thresholds and the per-effect metadata tables remain scattered across four modules with cross-module imports.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 Guard inventory — every mechanism in <code>_refine_loop</code></h3>
+<table>
+<tr><th>#</th><th>Guard</th><th>Mechanism today (run.py lines)</th><th>State it owns</th></tr>
+<tr><td>1</td><td><strong>Skip-high-objective gate</strong></td><td>Lines 211–216: if <code>skip_objective is not None and best_obj &gt;= skip_objective</code>, record a <code>finalize</code> record with <code>human_decision="skip-high-objective"</code> and return before any Judge/critic spend. Threshold: <code>REFINE_SKIP_OBJECTIVE = 88</code> (line 62), env-overridable via <code>_refine_skip_objective()</code> (lines 65–70, reads <code>XLO_REFINE_SKIP_OBJECTIVE</code>, 101 = never skip). Wired at line 470.</td><td>—</td></tr>
+<tr><td>2</td><td><strong>Hard iteration cap</strong></td><td>Line 220: <code>for i in range(max_iterations)</code> — “HARD cap — cannot be exceeded”; deliberately never delegated to the Judge.</td><td><code>iters</code></td></tr>
+<tr><td>3</td><td><strong>Plateau detector</strong></td><td>Lines 236–243: signature = <code>(objective, advisory, frozenset((r.section_index, issue[:64]) for r in verdict.revisions))</code>; equal to the previous iteration's → log “plateau”, record <code>human_decision="plateau"</code>, break <em>before</em> applying revisions.</td><td><code>prev_sig</code></td></tr>
+<tr><td>4</td><td><strong>Objective-regression revert</strong></td><td>Lines 275–284: <code>reverted = obj &lt; best_obj - REGRESS_MARGIN</code> (margin = 1 point, line 58). On revert: restore <code>best</code>/<code>best_applied</code>, <em>re-emit the reverted best immediately</em> (close + emitter) so the open xLights sequence, the sampler, and the next iteration's critic all see the kept render, not the discarded one; <code>stall += 1</code>.</td><td><code>best, best_applied, best_obj, open_is_best</code></td></tr>
+<tr><td>5</td><td><strong>Stall stop</strong></td><td>Lines 284, 289, 297–298: consecutive reverts increment <code>stall</code>; a genuine gain (<code>obj &gt; best_obj + REGRESS_MARGIN</code>) resets it; a held objective (creative change, no score move) neither gains nor stalls. <code>stall &gt;= STALL_LIMIT</code> (2, line 59) → terminate.</td><td><code>stall</code></td></tr>
+<tr><td>6</td><td><strong>Anti-oscillation ledger</strong></td><td>Line 191 (<code>ledger = []</code>), 267 (<code>ledger.append(rev)</code>): every applied revision is remembered for the run. Consumed two ways: (a) it is rendered into the Judge's prompt (<code>judge_mod.render_input(report, plan, brief, ledger)</code>, line 230) so the Judge sees what was already tried; (b) <code>prior = {r.section_index for r in ledger}</code> (line 247) makes any <em>repeat-offender</em> section eligible for design escalation.</td><td><code>ledger</code></td></tr>
+<tr><td>7</td><td><strong>Design escalation</strong></td><td>Lines 153–170 + 250–265: a section is escalated to the Director's <code>section_redesigner()</code> once per run (<code>redesigned: set[int]</code>) when it is a repeat offender (<code>si in prior</code>) OR its brief is implicated (<code>_design_implicated</code>: a <code>metric == "rules"</code> finding whose detail names one of the section's planned <code>effect_types</code>). The redesigned SectionPlan has its structure pinned (<code>start_ms/end_ms</code> copied back, <code>target_groups</code> defaulted) before replacing the plan section. Best-effort: failures log a warning and fall through to plain regen.</td><td><code>redesigned, _rd_agent</code></td></tr>
+<tr><td>8</td><td><strong>Visual backstop flooring</strong></td><td>Line 245: <code>floored = floor_visual_revisions(report.findings, judge_revs)</code> (<code>refine.py</code> lines 57–74) — a critic-confirmed <code>visual:*</code> severity=error finding with a section index that the Judge didn't act on becomes a revision anyway; logged with <code>origin="backstop"</code> (lines 290–294).</td><td>—</td></tr>
+<tr><td>9</td><td><strong>Best-restore at exit</strong></td><td>Lines 300–305: unconditionally restore <code>best</code>; if the open sequence isn't the best (<code>open_is_best</code> false), re-emit; write the final <code>finalize</code> record.</td><td><code>open_is_best</code></td></tr>
+</table>
+
+<h3>2.2 The nested closures</h3>
+<pre><code># run.py — all local to _refine_loop
+async def _regen(rev): ...            # lines 148–151: injected regenerate OR regenerate_section(...)
+async def _redesign(rev, findings):   # lines 156–163: injected redesign OR lazy section_redesigner()
+def _design_implicated(si, findings): # lines 165–170: rules-finding names a planned effect_type
+async def _report(applied):           # lines 172–184: flush save → real_render.refresh → qa_eval(..., sampler=)
+async def _obj(applied):              # lines 186–187: (await _report(applied)).objective_score
+def _bundle(i): ...                   # lines 195–199: review-bundle path, guarded against dangling dirs
+def _record(i, report, verdict, **kw) # lines 201–209: RevisionLogRecord write (pure observability)</code></pre>
+<p><code>_report</code> is the subtlest: it saves the sequence and refreshes the real render <em>before</em> sampling so coverage QA sees the render being scored (lines 172–179), and it keeps a legacy 5-arg QA signature when a fake <code>qa</code> is injected (lines 180–184) — a shape the hermetic tests rely on (every fake in <code>test_refine.py</code> uses <code>def qa(instructions, analysis, plan, applied, groups)</code>).</p>
+
+<h3>2.3 The scattered constants</h3>
+<p><code>pipeline/tuning.py</code> (59 lines) exists and its docstring draws a deliberate line: <em>“Structural/mechanical constants (effect parameter maps, layer caps, bar math) deliberately stay beside the code that uses them.”</em> That line was right for brightness dials but has left the per-effect metadata fragmented — the same effect type is described in four places, and modules import each other's tables:</p>
+<pre><code>beats.py:90    SPEED_KEYS: dict[str, tuple[str, float, float, str]]   # 17 effects: (key, lo, hi, fmt)
+weave.py:55    DIRECTION_KNOBS: dict[str, dict[str, tuple[str, str]]] # 12 effects: direction -&gt; (key, value)
+qa/rules.py:15 ENERGY_BAND: dict[str, tuple[int, int]]                # 33 effects: catalog §2 bands
+qa/rules.py:29 DURATION_HIT / DURATION_PHRASE / DURATION_CELLABLE     # duration classes, PHRASE_BARS=8, CELL_BARS=2
+qa/rules.py:40 MOTION_EFFECTS = DURATION_CELLABLE | {"Fire", "Galaxy"}
+
+# cross-module imports of these tables:
+weave.py:227   from ..qa.rules import DURATION_CELLABLE      # inside fallback_weave()
+beats.py:583   from ..qa.rules import (CELL_BARS, DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE, ...)</code></pre>
+<p>Adjacent per-effect facts live as private sets in <code>weave.py</code>: <code>_BED_EFFECTS = {"Color Wash", "Plasma", "On"}</code> (line 49), <code>_NATIVE_BOUNCE = {"SingleStrand", "Garlands"}</code> (line 95), <code>_CHASE_FAMILY</code> (line 99). Loop-control thresholds sit at the top of <code>run.py</code> (lines 58–62): <code>REGRESS_MARGIN = 1</code>, <code>STALL_LIMIT = 2</code>, <code>REFINE_SKIP_OBJECTIVE = 88</code>.</p>
+
+<h3>2.4 The safety net</h3>
+<ul>
+<li><code>tests/test_golden_pipeline.py</code> — exact snapshot of the deterministic generate stage (103 instructions in <code>fixtures/golden_instructions.json</code>), explicitly built as “a SAFETY NET for refactors that are supposed to be behavior-preserving (e.g. splitting run.py)”. Constants moves must not change it.</li>
+<li><code>tests/test_refine.py</code> — 15 hermetic tests covering the loop end-to-end: iterate/accept, cap+stall termination, plateau stop (and non-stop while scores move), checkpoint stop overriding the Judge, and five tests on the skip gate incl. the env override. It imports <code>_refine_loop</code>, <code>REFINE_SKIP_OBJECTIVE</code>, <code>_refine_skip_objective</code> <em>from <code>xlights_orchestrator.pipeline.run</code></em> (lines 9, 364).</li>
+<li><code>tests/test_visual.py</code>, <code>tests/test_design_escalation.py</code>, <code>tests/test_revision_log.py</code> also drive <code>_refine_loop</code> directly; <code>tests/test_effect_speed.py:5</code> imports <code>SPEED_KEYS</code> from <code>pipeline.beats</code>.</li>
+</ul>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 New module: <code>pipeline/refine_loop.py</code></h3>
+<p>Extract the loop and its guards into a dedicated module; <code>run.py</code> keeps <code>run_pipeline</code> as the stage skeleton and re-exports the old names so every existing import keeps working. Each guard becomes a named, individually-testable function or small class. All code below is <strong>proposed</strong> (signatures sketched, not final):</p>
+
+<pre><code># pipeline/refine_loop.py  (proposed)
+"""The refine loop: test → judge → regenerate, with independent safety guards.
+
+Guards are named functions/classes so each is unit-testable without a full loop run.
+Termination is never delegated to the Judge: hard cap + plateau + stall + human stop.
+"""
+
+# -- pure, stateless guards ---------------------------------------------------
+
+def should_skip_refine(first_pass_objective: int, skip_objective: int | None) -&gt; bool:
+    """Gate #1: an already-good draft skips the whole loop (add-refine-skip-high-objective)."""
+
+def refine_skip_objective() -&gt; int:
+    """XLO_REFINE_SKIP_OBJECTIVE override, falling back to tuning.REFINE_SKIP_OBJECTIVE."""
+
+def plateau_signature(report: QAReport, verdict: JudgeVerdict) -&gt; tuple:
+    """(objective, advisory, frozenset((section, issue[:64]))) — equal signatures = plateau."""
+
+def design_implicated(plan: ShowPlan, section_index: int, findings: list[Finding]) -&gt; bool:
+    """True when a rules-finding for this section names one of its planned effect_types
+    (currently the _design_implicated closure, run.py:165)."""
+
+# -- stateful guards, one class each ------------------------------------------
+
+class BestTracker:
+    """Owns best/best_applied/best_obj/open_is_best and the stall counter (guards #4, #5, #9)."""
+    def __init__(self, instructions, applied, objective: int,
+                 *, regress_margin: int = tuning.REGRESS_MARGIN,
+                 stall_limit: int = tuning.STALL_LIMIT): ...
+    def assess(self, obj: int) -&gt; Outcome:            # Outcome(reverted: bool, gained: bool)
+        """Pure decision: revert vs keep vs gain, per REGRESS_MARGIN semantics."""
+    def keep(self, instructions, applied, obj: int) -&gt; None: ...
+    def revert(self) -&gt; tuple[list[EffectInstruction], dict]: ...
+    @property
+    def stalled(self) -&gt; bool: ...                    # stall &gt;= stall_limit
+
+class EscalationLedger:
+    """Owns `ledger` (anti-oscillation, guard #6) + `redesigned` (once-per-run, guard #7)."""
+    def record(self, rev: RevisionBrief) -&gt; None: ...
+    def prior_sections(self) -&gt; set[int]: ...
+    def should_escalate(self, si: int, plan, findings) -&gt; bool:
+        """si not yet redesigned AND (repeat offender OR design_implicated(...))."""
+    def mark_redesigned(self, si: int) -&gt; None: ...
+
+# -- side-effecting collaborators (still injectable, as today) -----------------
+
+class ReportBuilder:
+    """Wraps _report/_obj: flush save_as → real_render.refresh → qa_eval(..., sampler=…),
+    preserving the legacy 5-arg qa signature for injected fakes (run.py:172–187)."""
+    async def report(self, st: State) -&gt; QAReport: ...
+    async def objective(self, st: State) -&gt; int: ...
+
+class IterationRecorder:
+    """Wraps _record/_bundle: RevisionLogRecord assembly, review-bundle path guard.
+    Pure observability — never raises into the loop."""
+    def record(self, i: int, report, verdict, **kw) -&gt; None: ...
+
+async def apply_revisions(st: State, revisions: list[RevisionBrief], *,
+                          regen, redesign, ledger: EscalationLedger,
+                          findings: list[Finding], log=log) -&gt; None:
+    """Guard #7 + splice: per revision, maybe escalate design (structure pinned),
+    then replace_section(st.instructions, si, await regen(rev)) and ledger.record(rev)."""
+
+async def refine_loop(st: State, *, client, emitter, ..., skip_objective=None) -&gt; None:
+    """Same signature and behavior as today's _refine_loop; now ~60 lines of orchestration
+    over the named guards above."""</code></pre>
+
+<p>The loop body after extraction reads as the sequence the archived design docs describe: <em>skip gate → [report → visual findings → judge → decide → plateau check → floor visual revisions → apply revisions (escalating where warranted) → clamp/finalize/emit → assess &amp; keep-or-revert → record → stall check] → restore best → finalize record</em>.</p>
+
+<h3>3.2 What stays injectable</h3>
+<p>The dependency-injection seams the hermetic tests use are contracts, not incidental: <code>judge</code>, <code>qa</code>, <code>regenerate</code>, <code>redesign</code>, <code>checkpoint</code>, <code>visual_critique</code>, <code>revlog</code>, <code>sampler</code>, <code>clock</code>. They remain keyword parameters of <code>refine_loop</code>. The lazy-agent construction rules also remain: the default generator agent is only built when no <code>regenerate</code> is injected (run.py:144–146, “constructing a real Agent needs an API key, which hermetic tests don't have”), and <code>section_redesigner()</code> stays lazy inside the redesign path (run.py:160).</p>
+
+<h3>3.3 Constants consolidation — destination map</h3>
+<p>Two destinations, honoring <code>tuning.py</code>'s scope line rather than fighting it:</p>
+<ol>
+<li><strong><code>pipeline/tuning.py</code></strong> gains a “refine-loop control” section for the loop thresholds — they are tunable behavior dials, exactly what tuning.py is for.</li>
+<li><strong>A new per-effect metadata table</strong> — proposed <code>pipeline/effect_meta.py</code> (orchestrator-side, since every consumer is in the orchestrator) — one data-driven row per effect type, replacing four parallel dicts/sets. Documented like the markdown guides: each row cites its corpus provenance (the SPEED_KEYS ranges and DIRECTION_KNOBS values are corpus-observed; see archived changes <code>2026-06-12-add-settings-hygiene</code> and <code>2026-06-12-add-directional-sweeps</code>).</li>
+</ol>
+
+<pre><code># pipeline/effect_meta.py  (proposed)
+@dataclass(frozen=True)
+class EffectMeta:
+    speed: tuple[str, float, float, str] | None = None   # (key, lo, hi, fmt) — from SPEED_KEYS
+    directions: dict[str, tuple[str, str]] | None = None # direction -&gt; (key, value) — DIRECTION_KNOBS
+    energy_band: tuple[int, int] | None = None           # catalog §2 — ENERGY_BAND
+    duration_class: Literal["hit", "phrase", "cellable", "free"] = "free"
+    bed_capable: bool = False                            # weave._BED_EFFECTS
+    native_bounce: bool = False                          # weave._NATIVE_BOUNCE
+    chase_family: bool = False                           # weave._CHASE_FAMILY
+
+EFFECT_META: dict[str, EffectMeta] = { "SingleStrand": EffectMeta(...), ... }
+
+# derived views — keep every existing name working:
+SPEED_KEYS        = {k: m.speed for k, m in EFFECT_META.items() if m.speed}
+DIRECTION_KNOBS   = {k: m.directions for k, m in EFFECT_META.items() if m.directions}
+ENERGY_BAND       = {k: m.energy_band for k, m in EFFECT_META.items() if m.energy_band}
+DURATION_HIT      = {k for k, m in EFFECT_META.items() if m.duration_class == "hit"}
+DURATION_PHRASE   = {k for k, m in EFFECT_META.items() if m.duration_class == "phrase"}
+DURATION_CELLABLE = {k for k, m in EFFECT_META.items() if m.duration_class == "cellable"}
+MOTION_EFFECTS    = DURATION_CELLABLE | {"Fire", "Galaxy"}</code></pre>
+
+<h3>3.4 Constants inventory</h3>
+<table>
+<tr><th>Name</th><th>Value</th><th>Current location</th><th>Destination</th><th>Notes</th></tr>
+<tr><td><code>REGRESS_MARGIN</code></td><td>1</td><td><code>run.py:58</code></td><td><code>tuning.py</code> (refine section)</td><td>Re-export from <code>run.py</code> + <code>refine_loop.py</code></td></tr>
+<tr><td><code>STALL_LIMIT</code></td><td>2</td><td><code>run.py:59</code></td><td><code>tuning.py</code></td><td>ditto</td></tr>
+<tr><td><code>REFINE_SKIP_OBJECTIVE</code></td><td>88</td><td><code>run.py:62</code></td><td><code>tuning.py</code></td><td><code>_refine_skip_objective()</code> helper moves to <code>refine_loop.py</code>; keep the revision-log-analysis comment (42 runs) with the constant. <code>test_refine.py:364</code> imports both from <code>run</code> — re-export.</td></tr>
+<tr><td><code>SPEED_KEYS</code></td><td>17-effect map</td><td><code>beats.py:90–111</code></td><td><code>effect_meta.py</code></td><td><code>effect_speed_setting</code> stays in <code>beats.py</code> (behavior), reads the table. <code>test_effect_speed.py:5</code> imports from <code>beats</code> — re-export.</td></tr>
+<tr><td><code>DIRECTION_KNOBS</code></td><td>12-effect map</td><td><code>weave.py:55–93</code></td><td><code>effect_meta.py</code></td><td><code>direction_setting</code>/<code>_effective_direction</code> stay in <code>weave.py</code>; re-export the table.</td></tr>
+<tr><td><code>ENERGY_BAND</code></td><td>33-effect map</td><td><code>qa/rules.py:15–24</code></td><td><code>effect_meta.py</code></td><td>rules QA keeps enforcing; re-export.</td></tr>
+<tr><td><code>DURATION_HIT/PHRASE/CELLABLE</code></td><td>3 sets</td><td><code>qa/rules.py:29–32</code></td><td><code>effect_meta.py</code> (duration_class)</td><td>Kills the two cross-module imports (<code>weave.py:227</code>, <code>beats.py:583</code>).</td></tr>
+<tr><td><code>PHRASE_BARS</code> / <code>CELL_BARS</code></td><td>8 / 2</td><td><code>qa/rules.py:33–34</code></td><td><code>tuning.py</code></td><td>Behavior dials (bar math), not per-effect facts.</td></tr>
+<tr><td><code>MOTION_EFFECTS</code>, <code>MOTION_SHARE_MIN</code></td><td>set / 0.30</td><td><code>qa/rules.py:40–42</code></td><td>derived in <code>effect_meta.py</code> / <code>tuning.py</code></td><td><code>MOTION_SHARE_MIN</code> is an I7 tuning lever — putting it in tuning.py is exactly the point.</td></tr>
+<tr><td><code>_BED_EFFECTS</code>, <code>_NATIVE_BOUNCE</code>, <code>_CHASE_FAMILY</code></td><td>3 sets</td><td><code>weave.py:49,95,99</code></td><td><code>effect_meta.py</code> flags</td><td>Optional second pass — private today, so no import compat needed.</td></tr>
+<tr><td><code>STROBE_CAP_MS</code>, <code>SHIMMER_BARS</code></td><td>1000 / 2</td><td><code>qa/rules.py:48–49</code></td><td>stay (catalog-verbatim rules)</td><td>These quote catalog rule #7 verbatim; they belong beside the rule that cites them.</td></tr>
+<tr><td><code>CARRIER_ROTATION</code></td><td>4 effects</td><td><code>weave.py:198</code></td><td>stays in <code>weave.py</code></td><td>improve-musicality Phase 1 re-keys it (label-keyed); moving it now would churn that change.</td></tr>
+</table>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong><code>effect_meta.py</code> first (pure data move).</strong> Create the table + derived views; change <code>beats.py</code>, <code>weave.py</code>, <code>qa/rules.py</code> to import from it; leave re-export aliases in each original module (<code>from .effect_meta import SPEED_KEYS  # re-export: tests + external callers</code>). Run the full suite — the golden test must be byte-identical (no <code>XLO_REGEN_GOLDEN</code>).</li>
+<li><strong>Refine thresholds into <code>tuning.py</code>.</strong> Move <code>REGRESS_MARGIN</code>/<code>STALL_LIMIT</code>/<code>REFINE_SKIP_OBJECTIVE</code> (+ <code>PHRASE_BARS</code>/<code>CELL_BARS</code>/<code>MOTION_SHARE_MIN</code>) under a new <code># -- refine loop control</code> section, keeping each constant's provenance comment. Re-export from <code>run.py</code>.</li>
+<li><strong>Extract the pure guards.</strong> <code>should_skip_refine</code>, <code>plateau_signature</code>, <code>design_implicated</code>, <code>refine_skip_objective</code> into <code>pipeline/refine_loop.py</code>; call them from the still-monolithic loop. Add direct unit tests for each (no loop harness needed).</li>
+<li><strong>Extract the stateful guards.</strong> <code>BestTracker</code> (revert/keep/gain/stall — port the exact comparison operators: revert is <code>&lt; best - margin</code>, gain is <code>&gt; best + margin</code>, held objective keeps but doesn't reset stall) and <code>EscalationLedger</code>. Unit-test the boundary cases: <code>obj == best - margin</code> keeps, <code>obj == best + margin</code> keeps-without-gain, stall reset only on gain.</li>
+<li><strong>Extract collaborators + the loop.</strong> <code>ReportBuilder</code>, <code>IterationRecorder</code>, <code>apply_revisions</code>, then move the loop body itself; <code>run.py</code> keeps <code>_refine_loop = refine_loop</code>, <code>regenerate_section</code> (shared with <code>xlo regen</code> via <code>pipeline/regen.py</code>) and the checkpoint functions (<code>_auto_checkpoint</code> is imported by <code>cli.py:13</code>).</li>
+<li><strong>Verify + docs.</strong> Full suite (65 test files) green with an unchanged golden fixture; update <code>docs/architecture</code> pipeline notes; note the new module in the roadmap scorecard. Consider an OpenSpec change doc (<code>refactor-refine-loop</code>) since show-refinement is a spec'd capability — the spec's behavior is unchanged, so tasks are code-motion only.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Behavior-preservation:</strong> the entire existing suite runs unmodified at every step — especially <code>test_refine.py</code>, <code>test_visual.py</code>, <code>test_design_escalation.py</code>, <code>test_revision_log.py</code> (loop consumers) and <code>test_golden_pipeline.py</code> (generate stage; the constants moves touch generate-side modules). No golden regeneration is expected anywhere in this change; if step 1 requires one, the table transcription has a bug.</li>
+<li><strong>New unit tests</strong> (hermetic, no agents): <code>tests/test_refine_guards.py</code> covering <code>BestTracker</code> boundary arithmetic, <code>plateau_signature</code> equality/inequality (issue truncation at 64 chars), <code>design_implicated</code> (rules metric + effect-type mention required; wrong section / non-rules metric → False), <code>EscalationLedger.should_escalate</code> (once-per-run, repeat-offender path, implicated path), <code>should_skip_refine</code> (None disables; equality skips).</li>
+<li><strong>Import-compat test:</strong> a small test asserting the historical import paths still resolve (<code>from xlights_orchestrator.pipeline.run import _refine_loop, REFINE_SKIP_OBJECTIVE</code>; <code>from xlights_orchestrator.pipeline.beats import SPEED_KEYS</code>; <code>from xlights_orchestrator.qa.rules import ENERGY_BAND, DURATION_CELLABLE</code>) so a later cleanup can't silently break cached-workflow scripts.</li>
+<li><strong>Table-integrity test:</strong> assert the derived views from <code>EFFECT_META</code> equal a frozen copy of today's literals (checked in once, then deleted after a release or kept as the drift guard) — this is what makes step 1 mechanically safe.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>Subtle behavior change in revert/stall arithmetic during extraction (e.g. <code>max(best_obj, obj)</code> on the keep path, run.py:288)</td><td>Refine runs converge differently; hard to notice</td><td>Port expressions verbatim into <code>BestTracker</code>; boundary unit tests; <code>test_refine.py</code> exercises every branch end-to-end</td></tr>
+<tr><td>Table transcription error in <code>effect_meta.py</code> (a knob key typo silently no-ops at emit time)</td><td>Silently different renders</td><td>Frozen-literal equality test (step 1); golden snapshot byte-compare</td></tr>
+<tr><td>Breaking hermetic tests' injected-fake signatures (legacy 5-arg <code>qa</code>, <code>regenerate(rev)</code>, <code>redesign(rev, findings)</code>)</td><td>Test suite churn, lost safety net</td><td>Keep all keyword seams identical; <code>ReportBuilder</code> preserves the legacy-signature branch explicitly</td></tr>
+<tr><td>Losing the <em>re-emit-on-revert</em> ordering (close → emit → mark <code>open_is_best</code>) or the <em>save-before-sample</em> ordering in <code>_report</code></td><td>Sampler/critic judge a stale render — the exact bugs those lines were added to fix</td><td>Both orderings get their own unit tests with a call-order-recording fake client/emitter</td></tr>
+<tr><td>Collision with improve-musicality Phase 1 landing in parallel (touches <code>section_carrier</code>, escalation spending)</td><td>Merge churn</td><td>Sequencing table already places I3 after Phase 1; effect-metadata step (1–2) can land any time</td></tr>
+<tr><td>tuning.py scope creep (loop control ≠ show feel)</td><td>Docstring becomes a lie</td><td>Explicit new section header + one-line scope amendment in the docstring; see open question 1</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>[ ] <code>pipeline/refine_loop.py</code> exists; <code>run.py</code>'s refine content is ≤ a thin wrapper + re-exports; <code>run.py</code> drops well below its current 486 lines.</li>
+<li>[ ] Every guard in the §2.1 inventory is a named function/class with at least one direct unit test that does not construct a Judge, emitter, or State-with-plan harness.</li>
+<li>[ ] <code>REGRESS_MARGIN</code>, <code>STALL_LIMIT</code>, <code>REFINE_SKIP_OBJECTIVE</code> live in <code>pipeline/tuning.py</code>; <code>XLO_REFINE_SKIP_OBJECTIVE</code> still works (test_refine.py:363–372 passes unchanged).</li>
+<li>[ ] <code>SPEED_KEYS</code>, <code>DIRECTION_KNOBS</code>, <code>ENERGY_BAND</code>, <code>DURATION_*</code> derive from one per-effect table; the cross-module table imports at <code>weave.py:227</code> and <code>beats.py:583</code> are gone.</li>
+<li>[ ] All historical import paths (<code>pipeline.run._refine_loop</code>, <code>pipeline.beats.SPEED_KEYS</code>, <code>qa.rules.ENERGY_BAND</code>, …) still resolve.</li>
+<li>[ ] Full test suite green with <code>fixtures/golden_instructions.json</code> unchanged (no <code>XLO_REGEN_GOLDEN</code> in the change).</li>
+<li>[ ] The revision log output (JSONL + md) for an identical run is field-for-field identical (spot-check via <code>test_revision_log.py</code>).</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>tuning.py vs a separate <code>refine_tuning</code> section/module.</strong> The roadmap says “into <code>pipeline/tuning.py</code>”; tuning.py's docstring currently scopes itself to <em>artistic</em> dials. Amend the docstring (recommended — one file to look in), or add a sibling module?</li>
+<li><strong>Where does <code>effect_meta.py</code> live?</strong> All consumers are orchestrator-side today, but <code>xlights_core.knowledge</code> already owns corpus-derived effect knowledge (preset library, value curves, colors). If F-E layout onboarding ever needs effect metadata core-side, core is the better home; starting orchestrator-side is the smaller diff.</li>
+<li><strong>Context object now or later?</strong> <code>refine_loop</code> keeps the 20-keyword signature for compatibility. A <code>RefineContext</code> dataclass would clean it up but forces edits in <code>run_pipeline</code> and every test — worth doing only if improve-musicality Phase 2 adds more parameters anyway.</li>
+<li><strong>Should <code>_design_implicated</code>'s substring match (<code>e in f.detail</code>, run.py:169) become structured?</strong> Findings could carry an <code>effect_type</code> field instead of prose matching — a small semantic improvement, but it changes <code>Finding</code> and is out of behavior-preserving scope. Defer, note for improve-musicality.</li>
+<li><strong>Archive the pending changes first?</strong> <code>add-refine-skip-high-objective</code> is implemented-but-unarchived and specifies lines this change moves. Archiving it before I3 keeps the OpenSpec history clean.</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <a href="../roadmap-2026-07.md">docs/roadmap-2026-07.md</a> §I3 (and §Recommended sequencing, row 4); predecessor items R2–R4 in <code>docs/roadmap-2026-06.md</code>.</li>
+<li>OpenSpec: <code>openspec/changes/archive/2026-06-08-add-refine-loop/</code> (original loop design; three-terminator rationale), <code>archive/2026-06-09-add-revision-log/</code> (obj_before/reverted semantics), <code>archive/2026-06-13-add-llm-cost-bundle/</code> (plateau stop), <code>changes/add-refine-skip-high-objective/</code> (skip gate, pending archive), <code>archive/2026-06-12-add-settings-hygiene/</code> (SPEED_KEYS provenance), <code>archive/2026-06-12-add-directional-sweeps/</code> (DIRECTION_KNOBS provenance), <code>changes/improve-musicality/proposal.md</code> (Phase 2 dependency).</li>
+<li>Specs: <code>openspec/specs/show-refinement/</code>.</li>
+<li>Related docs: <a href="i8-tiered-visual-analysis.html">I8</a> (new objective metrics enter this loop's gate), <a href="i7-density-motion-gap.html">I7</a> (tunes constants this change consolidates).</li>
+</ul>
+</body>
+</html>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from xlights_core import XLightsClient, XLightsResponseError, XLightsTargetMissing
@@ -12,6 +13,8 @@ from xlights_core.knowledge.validators import KnobValueError
 from .pipeline.render_style import resolve_buffer_style
 
 from .show_plan import EffectInstruction
+
+_log = logging.getLogger(__name__)
 
 _SKIPPABLE = (PresetPlacementError, XLightsTargetMissing, ValueError, KnobValueError, KeyError,
               XLightsResponseError)
@@ -98,6 +101,16 @@ async def apply_instructions(
 
     await asyncio.sleep(settle_secs)  # let sequence elements populate (racy)
 
+    # F-J batching seam: fetch the layout name set ONCE per emit and pass it to every placement,
+    # instead of a get_models() round-trip per placement (~270/emit → one call). Best-effort — a
+    # failure falls back to the per-call fetch inside place_preset/place_direct (known=None).
+    known_targets: set[str] | None = None
+    try:
+        known_targets = set(await client.get_models())
+    except Exception as exc:  # noqa: BLE001 — prefetch is an optimization; per-call fetch covers it
+        _log.debug("emit: get_models prefetch failed, falling back to per-call fetch: %s", exc)
+        known_targets = None
+
     occupancy: dict[tuple[str, int], list[tuple[int, int]]] = {}
     placed: list[dict] = []
     skipped: list[dict] = []
@@ -145,6 +158,7 @@ async def apply_instructions(
                     palette_colors=ins.palette_colors or None,
                     extra_settings=extra,
                     layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms,
+                    known_targets=known_targets,
                 )
             else:
                 await place_preset(
@@ -153,6 +167,7 @@ async def apply_instructions(
                     palette_colors=ins.palette_colors or None,
                     extra_settings=extra,
                     layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms,
+                    known_targets=known_targets,
                 )
             occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
             placed.append({"target": ins.target, "effect": ins.effect_type,

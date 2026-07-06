@@ -148,32 +148,32 @@
   hue_distance}`; add a `--group-masks` debug mode writing per-group projected masks as PNGs.
 - [ ] 4.3 S1 decision replay: re-run `qa.evaluate` with a sampler backed by each render path over the
   fixture's iteration history; count objective-score and keep/revert disagreements.
-- [ ] 4.4 S2 — re-grep `client.*` across `packages/xlights-orchestrator/src/` and
+- [x] 4.4 S2 — re-grep `client.*` across `packages/xlights-orchestrator/src/` and
   `xlights_core/editing.py`; diff against the design's client-call inventory (11 methods → 9 REST
   commands); note any drift.
 - [ ] 4.5 S3 — prototype xLights batch/CLI render on macOS, then Linux (AppImage + Xvfb): document the
   exact version + invocation; capture (a) exit behavior with no display, (b) the produced `.fseq`,
   (c) wall time; diff the `.fseq` byte/channel-for-channel against the REST render (numpy diff reusing
   `load_fseq`) and against the `renderAll`+`saveSequence` ~2s baseline.
-- [ ] 4.6 Confirm or refute the inference that `RealRender` never engages mid-run on media-less
+- [x] 4.6 Confirm or refute the inference that `RealRender` never engages mid-run on media-less
   sequences — observed on a live run's logs.
-- [ ] 4.7 Land the durable artifact regardless of outcome: a checked-in fixture `.fseq` + layout pair
+- [x] 4.7 Land the durable artifact regardless of outcome: a checked-in fixture `.fseq` + layout pair
   (small — low channel count or truncated frames, optionally zstd) and a hermetic test running the
   coverage sampler + Tier-0-style metrics over it (seed of the CI eval suite). Hermetic unit tests for
   the script's pure parts (mask projection, delta metrics, `.fseq` diff) against a tiny synthetic
   `.fseq`.
-- [ ] 4.8 Optional fallback batching seam: cache `get_models()` per emit instead of per placement
+- [x] 4.8 Optional fallback batching seam: cache `get_models()` per emit instead of per placement
   (pass a prefetched name set through `apply_instructions`), with a hermetic test using the existing
   fake-placement pattern.
-- [ ] 4.9 Write-up + go/no-go against the decision table: name the chosen follow-up (option (a)
+- [x] 4.9 Write-up + go/no-go against the decision table: name the chosen follow-up (option (a)
   file-based emitter + `BatchRenderer` OpenSpec change; hybrid folded into I8; or fallback batching).
   Gate the live S1/S3 steps behind `XLO_LIVE=1`-style gating — never in CI.
 
 ## 5. Land
 
 - [ ] 5.1 Each roadmap item lands as its own PR (branch per item); never commit to `main` directly.
-- [ ] 5.2 Run `openspec validate add-pipeline-operability --strict` (0 errors) and the full hermetic
+- [x] 5.2 Run `openspec validate add-pipeline-operability --strict` (0 errors) and the full hermetic
   suite (`pytest -m "not live"`) + `ruff check`; confirm the golden pipeline snapshot is byte-identical
   under the null bus and the logging-only edits.
-- [ ] 5.3 Verify no new runtime dependency was added and the live page / progress surfaces load zero
+- [x] 5.3 Verify no new runtime dependency was added and the live page / progress surfaces load zero
   external resources; update `docs/usage.md` per items 1.10 / 2.12 / 3.10.

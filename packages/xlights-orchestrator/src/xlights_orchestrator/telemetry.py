@@ -122,7 +122,10 @@ def record(role: str, result) -> None:
         usage = getattr(result, "usage", None)
         if usage is None:
             return
-        if callable(usage):                        # 1.x-style method
+        # 2.x: `result.usage` is already a RunUsage (property). 1.x: a method returning one.
+        # Only call it when the value isn't already token-bearing — calling the 2.x property
+        # value hits a deprecated compat shim that emits a PydanticAIDeprecationWarning.
+        if callable(usage) and not (hasattr(usage, "input_tokens") or hasattr(usage, "output_tokens")):
             usage = usage()
         # duck-type: only capture something that looks like a RunUsage (has token fields)
         if not hasattr(usage, "input_tokens") and not hasattr(usage, "output_tokens"):

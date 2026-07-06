@@ -73,8 +73,8 @@ _PAGE = r"""<!doctype html>
 const BRIEF=__BRIEF__, SCHEMA=__SCHEMA__, COLORS=__COLORS__;
 const SP=(SCHEMA.$defs&&SCHEMA.$defs.SectionPlan&&SCHEMA.$defs.SectionPlan.properties)||{};
 const ORDER=["look","scene_id","scene_adaptation","target_groups","palette","effect_family",
- "effect_types","motion","transition","intensity","rationale","pulse_groups","follow_stem",
- "accent_effect","pulse_on"];
+ "effect_types","motion","transition","treatment","intensity","rationale","pulse_groups",
+ "follow_stem","accent_effect","pulse_on"];
 const LONG=new Set(["look","rationale","scene_adaptation","motion","transition"]);
 const COLNAMES=Object.keys(COLORS);
 const ms=v=>{v=Math.round((v||0)/1000);return Math.floor(v/60)+":"+String(v%60).padStart(2,"0")};

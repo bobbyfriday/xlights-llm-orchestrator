@@ -183,9 +183,10 @@ class ReportBuilder:
         # manifest → the default evaluator only (injected qa fakes keep the legacy signature)
         kw = {"manifest": getattr(self.st, "manifest", None)} if self.qa_eval is qa_pkg.evaluate else {}
         if self.sampler is not None or series is not None:   # rendered eyes → new-signature call
+            rm = self.st.music_brief.repetition_map if self.st.music_brief else None
             return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
                                 applied, self.st.available_groups, sampler=self.sampler,
-                                fseq_series=series, **kw)
+                                repetition_map=rm, fseq_series=series, **kw)
         return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
                             applied, self.st.available_groups, **kw)
 
@@ -269,6 +270,11 @@ async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, l
                         new_sec.target_groups = list(old.target_groups)
                     st.show_plan.sections[si] = new_sec
                     ledger.mark_redesigned(si)
+                    # re-apply the show-level color script so the redesigned section rejoins the
+                    # anchor thread / chorus signature (Phase 3) — deterministic, idempotent.
+                    from .color_script import apply_color_script
+                    apply_color_script(st.show_plan,
+                                       st.music_brief.repetition_map if st.music_brief else None)
                     log.info("design-escalated section %d (%d findings)", si, len(sec_f))
             except Exception as exc:  # noqa: BLE001 — escalation is best-effort
                 degradations.note("refine:redesign", f"section {si}: {exc}", stage="refine")

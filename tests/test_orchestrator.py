@@ -124,10 +124,12 @@ def test_pipeline_flow_hermetic(tmp_path, monkeypatch):
     ))
 
     assert len(st.show_plan.sections) == 2
-    # one generator call per section → 2 instructions captured
-    assert len(captured["instructions"]) == 2
+    # one generator `On` per section survives (Phase 3 may add boundary transition instructions,
+    # which carry the _XLO_TRANSITION marker — exclude them from the generator-flow count).
+    body = [i for i in captured["instructions"] if not i.extra_settings.get("_XLO_TRANSITION")]
+    assert len(body) == 2
     assert captured["duration"] == 12  # ceil(duration_s)
-    assert all(i.effect_type == "On" for i in captured["instructions"])
+    assert all(i.effect_type == "On" for i in body)
 
 
 def test_non_refine_run_writes_usage_json(tmp_path, monkeypatch):

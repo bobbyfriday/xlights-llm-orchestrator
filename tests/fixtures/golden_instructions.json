@@ -1,60 +1,10 @@
 [
  {
   "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 1000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 0,
-  "target": "SEM_ARCHES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 1000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 0,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_VALUECURVE_Brightness": "Active=TRUE|Id=ID_VALUECURVE_Brightness|Type=Ramp|Min=0.00|Max=400.00|P1=54.25|P2=108.50|RV=TRUE|"
   },
   "knob_values": {},
   "layer": 0,
@@ -66,6 +16,50 @@
   ],
   "palette_id": null,
   "render_style": "",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "55"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00",
+   "#FF7070"
+  ],
+  "palette_id": null,
+  "render_style": "",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_BAND_GROUND"
+ },
+ {
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
   "section_index": 0,
   "start_ms": 0,
   "target": "SEM_ARCHES"
@@ -114,52 +108,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 2000,
+  "effect_type": "On",
+  "end_ms": 10500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 1000,
-  "target": "SEM_CANES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 2000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 1000,
-  "target": "SEM_MINITREES"
+  "start_ms": 10000,
+  "target": "SEM_ARCHES"
  },
  {
   "direct_settings": "",
@@ -184,56 +152,6 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 11000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 10000,
-  "target": "SEM_ARCHES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 11000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 10000,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 11600,
   "extra_settings": {
@@ -255,52 +173,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 12000,
+  "effect_type": "On",
+  "end_ms": 2500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 11000,
-  "target": "SEM_CANES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 12000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 11000,
-  "target": "SEM_MINITREES"
+  "start_ms": 2000,
+  "target": "SEM_ARCHES"
  },
  {
   "direct_settings": "",
@@ -325,251 +217,49 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 3000,
+  "effect_type": "On",
+  "end_ms": 4500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
+   "C_SLIDER_Brightness": "134",
    "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 2000,
-  "target": "SEM_ARCHES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 3000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 2000,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 4000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 3000,
-  "target": "SEM_CANES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 4000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 3000,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 5000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
   "section_index": 0,
   "start_ms": 4000,
   "target": "SEM_ARCHES"
  },
  {
   "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 5000,
+  "effect_type": "On",
+  "end_ms": 6500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 4000,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 6000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 5000,
-  "target": "SEM_CANES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 6000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 5000,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 7000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
   "section_index": 0,
   "start_ms": 6000,
   "target": "SEM_ARCHES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 7000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 6000,
-  "target": "SEM_MINITREES"
  },
  {
   "direct_settings": "",
@@ -595,51 +285,47 @@
  {
   "direct_settings": "",
   "effect_type": "SingleStrand",
-  "end_ms": 8000,
+  "end_ms": 12000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_VALUECURVE_Brightness": "Active=TRUE|Id=ID_VALUECURVE_Brightness|Type=Ramp|Min=0.00|Max=400.00|P1=40.00|P2=180.00|RV=TRUE|",
+   "_XLO_TRANSITION": "riser"
   },
   "knob_values": {},
   "layer": 0,
   "look_id": "SingleStrand#0",
   "on_top": false,
   "palette_colors": [
-   "#00FF00"
+   "Blue",
+   "Red"
   ],
   "palette_id": null,
   "render_style": "Default",
   "section_index": 0,
-  "start_ms": 7000,
-  "target": "SEM_CANES"
+  "start_ms": 8000,
+  "target": "SEM_ALL"
  },
  {
   "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 8000,
+  "effect_type": "On",
+  "end_ms": 8500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Twinkle#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
    "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 7000,
-  "target": "SEM_MINITREES"
+  "start_ms": 8000,
+  "target": "SEM_ARCHES"
  },
  {
   "direct_settings": "",
@@ -661,105 +347,6 @@
   "section_index": 0,
   "start_ms": 8000,
   "target": "SEM_SPINNERS"
- },
- {
-  "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 9000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 8000,
-  "target": "SEM_ARCHES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 9000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 8000,
-  "target": "SEM_MINITREES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "SingleStrand",
-  "end_ms": 10000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 9000,
-  "target": "SEM_CANES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "Twinkle",
-  "end_ms": 10000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 9000,
-  "target": "SEM_MINITREES"
  },
  {
   "direct_settings": "",
@@ -874,7 +461,7 @@
   "end_ms": 24000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 0,
@@ -895,7 +482,7 @@
   "effect_type": "VU Meter",
   "end_ms": 24000,
   "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 0,
@@ -918,7 +505,7 @@
   "extra_settings": {
    "E_SLIDER_Butterfly_Speed": "37",
    "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 1,
@@ -944,7 +531,7 @@
   "extra_settings": {
    "T_CHOICE_Out_Transition_Type": "Dissolve",
    "T_SLIDER_Out_Transition_Adjust": "35",
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 0,
@@ -1397,9 +984,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1421,8 +1006,7 @@
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
    "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadeout": "1"
+   "T_CHOICE_LayerMethod": "Max"
   },
   "knob_values": {},
   "layer": 0,
@@ -1442,8 +1026,7 @@
   "effect_type": "Twinkle",
   "end_ms": 19000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170",
-   "T_TEXTCTRL_Fadeout": "1"
+   "C_SLIDER_Brightness": "170"
   },
   "knob_values": {},
   "layer": 0,
@@ -1466,9 +1049,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18750,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1486,9 +1067,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1509,8 +1088,7 @@
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
-   "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_TEXTCTRL_Fadeout": "1"
+   "E_TEXTCTRL_Bars_Cycles": "3.7"
   },
   "knob_values": {},
   "layer": 0,
@@ -1530,8 +1108,7 @@
   "effect_type": "Twinkle",
   "end_ms": 20000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170",
-   "T_TEXTCTRL_Fadeout": "1"
+   "C_SLIDER_Brightness": "170"
   },
   "knob_values": {},
   "layer": 0,
@@ -1554,9 +1131,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19750,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",

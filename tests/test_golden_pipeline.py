@@ -77,7 +77,11 @@ def _analysis() -> SongAnalysis:
         beats=beats, onsets=onsets,
         segments=[Segment(start=0, end=12, segment_id="A"),
                   Segment(start=12, end=24, segment_id="B")],
-        energy_arc=[EnergyPoint(time=0, rms=0.25), EnergyPoint(time=12, rms=0.85)],
+        # a dense arc that BUILDS into the 12s boundary (0.25 → 0.85) so the Phase 3 transition pass
+        # has real signal to read (a riser fires into the rising boundary).
+        energy_arc=[EnergyPoint(time=t, rms=r) for t, r in (
+            (0, 0.25), (4, 0.30), (8, 0.45), (10, 0.60), (11, 0.72),
+            (12, 0.85), (16, 0.85), (20, 0.85), (24, 0.85))],
         stems=[StemFeatures(stem="drums", onsets=drum_onsets,
                             energy_arc=[EnergyPoint(time=0, rms=0.3),
                                         EnergyPoint(time=12, rms=0.9)])],
@@ -184,27 +188,35 @@ def test_generate_matches_golden(tmp_path, monkeypatch):
 
 
 def test_golden_is_non_trivial(tmp_path, monkeypatch):
-    """Guard the guard: the fixture must exercise the deterministic layers, not a bare pass."""
+    """Guard the guard: the fixture must exercise the deterministic layers, not a bare pass.
+
+    Phase 2 (treatments): section 0 (intensity 0.45 → `feature`) is realized SPARSER than section 1
+    (0.92 → `full`) — it withholds the weave fabric, composites, and VU. The `full` peak keeps the
+    rich stack. So the guard now asserts the treatment CONTRAST, not carrier rotation across both."""
     monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path / "cache"))
     produced = _generate(tmp_path)
     # weave + beds + accents + flashes → well more than the lone generator instruction.
     assert len(produced) > 10
     assert any(i["effect_type"] == "Twinkle" for i in produced)        # weave texture cell expanded
     assert any(i["section_index"] == 1 for i in produced)              # both sections produced effects
-    # carrier rotation: the two sections use DIFFERENT carrier effects (variety, not all SingleStrand)
-    carrier_by_section = {
-        s: {i["effect_type"] for i in produced if i["section_index"] == s} & set(CARRIER_ROTATION)
-        for s in (0, 1)
-    }
-    assert carrier_by_section[0] != carrier_by_section[1]              # rotated, not identical
-    assert len({t for ts in carrier_by_section.values() for t in ts}) >= 2
-    # composite stack: the peak hero (SEM_FOCAL) carries a multi-effect blended stack
+    # the `full` peak section carries a weave carrier; the `feature` section withholds the fabric.
+    # (Exclude Phase-3 transition instructions — a riser is a boundary chase, not a weave carrier.)
+    def _weave_carriers(s):
+        return {i["effect_type"] for i in produced
+                if i["section_index"] == s and not i["extra_settings"].get("_XLO_TRANSITION")} \
+            & set(CARRIER_ROTATION)
+    assert _weave_carriers(1)                                          # the full peak weaves a carrier
+    assert not _weave_carriers(0)                                      # the feature verse withholds it
+    # Phase 3: a riser transition builds into the rising 12s boundary, tagged to the outgoing section
+    risers = [i for i in produced if i["extra_settings"].get("_XLO_TRANSITION") == "riser"]
+    assert risers and all(i["section_index"] == 0 for i in risers)
+    # composite stack: the peak hero (SEM_FOCAL) carries a multi-effect blended stack (full only)
     focal = [i for i in produced if i["target"] == "SEM_FOCAL"]
     layers = sorted({i["layer"] for i in focal})
     assert layers[:2] == [0, 1]                                        # ≥2 stacked layers
     assert any(i["extra_settings"].get("T_CHOICE_LayerMethod") for i in focal if i["layer"] > 0)
     assert len({i["effect_type"] for i in focal}) >= 2                 # different effects combined
-    # the energetic (peak) section carries a music-reactive VU Meter; the quiet one does not
+    # the energetic (peak) full section carries a music-reactive VU Meter; the quiet one does not
     vu = [i for i in produced if i["effect_type"] == "VU Meter"]
     assert vu and all(i["section_index"] == 1 for i in vu)
 

@@ -17,7 +17,6 @@ from ..qa.rules import clamp_hard_caps
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
-from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
 
 from .beats import (
     effective_intensity,
@@ -26,11 +25,16 @@ from .beats import (
     ensemble_bed,
     feature_prop_contrast,
     key_moment_flashes,
+    label_palette_offset,
     normalize_durations,
+    occurrence_ordinal,
     peak_fill,
     peak_sections,
     place_beat_accents,
     place_vu_meter,
+    resolve_treatment,
+    section_energy_shape,
+    section_identity,
     section_is_rhythmic,
     section_rhythm,
     trim_coverage,
@@ -40,7 +44,7 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
-from .semantic_groups import DEFAULT_VOCAB, HERO_GROUP
+from .semantic_groups import ACCENT_GROUPS, DEFAULT_VOCAB, HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
@@ -49,12 +53,123 @@ from .weave import (
     expand_composite,
     expand_weave,
     fallback_weave,
+    label_seed,
     section_carrier,
 )
 
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
 _PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
+_FINAL_SPARKLE_EFFECT = "Twinkle"    # the extra contrast layer the LAST chorus gains (accent-prop pop)
+_BED_WASH_EFFECTS = {"On", "Color Wash", "Fill", "Plasma"}   # sustained bases that carry phrase curves
+_PHRASE_MIN_BARS = 2                  # only beds/washes ≥ this many bars get an energy-shaped curve
+
+
+def _phrase_brightness(ins, shape: str, wash_b: float, bar_ms: float) -> dict[str, str]:
+    """The brightness setting for a bed/wash, shaped by the section's energy slice (Phase 3):
+    rising → an upward ramp (swell), falling → a downward ramp (decay), flat → a constant level
+    (today's behavior). Only for sustained bed/wash effects spanning ≥ 2 bars; anything shorter or a
+    non-bed effect gets a crisp constant level so features/accents stay punchy."""
+    from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
+    long_enough = (ins.end_ms - ins.start_ms) >= _PHRASE_MIN_BARS * bar_ms
+    if ins.effect_type not in _BED_WASH_EFFECTS or not long_enough:
+        return brightness_setting(wash_b)
+    if shape == "rising":
+        return brightness_ramp(0.5 * wash_b, wash_b)     # swells with the music
+    if shape == "falling":
+        return brightness_ramp(wash_b, 0.5 * wash_b)     # decays with it
+    return brightness_setting(wash_b)                    # flat → constant (unchanged behavior)
+
+# Treatment → which realization LAYERS are included (withheld, not merely dimmed). See design table.
+#   bed: "full" (energy bed / peak fill) | "dim" (a low ≤2-group bed) | "" (none)
+_TREATMENT_LAYERS: dict[str, dict] = {
+    "full":    {"bed": "full", "weave": True,  "accents": "full",   "extras": True,  "feature": True},
+    "pulse":   {"bed": "full", "weave": False, "accents": "full",   "extras": False, "feature": True},
+    "feature": {"bed": "dim",  "weave": False, "accents": "sparse", "extras": False, "feature": True},
+    "gesture": {"bed": "",     "weave": "solo", "accents": "none",  "extras": False, "feature": False},
+    "rest":    {"bed": "dim",  "weave": False, "accents": "none",   "extras": False, "feature": False},
+}
+_SPARSE_TREATMENTS = ("feature", "gesture", "rest")   # not full/pulse → no reliable base bed
+_GESTURE_MAX_GROUPS = 2       # gesture/rest touch at most this many groups
+_DIM_BED_BRIGHTNESS = 55.0    # the injected minimal bed for rest / the bed floor (dim, present)
+
+
+def _dim_bed(section, available_groups: list[str], existing_targets, pal_offset: int):
+    """A minimal, DIM base bed for feature/rest treatments (and the bed floor): one broad group lit
+    low so the section reads as present-but-restrained rather than pitch-black. None when no broad
+    group is free or the section already beds it."""
+    from .beats import effect_palette
+    from .semantic_groups import BED_PREFERENCE
+    from ..agents.catalog import candidate_look_ids
+    from xlights_core.knowledge.value_curves import brightness_setting
+    target = next((g for g in BED_PREFERENCE
+                   if g in (available_groups or []) and g not in (existing_targets or set())), None)
+    if target is None:
+        return None
+    ins = EffectInstruction(
+        target=target, effect_type="On", look_id=candidate_look_ids("On")[0],
+        palette_colors=effect_palette(getattr(section, "palette", None) or [], "On", 1, pal_offset)
+        or list(getattr(section, "palette", None) or []),
+        start_ms=section.start_ms, end_ms=section.end_ms)
+    ins.extra_settings.update(brightness_setting(_DIM_BED_BRIGHTNESS))
+    return ins
+
+
+def _gesture_weave(section, available_groups: list[str], carrier: str):
+    """A `gesture` treatment's single held motion: ONE carrier recipe on ≤2 groups, nothing else."""
+    from ..show_plan import CellRecipe, SectionWeave
+    from .weave import rhythm_pool
+    groups = [g for g in (section.target_groups or []) if g in (available_groups or [])] \
+        or rhythm_pool(section, available_groups)
+    groups = groups[:_GESTURE_MAX_GROUPS]
+    if not groups:
+        return None
+    return SectionWeave(cells=[CellRecipe(
+        effect_type=carrier, role="carrier", cell_beats=2, alternation="chase",
+        direction="bounce", groups=groups)])
+
+
+def _consecutive_bedless_run(plan, si: int, peaks: set[int], has_focal: bool) -> int:
+    """How many consecutive BEDLESS sections (gesture, which carries no base bed) end AT `si`,
+    inclusive. feature/rest already keep a dim bed; only `gesture` truly goes dark.
+
+    Used for the bed floor: at most 2 consecutive sections may go without a base bed; the 3rd gets a
+    minimal one injected so the show never fades to black for a whole stretch. Resolves each prior
+    section's treatment the same way realize_section does (explicit → energy fallback)."""
+    from .beats import resolve_treatment as _rt
+    secs = list(getattr(plan, "sections", None) or [])
+    run = 0
+    for k in range(si, -1, -1):
+        if _TREATMENT_LAYERS.get(_rt(secs[k], k in peaks, has_focal), {}).get("bed") == "":
+            run += 1
+        else:
+            break
+    return run
+
+
+def _final_occurrence_layer(section, intensity: float, available_groups: list[str]):
+    """The one EXTRA layer the FINAL occurrence of a recurring label gains (Phase 1 escalation):
+    a bright sparkle pop on a dedicated accent prop group, in the section's lightest color, so the
+    last chorus reads as the biggest. None when the layout has no accent prop group — the design's
+    'when the layout has accent props' guard, keeping non-accent layouts unchanged."""
+    from ..agents.catalog import candidate_look_ids
+    from .beats import _lightest_hex
+    from xlights_core.knowledge.value_curves import brightness_setting
+    from .tuning import FEATURE_PROP_BRIGHTNESS
+    target = next((g for g in ACCENT_GROUPS if g in (available_groups or [])), None)
+    if target is None:
+        return None
+    looks = candidate_look_ids(_FINAL_SPARKLE_EFFECT)
+    if not looks:
+        return None
+    light = _lightest_hex(getattr(section, "palette", None) or []) or "#FFFFFF"
+    ins = EffectInstruction(
+        target=target, effect_type=_FINAL_SPARKLE_EFFECT, look_id=looks[0],
+        render_style="Per Model Default", palette_colors=[light],
+        start_ms=section.start_ms, end_ms=section.end_ms)
+    ins.extra_settings.update(brightness_setting(FEATURE_PROP_BRIGHTNESS))
+    ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")   # pops over the bed, never occludes
+    return ins
 _MIN_EFFECT_MS = 50          # one render frame (seqStepTime); shorter effects snap away and drop
 _OPAQUE_WASH = {"On", "Color Wash", "Fill"}   # solid fills that occlude unless they sit at the bottom
 _WASH_SPAN_MS = 3000         # only a sustained wash counts as a "bed" for occlusion ordering
@@ -164,9 +279,26 @@ async def realize_section(st: State, si: int, *, agent,
     out: SectionEffects = _gen_res.output
     _rm = st.music_brief.repetition_map if st.music_brief else None
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
+    _label = section_identity(si, _rm)       # the section's musical identity (chorus/verse/…) or None
+    _ordinal, _count = occurrence_ordinal(si, _rm)   # which occurrence this is (0-based) + how many
+    _is_final = _count > 1 and _ordinal == _count - 1  # the last chorus is the biggest
+    _pal_offset = label_palette_offset(_label)   # a chorus rhymes its palette ORDER across occurrences
+    # TREATMENT (Phase 2): the texture archetype deciding which LAYERS run (withheld, not dimmed).
+    _has_focal = HERO_GROUP in st.available_groups
+    _treatment = resolve_treatment(section, si in _peaks, _has_focal)
+    _layers = _TREATMENT_LAYERS[_treatment]
     wash_b = wash_brightness(_si)            # energy → wash brightness
     rhythm = section_rhythm(st.song_analysis, section, bpb)
-    kept = trim_coverage(list(out.instructions), _si)   # energy-gated coverage (quiet = fewer lit props)
+    _shape = section_energy_shape(st.song_analysis, section)   # rising/falling/flat → phrase curves
+    from .beats import _bar_ms as _bar_ms_fn
+    _bar_ms = _bar_ms_fn(rhythm)
+    # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
+    # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
+    kept = trim_coverage(list(out.instructions), _si, _ordinal)   # energy-gated + occurrence bonus
+    # sparse treatments withhold coverage: gesture/rest touch ≤2 groups, feature spotlights one hero.
+    if _treatment in ("gesture", "rest"):
+        _keep = {i.target for i in kept[:_GESTURE_MAX_GROUPS]}
+        kept = [i for i in kept if i.target in _keep]
     for ins in kept:
         ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
     kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
@@ -174,54 +306,88 @@ async def realize_section(st: State, si: int, *, agent,
         ins.section_index = si              # tag for scoped regen / per-section QA
         ins.source = "generator"            # provenance (I7; excluded from dump — report-only)
         if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
-            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
-        if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:   # long energetic wash BUILDS
-            ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
-        else:
-            ins.extra_settings.update(brightness_setting(wash_b))
+            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
+        # PHRASE DYNAMICS (Phase 3): a ≥2-bar bed/wash carries a brightness curve shaped by the
+        # section's own energy slice (rising swells, falling decays, flat holds); features/accents
+        # keep crisp constant levels. Supersedes the old ">15s energetic wash builds" special case.
+        ins.extra_settings.update(_phrase_brightness(ins, _shape, wash_b, _bar_ms))
         ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
-    # the peak gets a FULL-bright whole-display fill (the lit payoff); merely-high
-    # sections get the dim frame bed — the contrast is the escalation.
-    bed = (peak_fill(section, _si, st.available_groups, kept) if si in _peaks
-           else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
+    # BED, per treatment: full/pulse get the energy bed (or peak fill at the peak); feature/rest get
+    # a dim ≤2-group bed; gesture gets none — UNLESS the bed floor trips (>2 consecutive bedless
+    # sections would go dark), in which case a minimal bed is injected so the show never blacks out.
+    _bed_mode = _layers["bed"]
+    if _bed_mode == "" and _consecutive_bedless_run(st.show_plan, si, _peaks, _has_focal) > 2:
+        _bed_mode = "dim"                    # the hard floor: at most 2 consecutive bedless sections
+    if _bed_mode == "full":
+        bed = (peak_fill(section, _si, st.available_groups, kept) if si in _peaks
+               else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
+    elif _bed_mode == "dim":
+        bed = _dim_bed(section, st.available_groups, {k.target for k in kept}, _pal_offset)
+    else:
+        bed = None
     if bed is not None:
         bed.section_index = si
         bed.source = "bed"
         kept.append(bed)                 # occlusion order/blend handled by finalize_effects
-    carrier = section_carrier(si)                # rotate the carrier so the show isn't all one effect
-    weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
-                                                              carrier=carrier)
-    diversify_carrier(weave_obj, carrier)        # vary an LLM weave's default carrier too
+    # WEAVE, per treatment: full weaves the whole fabric; gesture runs ONE carrier recipe on ≤2
+    # groups (a single held motion); pulse/feature/rest withhold the fabric entirely.
+    carrier = section_carrier(si, _label)   # keyed to the repetition identity (rhymes) else the index
+    if _layers["weave"] is True:
+        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
+                                                                  carrier=carrier)
+        diversify_carrier(weave_obj, carrier)    # vary an LLM weave's default carrier too
+    elif _layers["weave"] == "solo":
+        weave_obj = _gesture_weave(section, st.available_groups, carrier)
+    else:
+        weave_obj = None
     woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
                          based_targets={k.target for k in kept},   # cells blend over washes
-                         bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference)
+                         bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference) if weave_obj else []
     for ins in woven:
         ins.section_index = si
         ins.source = "weave"
     kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
-    # composite stacks: LLM-designed multi-effect blended layers, plus a curated stack on the
-    # hero at the peak — effects COMBINED on layers (e.g. counter-Morphs + Max) for a rich look.
-    comp_recipes = list(getattr(out, "composites", None) or [])
-    if si in _peaks and HERO_GROUP in st.available_groups:
-        cc = curated_composite(_PEAK_COMPOSITES[si % len(_PEAK_COMPOSITES)], [HERO_GROUP])
-        if cc is not None:
-            comp_recipes.append(cc)
-    for comp in comp_recipes:
-        for ins in expand_composite(comp, section, _si, st.available_groups):
-            ins.section_index = si
-            ins.source = "composite"
-            kept.append(ins)
-    vu = place_vu_meter(section, st.available_groups, _si, seed=si)   # music-reactive feature layer
-    if vu is not None:
-        vu.section_index = si
-        vu.source = "vu"
-        kept.append(vu)
+    # composite stacks + VU are "extras" (full only): LLM-designed multi-effect blended layers plus
+    # the curated hero stack at the peak, and the music-reactive VU feature texture.
+    if _layers["extras"]:
+        comp_recipes = list(getattr(out, "composites", None) or [])
+        if si in _peaks and HERO_GROUP in st.available_groups:
+            # the peak composite is keyed to the section's identity when it recurs (every chorus-peak
+            # gets the SAME curated stack), else to the index — same rhyme rule as the carrier.
+            comp_seed = label_seed(_label) if _label else si
+            cc = curated_composite(_PEAK_COMPOSITES[comp_seed % len(_PEAK_COMPOSITES)], [HERO_GROUP])
+            if cc is not None:
+                comp_recipes.append(cc)
+        for comp in comp_recipes:
+            for ins in expand_composite(comp, section, _si, st.available_groups):
+                ins.section_index = si
+                ins.source = "composite"      # provenance (report-only)
+                kept.append(ins)
+        vu = place_vu_meter(section, st.available_groups, _si, seed=si)   # music-reactive feature
+        if vu is not None:
+            vu.section_index = si
+            vu.source = "vu"
+            kept.append(vu)
+    # the FINAL occurrence of a recurring label gains one extra layer: a sparkle-contrast pop on
+    # an accent prop group (when the layout has one), so the last chorus reads as the biggest.
+    if _is_final and _layers["feature"]:
+        final_layer = _final_occurrence_layer(section, _si, st.available_groups)
+        if final_layer is not None:
+            final_layer.section_index = si
+            final_layer.source = "feature"    # provenance (report-only)
+            kept.append(final_layer)
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
-    accents = place_beat_accents(            # beat layer over the wash; the weave's carrier
-        section, rhythm, st.available_groups,  # owns the chase. Only when the brief is rhythmic —
-        carrier_covers=carrier_covers(weave_obj, section, st.available_groups),
-        vocab=st.vocab or DEFAULT_VOCAB) \
-        if section_is_rhythmic(section) else []   # a still section stays still
+    # ACCENTS, per treatment: full/pulse get the full beat layer, feature a sparse one, gesture/rest
+    # none (the held breath stays still). A still (non-rhythmic) section never gets accents either.
+    _accent_mode = _layers["accents"]
+    if _accent_mode != "none" and section_is_rhythmic(section):
+        accents = place_beat_accents(
+            section, rhythm, st.available_groups,
+            carrier_covers=carrier_covers(weave_obj, section, st.available_groups),
+            stride_step=_ordinal if _accent_mode == "full" else -1,   # -1 sparsens a feature
+            vocab=st.vocab or DEFAULT_VOCAB)
+    else:
+        accents = []
     under = {k.target for k in kept}
     for ins in accents:
         ins.section_index = si
@@ -234,8 +400,16 @@ async def realize_section(st: State, si: int, *, agent,
 
 def finalize_effects(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
     """Whole-list passes needed after ANY generation or section splice (idempotent):
-    wash-occlusion layering (the 2:15 bug guard), sub-frame stretch (xLights silently
-    drops effects shorter than a render frame), song-end stop+fade."""
+    boundary transitions (risers/blackouts/sweeps), wash-occlusion layering (the 2:15 bug guard),
+    sub-frame stretch (xLights silently drops effects shorter than a render frame), song-end
+    stop+fade.
+
+    Transitions run FIRST (before the occlusion guard sees final geometry) and are idempotent, so a
+    regenerated section that re-runs finalize replaces its boundary transitions rather than stacking
+    them — the pass owns the OUTGOING section's time range, so regenerating the incoming section
+    never orphans them."""
+    from .transitions import place_transitions
+    instrs = place_transitions(st, instrs)   # composed section joins from energy arc + downbeats + cues
     instrs = _guard_wash_occlusion(instrs)   # opaque washes sit under features; features blend Max
     for ins in instrs:
         if ins.end_ms - ins.start_ms < _MIN_EFFECT_MS:

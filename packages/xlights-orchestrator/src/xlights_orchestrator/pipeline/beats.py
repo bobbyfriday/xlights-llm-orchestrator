@@ -72,14 +72,20 @@ def wash_brightness(intensity: float) -> float:
 SIMPLE_COLOR = {"On", "Off", "Strobe", "Lightning", "Fill"}   # 1-2 colors read best
 
 
-def effect_palette(section_palette: list[str], effect_type: str, index: int) -> list[str]:
+def effect_palette(section_palette: list[str], effect_type: str, index: int,
+                   offset: int = 0) -> list[str]:
     """Per-effect colors from the section family: multi-color effects get the FULL expanded
     palette; simple effects get a rotated pair — so concurrent effects differ instead of being
-    identical, and Plasma/Spirals/Bars get enough colors to render as intended."""
+    identical, and Plasma/Spirals/Bars get enough colors to render as intended.
+
+    `offset` shifts the whole section's expanded-palette rotation by a fixed amount — keyed to a
+    repetition label so every occurrence of a chorus lands on the same palette order (repeats
+    rhyme), while the per-effect `index` still varies concurrent effects within the section."""
     full = expand_palette(section_palette, PALETTE_DEPTH)
     if not full:
         return list(section_palette)
-    rot = full[index % len(full):] + full[:index % len(full)]
+    k = (index + offset) % len(full)
+    rot = full[k:] + full[:k]
     return rot[:2] if effect_type in SIMPLE_COLOR else rot
 
 
@@ -104,6 +110,30 @@ def effect_speed_setting(effect_type: str, intensity: float) -> dict[str, str]:
 
 
 
+def section_identity(section_index: int, repetition_map: dict | None) -> str | None:
+    """The repetition label that OWNS this section (its musical identity), or None.
+
+    A label counts only when it RECURS (≥2 occurrences) — the two choruses share an identity so
+    they can rhyme; a one-off section has no identity and keeps position-keyed variety. When a
+    section index appears under several recurring labels (overlapping maps), the first one wins so
+    the choice is deterministic across a run."""
+    for label, indices in (repetition_map or {}).items():
+        if section_index in indices and len(indices) > 1:
+            return label
+    return None
+
+
+def label_palette_offset(label: str | None) -> int:
+    """The fixed expanded-palette rotation offset for a recurring `label` (0 for a one-off).
+
+    Derived from the same stable label hash the carrier uses, so a chorus's palette ORDER is
+    identical across occurrences (it rhymes) rather than rotating by section index."""
+    if not label:
+        return 0
+    from .weave import label_seed
+    return label_seed(label) % PALETTE_DEPTH
+
+
 def escalation_level(section_index: int, repetition_map: dict | None) -> float:
     """0 for the first occurrence of a recurring section → 1 for the last; 0 if it doesn't recur."""
     for indices in (repetition_map or {}).values():
@@ -118,30 +148,52 @@ def effective_intensity(intensity: float, section_index: int, repetition_map: di
     return min(1.0, base + ESCALATION_BOOST * escalation_level(section_index, repetition_map))
 
 
-def coverage_cap(intensity: float, n_groups: int) -> int:
-    """How many prop groups a section lights, by energy (quiet sparse, loud full)."""
+def occurrence_ordinal(section_index: int, repetition_map: dict | None) -> tuple[int, int]:
+    """`(ordinal, count)` for a recurring section: 0-based position among its label's occurrences
+    and how many there are. `(0, 1)` when the section is a one-off (no recurring identity) — so
+    callers spend NOTHING extra on it, exactly as today."""
+    for indices in (repetition_map or {}).values():
+        if section_index in indices and len(indices) > 1:
+            ordered = sorted(indices)
+            return ordered.index(section_index), len(ordered)
+    return 0, 1
+
+
+def coverage_cap(intensity: float, n_groups: int, extra: int = 0) -> int:
+    """How many prop groups a section lights, by energy (quiet sparse, loud full).
+
+    `extra` is a structural escalation bonus (+1 group per later occurrence of a recurring label) —
+    still bounded by `n_groups`, so the final chorus lights more props than the first without ever
+    exceeding what the section actually offers."""
     i = max(0.0, min(1.0, intensity or 0.0))
-    return min(n_groups, max(MIN_LIT_GROUPS, round(n_groups * (0.3 + 0.7 * i))))
+    base = max(MIN_LIT_GROUPS, round(n_groups * (0.3 + 0.7 * i)))
+    return min(n_groups, base + max(0, extra))
 
 
-def trim_coverage(instructions: list, intensity: float) -> list:
-    """Keep the wash on the first `cap` distinct targets (Director priority); leave the rest dark."""
+def trim_coverage(instructions: list, intensity: float, extra: int = 0) -> list:
+    """Keep the wash on the first `cap` distinct targets (Director priority); leave the rest dark.
+
+    `extra` widens the cap structurally for later occurrences of a recurring section (Phase 1
+    escalation) — bounded by the number of distinct targets, so it never invents coverage."""
     order: list[str] = []
     for ins in instructions:
         if ins.target not in order:
             order.append(ins.target)
-    keep = set(order[:coverage_cap(intensity, len(order))])
+    keep = set(order[:coverage_cap(intensity, len(order), extra)])
     return [ins for ins in instructions if ins.target in keep]
 
 
-def _off_beat_stride(intensity: float) -> int | None:
+def _off_beat_stride(intensity: float, tighten: int = 0) -> int | None:
     """How sparse the OFF-beats are by section energy (downbeats are always kept).
-    None = downbeats only; 2 = every other off-beat; 1 = every beat."""
-    if intensity <= 0.30:
-        return None
-    if intensity <= 0.65:
-        return 2
-    return 1
+    None = downbeats only; 2 = every other off-beat; 1 = every beat.
+
+    `tighten` steps the density along the ladder None→2→1: POSITIVE (structural escalation) makes a
+    later occurrence of a recurring label denser than the first at the same energy; NEGATIVE (a
+    `feature` treatment) sparsens it toward downbeats-only. Clamped to the ladder ends either way, so
+    it can neither over-spend (past every-beat) nor go below downbeats-only."""
+    ladder = [None, 2, 1]
+    base = 0 if intensity <= 0.30 else 1 if intensity <= 0.65 else 2
+    return ladder[max(0, min(len(ladder) - 1, base + tighten))]
 
 
 def _chord_color(t: int, chords_ms: list, colors: list[str]) -> str | None:
@@ -183,6 +235,31 @@ def section_rhythm(sa, section: SectionPlan, beats_per_bar: int = BEATS_PER_BAR)
             "onsets_by_stem": onsets_by_stem, "onset_mag_by_stem": onset_mag_by_stem,
             "chords_ms": chords, "beats_per_bar": beats_per_bar,
             "tempo": getattr(sa, "tempo_overall", None)}
+
+
+_ENERGY_SHAPE_MIN_DELTA = 0.08     # a slice whose RMS moves less than this reads as flat
+
+
+def section_energy_shape(sa, section) -> str:
+    """The section's in-window energy trend: "rising" | "falling" | "flat".
+
+    Compares the mean RMS of the first vs the last third of the section's own energy-arc slice.
+    Drives phrase dynamics — a bed over a rising slice swells, over a falling slice decays, flat
+    keeps a constant level (today's behavior). "flat" when the arc is too sparse to tell."""
+    s, e = section.start_ms / 1000.0, section.end_ms / 1000.0
+    pts = [p for p in (getattr(sa, "energy_arc", None) or []) if s <= p.time <= e]
+    if len(pts) < 2:
+        return "flat"
+    third = max(1, len(pts) // 3)
+    head = sum(p.rms for p in pts[:third]) / third
+    tail = sum(p.rms for p in pts[-third:]) / third
+    peak = max((p.rms for p in pts), default=0.0) or 1.0
+    delta = (tail - head) / peak
+    if delta >= _ENERGY_SHAPE_MIN_DELTA:
+        return "rising"
+    if delta <= -_ENERGY_SHAPE_MIN_DELTA:
+        return "falling"
+    return "flat"
 
 
 def _onset_energy(arc, t_s: float, peak: float) -> float:
@@ -276,7 +353,7 @@ def _backbeat_positions(bpb: int) -> set[int]:
 
 
 def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: list[str],
-                       *, carrier_covers: bool = False,
+                       *, carrier_covers: bool = False, stride_step: int = 0,
                        vocab: ChoreoVocabulary = DEFAULT_VOCAB) -> list[EffectInstruction]:
     """The deterministic rhythm = a METER BACKBONE (each beat of the bar lights the next ring group,
     so the bar walks across prop families) + an instrument-mapped GROOVE OVERLAY (backbeat on 2&4,
@@ -324,7 +401,7 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     # -- METER BACKBONE: beat i → ring[i % len(ring)]; downbeat is the brighter anchor -----------
     if not carrier_covers and roles.ring:
         n = len(roles.ring)
-        stride = _off_beat_stride(intensity)             # energy-gated off-beat density
+        stride = _off_beat_stride(intensity, stride_step)   # energy-gated + occurrence-tightened
         anchor_b = wash_brightness(min(1.0, intensity + 0.2))    # downbeat reads bigger
         for i, t in enumerate(beats):
             end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None)
@@ -417,6 +494,34 @@ def section_is_rhythmic(section) -> bool:
 # Peak escalation: the show's payoff section(s) must read as the BIGGEST moment, not a busier
 # verse — full display, full brightness, regardless of how narrowly the brief targeted them.
 # PEAK_BROAD_GROUPS / BED_PREFERENCE come from semantic_groups (orders differ on purpose).
+
+
+TREATMENTS = ("full", "feature", "pulse", "gesture", "rest")
+
+
+def resolve_treatment(section, is_peak: bool, has_focal: bool) -> str:
+    """The section's realization treatment: the Director's explicit choice when valid, else the
+    deterministic energy-based fallback (design table).
+
+    Fallback by effective intent (using the section's OWN intensity, not the escalated one — a quiet
+    verse should read sparse regardless of escalation):
+      peak band → full · < 0.1 → rest · ≥ 0.5 → pulse · ≥ 0.25 → feature (if the layout has a focal
+      prop, else pulse) · else → gesture.
+    An explicit near-zero (< 0.1) always yields `rest` so the Director can't accidentally over-light
+    a silent moment; otherwise a valid explicit treatment wins verbatim."""
+    explicit = (getattr(section, "treatment", "") or "").strip().lower()
+    i = max(0.0, min(1.0, getattr(section, "intensity", 0.0) or 0.0))
+    if explicit in TREATMENTS:
+        return explicit
+    if is_peak or i >= PEAK_FLOOR:
+        return "full"
+    if i < 0.1:
+        return "rest"
+    if i >= 0.5:
+        return "pulse"
+    if i >= 0.25:
+        return "feature" if has_focal else "pulse"
+    return "gesture"
 
 
 def peak_sections(show_plan, band: float = PEAK_BAND, floor: float = PEAK_FLOOR) -> set[int]:

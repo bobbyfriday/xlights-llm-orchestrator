@@ -69,6 +69,12 @@ def _norm(s: str) -> set[str]:
     return set(re.findall(r"[a-z0-9']+", s.lower()))
 
 
+# A trailing "(start-end)" numeric time-range an analyst may append to a featured line
+# (e.g. "Who you gon' call? (32.96-34.36)"). Purely numeric, so real lyric parentheticals
+# like "(Ghostbusters!)" are left intact.
+_TIME_RANGE_RE = re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*\)\s*$")
+
+
 def featured_lyric_moments(brief: MusicBrief, sa) -> list[FeaturedLyricMoment]:
     """Match the analyst's featured_lines to timed lines → moments. Empty when no lyrics."""
     lyrics = getattr(sa, "lyrics", None)
@@ -78,7 +84,8 @@ def featured_lyric_moments(brief: MusicBrief, sa) -> list[FeaturedLyricMoment]:
         return []
     out: list[FeaturedLyricMoment] = []
     for f in feats:
-        ftok = _norm(f)
+        f = _TIME_RANGE_RE.sub("", f).strip()           # analysts may still append "(start-end)";
+        ftok = _norm(f)                                 # drop it (redundant, and its digits hurt the match)
         if not ftok:
             continue
         best, score = None, 0.0

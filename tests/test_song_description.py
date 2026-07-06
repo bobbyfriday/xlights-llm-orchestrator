@@ -74,6 +74,19 @@ def test_featured_lyric_moments_pairs_with_timestamps():
     assert len(moments) == 1 and moments[0].start_ms == 1500 and moments[0].end_ms == 3000
 
 
+def test_featured_lyric_moments_strips_analyst_time_range():
+    # an analyst may append "(start-end)" to a money line; it must not leak into the moment text
+    # (and its digits must not derail the fuzzy match)
+    b = MusicBrief(sections=[LabeledSection(start_ms=0, end_ms=4000, label="chorus")],
+                   featured_lines=["carol of the bells rings out (1.5-3.0)"])
+    sa = SimpleNamespace(lyrics={"lines": [
+        {"text": "carol of the bells rings out", "start": 1.5, "end": 3.0}]})
+    moments = featured_lyric_moments(b, sa)
+    assert len(moments) == 1
+    assert moments[0].line == "carol of the bells rings out"          # timestamp stripped
+    assert moments[0].start_ms == 1500 and moments[0].end_ms == 3000  # span from re-match, unchanged
+
+
 def test_featured_lyric_moments_empty_and_safe():
     b = MusicBrief(sections=[LabeledSection(start_ms=0, end_ms=1000, label="x")],
                    featured_lines=["whatever"])

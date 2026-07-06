@@ -113,8 +113,9 @@ def _lyric_render(sa, lyrics):
         if sal.get("repeated"):
             timed += "\nREPEATED LINES (chorus structure hints):\n" + json.dumps(sal["repeated"][:8])
     return ("LYRICS:\n" + text + timed + "\n\nSECTION TIMES:\n" + json.dumps(_segments(sa))
-            + "\nSummarize the narrative, give overall sentiment, list a few featured"
-              " 'money lines' WITH their timestamps when timed lines are given, and name lyric themes.")
+            + "\nSummarize the narrative, give overall sentiment, list a few featured 'money lines'"
+              " (the exact lyric text ONLY — no timestamps or annotations; timing is derived"
+              " separately), and name lyric themes.")
 
 
 _ANALYSTS = [

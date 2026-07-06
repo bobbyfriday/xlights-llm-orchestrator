@@ -17,56 +17,56 @@ Destination map (keep verbatim during implementation):
 | `STROBE_CAP_MS`, `SHIMMER_BARS` | 1000 / 2 | `qa/rules.py:48–49` | stay (catalog rule #7 verbatim) | |
 | `CARRIER_ROTATION` | 4 effects | `weave.py:198` | stays in `weave.py` | improve-musicality Phase 1 re-keys it |
 
-- [ ] 1.1 Create `pipeline/effect_meta.py` with `@dataclass(frozen=True) EffectMeta` (`speed`,
+- [x] 1.1 Create `pipeline/effect_meta.py` with `@dataclass(frozen=True) EffectMeta` (`speed`,
   `directions`, `energy_band`, `duration_class: Literal["hit","phrase","cellable","free"]`,
   `bed_capable`, `native_bounce`, `chase_family`) and `EFFECT_META: dict[str, EffectMeta]` — one row
   per effect type, each row citing corpus provenance in a comment (`2026-06-12-add-settings-hygiene`
   for SPEED_KEYS ranges, `2026-06-12-add-directional-sweeps` for DIRECTION_KNOBS values).
-- [ ] 1.2 Add derived views in `effect_meta.py`: `SPEED_KEYS`, `DIRECTION_KNOBS`, `ENERGY_BAND`,
+- [x] 1.2 Add derived views in `effect_meta.py`: `SPEED_KEYS`, `DIRECTION_KNOBS`, `ENERGY_BAND`,
   `DURATION_HIT`, `DURATION_PHRASE`, `DURATION_CELLABLE`, `MOTION_EFFECTS = DURATION_CELLABLE |
   {"Fire","Galaxy"}`.
-- [ ] 1.3 Change `beats.py`, `weave.py`, `qa/rules.py` to import from `effect_meta`; leave re-export
+- [x] 1.3 Change `beats.py`, `weave.py`, `qa/rules.py` to import from `effect_meta`; leave re-export
   aliases in each original module (`from .effect_meta import SPEED_KEYS  # re-export: tests + external
   callers`). Remove the cross-module imports at `weave.py:227` and `beats.py:583`.
-- [ ] 1.4 Add a **table-integrity test**: derived views from `EFFECT_META` equal a frozen copy of
+- [x] 1.4 Add a **table-integrity test**: derived views from `EFFECT_META` equal a frozen copy of
   today's literals for `SPEED_KEYS`, `DIRECTION_KNOBS`, `ENERGY_BAND`, `DURATION_*`, `MOTION_EFFECTS`
   (checked in once as the drift guard for the transcription).
-- [ ] 1.5 Run the full suite; `fixtures/golden_instructions.json` must be **byte-identical** (no
+- [x] 1.5 Run the full suite; `fixtures/golden_instructions.json` must be **byte-identical** (no
   `XLO_REGEN_GOLDEN`). If step 1 needs a golden regen, the table transcription has a bug — fix it.
 
 ## 2. I3 — refine thresholds into `tuning.py`
 
-- [ ] 2.1 Move `REGRESS_MARGIN`, `STALL_LIMIT`, `REFINE_SKIP_OBJECTIVE` (+ `PHRASE_BARS`, `CELL_BARS`,
+- [x] 2.1 Move `REGRESS_MARGIN`, `STALL_LIMIT`, `REFINE_SKIP_OBJECTIVE` (+ `PHRASE_BARS`, `CELL_BARS`,
   `MOTION_SHARE_MIN`) under a new `# -- refine loop control` section in `tuning.py`, keeping each
   constant's provenance comment; amend the `tuning.py` docstring with a one-line scope note.
-- [ ] 2.2 Re-export the thresholds from `run.py` so `test_refine.py:364`
+- [x] 2.2 Re-export the thresholds from `run.py` so `test_refine.py:364`
   (`from ...pipeline.run import _refine_loop, REFINE_SKIP_OBJECTIVE`) keeps working.
 
 ## 3. I3 — extract the pure guards
 
-- [ ] 3.1 Create `pipeline/refine_loop.py`; move `should_skip_refine(first_pass_objective,
+- [x] 3.1 Create `pipeline/refine_loop.py`; move `should_skip_refine(first_pass_objective,
   skip_objective) -> bool`, `refine_skip_objective() -> int` (reads `XLO_REFINE_SKIP_OBJECTIVE`, falls
   back to `tuning.REFINE_SKIP_OBJECTIVE`), `plateau_signature(report, verdict) -> tuple`
   (`(objective, advisory, frozenset((section, issue[:64])))`), `design_implicated(plan, section_index,
   findings) -> bool` (rules-finding names a planned effect_type). Call them from the still-monolithic
   loop in `run.py`.
-- [ ] 3.2 Add direct unit tests in `tests/test_refine_guards.py` for each pure guard — no loop
+- [x] 3.2 Add direct unit tests in `tests/test_refine_guards.py` for each pure guard — no loop
   harness: `should_skip_refine` (None disables; equality skips); `plateau_signature`
   equality/inequality incl. issue truncation at 64 chars; `design_implicated` (rules metric + effect
   mention required; wrong section / non-rules metric → False).
 
 ## 4. I3 — extract the stateful guards
 
-- [ ] 4.1 `BestTracker` in `refine_loop.py` — owns `best`/`best_applied`/`best_obj`/`open_is_best` +
+- [x] 4.1 `BestTracker` in `refine_loop.py` — owns `best`/`best_applied`/`best_obj`/`open_is_best` +
   stall (guards #4/#5/#9). Port the exact comparison operators verbatim: revert is `obj < best - margin`,
   gain is `obj > best + margin`, a held objective keeps but doesn't reset stall; keep-path
   `max(best_obj, obj)` (run.py:288). Methods: `assess(obj) -> Outcome(reverted, gained)`,
   `keep(instructions, applied, obj)`, `revert() -> (instructions, applied)`, `stalled` property
   (`stall >= stall_limit`).
-- [ ] 4.2 `EscalationLedger` in `refine_loop.py` — owns `ledger` (guard #6) + `redesigned` (guard #7):
+- [x] 4.2 `EscalationLedger` in `refine_loop.py` — owns `ledger` (guard #6) + `redesigned` (guard #7):
   `record(rev)`, `prior_sections() -> set[int]`, `should_escalate(si, plan, findings)` (si not yet
   redesigned AND (repeat offender OR `design_implicated(...)`)), `mark_redesigned(si)`.
-- [ ] 4.3 Unit-test the boundary arithmetic in `test_refine_guards.py`: `obj == best - margin` keeps;
+- [x] 4.3 Unit-test the boundary arithmetic in `test_refine_guards.py`: `obj == best - margin` keeps;
   `obj == best + margin` keeps-without-gain; stall reset only on gain; `EscalationLedger.should_escalate`
   once-per-run + repeat-offender path + implicated path.
 
@@ -76,14 +76,14 @@ Destination map (keep verbatim during implementation):
   `qa_eval(..., sampler=…)`, preserving the legacy 5-arg qa signature branch for injected fakes
   (`def qa(instructions, analysis, plan, applied, groups)`). Unit-test the **save-before-sample**
   ordering with a call-order-recording fake.
-- [ ] 5.2 `IterationRecorder` — wraps `_record`/`_bundle`: `RevisionLogRecord` assembly + review-bundle
+- [x] 5.2 `IterationRecorder` — wraps `_record`/`_bundle`: `RevisionLogRecord` assembly + review-bundle
   path guard; pure observability, never raises into the loop.
-- [ ] 5.3 `apply_revisions(st, revisions, *, regen, redesign, ledger, findings, log)` — guard #7 +
+- [x] 5.3 `apply_revisions(st, revisions, *, regen, redesign, ledger, findings, log)` — guard #7 +
   splice: per revision, maybe escalate design (structure pinned: `start_ms/end_ms` copied back,
   `target_groups` defaulted), then `replace_section(st.instructions, si, await regen(rev))` and
   `ledger.record(rev)`. Keep the lazy-agent rules (default generator only built when no `regenerate`
   injected; `section_redesigner()` lazy in the redesign path).
-- [ ] 5.4 Move the loop body into `async def refine_loop(st, *, client, emitter, ..., skip_objective=None)`
+- [x] 5.4 Move the loop body into `async def refine_loop(st, *, client, emitter, ..., skip_objective=None)`
   — same signature and behavior as today's `_refine_loop`; keep every DI keyword seam (`judge`, `qa`,
   `regenerate`, `redesign`, `checkpoint`, `visual_critique`, `revlog`, `sampler`, `clock`). Preserve
   the **re-emit-on-revert** ordering (close → emit → mark `open_is_best`). In `run.py` set
@@ -93,11 +93,11 @@ Destination map (keep verbatim during implementation):
 
 ## 6. I3 — verify + import compat + docs
 
-- [ ] 6.1 **Import-compat test**: assert historical paths still resolve —
+- [x] 6.1 **Import-compat test**: assert historical paths still resolve —
   `from xlights_orchestrator.pipeline.run import _refine_loop, REFINE_SKIP_OBJECTIVE`;
   `from xlights_orchestrator.pipeline.beats import SPEED_KEYS`;
   `from xlights_orchestrator.qa.rules import ENERGY_BAND, DURATION_CELLABLE`.
-- [ ] 6.2 Full suite (65 test files) green with an unchanged golden fixture; `test_refine.py`,
+- [x] 6.2 Full suite (65 test files) green with an unchanged golden fixture; `test_refine.py`,
   `test_visual.py`, `test_design_escalation.py`, `test_revision_log.py` pass unmodified; revision-log
   output (JSONL + md) for an identical run is field-for-field identical (spot-check via
   `test_revision_log.py`).

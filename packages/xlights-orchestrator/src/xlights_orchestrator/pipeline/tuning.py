@@ -3,7 +3,11 @@
 These are the artistic knobs (brightness ranges, energy thresholds, accent density, the
 weave's cell budget) that shape how a show reads, gathered here so the feel can be tuned
 without hunting through the algorithm modules. Structural/mechanical constants (effect
-parameter maps, layer caps, bar math) deliberately stay beside the code that uses them.
+parameter maps, layer caps) deliberately stay beside the code that uses them.
+
+Scope also covers the refine-loop control thresholds (regression margin, stall limit,
+skip-objective cutoff) and the bar-math / motion-share behavior dials — tunable behavior, kept
+here beside the show-feel knobs with their provenance rather than scattered across run.py/qa.rules.
 
 Scale note: brightness values are on xLights' 0–400 scale (100 = normal); intensity inputs
 are normalized 0..1 (a section's energy).
@@ -57,3 +61,15 @@ LEGATO_ACCENT_MS = 600         # legato accents breathe longer than the crisp AC
 ACCENT_MS = 250                        # a short beat-accent punctuation
 FLASH_MS = 150                         # a brief full-display white hit
 HIT_CELL_MS = 1200                     # a hit-class effect cell is at most this long
+
+# -- duration-class bar math + motion-share (behavior dials) ----------------
+PHRASE_BARS = 8                # a PHRASE-class effect is clamped to ~this many bars (reveal/build)
+CELL_BARS = 2                 # a CELL-ABLE motion effect left long is chopped into this-bar cells
+MOTION_SHARE_MIN = 0.30        # energetic sections below this motion-effect share advise a fabric regression (I7 lever)
+
+# -- refine loop control ----------------------------------------------------
+REGRESS_MARGIN = 1   # objective_score points; a drop beyond this reverts the revision
+STALL_LIMIT = 2      # consecutive no-objective-progress iterations → terminate
+# Revision-log analysis (42 runs): drafts whose first-pass objective is ≥ this gained ≈0 over the
+# whole loop while paying for every Judge + visual-critique + regen iteration. Skip the loop for them.
+REFINE_SKIP_OBJECTIVE = 88   # tune/disable via XLO_REFINE_SKIP_OBJECTIVE (101 = never skip)

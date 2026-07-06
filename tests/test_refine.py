@@ -370,3 +370,99 @@ def test_refine_skip_objective_env(monkeypatch):
     assert _refine_skip_objective() == REFINE_SKIP_OBJECTIVE   # invalid → fall back
     monkeypatch.setenv("XLO_REFINE_SKIP_OBJECTIVE", "101")
     assert _refine_skip_objective() == 101                     # disables the gate
+
+
+# -- I1: telemetry threaded into the revision log -----------------------------
+
+def _usage_res(output, **toks):
+    from pydantic_ai.usage import RunUsage
+    return SimpleNamespace(output=output, usage=RunUsage(requests=1, **toks))
+
+
+def test_loop_usage_total_sums_and_deltas_partition():
+    """The finalize usage_total equals the whole-run sum; per-iteration deltas partition it."""
+    from xlights_orchestrator import telemetry
+    st = _state()
+    client = _FakeClient()
+    records = []
+
+    class _CaptureLog:
+        def write(self, rec):
+            records.append(rec)
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+
+    async def regen(rev):
+        return [_ins("G2", 1000, 1500, sec=rev.section_index, etype="Wave")]
+
+    class _JudgeWithUsage:
+        def __init__(self):
+            self.n = 0
+        async def run(self, prompt):
+            self.n += 1
+            v = (JudgeVerdict(score=60, verdict="iterate",
+                              revisions=[RevisionBrief(section_index=1, issue="x", suggested_fix="y")])
+                 if self.n == 1 else JudgeVerdict(score=90, verdict="accept"))
+            return _usage_res(v, input_tokens=100, output_tokens=10)  # 100/10 per judge call
+
+    telemetry.start_run()
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=_JudgeWithUsage(), qa=None, regenerate=regen,
+                     checkpoint=_noninteractive, revlog=_CaptureLog(),
+                     models={"judge": "anthropic:claude-opus-4-8"}))
+    fin = next(r for r in records if r.kind == "finalize")
+    # two judge calls captured → run total 200 in / 20 out
+    assert fin.usage_total["judge"].input_tokens == 200
+    assert fin.usage_total["judge"].output_tokens == 20
+    # per-iteration deltas partition the total exactly
+    delta_in = sum(r.usage.get("judge").input_tokens for r in records if r.usage.get("judge"))
+    assert delta_in == fin.usage_total["judge"].input_tokens
+    # cost derived from real Opus rates: 200*5 + 20*25 = 1500 (per 1e6) = 0.0015
+    assert fin.cost_usd == (200 * 5.0 + 20 * 25.0) / 1_000_000
+
+
+def test_loop_cost_unknown_when_model_unpriced():
+    from xlights_orchestrator import telemetry
+    st = _state()
+    client = _FakeClient()
+    records = []
+
+    class _CaptureLog:
+        def write(self, rec):
+            records.append(rec)
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+
+    async def regen(rev):
+        return []
+
+    class _JudgeAcceptUsage:
+        async def run(self, prompt):
+            return _usage_res(JudgeVerdict(score=90, verdict="accept"),
+                              input_tokens=50, output_tokens=5)
+
+    telemetry.start_run()
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=1, judge=_JudgeAcceptUsage(), qa=None, regenerate=regen,
+                     checkpoint=_noninteractive, revlog=_CaptureLog(),
+                     models={"judge": "google:gemini-3.1-flash-lite"}))  # unpriced
+    fin = next(r for r in records if r.kind == "finalize")
+    assert fin.usage_total["judge"].input_tokens == 50
+    assert fin.cost_usd is None                        # unpriced ⇒ unknown, never zero
+
+
+def test_estimate_cost_units():
+    from xlights_orchestrator.models import registry
+    from xlights_orchestrator.telemetry import RoleUsage
+    # 142k in / 31k out on sonnet-4-6 ⇒ $0.891
+    u = {"generator": RoleUsage(input_tokens=142000, output_tokens=31000)}
+    assert registry.estimate_cost({"generator": "anthropic:claude-sonnet-4-6"}, u) == 0.891
+    # unpriced model ⇒ None
+    assert registry.estimate_cost({"generator": "google:gemini-3.5-flash"}, u) is None
+    # zero usage ⇒ 0.0 (genuinely zero, not unknown)
+    assert registry.estimate_cost({"g": "anthropic:claude-opus-4-8"}, {"g": RoleUsage()}) == 0.0
+    # cache tokens priced at cache rates (opus cache_read 0.50/1M)
+    cache = {"g": RoleUsage(cache_read_tokens=1_000_000)}
+    assert registry.estimate_cost({"g": "anthropic:claude-opus-4-8"}, cache) == 0.50

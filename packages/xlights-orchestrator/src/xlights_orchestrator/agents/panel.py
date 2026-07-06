@@ -17,6 +17,7 @@ from typing import Callable
 
 from xlights_core.audio import SongAnalysis
 
+from .. import telemetry
 from ..models import build_agent
 from ..song_description import featured_lyric_moments, normalize_intensities
 from ..music_brief import (
@@ -133,6 +134,7 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
     async def _run(spec: AnalystSpec):
         async with sem:
             res = await spec.agent.run(spec.render(sa, lyrics))
+            telemetry.record("analyst", res)
             return spec.key, res.output
 
     results = await asyncio.gather(*[_run(s) for s in analysts], return_exceptions=True)
@@ -155,7 +157,9 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
             raise RuntimeError("single-mode analyst did not return a MusicBrief")
     else:
         from .synthesizer import render_input as synth_render
-        brief = (await synthesizer.run(synth_render(outputs, sa))).output
+        res = await synthesizer.run(synth_render(outputs, sa))
+        telemetry.record("synthesizer", res)
+        brief = res.output
 
     merge_dominant_instruments(brief, sa)
     normalize_intensities(brief, sa)                       # code-owned dynamics (overwrites the model)

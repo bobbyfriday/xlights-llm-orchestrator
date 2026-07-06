@@ -23,6 +23,47 @@ def _cfg() -> dict[str, Any]:
     return yaml.safe_load(_CONFIG.read_text())
 
 
+# -- pricing (prices are DATA in config.yaml; cost is a pure function) ---------
+
+def pricing() -> dict[str, dict[str, float]]:
+    """The per-model price table (USD per 1M tokens, keyed by bare model id)."""
+    return _cfg().get("pricing", {}) or {}
+
+
+def _bare_model_id(model: str) -> str:
+    """`anthropic:claude-opus-4-8` / `google:gemini-...` -> the bare id used as a price key."""
+    return model.split(":", 1)[1] if ":" in model else model
+
+
+def price_for(model: str) -> dict[str, float] | None:
+    """Per-1M-token rates for a model id (bare or provider-prefixed), or None if unpriced."""
+    return pricing().get(_bare_model_id(model))
+
+
+def estimate_cost(models: dict[str, str], usage: dict) -> float | None:
+    """Sum over roles of token counts × that role's model rates (per 1M tokens).
+
+    `usage` maps role -> a RoleUsage-like object (``.input_tokens``/``.output_tokens``/
+    ``.cache_read_tokens``/``.cache_write_tokens``). Cache-read and cache-write tokens are
+    priced at their own rates. Returns None if ANY role with nonzero usage runs on a model
+    with no price row (unknown ≠ zero); 0.0 only when there was genuinely no priced spend.
+    """
+    total = 0.0
+    for role, u in usage.items():
+        toks = ((getattr(u, "input_tokens", 0) or 0) + (getattr(u, "output_tokens", 0) or 0)
+                + (getattr(u, "cache_read_tokens", 0) or 0) + (getattr(u, "cache_write_tokens", 0) or 0))
+        if not toks:
+            continue                                   # a role with zero usage never forces unknown
+        rates = price_for(models.get(role, "")) if models else None
+        if rates is None:
+            return None                                # a priced-run needs a rate for every used role
+        total += ((getattr(u, "input_tokens", 0) or 0) * rates.get("input", 0.0)
+                  + (getattr(u, "output_tokens", 0) or 0) * rates.get("output", 0.0)
+                  + (getattr(u, "cache_read_tokens", 0) or 0) * rates.get("cache_read", 0.0)
+                  + (getattr(u, "cache_write_tokens", 0) or 0) * rates.get("cache_write", 0.0))
+    return total / 1_000_000
+
+
 def active_provider() -> str:
     """Provider in effect: XLO_PROVIDER env override, else config default."""
     return os.environ.get("XLO_PROVIDER") or _cfg().get("default_provider", "anthropic")

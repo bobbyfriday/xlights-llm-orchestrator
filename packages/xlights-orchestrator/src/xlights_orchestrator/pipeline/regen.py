@@ -15,6 +15,7 @@ import math
 
 from xlights_core.audio import SongAnalysis
 
+from .. import telemetry
 from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..agents.catalog import placeable_effect_types
@@ -102,6 +103,7 @@ async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent
 async def regen_section(song: str, *, client, section_index: int, note: str = "",
                         save_as: str | None = None, generator=None, emitter=None) -> State:
     """Regenerate one section of a cached show in place and re-emit/re-save the sequence."""
+    telemetry.start_run()          # measure manual regens too
     key, st = load_cached_state(song)
     _validate_index(st, section_index)
     st.available_groups = await targetable_groups(client, cache_root=cache_root())

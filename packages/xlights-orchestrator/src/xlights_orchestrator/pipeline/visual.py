@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from .. import telemetry
 from ..agents import visual_critic as vc_mod
 from ..refine import Finding
 from .media import SANDBOX_DATA as _SANDBOX, resolve_artifact
@@ -91,7 +92,9 @@ def make_visual_critique(client, *, save_as: str | None, song_key: str, cache_ro
             return []
 
         agent = critic or vc_mod.visual_critic_agent()
-        vf = (await agent.run(vc_mod.render_input(media, st.show_plan, st.music_brief))).output
+        _vc_res = await agent.run(vc_mod.render_input(media, st.show_plan, st.music_brief))
+        telemetry.record("visual_critic", _vc_res)
+        vf = _vc_res.output
         findings = vc_mod.to_findings(vf)
         root = cache_root / song_key / "visual_review" / f"iter{counter['i']}"
         counter["i"] += 1

@@ -9,6 +9,7 @@ reads as a stage skeleton; caching stays with the caller.
 
 from __future__ import annotations
 
+from .. import telemetry
 from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
 from ..qa.rules import clamp_hard_caps
@@ -155,8 +156,10 @@ async def realize_section(st: State, si: int, *, agent,
     bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
     motifs = {g: st.show_plan.group_motifs[g]
               for g in section.target_groups if g in st.show_plan.group_motifs}
-    out: SectionEffects = (await agent.run(generator_mod.render_input(
-        section, revision=revision, concept=st.show_plan.concept, motifs=motifs))).output
+    _gen_res = await agent.run(generator_mod.render_input(
+        section, revision=revision, concept=st.show_plan.concept, motifs=motifs))
+    telemetry.record("generator", _gen_res)
+    out: SectionEffects = _gen_res.output
     _rm = st.music_brief.repetition_map if st.music_brief else None
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
     wash_b = wash_brightness(_si)            # energy → wash brightness

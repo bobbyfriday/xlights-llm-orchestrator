@@ -56,6 +56,62 @@ def test_render_md_shows_origin_and_scores():
     assert "[error · visual] section 2 — dark mid-chorus" in md
 
 
+def test_usage_fields_round_trip():
+    """A record with usage/usage_total/cost_usd round-trips through JSONL."""
+    from xlights_orchestrator.telemetry import RoleUsage
+    rec = RevisionLogRecord(
+        run_id="r", iteration=2, song_key="k", ts="t", kind="finalize",
+        objective_score=90, advisory_score=60,
+        usage={"generator": RoleUsage(input_tokens=100, output_tokens=20)},
+        usage_total={"generator": RoleUsage(input_tokens=300, output_tokens=60),
+                     "judge": RoleUsage(input_tokens=50, output_tokens=5)},
+        cost_usd=2.41, stop_reason="cap", redesigned_sections=[1, 3])
+    back = RevisionLogRecord.model_validate_json(rec.model_dump_json())
+    assert back.usage["generator"].input_tokens == 100
+    assert back.usage_total["judge"].output_tokens == 5
+    assert back.cost_usd == 2.41
+    assert back.stop_reason == "cap" and back.redesigned_sections == [1, 3]
+
+
+def test_pre_i1_line_still_validates():
+    """A revision-log line written before telemetry existed validates with empty usage / no cost."""
+    old = ('{"run_id":"r0","iteration":0,"song_key":"k","ts":"t","kind":"finalize",'
+           '"objective_score":80,"advisory_score":50,"findings":[],"judge":null,'
+           '"revisions":[],"regenerated_sections":[],"obj_before":null,"obj_after":80,'
+           '"obj_delta":null,"reverted":false,"human_decision":null,"models":{},'
+           '"review_bundle":null}')
+    rec = RevisionLogRecord.model_validate_json(old)
+    assert rec.usage == {} and rec.usage_total == {}
+    assert rec.cost_usd is None                       # unknown, NOT zero
+    assert rec.stop_reason is None                    # unspecified stop
+
+
+def test_md_finalize_shows_tokens_and_cost_iterations_do_not():
+    from xlights_orchestrator.telemetry import RoleUsage
+    fin = RevisionLogRecord(
+        run_id="r", iteration=3, song_key="k", ts="t", kind="finalize",
+        objective_score=90, advisory_score=60,
+        usage_total={"generator": RoleUsage(input_tokens=142000, output_tokens=31000),
+                     "judge": RoleUsage(input_tokens=97000, output_tokens=4000)},
+        cost_usd=2.41)
+    md = _render_md(fin)
+    assert "**Tokens:**" in md and "$2.41" in md
+    assert "generator 142k→31k" in md and "judge 97k→4k" in md
+    # an ITERATION record never shows the tokens tail (stays uncluttered)
+    it = RevisionLogRecord(run_id="r", iteration=0, song_key="k", ts="t",
+                           objective_score=70, advisory_score=50,
+                           usage={"generator": RoleUsage(input_tokens=100)})
+    assert "**Tokens:**" not in _render_md(it)
+
+
+def test_md_finalize_unknown_cost():
+    from xlights_orchestrator.telemetry import RoleUsage
+    fin = RevisionLogRecord(run_id="r", iteration=1, song_key="k", ts="t", kind="finalize",
+                            objective_score=90, advisory_score=60,
+                            usage_total={"g": RoleUsage(input_tokens=5)}, cost_usd=None)
+    assert "$unknown" in _render_md(fin)
+
+
 def test_file_writer_emits_jsonl_and_md(tmp_path):
     jl, md = tmp_path / "revision_log.jsonl", tmp_path / "revision_log.md"
     w = RevisionLog(jl, md)

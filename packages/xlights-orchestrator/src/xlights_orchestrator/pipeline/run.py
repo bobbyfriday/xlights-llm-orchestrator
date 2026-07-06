@@ -17,13 +17,14 @@ from xlights_core.audio import AudioAnalyzer, SongAnalysis
 
 import logging
 
+from .. import telemetry
 from ..agents import director as director_mod
 from ..agents import panel as panel_mod
 from ..agents.catalog import placeable_effect_types
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
-from ..models.registry import model_snapshot
+from ..models.registry import active_provider, estimate_cost, model_snapshot
 from ..refine import Decision
 from ..revision_log import (
     NullRevisionLog,
@@ -151,8 +152,10 @@ async def run_pipeline(
     design_checkpoint=None,
     timing_tracks: bool = True,
 ) -> State:
+    telemetry.start_run()          # install the run-scoped usage collector (reaches every await below)
     st = State(song_path=song_path)
     key = _song_key(song_path)
+    run_id = None                  # set when the refine loop runs with logging (reused in usage.json)
 
     # 1. analyze. The default analyzer requests stems (per-section instrument signal);
     #    an injected analyze callable keeps the simple (path)->SongAnalysis shape.
@@ -221,7 +224,9 @@ async def run_pipeline(
     else:
         agent = director or director_mod.director_agent()
         prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
-        st.show_plan = (await agent.run(prompt)).output
+        _dir_res = await agent.run(prompt)
+        telemetry.record("director", _dir_res)
+        st.show_plan = _dir_res.output
     _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)
@@ -293,8 +298,54 @@ async def run_pipeline(
     # 6. finalize (with a final human approval when attended)
     if save_as:
         if checkpoint is None and refine and not await _final_approval(st):
+            _emit_usage_summary(key, run_id if refine and log_revisions else None)
             return st
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder, duration_s=st.song_analysis.duration_s,
                                 timing_tracks=timing_tracks)
+
+    # per-run cost telemetry — a log line + a durable usage.json, so NON-refine and unlogged
+    # runs are measured too (the revision log only exists during refine).
+    _emit_usage_summary(key, run_id if refine and log_revisions else None)
     return st
+
+
+def _emit_usage_summary(song_key: str, run_id: str | None) -> None:
+    """Best-effort per-run cost summary: a `log.info` line + a `usage.json` artifact under
+    `cache_root()/<song_key>/` (a list-of-runs keyed by run_id). Convention: cost None ⇒
+    unknown ($unknown); 0.0 ⇒ genuinely zero (fully cached, zero-LLM)."""
+    try:
+        ul = telemetry.current()
+        if ul is None:
+            return
+        totals = ul.snapshot()
+        models = model_snapshot()
+        cost = estimate_cost(models, totals)
+        tin = sum(u.input_tokens + u.cache_read_tokens + u.cache_write_tokens for u in totals.values())
+        tout = sum(u.output_tokens for u in totals.values())
+        reqs = sum(u.requests for u in totals.values())
+        cost_str = f"${cost:.2f}" if cost is not None else "$unknown"
+        log.info("run usage: %s tokens in / %s out across %d requests — est. %s",
+                 tin, tout, reqs, cost_str)
+        base = _cache_root() / song_key
+        base.mkdir(parents=True, exist_ok=True)
+        path = base / "usage.json"
+        runs = []
+        if path.exists():
+            try:
+                runs = json.loads(path.read_text())
+                if not isinstance(runs, list):
+                    runs = []
+            except Exception:  # noqa: BLE001 — a corrupt artifact must not lose this run
+                runs = []
+        runs.append({
+            "run_id": run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "provider": active_provider(),
+            "models": models,
+            "usage_total": {r: u.model_dump() for r, u in totals.items()},
+            "cost_usd": cost,
+        })
+        path.write_text(json.dumps(runs, indent=1))
+    except Exception as exc:  # noqa: BLE001 — telemetry never breaks a run
+        log.debug("usage summary skipped: %s", exc)

@@ -1,54 +1,54 @@
 ## 1. I1 — token & cost telemetry
 
-- [ ] 1.1 Create `packages/xlights-orchestrator/src/xlights_orchestrator/telemetry.py` with
+- [x] 1.1 Create `packages/xlights-orchestrator/src/xlights_orchestrator/telemetry.py` with
   `RoleUsage` (`requests`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`),
   `UsageLog` (`record`/`drain_delta`/`snapshot`; totals map + delta window), the `_current`
   `ContextVar`, and module functions `start_run()`, `current()`, `record(role, result)`. `record()`
   maps `RunUsage` fields → `RoleUsage` (audio fields ignored), wrapped in a best-effort
   `except Exception` → `log.debug` (telemetry never breaks a run).
-- [ ] 1.2 Instrument the seven `.run()` sites — split each `(await agent.run(...)).output` into
+- [x] 1.2 Instrument the seven `.run()` sites — split each `(await agent.run(...)).output` into
   result-then-`telemetry.record(role, res)`-then-`.output`: `agents/panel.py:135` (`"analyst"`),
   `agents/panel.py:158` (`"synthesizer"`), `pipeline/run.py:415` (`"director"`),
   `pipeline/generate.py:158` (`"generator"` — covers first pass, refine regen, `xlo regen`),
   `pipeline/run.py:163` (`"director"` redesigner), `pipeline/run.py:229` (`"judge"`),
   `pipeline/visual.py:94` (`"visual_critic"`).
-- [ ] 1.3 Install the collector: `telemetry.start_run()` as the first statement of `run_pipeline()`
+- [x] 1.3 Install the collector: `telemetry.start_run()` as the first statement of `run_pipeline()`
   (`pipeline/run.py`, before step 1) and `regen_section()` (`pipeline/regen.py`) so manual regens are
   measured.
-- [ ] 1.4 Extend `RevisionLogRecord` with `usage: dict[str, RoleUsage] = {}` (per-role tokens since the
+- [x] 1.4 Extend `RevisionLogRecord` with `usage: dict[str, RoleUsage] = {}` (per-role tokens since the
   previous record), `usage_total: dict[str, RoleUsage] = {}` (finalize only), `cost_usd: float | None =
   None` (finalize only). Extend `_render_md()` with the finalize-only tokens/cost tail line (iteration
   records stay uncluttered).
-- [ ] 1.5 Wire the deltas in `_refine_loop`: fetch the active `UsageLog` via `telemetry.current()`,
+- [x] 1.5 Wire the deltas in `_refine_loop`: fetch the active `UsageLog` via `telemetry.current()`,
   thread into `_record()`; add `usage=usage_log.drain_delta()` to every record and
   `usage_total=snapshot()`/`cost_usd=estimate_cost(...)` to both finalize sites (skip-high-objective
   `run.py:214` and end-of-loop `run.py:305`).
-- [ ] 1.6 Add the `pricing:` block to `models/config.yaml` (Claude rows real: opus-4-8 `{input:5.00,
+- [x] 1.6 Add the `pricing:` block to `models/config.yaml` (Claude rows real: opus-4-8 `{input:5.00,
   output:25.00, cache_read:0.50, cache_write:6.25}`, sonnet-4-6 `{input:3.00, output:15.00,
   cache_read:0.30, cache_write:3.75}`; Gemini rows commented TODO). Add `price_for(model_id)` and
   `estimate_cost(models, usage) -> float | None` (None if any role with nonzero usage lacks a price
   row) next to `_cfg()` in `models/registry.py`.
-- [ ] 1.7 Summary + artifact at the end of `run_pipeline()` (after step 6, before `return st`,
+- [x] 1.7 Summary + artifact at the end of `run_pipeline()` (after step 6, before `return st`,
   unconditionally): `log.info("run usage: %s tokens in / %s out across %d requests — est. $%.2f", …)`
   ("$unknown" when cost is None) and a best-effort `usage.json` under `cache_root()/<song_key>/`
   (list-of-runs keyed by `run_id`: `{run_id, ts, provider, models, usage_total, cost_usd}`).
-- [ ] 1.8 Document `usage.json`, the JSONL fields, and the None-vs-zero cost convention in
+- [x] 1.8 Document `usage.json`, the JSONL fields, and the None-vs-zero cost convention in
   `docs/usage.md`.
-- [ ] 1.9 `tests/test_telemetry.py` (new): `UsageLog` accumulation (two `record()`s sum; `drain_delta()`
+- [x] 1.9 `tests/test_telemetry.py` (new): `UsageLog` accumulation (two `record()`s sum; `drain_delta()`
   empties the window not totals); duck-typed fake result with `.usage()`; a fake *without* `.usage()`
   is a no-op (keeps every existing fake-agent test green); ContextVar isolation (no active log ⇒ no-op;
   concurrent `asyncio.gather` tasks record into the same run's log).
-- [ ] 1.10 Extend `tests/test_revision_log.py`: JSONL round-trip of a record with
+- [x] 1.10 Extend `tests/test_revision_log.py`: JSONL round-trip of a record with
   `usage`/`usage_total`/`cost_usd`; a **pre-I1 line (string literal) still validates** yielding
   `usage == {}`, `cost_usd is None`; markdown finalize line renders tokens+cost, iteration records
   don't.
-- [ ] 1.11 Extend `tests/test_orchestrator.py`/`test_refine.py`: a hermetic pipeline with fakes whose
+- [x] 1.11 Extend `tests/test_orchestrator.py`/`test_refine.py`: a hermetic pipeline with fakes whose
   `.usage()` returns fixed numbers asserts the finalize `usage_total` equals the sum and per-iteration
   deltas partition it. Cost-math units: `estimate_cost()` with real Claude rows (142k in / 31k out on
   sonnet-4-6 ⇒ $0.891); unpriced model ⇒ None; zero usage ⇒ 0.0; cache tokens priced at cache rates.
-- [ ] 1.12 Confirm `test_golden_pipeline.py` stays byte-identical (fakes lack `.usage()`, no stage-cache
-  artifacts written) and `uv run ruff check` is green. Opt-in `-m live` smoke: one real analyst run
-  asserts `usage_total["analyst"].input_tokens > 0`.
+- [x] 1.12 Confirm `test_golden_pipeline.py` stays byte-identical (verified: same sha; TestModel usage
+  changes NO generation output) and `uv run ruff check` is green. Opt-in `-m live` smoke added
+  (`test_live_analyst_records_usage`); requires a real key so it is not run here.
 
 ## 2. I8 — tiered visual analysis (fseq metrics + tiered critique)
 

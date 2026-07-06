@@ -19,10 +19,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .. import qa as qa_pkg
+from .. import telemetry
 from ..agents import director as director_mod
 from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
 from ..effect_emitter import clamp_layer_budget
+from ..models import registry
 from ..refine import floor_visual_revisions, replace_section
 from ..revision_log import (
     LogFinding,
@@ -181,15 +183,20 @@ class ReportBuilder:
 class IterationRecorder:
     """Wraps ``_record``/``_bundle``: assemble the ``RevisionLogRecord`` and guard the review
     bundle path. Pure observability — ``revlog.write`` is itself best-effort, so this never
-    raises into the loop."""
+    raises into the loop.
 
-    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base):
+    Each record carries ``usage`` = the tokens spent since the previous record (drained from the
+    run-scoped ``UsageLog``); a ``kind="finalize"`` record additionally carries the whole-run
+    ``usage_total`` and the derived ``cost_usd`` (None when any used model is unpriced)."""
+
+    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base, usage_log=None):
         self.revlog = revlog
         self.run_id = run_id
         self.song_key = song_key
         self.clock = clock
         self.models = models
         self.review_base = review_base
+        self.usage_log = usage_log
 
     def _bundle(self, i):
         if self.review_base is None:
@@ -197,15 +204,21 @@ class IterationRecorder:
         p = Path(self.review_base) / f"iter{i}"
         return str(p) if p.is_dir() else None              # guard: no dangling pointer
 
-    def record(self, i, report, verdict, **kw) -> None:
+    def record(self, i, report, verdict, *, kind="iteration", **kw) -> None:
+        usage = self.usage_log.drain_delta() if self.usage_log is not None else {}
+        extra: dict = {"usage": usage}
+        if kind == "finalize" and self.usage_log is not None:
+            total = self.usage_log.snapshot()
+            extra["usage_total"] = total
+            extra["cost_usd"] = registry.estimate_cost(self.models or {}, total)
         self.revlog.write(RevisionLogRecord(
-            run_id=self.run_id, iteration=i, song_key=self.song_key, ts=self.clock(),
+            run_id=self.run_id, iteration=i, song_key=self.song_key, ts=self.clock(), kind=kind,
             objective_score=report.objective_score, advisory_score=report.advisory_score,
             findings=[LogFinding(source=source_of(f.metric), severity=f.severity, scope=f.scope,
                                  section_index=f.section_index, detail=f.detail)
                       for f in report.findings],
             judge=({"score": verdict.score, "verdict": verdict.verdict} if verdict else None),
-            models=self.models or {}, review_bundle=self._bundle(i), **kw))
+            models=self.models or {}, review_bundle=self._bundle(i), **extra, **kw))
 
 
 async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, log=log) -> None:
@@ -269,14 +282,17 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         if _rd_agent is None:                          # lazy — real agent needs an API key
             _rd_agent = director_mod.section_redesigner()
         sec = st.show_plan.sections[rev.section_index]
-        return (await _rd_agent.run(director_mod.redesign_input(sec, st.show_plan, findings))).output
+        _rd_res = await _rd_agent.run(director_mod.redesign_input(sec, st.show_plan, findings))
+        telemetry.record("director", _rd_res)          # redesigner routes as the director role
+        return _rd_res.output
 
     revlog = revlog or NullRevisionLog()
     clock = clock or (lambda: "")
     reporter = ReportBuilder(st, client=client, qa_eval=qa_eval, sampler=sampler,
                              save_as=save_as, real_render=real_render)
     recorder = IterationRecorder(revlog, run_id=run_id, song_key=song_key, clock=clock,
-                                 models=models, review_base=review_base)
+                                 models=models, review_base=review_base,
+                                 usage_log=telemetry.current())
     ledger = EscalationLedger()
 
     first_obj = await reporter.objective(st.applied)
@@ -286,10 +302,12 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         # already good → accept the draft without spending judge/critic/regen iterations
         log.info("refine skipped: first-pass objective %d ≥ %d (already good)", first_obj, skip_objective)
         recorder.record(0, await reporter.report(st.applied), None, kind="finalize",
-                        obj_after=first_obj, human_decision="skip-high-objective")
+                        obj_after=first_obj, human_decision="skip-high-objective",
+                        stop_reason="skip-gate")
         return
 
     iters = 0
+    stop_reason = "cap"   # terminal-state attribution: the loop ran out of iterations unless a guard fired
     prev_sig = None       # plateau detector: scores + flagged sections unchanged → more spend, same answer
     for i in range(max_iterations):                       # HARD cap — cannot be exceeded
         iters = i + 1
@@ -300,18 +318,24 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                 report.findings.extend(await visual_critique(st))
             except Exception as exc:  # noqa: BLE001 — visual critique is best-effort
                 log.warning("visual critique failed: %s", exc)
-        verdict = (await judge_agent.run(
-            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger))).output
+        _judge_res = await judge_agent.run(
+            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger))
+        telemetry.record("judge", _judge_res)
+        verdict = _judge_res.output
         decision = await decide(report, verdict, ledger.ledger)
         if decision.action in ("accept", "stop"):
+            stop_reason = decision.action
             recorder.record(i, report, verdict, human_decision=decision.action,   # log the accept/stop too
-                            obj_before=obj_before, obj_after=obj_before, obj_delta=0)
+                            obj_before=obj_before, obj_after=obj_before, obj_delta=0,
+                            stop_reason=stop_reason)
             break
         sig = plateau_signature(report, verdict)
         if sig == prev_sig:                   # plateau: the iteration would re-spend on the same answer
             log.info("plateau: objective+advisory+revisions unchanged — stopping")
+            stop_reason = "plateau"
             recorder.record(i, report, verdict, human_decision="plateau",
-                            obj_before=obj_before, obj_after=obj_before, obj_delta=0)
+                            obj_before=obj_before, obj_after=obj_before, obj_delta=0,
+                            stop_reason=stop_reason)
             break
         prev_sig = sig
         judge_revs = list(decision.revisions or verdict.revisions)
@@ -346,6 +370,7 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                         obj_before=obj_before, obj_after=obj, obj_delta=obj - obj_before,
                         reverted=outcome.reverted)
         if tracker.stalled:                               # objective keeps regressing → terminate
+            stop_reason = "stall"
             break
 
     st.instructions, st.applied = list(tracker.best), tracker.best_applied
@@ -353,4 +378,5 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         await client.close_sequence(force=True, quiet=True)
         st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
     final = await reporter.report(st.applied)
-    recorder.record(iters, final, None, kind="finalize", obj_after=tracker.best_obj)
+    recorder.record(iters, final, None, kind="finalize", obj_after=tracker.best_obj,
+                    stop_reason=stop_reason, redesigned_sections=sorted(ledger.redesigned))

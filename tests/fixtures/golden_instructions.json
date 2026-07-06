@@ -1,53 +1,6 @@
 [
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 1000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 0,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 1000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 0,
-  "target": "SEM_MINITREES"
- },
- {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12000,
   "extra_settings": {
@@ -68,6 +21,51 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "55"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00",
+   "#FF7070"
+  ],
+  "palette_id": null,
+  "render_style": "",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_BAND_GROUND"
+ },
+ {
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 500,
+  "extra_settings": {
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "On#0",
+  "on_top": false,
+  "palette_colors": [
+   "#00FF00"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 0,
+  "start_ms": 0,
+  "target": "SEM_ARCHES"
+ },
+ {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 600,
   "extra_settings": {
@@ -88,6 +86,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 1600,
   "extra_settings": {
@@ -108,53 +107,30 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 2000,
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 10500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 1000,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 2000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 1000,
-  "target": "SEM_MINITREES"
+  "start_ms": 10000,
+  "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 10600,
   "extra_settings": {
@@ -175,54 +151,7 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 11000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 10000,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 11000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 10000,
-  "target": "SEM_MINITREES"
- },
- {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 11600,
   "extra_settings": {
@@ -243,53 +172,30 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 12000,
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 2500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 11000,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 12000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 11000,
-  "target": "SEM_MINITREES"
+  "start_ms": 2000,
+  "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 2600,
   "extra_settings": {
@@ -310,54 +216,7 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 3000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 2000,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 3000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 2000,
-  "target": "SEM_MINITREES"
- },
- {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 3600,
   "extra_settings": {
@@ -378,53 +237,30 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 4000,
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 4500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 3000,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 4000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 3000,
-  "target": "SEM_MINITREES"
+  "start_ms": 4000,
+  "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 4600,
   "extra_settings": {
@@ -445,54 +281,7 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 5000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 4000,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 5000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 4000,
-  "target": "SEM_MINITREES"
- },
- {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 5600,
   "extra_settings": {
@@ -513,53 +302,30 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 6000,
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 6500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
   ],
   "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 5000,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 6000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000"
-  ],
-  "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 5000,
-  "target": "SEM_MINITREES"
+  "start_ms": 6000,
+  "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 6600,
   "extra_settings": {
@@ -580,54 +346,7 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 7000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 6000,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 7000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00",
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 6000,
-  "target": "SEM_MINITREES"
- },
- {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 7600,
   "extra_settings": {
@@ -648,53 +367,30 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 8000,
+  "direct_settings": "",
+  "effect_type": "On",
+  "end_ms": 8500,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
+   "C_SLIDER_Brightness": "134",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadein": "0.17",
+   "T_TEXTCTRL_Fadeout": "0.17"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "On#0",
   "on_top": false,
   "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 7000,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 8000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF7070",
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
    "#00FF00"
   ],
   "palette_id": null,
   "render_style": "Per Model Default",
   "section_index": 0,
-  "start_ms": 7000,
-  "target": "SEM_MINITREES"
+  "start_ms": 8000,
+  "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 8600,
   "extra_settings": {
@@ -715,101 +411,7 @@
   "target": "SEM_SPINNERS"
  },
  {
-  "effect_type": "SingleStrand",
-  "end_ms": 9000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 8000,
-  "target": "SEM_ARCHES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 9000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#70FF70",
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 8000,
-  "target": "SEM_MINITREES"
- },
- {
-  "effect_type": "SingleStrand",
-  "end_ms": 10000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "E_CHOICE_Chase_Type1": "Left-Right",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "SingleStrand#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Default",
-  "section_index": 0,
-  "start_ms": 9000,
-  "target": "SEM_CANES"
- },
- {
-  "effect_type": "Twinkle",
-  "end_ms": 10000,
-  "extra_settings": {
-   "C_SLIDER_Brightness": "108",
-   "T_TEXTCTRL_Fadein": "0.35",
-   "T_TEXTCTRL_Fadeout": "0.35"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "Twinkle#0",
-  "on_top": false,
-  "palette_colors": [
-   "#A30000",
-   "#FF0000",
-   "#00FF00",
-   "#FF7070",
-   "#70FF70"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 9000,
-  "target": "SEM_MINITREES"
- },
- {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 9600,
   "extra_settings": {
@@ -830,6 +432,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12000,
   "extra_settings": {
@@ -850,6 +453,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12250,
   "extra_settings": {},
@@ -867,6 +471,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 13000,
   "extra_settings": {
@@ -889,6 +494,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 13000,
   "extra_settings": {
@@ -912,6 +518,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 24000,
   "extra_settings": {
@@ -933,6 +540,7 @@
   "target": "SEM_ALL"
  },
  {
+  "direct_settings": "",
   "effect_type": "VU Meter",
   "end_ms": 24000,
   "extra_settings": {
@@ -953,6 +561,7 @@
   "target": "SEM_BAND_GROUND"
  },
  {
+  "direct_settings": "",
   "effect_type": "Butterfly",
   "end_ms": 24000,
   "extra_settings": {
@@ -978,6 +587,7 @@
   "target": "SEM_FOCAL"
  },
  {
+  "direct_settings": "",
   "effect_type": "Galaxy",
   "end_ms": 24000,
   "extra_settings": {
@@ -1003,6 +613,7 @@
   "target": "SEM_FOCAL"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12750,
   "extra_settings": {},
@@ -1020,6 +631,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 13250,
   "extra_settings": {},
@@ -1037,6 +649,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 14000,
   "extra_settings": {
@@ -1058,6 +671,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 14000,
   "extra_settings": {
@@ -1081,6 +695,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 13750,
   "extra_settings": {},
@@ -1098,6 +713,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 14250,
   "extra_settings": {},
@@ -1115,6 +731,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 15000,
   "extra_settings": {
@@ -1137,6 +754,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 15000,
   "extra_settings": {
@@ -1160,6 +778,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 14750,
   "extra_settings": {},
@@ -1177,6 +796,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 15250,
   "extra_settings": {},
@@ -1194,6 +814,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 16000,
   "extra_settings": {
@@ -1215,6 +836,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 16000,
   "extra_settings": {
@@ -1238,6 +860,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 15750,
   "extra_settings": {},
@@ -1255,6 +878,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 16250,
   "extra_settings": {},
@@ -1272,6 +896,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 17000,
   "extra_settings": {
@@ -1294,6 +919,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 17000,
   "extra_settings": {
@@ -1317,6 +943,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 16750,
   "extra_settings": {},
@@ -1334,6 +961,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 17250,
   "extra_settings": {},
@@ -1351,6 +979,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 18000,
   "extra_settings": {
@@ -1372,6 +1001,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 18000,
   "extra_settings": {
@@ -1395,6 +1025,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 17750,
   "extra_settings": {},
@@ -1412,6 +1043,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18250,
   "extra_settings": {
@@ -1431,6 +1063,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 19000,
   "extra_settings": {
@@ -1454,6 +1087,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 19000,
   "extra_settings": {
@@ -1478,6 +1112,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18750,
   "extra_settings": {
@@ -1497,6 +1132,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19250,
   "extra_settings": {
@@ -1516,6 +1152,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 20000,
   "extra_settings": {
@@ -1538,6 +1175,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 20000,
   "extra_settings": {
@@ -1562,6 +1200,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19750,
   "extra_settings": {
@@ -1581,6 +1220,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 20250,
   "extra_settings": {
@@ -1600,6 +1240,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 21000,
   "extra_settings": {
@@ -1623,6 +1264,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 21000,
   "extra_settings": {
@@ -1647,6 +1289,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 20750,
   "extra_settings": {
@@ -1666,6 +1309,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 21250,
   "extra_settings": {
@@ -1685,6 +1329,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 22000,
   "extra_settings": {
@@ -1707,6 +1352,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 22000,
   "extra_settings": {
@@ -1731,6 +1377,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 21750,
   "extra_settings": {
@@ -1750,6 +1397,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 22250,
   "extra_settings": {
@@ -1769,6 +1417,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 23000,
   "extra_settings": {
@@ -1792,6 +1441,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 23000,
   "extra_settings": {
@@ -1816,6 +1466,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 22750,
   "extra_settings": {
@@ -1835,6 +1486,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 23250,
   "extra_settings": {
@@ -1854,6 +1506,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 24000,
   "extra_settings": {
@@ -1876,6 +1529,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 24000,
   "extra_settings": {
@@ -1900,6 +1554,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 23750,
   "extra_settings": {
@@ -1919,6 +1574,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 220,
   "extra_settings": {
@@ -1949,6 +1605,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 1220,
   "extra_settings": {
@@ -1979,6 +1636,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 10220,
   "extra_settings": {
@@ -2009,6 +1667,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 11220,
   "extra_settings": {
@@ -2039,6 +1698,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12150,
   "extra_settings": {
@@ -2059,6 +1719,7 @@
   "target": "SEM_ALL"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 2220,
   "extra_settings": {
@@ -2089,6 +1750,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 3220,
   "extra_settings": {
@@ -2119,6 +1781,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 4220,
   "extra_settings": {
@@ -2149,6 +1812,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 5220,
   "extra_settings": {
@@ -2179,6 +1843,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 6220,
   "extra_settings": {
@@ -2209,6 +1874,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 7220,
   "extra_settings": {
@@ -2239,6 +1905,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 8220,
   "extra_settings": {
@@ -2269,6 +1936,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 9220,
   "extra_settings": {

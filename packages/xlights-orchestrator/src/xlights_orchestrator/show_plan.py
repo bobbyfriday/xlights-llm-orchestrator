@@ -40,6 +40,13 @@ class SectionPlan(BaseModel):
     transition: str = ""                     # how it flows into the next section
     phrasing: str = ""                       # "legato" (soft, evolving edges) | "staccato" (crisp on/off)
                                              #   | "" (default from intensity) — the cell soft-edge character
+    treatment: str = ""                      # texture archetype controlling which realization LAYERS are
+                                             #   included (withheld, not just dimmed): "full" (everything) |
+                                             #   "pulse" (bed+accents+feature, no weave/composite) |
+                                             #   "feature" (dim bed + one hero, sparse accents) |
+                                             #   "gesture" (one carrier recipe on ≤2 groups, nothing else) |
+                                             #   "rest" (dim bed on ≤2 groups) | "" → energy-based fallback.
+                                             #   Defaulted "" so old cached plans validate (back-compat).
     # -- scene intent (cookbook; additive) --
     scene_id: str = ""                       # cookbook scene this section realizes (e.g. "SC-01"); "" = freeform
     scene_adaptation: str = ""               # which real groups play the scene's archetype rows (hero/rhythm/...)

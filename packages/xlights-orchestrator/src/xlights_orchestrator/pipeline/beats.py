@@ -189,12 +189,13 @@ def _off_beat_stride(intensity: float, tighten: int = 0) -> int | None:
     """How sparse the OFF-beats are by section energy (downbeats are always kept).
     None = downbeats only; 2 = every other off-beat; 1 = every beat.
 
-    `tighten` (structural escalation) steps the density up one rung per later occurrence of a
-    recurring label: None→2→1, so the final chorus accents denser than the first even at the same
-    energy. Bounded at 1 (every beat) — it can't over-spend."""
+    `tighten` steps the density along the ladder None→2→1: POSITIVE (structural escalation) makes a
+    later occurrence of a recurring label denser than the first at the same energy; NEGATIVE (a
+    `feature` treatment) sparsens it toward downbeats-only. Clamped to the ladder ends either way, so
+    it can neither over-spend (past every-beat) nor go below downbeats-only."""
     ladder = [None, 2, 1]
     base = 0 if intensity <= 0.30 else 1 if intensity <= 0.65 else 2
-    return ladder[min(len(ladder) - 1, base + max(0, tighten))]
+    return ladder[max(0, min(len(ladder) - 1, base + tighten))]
 
 
 def _chord_color(t: int, chords_ms: list, colors: list[str]) -> str | None:
@@ -468,6 +469,34 @@ def section_is_rhythmic(section) -> bool:
 # Peak escalation: the show's payoff section(s) must read as the BIGGEST moment, not a busier
 # verse — full display, full brightness, regardless of how narrowly the brief targeted them.
 # PEAK_BROAD_GROUPS / BED_PREFERENCE come from semantic_groups (orders differ on purpose).
+
+
+TREATMENTS = ("full", "feature", "pulse", "gesture", "rest")
+
+
+def resolve_treatment(section, is_peak: bool, has_focal: bool) -> str:
+    """The section's realization treatment: the Director's explicit choice when valid, else the
+    deterministic energy-based fallback (design table).
+
+    Fallback by effective intent (using the section's OWN intensity, not the escalated one — a quiet
+    verse should read sparse regardless of escalation):
+      peak band → full · < 0.1 → rest · ≥ 0.5 → pulse · ≥ 0.25 → feature (if the layout has a focal
+      prop, else pulse) · else → gesture.
+    An explicit near-zero (< 0.1) always yields `rest` so the Director can't accidentally over-light
+    a silent moment; otherwise a valid explicit treatment wins verbatim."""
+    explicit = (getattr(section, "treatment", "") or "").strip().lower()
+    i = max(0.0, min(1.0, getattr(section, "intensity", 0.0) or 0.0))
+    if explicit in TREATMENTS:
+        return explicit
+    if is_peak or i >= PEAK_FLOOR:
+        return "full"
+    if i < 0.1:
+        return "rest"
+    if i >= 0.5:
+        return "pulse"
+    if i >= 0.25:
+        return "feature" if has_focal else "pulse"
+    return "gesture"
 
 
 def peak_sections(show_plan, band: float = PEAK_BAND, floor: float = PEAK_FLOOR) -> set[int]:

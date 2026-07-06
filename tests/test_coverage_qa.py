@@ -26,7 +26,10 @@ def test_dark_loud_section_gates_with_finding():
 def test_lit_loud_sections_score_high_quiet_dark_exempt():
     plan = _plan([0.1, 0.9])                           # quiet+dark is intentional restraint
     score, findings = evaluate(plan, _sampler([50, 5000]))
-    assert score == 100 and findings == []
+    assert score == 100                                # never gated by the quiet section
+    # a near-dark rest/gesture section is an ADVISORY note, never an objective error
+    assert all(f.objective is False for f in findings)
+    assert not [f for f in findings if f.severity == "error"]
 
 
 def test_neutral_without_eyes():
@@ -38,6 +41,28 @@ def test_neutral_without_eyes():
 def test_entirely_dark_show_is_zero():
     score, findings = evaluate(_plan([0.9, 0.8]), lambda t: 0)
     assert score == 0 and findings[0].severity == "error"
+
+
+def _plan_t(rows, span=10000):
+    # rows: (intensity, treatment)
+    secs = [SimpleNamespace(start_ms=i * span, end_ms=(i + 1) * span, intensity=x, treatment=t)
+            for i, (x, t) in enumerate(rows)]
+    return SimpleNamespace(sections=secs)
+
+
+def test_explicit_rest_treatment_dark_is_not_an_objective_error():
+    # a HIGH-intensity section the Director marked `rest` renders dark → exempt (advisory only)
+    plan = _plan_t([(0.9, "rest"), (0.9, "full")])
+    score, findings = evaluate(plan, _sampler([50, 5000]))
+    assert not [f for f in findings if f.section_index == 0 and f.objective]   # no objective error
+    assert score == 100                                                        # not gated
+
+
+def test_dark_high_energy_full_section_still_errors():
+    plan = _plan_t([(0.9, "full"), (0.9, "full")])
+    score, findings = evaluate(plan, _sampler([50, 5000]))                      # sec 0 full but dark
+    err = [f for f in findings if f.section_index == 0 and f.objective and f.severity == "error"]
+    assert err and score < 80
 
 
 def test_qa_evaluate_folds_coverage_into_objective():

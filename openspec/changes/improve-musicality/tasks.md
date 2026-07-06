@@ -25,20 +25,23 @@
 
 ## 2. Phase 2 — section treatments
 
-- [ ] 2.1 Add `SectionPlan.treatment` (defaulted `""` for old cached plans); expose in
+- [x] 2.1 Add `SectionPlan.treatment` (defaulted `""` for old cached plans); expose in
   `brief_editor.py`'s field list; document values in the schema docstring.
-- [ ] 2.2 Deterministic fallback `resolve_treatment(section, peaks)` per design table; Director
+- [x] 2.2 Deterministic fallback `resolve_treatment(section, peaks)` per design table; Director
   prompt gains the treatment doctrine block (choose per section; withhold, don't just dim).
-- [ ] 2.3 Branch `realize_section` on treatment per the design matrix (layers withheld, not dimmed);
+- [x] 2.3 Branch `realize_section` on treatment per the design matrix (layers withheld, not dimmed);
   `rest`/`gesture` respect the 2-consecutive-sections bed floor. Tests: each treatment's layer
   inventory; fallback mapping; floor injection.
-- [ ] 2.4 Key `qa/coverage.py` expectations to intensity + treatment (`gesture`/`rest` exempt from
+- [x] 2.4 Key `qa/coverage.py` expectations to intensity + treatment (`gesture`/`rest` exempt from
   the darkness objective error, advisory note instead). Tests: dark rest section no longer errors;
   dark high-energy section still does.
-- [ ] 2.5 Add **dynamic-range** and **focus-budget** advisory metrics to `qa/musicality.py`.
+- [x] 2.5 Add **dynamic-range** and **focus-budget** advisory metrics to `qa/musicality.py`.
   Tests: wall-to-wall bright show flagged; quiet section running 4 moving systems flagged;
   well-shaped show clean.
-- [ ] 2.6 Regenerate golden, review (verses now visibly sparser), full suite green.
+- [x] 2.6 Regenerate golden, review (verses now visibly sparser), full suite green. Reviewed diff:
+  section 0 (intensity 0.45 → `feature`) drops 37→20 effects (weave carrier + Twinkle texture +
+  composite + VU withheld, dim bed added); the `full` peak (section 1) is byte-identical; global
+  effects unchanged. Exactly the intended "verses now visibly sparser".
 
 ## 3. Phase 3 — transitions, color script, phrase dynamics
 

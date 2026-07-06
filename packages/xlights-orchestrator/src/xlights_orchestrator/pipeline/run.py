@@ -11,6 +11,7 @@ import json
 import math
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+from pathlib import Path
 
 from xlights_core.audio import AudioAnalyzer, SongAnalysis
 

@@ -281,6 +281,31 @@ Cost levers already in place: the Generator prompt carries trimmed guide extract
 guides), the refine loop stops on a plateau, and cheap tiers handle the bulk of calls. A full
 refined run is a few-minutes / modest-token operation.
 
+### Token & cost telemetry
+
+Every run captures the tokens each role spends (PydanticAI's per-run usage) into a run-scoped
+collector and prices them from a `pricing:` table in `config.yaml` (USD per 1M tokens, keyed by bare
+model id; Claude rows are real, Gemini rows are TODO). Telemetry is **best-effort** — it can never
+break a run.
+
+- **`usage.json`** — written under `data/orchestrator/<song_key>/usage.json` for *every* run
+  (including non-refine and fully-cached runs). A list of runs keyed by `run_id`, each with the
+  `provider`, per-role `models`, per-role `usage_total`, and `cost_usd`.
+- **Revision-log fields** — each `revision_log.jsonl` iteration record carries `usage` (the per-role
+  tokens spent producing *that* iteration — a delta window); the finalize record additionally carries
+  `usage_total` (whole-run per-role totals) and `cost_usd`. The finalize `revision_log.md` line shows
+  a `**Tokens:** … · $2.41` tail.
+- **None-vs-zero convention** — `cost_usd: null` means **unknown** (some used model has no price row);
+  `0.0` means **genuinely zero** (a fully-cached, zero-LLM run). They are never conflated: an unpriced
+  model makes the whole run's cost `null`, never a guessed number.
+- **Re-pricing** is a data change: edit `pricing:` in `config.yaml`; no code change needed.
+
+### Kill switches / env knobs
+
+- `XLO_FSEQ_METRICS=0` — disable the deterministic rendered-pixel fseq metrics (I8 Tier 0); coverage
+  falls back to the 3-point sampler. `1`/unset enables them (advisory-first).
+- `XLO_REFINE_SKIP_OBJECTIVE=<N>` — skip the refine loop when the first-pass objective ≥ N.
+
 ## Troubleshooting
 
 - **"No LLM key found"** — set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` in `.env`.

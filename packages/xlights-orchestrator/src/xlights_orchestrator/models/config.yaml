@@ -8,7 +8,7 @@ roles:
     gemini:    {model: gemini-3.1-pro-preview}
   generator:                                  # per-section effects (worker tier)
     anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
-    gemini:    {model: gemini-3.1-flash-lite}   # live A/B'd: valid structured output, rules 92
+    gemini:    {model: gemini-3.1-flash-lite}   # re-run the comparison with `xlo ab` (F-H harness)
   analyst:                                    # parallel song analysts (worker tier)
     anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
     gemini:    {model: gemini-3.1-flash-lite}
@@ -22,7 +22,24 @@ roles:
     anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
     gemini:    {model: gemini-3.1-pro-preview}
 
+  visual_critic_lite:                         # cheap contact-sheet critique (worker tier, I8 Tier 1)
+    anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
+    gemini:    {model: gemini-3.1-flash-lite}
+
 # Provider → PydanticAI model-string prefix. ('google:' replaces the deprecated 'google-gla:')
 providers:
   anthropic: "anthropic:"
   gemini: "google:"
+
+# Token prices, USD per 1,000,000 tokens, keyed by BARE model id (a price is a property of a
+# model, not a role). Source: Anthropic public pricing (2025-Q4). Cache-read = 0.1× input,
+# cache-write = 1.25× input per Anthropic's prompt-caching rate card. A model absent from this
+# table makes the derived run cost UNKNOWN (None) — never zero, never a guess. Add rows to
+# re-price without a code change. Gemini rows are TODO — do not guess Google's rates.
+pricing:
+  claude-opus-4-8:   {input: 5.00, output: 25.00, cache_read: 0.50, cache_write: 6.25}
+  claude-sonnet-4-6: {input: 3.00, output: 15.00, cache_read: 0.30, cache_write: 3.75}
+  # TODO(gemini): fill in Google's per-model rates before A/B'ing Gemini arms on cost.
+  # gemini-3.1-pro-preview:  {input: ?, output: ?, cache_read: ?, cache_write: ?}
+  # gemini-3.1-flash-lite:   {input: ?, output: ?, cache_read: ?, cache_write: ?}
+  # gemini-3.5-flash:        {input: ?, output: ?, cache_read: ?, cache_write: ?}

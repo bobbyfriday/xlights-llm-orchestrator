@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .fseq import FseqHeader, load_fseq
 from .layout import Controller, Model, model_world_pixels, parse_controllers, parse_models
+from .metrics import FseqSeries, group_channel_index
 from .render import PreviewRenderer
 
 __all__ = [
@@ -19,4 +20,6 @@ __all__ = [
     "model_world_pixels",
     "Controller",
     "Model",
+    "FseqSeries",
+    "group_channel_index",
 ]

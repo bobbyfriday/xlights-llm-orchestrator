@@ -119,3 +119,89 @@ def test_render_frame_and_clip(tmp_path):
     assert (img.max(axis=2) > 20).sum() >= 2     # at least the 2 lit pixels above background
     clip = r.render_clip(0, 1000, canvas=(64, 64))
     assert clip is None or (clip[:4] and len(clip) > 100)   # MP4 bytes, or None if no ffmpeg
+
+
+# -- Tier 0 fseq metrics (I8) -------------------------------------------------
+
+from xlights_core.preview.metrics import FseqSeries, group_channel_index  # noqa: E402
+
+
+def _metrics_layout(tmp_path):
+    """3 single-pixel models A,B,C on one controller (9 channels) + groups GA/GB/GC + nested GALL."""
+    (tmp_path / "xlights_networks.xml").write_text(
+        '<Networks><Controller Id="1" Name="C1" Protocol="E131">'
+        '<network MaxChannels="9"/></Controller></Networks>')
+    (tmp_path / "xlights_rgbeffects.xml").write_text(
+        '<xrgb><models>'
+        '<model name="A" DisplayAs="Single Line" StartChannel="!C1:1" parm1="1" parm2="1"/>'
+        '<model name="B" DisplayAs="Single Line" StartChannel="!C1:4" parm1="1" parm2="1"/>'
+        '<model name="C" DisplayAs="Single Line" StartChannel="!C1:7" parm1="1" parm2="1"/>'
+        '</models>'
+        '<modelGroups>'
+        '<modelGroup name="GA" models="A"/>'
+        '<modelGroup name="GB" models="B"/>'
+        '<modelGroup name="GC" models="C"/>'
+        '<modelGroup name="GALL" models="GA,GB"/>'          # nested: a group of groups
+        '<modelGroup name="GEMPTY" models=""/>'             # empty → omitted
+        '<modelGroup name="GGHOST" models="ghost_model"/>'  # unknown member → omitted
+        '</modelGroups></xrgb>')
+
+
+def _blink_fseq(tmp_path, n_frames=10):
+    """A blinks white every other frame (100ms on a 50ms grid); B dim red; C dark. 9 channels."""
+    rows = []
+    for i in range(n_frames):
+        a = 255 if i % 2 == 0 else 0
+        rows += [a, a, a,        # A white/off
+                 60, 0, 0,       # B constant dim red
+                 0, 0, 0]        # C dark
+    f = tmp_path / "m.fseq"
+    _write_fseq(f, 9, bytes(rows), n_frames)
+    return f
+
+
+def test_group_channel_index_resolves_nested_and_omits_bad(tmp_path):
+    _metrics_layout(tmp_path)
+    idx = group_channel_index(tmp_path / "xlights_rgbeffects.xml", tmp_path / "xlights_networks.xml")
+    assert set(idx) == {"GA", "GB", "GC", "GALL"}            # empty + unknown-member groups omitted
+    assert list(idx["GA"]) == [0]                            # A's node channel start (0-based)
+    assert list(idx["GB"]) == [3] and list(idx["GC"]) == [6]
+    assert list(idx["GALL"]) == [0, 3]                       # nested union of GA + GB
+
+
+def test_group_channel_index_filters_and_skips_unresolvable(tmp_path):
+    # a model with an unresolvable StartChannel is skipped like parse_models
+    (tmp_path / "xlights_networks.xml").write_text('<Networks></Networks>')
+    (tmp_path / "xlights_rgbeffects.xml").write_text(
+        '<xrgb><models>'
+        '<model name="bad" DisplayAs="Single Line" StartChannel="!ghost:1" parm1="1" parm2="1"/>'
+        '</models><modelGroups><modelGroup name="G" models="bad"/></modelGroups></xrgb>')
+    idx = group_channel_index(tmp_path / "xlights_rgbeffects.xml", tmp_path / "xlights_networks.xml",
+                              groups=["G", "not_a_group"])
+    assert idx == {}                                         # unresolved member → dropped; unknown filtered
+
+
+def test_fseq_series_motion_lit_brightness(tmp_path):
+    _metrics_layout(tmp_path)
+    f = _blink_fseq(tmp_path, n_frames=10)
+    idx = group_channel_index(tmp_path / "xlights_rgbeffects.xml", tmp_path / "xlights_networks.xml")
+    s = FseqSeries(f, idx)
+    assert s.step_ms == 50 and s.frames == 10
+    # motion: GA (blinking) ≫ GB (constant) ≈ 0; GC dark = 0
+    assert s.motion["GA"].mean() > 100 and s.motion["GB"].mean() < 1e-6
+    assert s.motion["GC"].mean() == 0.0
+    # lit fraction (>30): GA lit half the frames; GB dim red 60>30 lit always; GC never
+    assert abs(s.lit["GA"].mean() - 0.5) < 0.06
+    assert s.lit["GB"].mean() == 1.0 and s.lit["GC"].mean() == 0.0
+    # brightness proxy = max(R,G,B): GB constant 60
+    assert np.allclose(s.brightness["GB"], 60.0)
+
+
+def test_fseq_series_section_slice(tmp_path):
+    _metrics_layout(tmp_path)
+    f = _blink_fseq(tmp_path, n_frames=10)
+    idx = group_channel_index(tmp_path / "xlights_rgbeffects.xml", tmp_path / "xlights_networks.xml")
+    s = FseqSeries(f, idx)
+    sec = s.section_slice(0, 200)          # frames 0..3 (50ms step)
+    assert sec["GA"]["lit"].shape[0] == 4
+    assert set(sec) == {"GA", "GB", "GC", "GALL"}

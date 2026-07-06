@@ -88,6 +88,59 @@ async def _regen(args) -> None:
     print(f"Open '{name}' in xLights to play it with audio (File → Open Sequence).")
 
 
+async def _ab(args) -> None:
+    """Run a provider A/B: multiple routing arms × repeats over one fixture song, interleaved,
+    unattended. Strict multi-key preflight before any spend; results land in the shared revision
+    log + an ab_runs.json manifest, summarized as per-arm distributions."""
+    from .pipeline import ab as ab_mod
+    from .pipeline.groups import targetable_groups
+    from .pipeline.cache import cache_root
+
+    arms = [ab_mod.parse_arm(s) for s in args.arm]      # typos die here, before any spend
+    if len(arms) < 2:
+        raise SystemExit("xlo ab needs at least two --arm specs")
+    ab_mod.preflight_keys(arms)                          # every named provider's key present
+
+    async with XLightsClient() as client:
+        async def _warm(c):
+            await targetable_groups(c, cache_root=cache_root())
+        await ab_mod.run_ab(
+            args.song, arms, client=client, repeat=args.repeat,
+            name_prefix=args.name_prefix, max_iterations=args.max_iterations,
+            warm_probe=_warm)
+    from .pipeline.cache import song_key as _sk
+    summary = ab_mod.summarize_manifest(cache_root() / _sk(args.song) / "ab_runs.json")
+    print(ab_mod.render_ab_summary(summary))
+
+
+def _report(args) -> None:
+    """Deterministic offline cost/quality dashboard over the revision logs. No LLM, no xLights,
+    no network — and NO has_llm_key() gate."""
+    from pathlib import Path
+
+    from . import reporting
+    from .pipeline.cache import cache_root, song_key
+
+    root = Path(args.cache_dir) / "orchestrator" if args.cache_dir else cache_root()
+    song = song_key(args.song) if args.song else None
+    if not reporting.discover_logs(root) and (song is None):
+        print(f"no revision logs found under {root}")
+        return
+    rep = reporting.build_report(root, song=song, reprice=args.reprice)
+    if not rep.runs:
+        print(f"no revision logs found under {root}")
+        return
+    if args.json:
+        print(rep.model_dump_json(indent=1))
+        return
+    if args.html is not None:
+        out = Path(args.html) if args.html else (root / "report.html")
+        out.write_text(reporting.render_html(rep))
+        print(f"wrote {out}")
+        return
+    print(reporting.render_text(rep), end="")
+
+
 def _edit_brief(args) -> None:
     from pathlib import Path
     from .brief_editor import serve
@@ -95,7 +148,7 @@ def _edit_brief(args) -> None:
     if args.brief:
         brief = Path(args.brief)
     elif args.song:
-        brief = _cache_path(_song_key(args.song), "creative_brief")
+        brief = _cache_path(_song_key(args.song), "creative_brief", models=True)
     else:
         raise SystemExit("edit-brief needs --song or --brief")
     if not brief.exists():
@@ -130,9 +183,27 @@ def main(argv: list[str] | None = None) -> None:
     g.add_argument("--note", default=None, help="free-text fix to steer the regen (e.g. 'too busy, calm it down')")
     g.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
     g.add_argument("--no-save", action="store_true", help="don't save (re-emit only, leave unsaved/open)")
+    rp = sub.add_parser("report", help="offline cost & quality dashboard over the revision logs")
+    rp.add_argument("--song", default=None, help="limit to one song (path); default: all songs")
+    rp.add_argument("--cache-dir", default=None, help="cache dir (default: $XLO_CACHE_DIR or ./data)")
+    rp.add_argument("--html", nargs="?", const="", default=None,
+                    help="write a self-contained HTML page (optional PATH; default: <root>/report.html)")
+    rp.add_argument("--json", action="store_true", help="emit the Report as JSON")
+    rp.add_argument("--reprice", action="store_true", help="recompute cost from the current price table")
+    ab = sub.add_parser("ab", help="provider A/B: run one song through multiple routing arms")
+    ab.add_argument("--song", required=True, help="path to a (short) fixture audio file")
+    ab.add_argument("--arm", action="append", required=True, dest="arm",
+                    help="an arm spec: base_provider[+role=provider ...] (repeat ≥2)")
+    ab.add_argument("--repeat", type=int, default=1, help="repeats per arm (interleaved)")
+    ab.add_argument("--max-iterations", type=int, default=3, help="hard cap on refine iterations per run")
+    ab.add_argument("--name-prefix", default=None, help="sequence name prefix (default: from the song)")
+    ab.add_argument("--keep-sequences", action="store_true", help="don't clean up per-arm sequences")
     args = ap.parse_args(argv)
 
     load_env()
+    if args.cmd == "report":            # offline, deterministic — NO has_llm_key() gate
+        _report(args)
+        return
     if args.cmd == "edit-brief":
         _edit_brief(args)
         return
@@ -142,6 +213,9 @@ def main(argv: list[str] | None = None) -> None:
                 "No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env"
             )
         asyncio.run(_run(args))
+    if args.cmd == "ab":
+        asyncio.run(_ab(args))          # preflight inside _ab refuses before spend if a key is missing
+        return
     if args.cmd == "regen":
         if args.list or args.section is None:
             try:

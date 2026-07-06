@@ -528,7 +528,7 @@ def test_loop_cost_unknown_when_model_unpriced():
     run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
                      max_iterations=1, judge=_JudgeAcceptUsage(), qa=None, regenerate=regen,
                      checkpoint=_noninteractive, revlog=_CaptureLog(),
-                     models={"judge": "google:gemini-3.1-flash-lite"}))  # unpriced
+                     models={"judge": "google:gemini-nonexistent-model"}))  # unpriced (unlisted id)
     fin = next(r for r in records if r.kind == "finalize")
     assert fin.usage_total["judge"].input_tokens == 50
     assert fin.cost_usd is None                        # unpriced ⇒ unknown, never zero
@@ -540,8 +540,8 @@ def test_estimate_cost_units():
     # 142k in / 31k out on sonnet-4-6 ⇒ $0.891
     u = {"generator": RoleUsage(input_tokens=142000, output_tokens=31000)}
     assert registry.estimate_cost({"generator": "anthropic:claude-sonnet-4-6"}, u) == 0.891
-    # unpriced model ⇒ None
-    assert registry.estimate_cost({"generator": "google:gemini-3.5-flash"}, u) is None
+    # unpriced model (id not in the table) ⇒ None
+    assert registry.estimate_cost({"generator": "google:gemini-nonexistent-model"}, u) is None
     # zero usage ⇒ 0.0 (genuinely zero, not unknown)
     assert registry.estimate_cost({"g": "anthropic:claude-opus-4-8"}, {"g": RoleUsage()}) == 0.0
     # cache tokens priced at cache rates (opus cache_read 0.50/1M)

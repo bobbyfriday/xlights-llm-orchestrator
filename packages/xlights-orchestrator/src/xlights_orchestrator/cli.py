@@ -176,6 +176,15 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--no-log", action="store_true", help="disable the per-iteration revision log")
     r.add_argument("--no-timing-tracks", action="store_true",
                    help="don't add reference timing tracks (sections/beats/bars/onsets) to the .xsq")
+    il = sub.add_parser("init-layout",
+                        help="onboard an xLights layout: classify props → SEM_ groups + manifest")
+    il.add_argument("--show-folder", default=None, help="show folder (with xlights_rgbeffects.xml)")
+    il.add_argument("--dry-run", action="store_true", help="print the diff + manifest, write nothing")
+    il.add_argument("--yes", action="store_true", help="accept all review suggestions unattended")
+    il.add_argument("--no-validate", action="store_true", help="skip the offline §7 validation")
+    il.add_argument("--no-llm", action="store_true", help="deterministic only (no LLM fallback)")
+    il.add_argument("--invert-x", action="store_true", help="flip the x axis (inverted preview)")
+    il.add_argument("--review-web", action="store_true", help="(reserved) browser review UX")
     g = sub.add_parser("regen", help="regenerate ONE section of a generated show, leaving the rest intact")
     g.add_argument("--song", required=True, help="path to the audio file (must have been `xlo run` first)")
     g.add_argument("--section", type=int, default=None, help="section index to regenerate (see --list)")
@@ -207,6 +216,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "edit-brief":
         _edit_brief(args)
         return
+    if args.cmd == "init-layout":
+        # deliberately NO has_llm_key / no running-xLights requirement (it needs xLights CLOSED).
+        from .pipeline.init_layout import run_init_layout
+        raise SystemExit(asyncio.run(run_init_layout(args)))
     if args.cmd == "run":
         if not has_llm_key():
             raise SystemExit(

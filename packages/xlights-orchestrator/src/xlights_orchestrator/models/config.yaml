@@ -12,6 +12,9 @@ roles:
   analyst:                                    # parallel song analysts (worker tier)
     anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
     gemini:    {model: gemini-3.1-flash-lite}
+  classifier:                                 # F-E: layout-onboarding unresolved-tail fallback (worker tier)
+    anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
+    gemini:    {model: gemini-3.1-flash-lite}
   synthesizer:                                # fuses analyst outputs → MusicBrief (planner)
     anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}
     gemini:    {model: gemini-3.1-pro-preview}

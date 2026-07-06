@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xrgb>
+  <modelGroups>
+    <modelGroup selected="0" name="SEM_ARCHES_LTR" layout="minimalGrid" GridSize="1200" LayoutGroup="Default" models="Arch - Left - 1,Arch - Left - 2" />
+    <modelGroup selected="0" name="SEM_ALL" layout="minimalGrid" GridSize="1300" LayoutGroup="Default" models="Tune To Matrix,GE Flake I 3" />
+  </modelGroups>
+</xrgb>

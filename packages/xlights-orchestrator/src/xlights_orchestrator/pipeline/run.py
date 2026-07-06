@@ -236,6 +236,19 @@ async def run_pipeline(
     progress.emit("stage", stage="groups", payload={"phase": "end",
                                                     "groups": len(st.available_groups or [])})
 
+    # F-E: load the layout manifest (show dir, else cache copy) and derive the choreography
+    # vocabulary. Absent a manifest → None → DEFAULT_VOCAB → byte-identical output (the golden
+    # asserts this). The manifest also grounds the Director prompt and manifest-derived QA gating.
+    from xlights_core.knowledge.layout_manifest import load_manifest
+    from .semantic_groups import derive_vocabulary
+    try:
+        _show = await client.get_show_folder()
+    except Exception as exc:  # noqa: BLE001 — no running xLights / no show folder
+        log.debug("no show folder (xLights not reachable): %s", exc)
+        _show = None
+    st.manifest = load_manifest(_show, cache_root=_cache_root())
+    st.vocab = derive_vocabulary(st.manifest)
+
     # 2. interpret -> rich SongDescription (panel of analysts + synthesizer; cached).
     #    Cache key bumped from "music_brief" so old flat briefs don't shadow the richer one.
     progress.emit("stage", stage="interpret", payload={"phase": "start"})
@@ -267,7 +280,8 @@ async def run_pipeline(
         st.show_plan = ShowPlan.model_validate_json(sp_cache.read_text())
     else:
         agent = director or director_mod.director_agent()
-        prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
+        prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types,
+                                           manifest=st.manifest)
         _dir_res = await run_agent(agent, prompt, role="director", attempts=3)
         telemetry.record("director", _dir_res)
         st.show_plan = _dir_res.output

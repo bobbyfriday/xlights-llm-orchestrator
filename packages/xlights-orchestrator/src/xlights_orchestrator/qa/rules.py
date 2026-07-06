@@ -43,7 +43,31 @@ SHIMMER_BARS = 2              # rule #7: "Shimmer ≤ 2 bars"
 _PENALTY = 8                  # objective points per violation
 
 
-def _is_linear(target: str) -> bool:
+_LINEAR_RES = {"LINEAR_HIGH", "LINEAR_LOW"}
+
+
+def _target_res(target: str, manifest) -> set[str] | None:
+    """The capability res classes of a target from the manifest: a prop's own class, or the UNION
+    of member classes for a group. `None` when the manifest doesn't describe the target."""
+    if manifest is None:
+        return None
+    props = {p.id: p for p in getattr(manifest, "props", None) or []}
+    p = props.get(target)
+    if p is not None:
+        return {p.res}
+    gr = (getattr(manifest, "groups", None) or {}).get(target)
+    if gr is not None:
+        classes = {props[m].res for m in gr.members if m in props}
+        return classes or None
+    return None
+
+
+def _is_linear(target: str, manifest=None) -> bool:
+    """Manifest-derived when a manifest is loaded (res ⊆ linear classes → the whole target reads as
+    a linear prop); otherwise the legacy name-prefix fallback so QA is unchanged from today."""
+    res = _target_res(target, manifest)
+    if res is not None:
+        return bool(res) and res <= _LINEAR_RES
     return target.startswith(_LINEAR_PREFIXES)
 
 
@@ -51,15 +75,15 @@ def _section_band(intensity: float) -> int:
     return 1 + round(4 * max(0.0, min(1.0, intensity or 0.0)))
 
 
-def evaluate(instructions, plan) -> tuple[int, list[Finding]]:
+def evaluate(instructions, plan, manifest=None) -> tuple[int, list[Finding]]:
     sections = list(getattr(plan, "sections", None) or []) if plan else []
     findings: list[Finding] = []
 
     features: list = []
     for ins in instructions or []:
         si = getattr(ins, "section_index", None)
-        # #2 — texture on linear props
-        if ins.effect_type in TEXTURE and _is_linear(ins.target):
+        # #2 — texture on linear props (manifest-derived when loaded, prefix fallback otherwise)
+        if ins.effect_type in TEXTURE and _is_linear(ins.target, manifest):
             findings.append(Finding(
                 scope=f"section {si} / {ins.target}", severity="error", metric="rules",
                 objective=True, section_index=si,

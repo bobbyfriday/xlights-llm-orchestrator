@@ -13,21 +13,60 @@ from .pipeline.media import safe_name
 from .pipeline.run import _auto_checkpoint, _design_review, _interpret_review
 
 
-async def _run(args) -> None:
-    async with XLightsClient() as client:
-        st = await run_pipeline(
-            args.song,
-            client=client,
-            save_as=None if args.no_save else (args.name or safe_name(args.song)),
-            use_cache=not args.no_cache,
-            refine=args.refine,
-            max_iterations=args.max_iterations,
-            log_revisions=not args.no_log,
-            timing_tracks=not args.no_timing_tracks,
+def _live_surfaces(args):
+    """When attended + browser: build a real ProgressBus + CheckpointGate + started
+    LiveProgressServer and the browser checkpoint factories. Otherwise everything is inert
+    (NullProgressBus, no server, today's terminal/None checkpoints). ``--auto`` unchanged."""
+    from .progress import (
+        NullProgressBus, ProgressBus, CheckpointGate,
+        browser_interpret_review, browser_design_review,
+        browser_refine_checkpoint, browser_final_checkpoint,
+    )
+    live = not args.auto and not args.no_browser
+    if not live:
+        # attended-terminal (--no-browser) keeps the blocking prompts; --auto passes None.
+        checkpoints = dict(
+            progress=NullProgressBus(), final_checkpoint=None, server=None,
             interpret_checkpoint=None if args.auto else _interpret_review,
             design_checkpoint=None if args.auto else _design_review,
             checkpoint=_auto_checkpoint if (args.refine and args.auto) else None,
         )
+        return checkpoints
+    from .live_server import LiveProgressServer
+    bus = ProgressBus()
+    gate = CheckpointGate(bus)
+    server = LiveProgressServer(bus, gate, title=args.name or safe_name(args.song))
+    url = server.start(open_browser=True)
+    print(f"Live progress: {url}  (approve checkpoints in the browser)")
+    return dict(
+        progress=bus, server=server, url=url,
+        interpret_checkpoint=browser_interpret_review(gate),
+        design_checkpoint=browser_design_review(gate),
+        checkpoint=browser_refine_checkpoint(gate) if args.refine else None,
+        final_checkpoint=browser_final_checkpoint(gate),
+    )
+
+
+async def _run(args) -> None:
+    surfaces = _live_surfaces(args)
+    server = surfaces.pop("server", None)
+    surfaces.pop("url", None)
+    try:
+        async with XLightsClient() as client:
+            st = await run_pipeline(
+                args.song,
+                client=client,
+                save_as=None if args.no_save else (args.name or safe_name(args.song)),
+                use_cache=not args.no_cache,
+                refine=args.refine,
+                max_iterations=args.max_iterations,
+                log_revisions=not args.no_log,
+                timing_tracks=not args.no_timing_tracks,
+                **surfaces,
+            )
+    finally:
+        if server is not None:
+            server.stop()
     rep = st.applied or {}
     print(f"\nShowPlan: {len(st.show_plan.sections)} sections")
     print(f"placed: {len(rep.get('placed', []))}   skipped: {len(rep.get('skipped', []))}")
@@ -78,6 +117,8 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--no-cache", action="store_true", help="ignore cached plan/instructions")
     r.add_argument("--refine", action="store_true", help="run the test→judge→refine loop")
     r.add_argument("--auto", action="store_true", help="unattended refine (no human checkpoints)")
+    r.add_argument("--no-browser", action="store_true",
+                   help="attended run without the live browser surface (terminal checkpoints only)")
     r.add_argument("--max-iterations", type=int, default=3, help="hard cap on refine iterations")
     r.add_argument("--no-log", action="store_true", help="disable the per-iteration revision log")
     r.add_argument("--no-timing-tracks", action="store_true",

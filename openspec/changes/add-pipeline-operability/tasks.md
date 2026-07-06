@@ -88,51 +88,51 @@
 
 ## 3. F-I — live progress streaming UI
 
-- [ ] 3.1 Add `packages/xlights-orchestrator/src/xlights_orchestrator/progress.py`: `ProgressEvent`
+- [x] 3.1 Add `packages/xlights-orchestrator/src/xlights_orchestrator/progress.py`: `ProgressEvent`
   (frozen dataclass: seq, ts, type, stage, section, payload), `ProgressBus` (lock + append-only list +
   per-client `queue.Queue` fan-out; monotonic seq; `emit`/`subscribe(since)`/`unsubscribe`;
   `emit()` swallows-and-logs), and `NullProgressBus`. Pure stdlib, no pipeline imports.
-- [ ] 3.2 Inject the bus: add keyword-only `progress=None` to `run_pipeline` (run.py:320) and
+- [x] 3.2 Inject the bus: add keyword-only `progress=None` to `run_pipeline` (run.py:320) and
   `_refine_loop` (run.py:135), resolved to `NullProgressBus()`; add the stage-level emits at the
   run.py seams, per-section emits via a wrapper loop in run.py (leaving `generate.py:234–261`
   untouched), refine emits inside `_record` (run.py:201) plus decision-point emits (skip-gate :211,
   plateau :238, revert :275, stall :297), and the terminal `done` after finalize.
-- [ ] 3.3 Add `CheckpointGate` (in `progress.py` or a sibling `checkpoints.py`) with `async wait(kind,
+- [x] 3.3 Add `CheckpointGate` (in `progress.py` or a sibling `checkpoints.py`) with `async wait(kind,
   body_md, options)` that registers a pending checkpoint, emits `checkpoint`, waits via `await
   asyncio.to_thread(self._q.get)`, and emits `checkpoint_resolved`; browser checkpoint factories
   mapping actions to the existing return contracts (`bool` for stage gates, `Decision` for refine).
   Add a `final_checkpoint` parameter to `run_pipeline` replacing the hardcoded `_final_approval` at
   run.py:481 (default preserves behavior).
-- [ ] 3.4 Add `live_server.py`: `LiveProgressServer(bus, gate, *, port=0)` on a daemon thread
+- [x] 3.4 Add `live_server.py`: `LiveProgressServer(bus, gate, *, port=0)` on a daemon thread
   (`daemon_threads=True`), `start(open_browser=True)` returning the URL + `threading.Timer(0.4,
   webbrowser.open)`, `stop()`; handler factory routing `GET /` (page), `GET /events` (SSE: replay
   `subscribe(since=Last-Event-ID)`, then `q.get(timeout=15)` → `id:/data:` frames, `: hb` heartbeat on
   `queue.Empty`, unsubscribe on write error; omit `Content-Length`, set `text/event-stream` +
   `no-cache`), `POST /checkpoint/<id>` (validate id → 409 on stale; put action on the gate queue),
   `GET /revlog?tail=20`.
-- [ ] 3.5 Add the page: a `_PAGE`-style module constant + `render_page()` placeholder substitution
+- [x] 3.5 Add the page: a `_PAGE`-style module constant + `render_page()` placeholder substitution
   (stdlib only, no external resources): stage timeline, per-section grid, inline-SVG QA sparkline +
   subscore bar row, revlog tail, checkpoint panel; one `EventSource("/events")` dispatcher keyed on
   `event.type`.
-- [ ] 3.6 CLI wiring in `cli.py::_run`: `--no-browser` flag; `live = not args.auto and not
+- [x] 3.6 CLI wiring in `cli.py::_run`: `--no-browser` flag; `live = not args.auto and not
   args.no_browser`; build real `ProgressBus`/`CheckpointGate`/started `LiveProgressServer` when live
   (route the browser checkpoint factories), else `NullProgressBus`/no server/no gate/today's
   injections; stdout mirror line with the URL on every pending checkpoint; `stop()` in a `finally`
   after emitting `done`.
-- [ ] 3.7 Tests — new `tests/test_progress.py`: emit/subscribe ordering, seq monotonicity,
+- [x] 3.7 Tests — new `tests/test_progress.py`: emit/subscribe ordering, seq monotonicity,
   late-subscriber replay via `since`, fan-out to two queues, unsubscribe, emit-never-raises (poisoned
   subscriber queue), thread-safety (emit from N threads → correct count/order).
-- [ ] 3.8 Tests — pipeline emission (extend `test_orchestrator.py`/`test_refine.py`): pass a real
+- [x] 3.8 Tests — pipeline emission (extend `test_orchestrator.py`/`test_refine.py`): pass a real
   `ProgressBus`, assert the event sequence (stage bracketing, one `section` per section, one `score`
   per refine iteration, `refine` payloads matching the captured `RevisionLogRecord`, `done` last);
   assert `progress=None` emits nothing and the golden snapshot is byte-identical.
-- [ ] 3.9 Tests — new `tests/test_live_server.py` (loopback, port 0): `GET /` contains the substituted
+- [x] 3.9 Tests — new `tests/test_live_server.py` (loopback, port 0): `GET /` contains the substituted
   page (no leftover placeholders); open `/events`, feed 3 synthetic events, parse frames (`id:`
   ordering, `data:` JSON, heartbeat after a small injected timeout); reconnect with `Last-Event-ID: 2`
   → replay starts at 3. Checkpoint round-trip: `gate.wait(...)` in a task → `checkpoint` event on the
   stream → `urllib`-POST `{"action":"proceed"}` → task resolves `True` + `checkpoint_resolved`; refine
   kind returns a proper `Decision`; stale/unknown id → 409, pending checkpoint unconsumed.
-- [ ] 3.10 Tests — fallback: with no live gate wired, monkeypatch `builtins.input` and assert
+- [x] 3.10 Tests — fallback: with no live gate wired, monkeypatch `builtins.input` and assert
   `_interpret_review`/`_design_review` still gate exactly as today; verify the page loads zero external
   resources (grep the page constant for `http`/`//` URLs). Docs — README run-mode matrix (attended+
   browser / attended+terminal / auto) + the URL line.

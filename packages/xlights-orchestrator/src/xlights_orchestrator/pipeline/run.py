@@ -25,6 +25,7 @@ from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
 from ..models.registry import model_snapshot, run_agent
+from ..progress import NullProgressBus
 from ..refine import Decision
 from ..revision_log import (
     NullRevisionLog,
@@ -151,21 +152,30 @@ async def run_pipeline(
     interpret_checkpoint=None,
     design_checkpoint=None,
     timing_tracks: bool = True,
+    progress=None,
+    final_checkpoint=None,
 ) -> State:
     st = State(song_path=song_path)
     key = _song_key(song_path)
     dl = degradations.start_run()               # per-run degradations collector (best-effort)
+    progress = progress or NullProgressBus()    # F-I: default is inert (--auto/tests unchanged)
 
     def _finish(state: State) -> State:
         """End-of-run: emit the degradations summary + best-effort degradations.json (beside the
-        revision log). Called at EVERY exit, including the early-return checkpoints."""
+        revision log), then the terminal `done` progress event. Called at EVERY exit, including
+        the early-return checkpoints."""
         degradations.emit_summary(dl)
         if dl.summary():
             degradations.write_json(dl, _cache_root() / key / "degradations.json")
+        progress.emit("done", stage="finalize",
+                      payload={"sections": len(state.show_plan.sections) if state.show_plan else 0,
+                               "instructions": len(state.instructions),
+                               "degradations": [d.capability for d in dl.summary()]})
         return state
 
     # 1. analyze. The default analyzer requests stems (per-section instrument signal);
     #    an injected analyze callable keeps the simple (path)->SongAnalysis shape.
+    progress.emit("stage", stage="analyze", payload={"phase": "start"})
     if analyze is not None:
         st.song_analysis = analyze(song_path)
     else:
@@ -208,11 +218,20 @@ async def run_pipeline(
     except Exception as exc:  # noqa: BLE001 — caching is best-effort (cosmetic)
         log.debug("song_analysis cache write skipped: %s", exc)
 
+    progress.emit("stage", stage="analyze", payload={
+        "phase": "end", "duration_s": round(getattr(st.song_analysis, "duration_s", 0.0), 1),
+        "stems": bool(getattr(st.song_analysis, "stems", None)),
+        "sections": len(getattr(st.song_analysis, "segments", []) or [])})
+
+    progress.emit("stage", stage="groups", payload={"phase": "start"})
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
     st.placeable_types = placeable_effect_types()
+    progress.emit("stage", stage="groups", payload={"phase": "end",
+                                                    "groups": len(st.available_groups or [])})
 
     # 2. interpret -> rich SongDescription (panel of analysts + synthesizer; cached).
     #    Cache key bumped from "music_brief" so old flat briefs don't shadow the richer one.
+    progress.emit("stage", stage="interpret", payload={"phase": "start"})
     mb_cache = _cache_path(key, "song_description")
     if use_cache and mb_cache.exists():
         try:
@@ -226,12 +245,16 @@ async def run_pipeline(
         mb_cache.write_text(st.music_brief.model_dump_json())
     desc_md = render_description(st.music_brief)            # human-readable song description
     (mb_cache.parent / "description.md").write_text(desc_md)
+    progress.emit("stage", stage="interpret", payload={
+        "phase": "end", "sections": len(st.music_brief.sections) if st.music_brief else 0,
+        "cached": use_cache and mb_cache.exists()})
     if interpret_checkpoint is not None:                    # hard review gate (attended); --auto passes None
         if not await interpret_checkpoint(desc_md, st.music_brief):
             return _finish(st)                               # human declined → stop before downstream
 
     # 3. design -> creative brief (ShowPlan; cached). Key bumped from "show_plan" so old thin
     #    plans don't shadow the rich brief.
+    progress.emit("stage", stage="design", payload={"phase": "start"})
     sp_cache = _cache_path(key, "creative_brief")
     if use_cache and sp_cache.exists():
         st.show_plan = ShowPlan.model_validate_json(sp_cache.read_text())
@@ -242,6 +265,14 @@ async def run_pipeline(
     _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)
+    progress.emit("stage", stage="design", payload={
+        "phase": "end", "sections": len(st.show_plan.sections),
+        "cached": use_cache and sp_cache.exists()})
+    for _i, _sec in enumerate(st.show_plan.sections):     # per-section grid feed (wrapper loop; generate.py untouched)
+        progress.emit("section", stage="design", section=_i,
+                      payload={"look": (getattr(_sec, "look", "") or getattr(_sec, "effect_family", "") or ""),
+                               "start_ms": _sec.start_ms, "end_ms": _sec.end_ms,
+                               "intensity": getattr(_sec, "intensity", None)})
     if design_checkpoint is not None:                      # hard review gate (attended); --auto passes None
         log.info("creative brief is editable (schema-backed dropdowns) at %s — edit + re-run to apply",
                  sp_cache)
@@ -249,6 +280,8 @@ async def run_pipeline(
             return _finish(st)
 
     # 3. generate -> EffectInstruction[] (cached) — each section FOLLOWS the brief
+    progress.emit("stage", stage="generate", payload={"phase": "start",
+                                                      "sections": len(st.show_plan.sections)})
     ins_cache = _cache_path(key, "instructions")
     if use_cache and ins_cache.exists():
         st.instructions = [EffectInstruction.model_validate(x)
@@ -257,6 +290,8 @@ async def run_pipeline(
         st.instructions = await generate_instructions(st, generator=generator)
         ins_cache.parent.mkdir(parents=True, exist_ok=True)
         ins_cache.write_text(json.dumps([i.model_dump() for i in st.instructions]))
+    progress.emit("stage", stage="generate", payload={"phase": "end",
+                                                      "instructions": len(st.instructions)})
 
     # 4. apply + render — ANIMATION only (audio is patched into the .xsq at finalize, because
     #    attaching media via the live API crashes xLights). Stage the song now for that patch.
@@ -275,7 +310,11 @@ async def run_pipeline(
     st.instructions, _dropped = clamp_layer_budget(st.instructions)   # catalog rule #10: ≤4 layers
     if _dropped:
         log.info("layer budget trimmed %d over-stacked placements", _dropped)
+    progress.emit("stage", stage="apply", payload={"phase": "start"})
     st.applied = await emitter(client, st.instructions, duration_secs=dur)
+    progress.emit("stage", stage="apply", payload={
+        "phase": "end", "placed": len((st.applied or {}).get("placed", [])),
+        "skipped": len((st.applied or {}).get("skipped", []))})
 
     # 5. refine (opt-in): test -> decide -> regenerate flagged sections -> rebuild
     if refine:
@@ -291,6 +330,8 @@ async def run_pipeline(
             revlog = RevisionLog(base / "revision_log.jsonl", base / "revision_log.md")
         sampler = None if qa is not None else make_lit_sampler(save_as=save_as,
                                                                 show_folder=show_folder, real=real)
+        progress.emit("stage", stage="refine", payload={"phase": "start",
+                                                        "max_iterations": max_iterations})
         await _refine_loop(st, client=client, emitter=emitter, generator=generator,
                            duration_secs=dur, max_iterations=max_iterations,
                            judge=judge, qa=qa, regenerate=regenerate, checkpoint=checkpoint,
@@ -299,7 +340,8 @@ async def run_pipeline(
                            clock=lambda: datetime.now(timezone.utc).isoformat(),
                            review_base=_cache_root() / key / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real,
-                           skip_objective=_refine_skip_objective())
+                           skip_objective=_refine_skip_objective(), progress=progress)
+        progress.emit("stage", stage="refine", payload={"phase": "end"})
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
             _emit_editable_brief(st, _cache_root() / key)   # keep the brief schema-backed after refine
             (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
@@ -308,11 +350,15 @@ async def run_pipeline(
         except Exception as exc:  # noqa: BLE001 — persisting the refined design is best-effort
             degradations.note("cache:post-refine", exc, stage="refine")
 
-    # 6. finalize (with a final human approval when attended)
+    # 6. finalize (with a final human approval when attended). `final_checkpoint` defaults to the
+    #    terminal `_final_approval`; the CLI injects a browser-backed one when live.
+    final_gate = final_checkpoint or _final_approval
     if save_as:
-        if checkpoint is None and refine and not await _final_approval(st):
+        if checkpoint is None and refine and not await final_gate(st):
             return _finish(st)
+        progress.emit("stage", stage="finalize", payload={"phase": "start"})
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder, duration_s=st.song_analysis.duration_s,
                                 timing_tracks=timing_tracks)
+        progress.emit("stage", stage="finalize", payload={"phase": "end", "save_as": save_as})
     return _finish(st)

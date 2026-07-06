@@ -176,6 +176,32 @@ async def _aiodone():
     return None
 
 
+def test_refine_emits_score_and_refine_events():
+    """A real ProgressBus gets a score + refine event per recorded iteration; the refine payload
+    mirrors the RevisionLogRecord fields (one construction site)."""
+    from xlights_orchestrator.progress import ProgressBus
+    st = _state()
+    client = _FakeClient()
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+    async def regen(rev):
+        return [_ins("G2", 1000, 1500, sec=rev.section_index, etype="Wave")]
+    judge = _Judge([JudgeVerdict(score=60, verdict="iterate",
+                                 revisions=[RevisionBrief(section_index=1, issue="x", suggested_fix="y")]),
+                    JudgeVerdict(score=85, verdict="accept")])
+    bus = ProgressBus()
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=3, judge=judge, qa=None, regenerate=regen,
+                     checkpoint=_noninteractive, progress=bus))
+    evs = bus.events()
+    scores = [e for e in evs if e.type == "score"]
+    refines = [e for e in evs if e.type == "refine"]
+    assert scores and refines and len(scores) == len(refines)   # paired, one per record
+    assert any(e.payload.get("kind") == "finalize" for e in refines)  # final record emitted
+    assert evs[-1].type in ("score", "refine")                  # last record's events land
+
+
 def test_loop_iterates_then_accepts_and_rebuilds():
     st = _state()
     client = _FakeClient()

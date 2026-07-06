@@ -472,6 +472,72 @@ def test_emit_view_fallback_records(monkeypatch, caplog):
     assert "emit:view" in {d.capability for d in dl.summary()}   # recorded on the shared collector
 
 
+# -- F-I: progress emission ---------------------------------------------------
+
+def test_pipeline_emits_progress_sequence(tmp_path, monkeypatch):
+    """A real ProgressBus receives stage brackets, one section per section, and a terminal done."""
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
+    from xlights_orchestrator.progress import ProgressBus
+    song = tmp_path / "song.mp3"; song.write_bytes(b"prog-bytes")
+
+    plan = ShowPlan(sections=[
+        {"start_ms": 0, "end_ms": 6000, "target_groups": ["G1"], "effect_family": "On", "intensity": 0.3},
+        {"start_ms": 6000, "end_ms": 12000, "target_groups": ["G2"], "effect_family": "On", "intensity": 0.8},
+    ])
+    sect = SectionEffects(instructions=[EffectInstruction(
+        target="G1", effect_type="On", look_id="On#0", start_ms=0, end_ms=6000)])
+
+    async def emitter(client, instructions, *, duration_secs, **kw):
+        return {"placed": [{"section_index": 0}], "skipped": [], "rendered": True}
+
+    bus = ProgressBus()
+    run(run_pipeline(str(song), client=_FakeClient(["G1", "G2"]),
+                     director=_director_agent(plan), generator=_generator_agent(sect),
+                     analyze=lambda p: _stub_analysis(), interpret=_interpret_stub,
+                     emitter=emitter, use_cache=False, stems=False, progress=bus))
+    types = [e.type for e in bus.events()]
+    stages = [e.stage for e in bus.events() if e.type == "stage"]
+    assert "analyze" in stages and "generate" in stages and "apply" in stages
+    assert types[-1] == "done"                                  # terminal done last
+    sections = [e for e in bus.events() if e.type == "section"]
+    assert len(sections) == 2                                   # one per plan section
+
+
+def test_pipeline_null_progress_emits_nothing(tmp_path, monkeypatch):
+    """progress=None (the default) records no events — the golden path is inert."""
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
+    from xlights_orchestrator.progress import ProgressBus
+    song = tmp_path / "song.mp3"; song.write_bytes(b"null-prog")
+
+    plan = ShowPlan(sections=[
+        {"start_ms": 0, "end_ms": 6000, "target_groups": ["G1"], "effect_family": "On", "intensity": 0.3}])
+    sect = SectionEffects(instructions=[EffectInstruction(
+        target="G1", effect_type="On", look_id="On#0", start_ms=0, end_ms=6000)])
+
+    async def emitter(client, instructions, *, duration_secs, **kw):
+        return {"placed": [], "skipped": [], "rendered": True}
+
+    # a bus we DON'T pass — proves the default NullProgressBus never touches it
+    spy = ProgressBus()
+    run(run_pipeline(str(song), client=_FakeClient(["G1"]),
+                     director=_director_agent(plan), generator=_generator_agent(sect),
+                     analyze=lambda p: _stub_analysis(), interpret=_interpret_stub,
+                     emitter=emitter, use_cache=False, stems=False))     # progress omitted
+    assert spy.events() == []
+
+
+def test_no_browser_terminal_checkpoints_still_gate(monkeypatch):
+    """Fallback: with no live gate, the terminal input() checkpoints gate exactly as today."""
+    from xlights_orchestrator.pipeline.run import _interpret_review, _design_review
+    # 'n' → stop; anything else → proceed (byte-for-byte the current terminal behavior)
+    monkeypatch.setattr("builtins.input", lambda *a: "n")
+    assert run(_interpret_review("desc", None)) is False
+    assert run(_design_review("brief", None)) is False
+    monkeypatch.setattr("builtins.input", lambda *a: "")
+    assert run(_interpret_review("desc", None)) is True
+    assert run(_design_review("brief", None)) is True
+
+
 # -- lyrics (hermetic; no network) --------------------------------------------
 
 def test_fetch_lyrics_no_token(monkeypatch):

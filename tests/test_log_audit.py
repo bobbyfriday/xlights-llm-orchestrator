@@ -18,8 +18,9 @@ SRC_DIRS = [
     ROOT / "packages" / "xlights-core" / "src" / "xlights_core",
     ROOT / "packages" / "xlights-orchestrator" / "src" / "xlights_orchestrator",
 ]
-# These implement HTTP handlers that translate exceptions into responses (out of scope).
-SKIP_NAMES = {"server.py", "brief_editor.py"}
+# These implement HTTP handlers that translate exceptions into responses (out of scope):
+# a malformed request is answered with a 4xx status, which IS the report.
+SKIP_NAMES = {"server.py", "brief_editor.py", "live_server.py"}
 
 
 def _handler_is_ok(handler: ast.ExceptHandler) -> bool:

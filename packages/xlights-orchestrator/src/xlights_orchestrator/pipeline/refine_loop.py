@@ -25,6 +25,7 @@ from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
 from ..effect_emitter import clamp_layer_budget
 from ..models.registry import run_agent
+from ..progress import NullProgressBus
 from ..refine import floor_visual_revisions, replace_section
 from ..revision_log import (
     LogFinding,
@@ -183,15 +184,17 @@ class ReportBuilder:
 class IterationRecorder:
     """Wraps ``_record``/``_bundle``: assemble the ``RevisionLogRecord`` and guard the review
     bundle path. Pure observability — ``revlog.write`` is itself best-effort, so this never
-    raises into the loop."""
+    raises into the loop. The F-I progress ``score``/``refine`` events are emitted HERE from the
+    same record fields so the SSE stream and the revision log can never disagree (one site)."""
 
-    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base):
+    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base, progress=None):
         self.revlog = revlog
         self.run_id = run_id
         self.song_key = song_key
         self.clock = clock
         self.models = models
         self.review_base = review_base
+        self.progress = progress or NullProgressBus()
 
     def _bundle(self, i):
         if self.review_base is None:
@@ -200,14 +203,26 @@ class IterationRecorder:
         return str(p) if p.is_dir() else None              # guard: no dangling pointer
 
     def record(self, i, report, verdict, **kw) -> None:
-        self.revlog.write(RevisionLogRecord(
+        rec = RevisionLogRecord(
             run_id=self.run_id, iteration=i, song_key=self.song_key, ts=self.clock(),
             objective_score=report.objective_score, advisory_score=report.advisory_score,
             findings=[LogFinding(source=source_of(f.metric), severity=f.severity, scope=f.scope,
                                  section_index=f.section_index, detail=f.detail)
                       for f in report.findings],
             judge=({"score": verdict.score, "verdict": verdict.verdict} if verdict else None),
-            models=self.models or {}, review_bundle=self._bundle(i), **kw))
+            models=self.models or {}, review_bundle=self._bundle(i), **kw)
+        self.revlog.write(rec)
+        # progress from the SAME record — the sparkline feed + refine-decision tap.
+        self.progress.emit("score", stage="refine", payload={
+            "iteration": i, "objective": rec.objective_score, "advisory": rec.advisory_score,
+            "kind": rec.kind, "findings": len(rec.findings),
+            "top_findings": [f"{f.severity}:{f.scope}:{(f.detail or '')[:80]}"
+                             for f in rec.findings[:3]]})
+        self.progress.emit("refine", stage="refine", payload={
+            "iteration": i, "kind": rec.kind, "human_decision": rec.human_decision,
+            "judge": rec.judge, "obj_before": rec.obj_before, "obj_after": rec.obj_after,
+            "obj_delta": rec.obj_delta, "reverted": rec.reverted,
+            "regenerated_sections": rec.regenerated_sections})
 
 
 async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, log=log) -> None:
@@ -244,7 +259,8 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                       visual_critique=None, revlog=None, run_id="run", song_key="",
                       models=None, clock=None, review_base=None,
                       sampler=None, save_as=None, redesign=None, real_render=None,
-                      skip_objective=None) -> None:
+                      skip_objective=None, progress=None) -> None:
+    progress = progress or NullProgressBus()
     qa_eval = qa or qa_pkg.evaluate
     judge_agent = judge or judge_mod.judge_agent()
     if checkpoint is not None:
@@ -279,7 +295,7 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
     reporter = ReportBuilder(st, client=client, qa_eval=qa_eval, sampler=sampler,
                              save_as=save_as, real_render=real_render)
     recorder = IterationRecorder(revlog, run_id=run_id, song_key=song_key, clock=clock,
-                                 models=models, review_base=review_base)
+                                 models=models, review_base=review_base, progress=progress)
     ledger = EscalationLedger()
 
     first_obj = await reporter.objective(st.applied)

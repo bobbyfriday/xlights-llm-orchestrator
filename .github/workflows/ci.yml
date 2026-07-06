@@ -41,9 +41,8 @@ jobs:
       - name: Test (pytest)
         run: uv run --no-sync pytest
 
-      # Type checking is wired in but ADVISORY for now: the codebase is fully
-      # annotated but was never type-checked, so a backlog of findings is being
-      # triaged before this becomes a hard gate. Remove continue-on-error to enforce.
-      - name: Type check (mypy, advisory)
+      # Type checking is a HARD GATE: mypy must pass clean or the job fails.
+      # Canonical local invocation: `uv sync --extra preview && uv run --no-sync mypy`
+      # (the `Install dependencies` step above provides that environment).
+      - name: Type check (mypy)
         run: uv run --no-sync mypy
-        continue-on-error: true

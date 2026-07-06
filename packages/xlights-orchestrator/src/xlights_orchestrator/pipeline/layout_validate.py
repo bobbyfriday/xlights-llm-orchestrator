@@ -182,8 +182,10 @@ def structural_checks(manifest, model_names) -> list[str]:
         orders = [getattr(props.get(m), "sweep_order", None) for m in gr.members]
         if any(o is None for o in orders):
             problems.append(f"{gname} member missing sweep_order")
-        elif orders != sorted(orders):
-            problems.append(f"{gname} member order does not match sweep_order")
+        else:
+            present = [o for o in orders if o is not None]
+            if present != sorted(present):
+                problems.append(f"{gname} member order does not match sweep_order")
     return problems
 
 

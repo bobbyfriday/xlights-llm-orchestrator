@@ -30,6 +30,7 @@ from ..refine import Decision
 from ..revision_log import (
     NullRevisionLog,
     RevisionLog,
+    RevisionSink,
 )
 from ..show_plan import EffectInstruction, ShowPlan
 from ..creative_brief import render_creative_brief
@@ -41,7 +42,7 @@ from ..song_description import render_description
 from .beats import feature_prop_contrast
 from .groups import targetable_groups
 from .media import prepare_media
-from .state import State
+from .state import State, require
 from .visual import RealRender, make_fseq_series_provider, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
 from .generate import generate_instructions, realize_section
@@ -111,7 +112,7 @@ async def regenerate_section(st: State, rev, *, gen_agent) -> list[EffectInstruc
     splice the result in with `replace_section` and then run `finalize_effects` over the
     full list (occlusion guard, sub-frame stretch, tail fade are whole-list passes)."""
     instrs = await realize_section(st, rev.section_index, agent=gen_agent, revision=rev)
-    feature_prop_contrast(instrs, st.show_plan.sections[rev.section_index])
+    feature_prop_contrast(instrs, require(st.show_plan, "show_plan").sections[rev.section_index])
     return instrs
 
 
@@ -193,8 +194,8 @@ async def run_pipeline(
             if _ld and _ld.text:
                 if AudioAnalyzer().attach_lyrics(st.song_analysis, song_path, text=_ld.text,
                                                  title=_ld.title or "", artist=_ld.artist or ""):
-                    log.info("timed lyrics attached (%d lines)",
-                             len(st.song_analysis.lyrics.get("lines", [])))
+                    _lines = (getattr(st.song_analysis, "lyrics", None) or {}).get("lines", [])
+                    log.info("timed lyrics attached (%d lines)", len(_lines))
         except Exception as exc:  # noqa: BLE001 — lyrics are enrichment
             degradations.note("audio:lyrics", exc, stage="analyze")
     # Instrumental complement: still no timed lines → subdivide long audio sections at
@@ -354,7 +355,8 @@ async def run_pipeline(
             # visual_review bundles are LLM-stage artifacts → namespace them under the routing
             vc = make_visual_critique(client, save_as=save_as, song_key=str(mdir.name),
                                       cache_root=mdir.parent, real=real)
-        revlog, run_id = NullRevisionLog(), "run"
+        revlog: RevisionSink = NullRevisionLog()
+        run_id = "run"
         if log_revisions:                           # the revision log stays SHARED (all arms in one file)
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             base = _cache_root() / key

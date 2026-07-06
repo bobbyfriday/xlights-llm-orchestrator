@@ -106,91 +106,91 @@ Destination map (keep verbatim during implementation):
 
 ## 7. I4 — reproduce and pin the mypy baseline
 
-- [ ] 7.1 Run the CI-equivalent mypy locally (`uv sync --extra preview && uv run --no-sync mypy`);
-  confirm **41 errors / 15 files / 87 source files** (mypy 2.1.0). Retain the scratch capture for
-  diffing.
-- [ ] 7.2 Add `types-PyYAML` to `[dependency-groups].dev`.
+- [x] 7.1 Run the CI-equivalent mypy locally (`uv sync --extra preview && uv run --no-sync mypy`).
+  NOTE: baseline was STALE — the just-merged wave added code, so the ACTUAL backlog burned down was
+  **50 errors / 23 files / 110 source files** (not the 41/15/87 the task predicted).
+- [x] 7.2 Add `types-PyYAML` to `[dependency-groups].dev`.
 
 ## 8. I4 — Category-A burn-down (Optional State, ~18 findings)
 
-- [ ] 8.1 Add `def require(value: T | None, name: str) -> T` to `pipeline/state.py` (raises
+- [x] 8.1 Add `def require(value: T | None, name: str) -> T` to `pipeline/state.py` (raises
   `RuntimeError` naming the field).
-- [ ] 8.2 Apply `require()` in `pipeline/generate.py` (`realize_section`, `generate_instructions`):
+- [x] 8.2 Apply `require()` in `pipeline/generate.py` (`realize_section`, `generate_instructions`):
   the 11 `union-attr` at lines 153,156,157,159,239,244,247,248,252,256,259 (`st.show_plan.<attr>` /
   `st.music_brief.repetition_map`).
-- [ ] 8.3 Apply in `pipeline/run.py:131,257,261` (show_plan); restructure `:366` to
+- [x] 8.3 Apply in `pipeline/run.py:131,257,261` (show_plan); restructure `:366` to
   `_ly = getattr(...) or {}` before `.get` (mirroring :358); annotate `ledger: list[RevisionBrief] = []`
   at :191; annotate `revlog` at :459 — prefer a shared `RevisionSink` Protocol
   (`def write(self, record) -> None`) in `revision_log.py` over `revlog: RevisionLog | NullRevisionLog`.
-- [ ] 8.4 Apply in `pipeline/regen.py:93,133` (show_plan / song_analysis — `load_cached_state`
+- [x] 8.4 Apply in `pipeline/regen.py:93,133` (show_plan / song_analysis — `load_cached_state`
   guarantees both) and `cli.py:32`.
 
 ## 9. I4 — Category-B seams (~4 findings)
 
-- [ ] 9.1 `agents/panel.py`: define `class RunsAgent(Protocol): async def run(self, prompt: str) -> Any`
+- [x] 9.1 `agents/panel.py`: define `class RunsAgent(Protocol): async def run(self, prompt: str) -> Any`
   and type `AnalystSpec.agent` as it (Protocol preferred — test fakes are `SimpleNamespace`s); fix `:135`
   `attr-defined`. For `:144` `misc`, keep `isinstance(r, BaseException)` for the guard and unpack in an
   `else` branch so mypy narrows the `gather(..., return_exceptions=True)` union.
-- [ ] 9.2 `models/registry.py:61`: build the TypedDict literally — `settings: AnthropicModelSettings =
+- [x] 9.2 `models/registry.py:61`: build the TypedDict literally — `settings: AnthropicModelSettings =
   {}` then conditional key assignments (`settings["anthropic_thinking"] = ...`) instead of
   `AnthropicModelSettings(**kw)`.
 
 ## 10. I4 — mechanical remainder (~19 findings)
 
-- [ ] 10.1 `qa/__init__.py:34`: annotate the local `subscores` as `dict[str, float]`.
-- [ ] 10.2 `qa/rules.py:90`: annotate the empty `events` list.
-- [ ] 10.3 `pipeline/beats.py:197,199`: `key=lambda k: d[k]` (keys come from the same dict);
+- [x] 10.1 `qa/__init__.py:34`: annotate the local `subscores` as `dict[str, float]`.
+- [x] 10.2 `qa/rules.py:90`: annotate the empty `events` list.
+- [x] 10.3 `pipeline/beats.py:197,199`: `key=lambda k: d[k]` (keys come from the same dict);
   `:605` annotate the variable `float` at first assignment.
-- [ ] 10.4 `pipeline/visual.py:185`: annotate attrs in `RealRender.__init__` (`self._stamp: float |
+- [x] 10.4 `pipeline/visual.py:185`: annotate attrs in `RealRender.__init__` (`self._stamp: float |
   None = None`).
-- [ ] 10.5 `xlights_core/knowledge/layout_semantics.py:61`: `key=lambda p: p.<field> or 0`.
-- [ ] 10.6 `xlights_core/audio/lyrics_align.py:112,118`: annotate `sections`; guard the Optional dict
+- [x] 10.5 `xlights_core/knowledge/layout_semantics.py:61`: `key=lambda p: p.<field> or 0`.
+- [x] 10.6 `xlights_core/audio/lyrics_align.py:112,118`: annotate `sections`; guard the Optional dict
   before indexing (`if d is None: continue`).
-- [ ] 10.7 `xlights_core/preview/layout.py`: `:152` `float(attr or 0)`; `:278–287` rename the scalar
+- [x] 10.7 `xlights_core/preview/layout.py`: `:152` `float(attr or 0)`; `:278–287` rename the scalar
   (the reuse of one name for a list and its element is the actual smell).
-- [ ] 10.8 `xlights_core/preview/render.py:115,116`: `assert proc.stdin is not None` after
+- [x] 10.8 `xlights_core/preview/render.py:115,116`: `assert proc.stdin is not None` after
   `Popen(..., stdin=PIPE)`.
-- [ ] 10.9 `xlights_core/knowledge/xsq_extractor.py:72`: annotate `skipped`.
-- [ ] 10.10 Run the full suite (`uv run --no-sync pytest`, then the golden pipeline) and `ruff check` —
+- [x] 10.9 `xlights_core/knowledge/xsq_extractor.py:72`: annotate `skipped`.
+- [x] 10.10 Run the full suite (`uv run --no-sync pytest`, then the golden pipeline) and `ruff check` —
   every fix above must be zero-behavior; the suite + unchanged golden snapshot are the proof.
 
 ## 11. I4 — py.typed markers
 
-- [ ] 11.1 Add empty `py.typed` at `packages/xlights-core/src/xlights_core/py.typed`,
+- [x] 11.1 Add empty `py.typed` at `packages/xlights-core/src/xlights_core/py.typed`,
   `packages/xlights-orchestrator/src/xlights_orchestrator/py.typed`,
   `packages/xlights-mcp/src/xlights_mcp/py.typed`.
-- [ ] 11.2 Verify wheel inclusion per package: `uv build --package <pkg> && unzip -l dist/<pkg>-*.whl |
+- [x] 11.2 Verify wheel inclusion per package: `uv build --package <pkg> && unzip -l dist/<pkg>-*.whl |
   grep py.typed`.
 
 ## 12. I4 — harden config and flip the gate
 
-- [ ] 12.1 Add to root `[tool.mypy]`: `warn_unused_ignores = true`, `warn_redundant_casts = true`,
+- [x] 12.1 Add to root `[tool.mypy]`: `warn_unused_ignores = true`, `warn_redundant_casts = true`,
   `check_untyped_defs = true`; keep `ignore_missing_imports = true`; do NOT enable
   `strict`/`disallow_untyped_defs`/`disallow_any_*`. Fix anything the new warnings surface (expected
   near-zero; `warn_unused_ignores` may flag leftovers).
-- [ ] 12.2 **Flip CI (BREAKING):** remove `continue-on-error: true` from the mypy step in
+- [x] 12.2 **Flip CI (BREAKING):** remove `continue-on-error: true` from the mypy step in
   `.github/workflows/ci.yml`; rename it `Type check (mypy)`.
-- [ ] 12.3 Rewrite the stale "advisory / backlog is being triaged" comments in `ci.yml` (lines 44–46)
+- [x] 12.3 Rewrite the stale "advisory / backlog is being triaged" comments in `ci.yml` (lines 44–46)
   and root `pyproject.toml` (lines 31–34) to describe the hard gate; document the canonical invocation
   (`uv sync --extra preview && uv run --no-sync mypy`) in the workflow comment.
-- [ ] 12.4 **Gate self-test:** verify locally that an injected error (`x: int = "a"`) makes
+- [x] 12.4 **Gate self-test:** verify locally that an injected error (`x: int = "a"`) makes
   `uv run --no-sync mypy` exit ≠ 0 (guards against a silent `files=` misconfiguration). Optional:
   a one-line assertion that mypy checked ≥ 87 files.
-- [ ] 12.5 New unit tests where a fix added runtime semantics: `require(None, "show_plan")` raises
+- [x] 12.5 New unit tests where a fix added runtime semantics: `require(None, "show_plan")` raises
   `RuntimeError` naming the field and `require(x, ...)` is identity (in `tests/test_orchestrator.py`);
   `registry._settings()` yields the exact settings dict for a thinking+effort role and `None` for a
   bare one (pins the TypedDict restyle — extend registry coverage / I6's `test_registry`).
 
 ## 13. I6 — test_registry.py (smallest, zero fakes)
 
-- [ ] 13.1 Autouse fixture that clears `registry._cfg.cache_clear()` on entry and exit (the `lru_cache`
+- [x] 13.1 Autouse fixture that clears `registry._cfg.cache_clear()` on entry and exit (the `lru_cache`
   hazard).
-- [ ] 13.2 Real-config invariants: every role has an entry for every provider in `providers:`; model
+- [x] 13.2 Real-config invariants: every role has an entry for every provider in `providers:`; model
   strings prefixed `anthropic:`/`google:`.
-- [ ] 13.3 Behavior against a fixture YAML: `active_provider()` default + `XLO_PROVIDER=gemini` wins;
+- [x] 13.3 Behavior against a fixture YAML: `active_provider()` default + `XLO_PROVIDER=gemini` wins;
   `model_string("judge")` = `"anthropic:claude-opus-4-8"` default / `"google:gemini-3.5-flash"` under
   gemini; unknown role/provider → `KeyError`.
-- [ ] 13.4 `model_snapshot()` returns all six roles under both providers, values `provider-prefix +
+- [x] 13.4 `model_snapshot()` returns all six roles under both providers, values `provider-prefix +
   model`. `_settings("director")` → `AnthropicModelSettings` with `anthropic_thinking={"type":
   "adaptive"}` + `anthropic_effort="high"`; `_settings("generator")` has thinking but no effort; any
   gemini role → `None`; **no sampling keys ever present** (the Opus-400 invariant, registry.py:60).
@@ -199,16 +199,16 @@ Destination map (keep verbatim during implementation):
 
 ## 14. I6 — test_cli.py (argparse wiring)
 
-- [ ] 14.1 Capture-kwargs harness: monkeypatch `cli.run_pipeline` + `XLightsClient` (async-context
+- [x] 14.1 Capture-kwargs harness: monkeypatch `cli.run_pipeline` + `XLightsClient` (async-context
   stub) and assert the exact kwargs the CLI passes. `--song s.mp3` → `use_cache=True, refine=False,
   max_iterations=3, log_revisions=True, timing_tracks=True, save_as=safe_name("s.mp3")`, attended
   checkpoints (`interpret_checkpoint=_interpret_review`, `design_checkpoint=_design_review`,
   `checkpoint=None`).
-- [ ] 14.2 The checkpoint matrix (cli.py:27–29, likeliest silent-regression site): `--auto` → both
+- [x] 14.2 The checkpoint matrix (cli.py:27–29, likeliest silent-regression site): `--auto` → both
   review gates `None`; `--refine --auto` → `checkpoint=_auto_checkpoint`; `--refine` alone →
   `checkpoint=None`. Flags: `--no-save` → `save_as=None`; `--name X` → `save_as="X"`;
   `--no-cache/--no-log/--no-timing-tracks` flip booleans; `--max-iterations 7` parses as int.
-- [ ] 14.3 Guard exits: missing LLM key → `SystemExit("No LLM key found")` (monkeypatch `has_llm_key`
+- [x] 14.3 Guard exits: missing LLM key → `SystemExit("No LLM key found")` (monkeypatch `has_llm_key`
   → False); `edit-brief` with neither `--song` nor `--brief` → `SystemExit`; nonexistent brief path →
   `SystemExit` mentioning `run \`xlo run\``. `regen`: `--list`/omitted `--section` prints via
   `format_sections` and needs no key; `FileNotFoundError/IndexError` from `_regen` →
@@ -217,58 +217,58 @@ Destination map (keep verbatim during implementation):
 
 ## 15. I6 — test_brief_editor_http.py
 
-- [ ] 15.1 Ephemeral-port server fixture: `ThreadingHTTPServer(("127.0.0.1", 0), _handler(...))` in a
+- [x] 15.1 Ephemeral-port server fixture: `ThreadingHTTPServer(("127.0.0.1", 0), _handler(...))` in a
   daemon thread, yields base URL, `server_close()` in teardown; drive with `urllib.request` (2s
   timeouts); `tmp_path` holds `creative_brief.json` + schema.
-- [ ] 15.2 `GET /` → 200 `text/html`, body embeds the brief JSON + schema (`__BRIEF__`/`__SCHEMA__`
+- [x] 15.2 `GET /` → 200 `text/html`, body embeds the brief JSON + schema (`__BRIEF__`/`__SCHEMA__`
   substitutions) and escaped path; `GET /nope` → 404 JSON.
-- [ ] 15.3 `POST /save` valid → 200 `{"ok": true}`, file contains the edit, `$schema` first,
+- [x] 15.3 `POST /save` valid → 200 `{"ok": true}`, file contains the edit, `$schema` first,
   un-rendered `group_motifs` preserved. Structurally invalid (e.g. `sections` not a list) → 400 with
   `error` truncated ≤300 chars (brief_editor.py:201) and the file untouched (atomic `.tmp`-replace
   never ran). Missing/zero Content-Length → 400, not a hang.
-- [ ] 15.4 `serve()`-level schema-missing fallback: page renders with `SCHEMA={}`
+- [x] 15.4 `serve()`-level schema-missing fallback: page renders with `SCHEMA={}`
   (brief_editor.py:209–210) via `render_page` composition or a handler built with `schema={}`.
 
 ## 16. I6 — test_mcp_server.py
 
-- [ ] 16.1 `_ctx(client)` helper (two `SimpleNamespace` layers:
+- [x] 16.1 `_ctx(client)` helper (two `SimpleNamespace` layers:
   `request_context.lifespan_context["client"]`) + duck-typed fake client; call tool coroutines
   directly (`await server.xl_get_models(_ctx(fake))`), falling back to `mcp._tool_manager` or explicit
   `mcp.tool()(fn)` registration if a FastMCP version wraps them un-callably. May require adding `mcp`
   to the root test env — verify CI's `uv sync` installs the workspace member.
-- [ ] 16.2 Read tools (`xl_get_version`, `xl_get_show_folder`, `xl_get_models`, `xl_get_model`,
+- [x] 16.2 Read tools (`xl_get_version`, `xl_get_show_folder`, `xl_get_models`, `xl_get_model`,
   `xl_get_controllers`): pass-through shape (`xl_get_models` → `{"models":[...], "groups":[...]}`;
   `xl_get_model`/`xl_get_controllers` → `model_dump()`ed dicts).
-- [ ] 16.3 `_call` error translation: fake raising `XLightsConnectionError("down")` →
+- [x] 16.3 `_call` error translation: fake raising `XLightsConnectionError("down")` →
   `RuntimeError("XLightsConnectionError: down")`; same for `KnobValueError`, `ValueError`, `KeyError`.
-- [ ] 16.4 Write tools: `xl_new_sequence` forwards `duration_secs/frame_ms/media_file/force` verbatim
+- [x] 16.4 Write tools: `xl_new_sequence` forwards `duration_secs/frame_ms/media_file/force` verbatim
   (default `force=False` reaches the client); `xl_close_sequence` forwards `force/quiet`;
   `xl_save_sequence` passes `name=None` through.
-- [ ] 16.5 `xl_add_effect_raw` gates: `end_ms <= start_ms` → `ValueError("bad timing…")` before any
+- [x] 16.5 `xl_add_effect_raw` gates: `end_ms <= start_ms` → `ValueError("bad timing…")` before any
   client call; target not in `get_models()` → `ValueError`; client `worked=false` →
   `RuntimeError("PresetPlacementError: …")`. `xl_add_effect`/`xl_validate_preset`: monkeypatch
   `server.place_preset`/`server.validate_preset` to capture knob/palette/layer forwarding. Audio: with
   the `xlights_core.audio` import forced to raise, `xl_analyze_song` →
   `RuntimeError("audio extra not installed: …")` not an ImportError traceback.
-- [ ] 16.6 One `httpx.MockTransport` composition smoke test reusing `tests/fixtures/*.json` to prove
+- [x] 16.6 One `httpx.MockTransport` composition smoke test reusing `tests/fixtures/*.json` to prove
   the serialization path.
 
 ## 17. I6 — schema-drift guard
 
-- [ ] 17.1 Harvest + redact real cached artifacts (trimmed to 1–2 sections) into
+- [x] 17.1 Harvest + redact real cached artifacts (trimmed to 1–2 sections) into
   `tests/fixtures/agent_payloads/`: `show_plan.json`, `section_plan.json`, `section_effects.json`,
   `music_brief.json`, `structure_out.json`, `rhythm_out.json`, `harmony_out.json`, `lyric_out.json`,
   `judge_verdict.json`, `visual_findings.json`, `instructions.json`, `song_analysis.json`,
   `revision_log_record.json` (≥12 payloads). Seed from real artifacts, NOT `model_dump()` of fresh
   objects.
-- [ ] 17.2 `tests/test_schema_drift.py`: parametrized `model.model_validate_json(payload)` over all
+- [x] 17.2 `tests/test_schema_drift.py`: parametrized `model.model_validate_json(payload)` over all
   cases; a `test_instructions_cache_shape` that validates each item in `instructions.json` as
   `EffectInstruction`. Document the failure protocol in the module docstring (revert to a
   backward-compatible field-with-default, OR bump the fixture *and* the cache key per the run.py:390
   precedent).
-- [ ] 17.3 `required_fields.json` manifest + a test comparing each model's `model_json_schema()`
+- [x] 17.3 `required_fields.json` manifest + a test comparing each model's `model_json_schema()`
   required-field set against it, so an *additive* required field fails even if the payload includes it.
-- [ ] 17.4 Provide an `XLO_REGEN_PAYLOADS=1` helper script (deliberate regeneration only — never an
+- [x] 17.4 Provide an `XLO_REGEN_PAYLOADS=1` helper script (deliberate regeneration only — never an
   automatic rewrite).
 
 ## 18. Shared — advisory CI coverage (optional; own commit, droppable)

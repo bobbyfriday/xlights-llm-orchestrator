@@ -67,6 +67,22 @@ def test_registry_reroute_via_env(monkeypatch):
     assert registry.model_string("generator").startswith("google:")
 
 
+# -- pipeline state guard (I4 require) ----------------------------------------
+
+def test_require_returns_value_and_narrows():
+    from xlights_orchestrator.pipeline.state import require
+    sentinel = object()
+    assert require(sentinel, "song_analysis") is sentinel          # identity on a set value
+    assert require(0, "x") == 0                                     # falsy-but-present passes
+    assert require("", "x") == ""
+
+
+def test_require_none_raises_naming_the_field():
+    from xlights_orchestrator.pipeline.state import require
+    with pytest.raises(RuntimeError, match="show_plan"):
+        require(None, "show_plan")
+
+
 # -- catalog ------------------------------------------------------------------
 
 def test_placeable_excludes_rejected():

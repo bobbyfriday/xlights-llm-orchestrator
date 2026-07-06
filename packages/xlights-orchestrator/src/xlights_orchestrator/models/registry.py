@@ -135,13 +135,15 @@ def _settings(role: str, *, provider: str | None = None):
     from pydantic_ai.models.anthropic import AnthropicModelSettings
 
     spec = _cfg()["roles"][role]["anthropic"]
-    kw: dict[str, Any] = {}
+    # Build the TypedDict LITERALLY (not via **kw): mypy can't type-check a dict splatted
+    # into a TypedDict, but it checks each keyed assignment below against the field's type.
+    settings: AnthropicModelSettings = {}
     if spec.get("thinking") == "adaptive":
-        kw["anthropic_thinking"] = {"type": "adaptive"}
+        settings["anthropic_thinking"] = {"type": "adaptive"}
     if spec.get("effort"):
-        kw["anthropic_effort"] = spec["effort"]
+        settings["anthropic_effort"] = spec["effort"]
     # Deliberately never set temperature/top_p/top_k (removed on Opus → 400).
-    return AnthropicModelSettings(**kw) if kw else None
+    return settings if settings else None
 
 
 def build_agent(role: str, *, output_type, system_prompt: str) -> Agent:

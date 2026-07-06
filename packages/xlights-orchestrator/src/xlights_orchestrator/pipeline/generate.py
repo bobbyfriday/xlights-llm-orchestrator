@@ -42,7 +42,7 @@ from .beats import (
 )
 from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
-from .state import State
+from .state import State, require
 from .triggers import place_triggers
 from .semantic_groups import ACCENT_GROUPS, DEFAULT_VOCAB, HERO_GROUP
 from .weave import (
@@ -267,13 +267,14 @@ async def realize_section(st: State, si: int, *, agent,
     meter, hard caps, beat accents. SHARED by first-pass generation, the refine loop, and
     `xlo regen`, so a regenerated section is realized exactly like a first-pass one.
     Every instruction is tagged with `si`."""
-    section = st.show_plan.sections[si]
-    _peaks = peak_sections(st.show_plan)         # the show's payoff section(s)
+    plan = require(st.show_plan, "show_plan")
+    section = plan.sections[si]
+    _peaks = peak_sections(plan)         # the show's payoff section(s)
     bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
-    motifs = {g: st.show_plan.group_motifs[g]
-              for g in section.target_groups if g in st.show_plan.group_motifs}
+    motifs = {g: plan.group_motifs[g]
+              for g in section.target_groups if g in plan.group_motifs}
     _gen_res = await run_agent(agent, generator_mod.render_input(
-        section, revision=revision, concept=st.show_plan.concept, motifs=motifs),
+        section, revision=revision, concept=plan.concept, motifs=motifs),
         role="generator", attempts=3)
     telemetry.record("generator", _gen_res)
     out: SectionEffects = _gen_res.output
@@ -421,35 +422,36 @@ def finalize_effects(st: State, instrs: list[EffectInstruction]) -> list[EffectI
 async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
     """Run the generator per section + the deterministic realization layers → instructions."""
     agent = generator or generator_mod.generator_agent()
+    plan = require(st.show_plan, "show_plan")
     instrs: list[EffectInstruction] = []
-    _peaks = peak_sections(st.show_plan)         # the show's payoff section(s)
-    for i in range(len(st.show_plan.sections)):
+    _peaks = peak_sections(plan)         # the show's payoff section(s)
+    for i in range(len(plan.sections)):
         instrs.extend(await realize_section(st, i, agent=agent))
     # guarantee the climax SIGNAL lands at the peak: a peak section with no climax/accent
     # key-moment inside it gets one synthesized at its downbeat (drives key_moment_flashes).
     for pi in _peaks:
-        sec = st.show_plan.sections[pi]
+        sec = plan.sections[pi]
         if not any(sec.start_ms <= m.at_ms < sec.end_ms
                    and any(k in (m.kind or "").lower() for k in ("climax", "accent", "drop"))
-                   for m in st.show_plan.key_moments):
-            st.show_plan.key_moments.append(
+                   for m in plan.key_moments):
+            plan.key_moments.append(
                 KeyMoment(at_ms=sec.start_ms, kind="climax", treatment="peak payoff"))
     # mid-section instrument entrances → surfaced as key moments + featured on the focal prop
     for _t, _stem in instrument_entrances(st.song_analysis):
-        st.show_plan.key_moments.append(KeyMoment(at_ms=_t, kind="entrance",
-                                                  treatment=f"{_stem} enters — feature it"))
+        plan.key_moments.append(KeyMoment(at_ms=_t, kind="entrance",
+                                          treatment=f"{_stem} enters — feature it"))
     # curated trigger effects (cookbook-defined; folds in the entrance feature as the
     # `instrument_entrance` trigger — replaces the old instrument_feature_layer call).
-    _triggers = place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
+    _triggers = place_triggers(st.song_analysis, plan.sections, st.available_groups,
                                load_guide("triggers"))
     for ins in _triggers:
         ins.source = ins.source or "triggers"        # provenance (I7; report-only)
     instrs += _triggers
-    _flashes = key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
+    _flashes = key_moment_flashes(plan, st.available_groups)   # white flash at climaxes
     for ins in _flashes:
         ins.source = ins.source or "flash"
     instrs += _flashes
-    for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
+    for _i, _sec in enumerate(plan.sections):       # feature sparkle/snow props pop (white-on-bed)
         feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
     instrs = place_matrix_narrative(st, instrs)             # sparse narrative Text on the matrix (F-C)
     return finalize_effects(st, instrs)

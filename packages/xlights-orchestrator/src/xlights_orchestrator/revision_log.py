@@ -9,13 +9,24 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 from pydantic import BaseModel
 
 from .telemetry import RoleUsage
 
 log = logging.getLogger(__name__)
+
+
+class RevisionSink(Protocol):
+    """The write-only revision-log seam the refine loop depends on.
+
+    Both `RevisionLog` (file-backed) and `NullRevisionLog` (no-op) satisfy it, so
+    callers can hold one variable typed as the Protocol without mypy complaining
+    that the file writer is incompatible with the null one.
+    """
+
+    def write(self, record: RevisionLogRecord) -> None: ...
 
 
 class LogFinding(BaseModel):

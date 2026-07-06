@@ -1,0 +1,54 @@
+{
+ "run_id": "post1",
+ "iteration": 0,
+ "song_key": "postI1_song",
+ "ts": "2026-07-01T00:00:00Z",
+ "kind": "iteration",
+ "objective_score": 78,
+ "advisory_score": 60,
+ "findings": [],
+ "judge": {
+  "score": 78,
+  "verdict": "iterate"
+ },
+ "revisions": [
+  {
+   "section_index": 1,
+   "issue": "x",
+   "origin": "judge"
+  }
+ ],
+ "regenerated_sections": [
+  1
+ ],
+ "obj_before": 72,
+ "obj_after": 78,
+ "obj_delta": 6,
+ "reverted": false,
+ "human_decision": "approve",
+ "models": {
+  "generator": "anthropic:claude-sonnet-4-6",
+  "judge": "anthropic:claude-opus-4-8"
+ },
+ "review_bundle": null,
+ "usage": {
+  "generator": {
+   "requests": 0,
+   "input_tokens": 50000,
+   "output_tokens": 8000,
+   "cache_read_tokens": 0,
+   "cache_write_tokens": 0
+  },
+  "judge": {
+   "requests": 0,
+   "input_tokens": 20000,
+   "output_tokens": 1000,
+   "cache_read_tokens": 0,
+   "cache_write_tokens": 0
+  }
+ },
+ "usage_total": {},
+ "cost_usd": null,
+ "stop_reason": null,
+ "redesigned_sections": []
+}

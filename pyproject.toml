@@ -5,7 +5,7 @@
 members = ["packages/*"]
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-PyYAML"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -28,11 +28,15 @@ ignore = ["E702", "E731", "E741"]
 # Tests group fixtures into labelled sections, so imports follow the code they support.
 "tests/*" = ["E402"]
 
-# Type checking is wired in but currently ADVISORY (CI runs it non-blocking): the
-# codebase is fully annotated but was never type-checked, so a backlog of ~30
-# findings is being triaged before mypy becomes a hard gate. Third-party libs
-# without stubs are ignored.
+# Type checking is a HARD CI gate (see .github/workflows/ci.yml): the codebase is
+# fully annotated and mypy must pass clean on every PR. Third-party libs without
+# stubs are ignored (ignore_missing_imports). The warn_* flags keep the annotation
+# hygiene honest — a redundant cast or a now-unnecessary `# type: ignore` fails the
+# gate rather than rotting; check_untyped_defs type-checks helper bodies too.
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
 files = ["packages"]

@@ -1,0 +1,35 @@
+{
+ "sections": [
+  {
+   "start_ms": 0,
+   "end_ms": 12000,
+   "label": "intro",
+   "intensity": 0.4,
+   "musical_description": "soft pad swells, sparse kick",
+   "dominant_instruments": [],
+   "stem_shares": {},
+   "instrumentation_phrase": "",
+   "accents_ms": []
+  },
+  {
+   "start_ms": 12000,
+   "end_ms": 24000,
+   "label": "drop",
+   "intensity": 0.95,
+   "musical_description": "full kit + bass, wide synths",
+   "dominant_instruments": [],
+   "stem_shares": {},
+   "instrumentation_phrase": "",
+   "accents_ms": []
+  }
+ ],
+ "repetition_map": {
+  "drop": [
+   1
+  ]
+ },
+ "candidate_themes": [
+  "winter",
+  "wonder"
+ ]
+}

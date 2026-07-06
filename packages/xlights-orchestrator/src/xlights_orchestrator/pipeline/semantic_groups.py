@@ -131,6 +131,7 @@ def derive_vocabulary(manifest) -> ChoreoVocabulary:
     # sides populated?
     sides = {getattr(p.pos, "side", "CENTER") for p in props}
     n_sides = len({s for s in sides if s in ("LEFT", "CENTER", "RIGHT")})
+    backbeat: tuple[str, ...]
     if n_sides >= 2:
         backbeat = (SEM_SIDE_CENTER, SEM_SIDE_LEFT, SEM_SIDE_RIGHT) + ACCENT_GROUPS
     else:

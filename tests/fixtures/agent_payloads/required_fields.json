@@ -1,0 +1,49 @@
+{
+ "song_analysis": [
+  "duration_s",
+  "path",
+  "sample_rate"
+ ],
+ "music_brief": [
+  "sections"
+ ],
+ "show_plan": [
+  "sections"
+ ],
+ "section_plan": [
+  "effect_family",
+  "end_ms",
+  "intensity",
+  "start_ms",
+  "target_groups"
+ ],
+ "section_effects": [
+  "instructions"
+ ],
+ "structure_out": [
+  "sections"
+ ],
+ "rhythm_out": [],
+ "harmony_out": [],
+ "lyric_out": [],
+ "judge_verdict": [
+  "score",
+  "verdict"
+ ],
+ "visual_findings": [],
+ "revision_log_record": [
+  "advisory_score",
+  "iteration",
+  "objective_score",
+  "run_id",
+  "song_key",
+  "ts"
+ ],
+ "instructions_item": [
+  "effect_type",
+  "end_ms",
+  "look_id",
+  "start_ms",
+  "target"
+ ]
+}

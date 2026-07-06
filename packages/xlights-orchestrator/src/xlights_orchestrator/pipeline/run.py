@@ -248,6 +248,11 @@ async def run_pipeline(
     except Exception:  # noqa: BLE001
         show_folder = None
     media = prepare_media(song_path, show_folder)
+    if show_folder:                          # singing faces lip-sync to the vocals (deterministic)
+        from .faces import place_faces
+        faces = place_faces(st.song_analysis, Path(show_folder) / "xlights_rgbeffects.xml")
+        if faces:
+            st.instructions = list(st.instructions) + faces
     st.instructions, _dropped = clamp_layer_budget(st.instructions)   # catalog rule #10: ≤4 layers
     if _dropped:
         log.info("layer budget trimmed %d over-stacked placements", _dropped)

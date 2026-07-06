@@ -13,7 +13,11 @@ from .pipeline.render_style import resolve_buffer_style
 
 from .show_plan import EffectInstruction
 
-_SKIPPABLE = (PresetPlacementError, XLightsTargetMissing, ValueError, KnobValueError, KeyError)
+_SKIPPABLE = (PresetPlacementError, XLightsTargetMissing, ValueError, KnobValueError, KeyError,
+              XLightsResponseError)
+# Asset-bound effects carry their own model assets (face defs / pictures) and aren't in the mined
+# preset library, so they're placed from explicit settings rather than a library Look.
+_ASSET_BOUND = frozenset({"Faces"})
 MAX_LAYERS = 6        # defensive ceiling — beyond this xLights refuses anyway (and catalog
                       # rule #10 caps rows at 4; generation trims to that BEFORE emitting)
 
@@ -109,6 +113,24 @@ async def apply_instructions(
                             "section_index": ins.section_index,
                             "reason": f"layer budget: would need layer {layer}"})
             continue
+        # Asset-bound effects (Faces): place from explicit settings, skip the preset library.
+        if ins.effect_type in _ASSET_BOUND:
+            settings = ",".join(f"{k}={v}" for k, v in ins.extra_settings.items())
+            try:
+                if not await client.add_effect(ins.target, ins.effect_type, settings,
+                                               layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms):
+                    raise PresetPlacementError("addEffect returned worked=false")
+                occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
+                placed.append({"target": ins.target, "effect": ins.effect_type, "look": "",
+                               "layer": layer, "start_ms": ins.start_ms, "end_ms": ins.end_ms,
+                               "section_index": ins.section_index})
+            except _SKIPPABLE as exc:
+                skipped.append({"target": ins.target, "effect": ins.effect_type,
+                                "start_ms": ins.start_ms, "end_ms": ins.end_ms,
+                                "section_index": ins.section_index,
+                                "reason": f"{type(exc).__name__}: {exc}"})
+            continue
+
         # LLM's render style if valid, else a fallback — never the sparse unset default.
         extra = dict(ins.extra_settings)
         extra["B_CHOICE_BufferStyle"] = resolve_buffer_style(ins.render_style, ins.effect_type)

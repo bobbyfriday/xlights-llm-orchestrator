@@ -31,6 +31,15 @@ class TimingMark:
 class TimingTrack:
     name: str
     marks: list[TimingMark] = field(default_factory=list)
+    # multi-layer tracks (e.g. the phoneme lyric track: phrases/words/phonemes) carry a layer per
+    # entry, written as one <EffectLayer> each. Single-layer tracks leave this None and use `marks`.
+    layers: list[list[TimingMark]] | None = None
+
+    def layer_list(self) -> list[list[TimingMark]]:
+        return self.layers if self.layers is not None else [self.marks]
+
+    def has_marks(self) -> bool:
+        return any(layer for layer in self.layer_list())
 
 
 def _tile(times_ms: list[int], end_ms: int | None, labels: list[str] | None = None) -> list[TimingMark]:
@@ -134,6 +143,61 @@ def _lyric_track(sa, end_ms) -> TimingTrack | None:
     return TimingTrack("Lyrics", marks) if marks else None
 
 
+def _ms(v) -> int | None:
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return int(v * 1000) if v < 10000 else int(v)   # seconds vs already-ms heuristic
+
+
+def _timed_words(lyrics) -> list[tuple[str, int, int]]:
+    """(word, start_ms, end_ms) across all lines, from `lyrics.lines[].words` (Whisper word timing)."""
+    out: list[tuple[str, int, int]] = []
+    lines = lyrics.get("lines") if isinstance(lyrics, dict) else None
+    for ln in lines or []:
+        for w in (ln.get("words") if isinstance(ln, dict) else None) or []:
+            if not isinstance(w, dict):
+                continue
+            text = w.get("word") or w.get("text") or ""
+            s, e = _ms(w.get("start")), _ms(w.get("end"))
+            if text and s is not None and e is not None and e > s:
+                out.append((str(text).strip(), s, e))
+    out.sort(key=lambda x: x[1])
+    return out
+
+
+def _viseme_marks(words: list[tuple[str, int, int]]) -> list[TimingMark]:
+    """Tile each word's mouth shapes evenly across its span; fill the gaps between words with `rest`."""
+    from xlights_core.audio.phonemes import word_to_visemes
+    marks: list[TimingMark] = []
+    prev_end = words[0][1] if words else 0
+    for word, s, e in words:
+        if s > prev_end:                              # silence between words → closed mouth
+            marks.append(TimingMark("rest", prev_end, s))
+        vis = word_to_visemes(word) or ["rest"]
+        step = max(1, (e - s) // len(vis))
+        for i, v in enumerate(vis):
+            ms = s + i * step
+            me = e if i == len(vis) - 1 else min(e, s + (i + 1) * step)
+            if me > ms:
+                marks.append(TimingMark(v, ms, me))
+        prev_end = e
+    return marks
+
+
+def _phoneme_track(sa, end_ms, name: str = "Faces") -> TimingTrack | None:
+    """A 3-layer lyric timing track (phrases / words / phonemes) the xLights Faces effect reads."""
+    lyrics = getattr(sa, "lyrics", None)
+    words = _timed_words(lyrics) if lyrics else []
+    if not words:
+        return None
+    phrases = [TimingMark(t, s, e) for (t, s, e) in _timed_lines(lyrics) if e > s]
+    word_marks = [TimingMark(w, s, e) for (w, s, e) in words]
+    phoneme_marks = _viseme_marks(words)
+    return TimingTrack(name, layers=[phrases, word_marks, phoneme_marks])
+
+
 def build_timing_tracks(sa, brief, *, fallback_sections=None, onset_stems=None) -> list[TimingTrack]:
     """Assemble all reference tracks from the analysis + brief (skips any with no data)."""
     end_ms = int(getattr(sa, "duration_s", 0) * 1000) or None
@@ -149,8 +213,9 @@ def build_timing_tracks(sa, brief, *, fallback_sections=None, onset_stems=None) 
         *onset_tracks,
         _chord_track(sa, end_ms),
         _lyric_track(sa, end_ms),
+        _phoneme_track(sa, end_ms),               # phrases/words/phonemes for the Faces effect
     ]
-    return [t for t in candidates if t and t.marks]
+    return [t for t in candidates if t and t.has_marks()]
 
 
 # -- offline patcher ----------------------------------------------------------
@@ -162,7 +227,7 @@ def patch_xsq_timing_tracks(xsq_path: str | Path, tracks: list[TimingTrack]) -> 
     mid-write failure can't corrupt the file. Best-effort: returns False, file intact, on error.
     """
     xsq_path = Path(xsq_path)
-    tracks = [t for t in tracks if t.marks]
+    tracks = [t for t in tracks if t.has_marks()]
     if not tracks:
         return False
     try:
@@ -183,11 +248,12 @@ def patch_xsq_timing_tracks(xsq_path: str | Path, tracks: list[TimingTrack]) -> 
                 "type": "timing", "name": tr.name,
                 "visible": "1", "collapsed": "0", "active": "1"})
             el = ET.SubElement(effects, "Element", {"type": "timing", "name": tr.name})
-            layer = ET.SubElement(el, "EffectLayer")
-            for m in tr.marks:
-                ET.SubElement(layer, "Effect", {
-                    "label": m.label, "startTime": str(int(m.start_ms)),
-                    "endTime": str(int(m.end_ms))})
+            for marks in tr.layer_list():            # one <EffectLayer> per layer (phrases/words/phonemes)
+                layer = ET.SubElement(el, "EffectLayer")
+                for m in marks:
+                    ET.SubElement(layer, "Effect", {
+                        "label": m.label, "startTime": str(int(m.start_ms)),
+                        "endTime": str(int(m.end_ms))})
         tmp = xsq_path.with_suffix(xsq_path.suffix + ".tmp")
         tree.write(tmp, encoding="UTF-8", xml_declaration=True)
         os.replace(tmp, xsq_path)                  # atomic

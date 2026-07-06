@@ -30,6 +30,9 @@ _BED_TARGET_PREFIXES = ("SEM_BAND_",)                  # band rows MAY hold long
 _BED_TARGETS = {"SEM_ALL", "SEM_YARD"}                 # exact — NOT SEM_ALL_LESS_* (those weave)
 
 MOTION_SHARE_INTENSITY = 0.5
+# improve-musicality Phase 2 treatments that are deliberately still — exempt from the motion-share
+# advisory even at high intensity (their sparseness is intent, not a fabric regression).
+_QUIET_TREATMENTS = frozenset({"rest", "gesture"})
 
 TEXTURE = {"Plasma", "Fire", "Liquid", "Life"}                   # rule #2: never on linear props
 FEATURES = {"Kaleidoscope", "Shader", "Shockwave", "Fireworks"}  # rule #4: one at a time
@@ -137,6 +140,10 @@ def evaluate(instructions, plan, manifest=None) -> tuple[int, list[Finding]]:
             continue
         if (getattr(sections[si], "intensity", 0.5) or 0.5) < MOTION_SHARE_INTENSITY:
             continue
+        # treatment exemption (improve-musicality Phase 2, forward-compatible): a deliberately still
+        # rest/gesture section is not a fabric regression, even if its intensity reads high.
+        if (getattr(sections[si], "treatment", "") or "").lower() in _QUIET_TREATMENTS:
+            continue
         share = sum(1 for x in group if x.effect_type in MOTION_EFFECTS) / len(group)
         if share < MOTION_SHARE_MIN:
             findings.append(Finding(
@@ -144,7 +151,8 @@ def evaluate(instructions, plan, manifest=None) -> tuple[int, list[Finding]]:
                 objective=False, section_index=si,
                 detail=f"motion-effect share {share:.0%} (< {MOTION_SHARE_MIN:.0%}) in an "
                        f"energetic section — mostly static/punctuation effects; weave motion "
-                       f"cells (chases/spirals/ripples) instead (community fabric ~58% motion)"))
+                       f"cells (chases/spirals/ripples) instead (2026-07 re-measurement target "
+                       f"≥ 45%; real shows clear it — docs/effects-layering-analysis-2026-07.md)"))
     return score, findings
 
 

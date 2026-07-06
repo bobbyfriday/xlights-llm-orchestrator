@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
+from ..models.registry import run_agent
 from ..qa.rules import clamp_hard_caps
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects
 from .phrasing import tail_fade_settings
@@ -155,8 +156,9 @@ async def realize_section(st: State, si: int, *, agent,
     bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
     motifs = {g: st.show_plan.group_motifs[g]
               for g in section.target_groups if g in st.show_plan.group_motifs}
-    out: SectionEffects = (await agent.run(generator_mod.render_input(
-        section, revision=revision, concept=st.show_plan.concept, motifs=motifs))).output
+    out: SectionEffects = (await run_agent(agent, generator_mod.render_input(
+        section, revision=revision, concept=st.show_plan.concept, motifs=motifs),
+        role="generator", attempts=3)).output
     _rm = st.music_brief.repetition_map if st.music_brief else None
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
     wash_b = wash_brightness(_si)            # energy → wash brightness
@@ -167,6 +169,7 @@ async def realize_section(st: State, si: int, *, agent,
     kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
     for j, ins in enumerate(kept):
         ins.section_index = si              # tag for scoped regen / per-section QA
+        ins.source = "generator"            # provenance (I7; excluded from dump — report-only)
         if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
             ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
         if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:   # long energetic wash BUILDS
@@ -180,6 +183,7 @@ async def realize_section(st: State, si: int, *, agent,
            else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
     if bed is not None:
         bed.section_index = si
+        bed.source = "bed"
         kept.append(bed)                 # occlusion order/blend handled by finalize_effects
     carrier = section_carrier(si)                # rotate the carrier so the show isn't all one effect
     weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
@@ -190,6 +194,7 @@ async def realize_section(st: State, si: int, *, agent,
                          bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference)
     for ins in woven:
         ins.section_index = si
+        ins.source = "weave"
     kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
     # composite stacks: LLM-designed multi-effect blended layers, plus a curated stack on the
     # hero at the peak — effects COMBINED on layers (e.g. counter-Morphs + Max) for a rich look.
@@ -201,10 +206,12 @@ async def realize_section(st: State, si: int, *, agent,
     for comp in comp_recipes:
         for ins in expand_composite(comp, section, _si, st.available_groups):
             ins.section_index = si
+            ins.source = "composite"
             kept.append(ins)
     vu = place_vu_meter(section, st.available_groups, _si, seed=si)   # music-reactive feature layer
     if vu is not None:
         vu.section_index = si
+        vu.source = "vu"
         kept.append(vu)
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
     accents = place_beat_accents(            # beat layer over the wash; the weave's carrier
@@ -215,6 +222,7 @@ async def realize_section(st: State, si: int, *, agent,
     under = {k.target for k in kept}
     for ins in accents:
         ins.section_index = si
+        ins.source = "accents"
         if ins.target in under:                 # a pulse ADDS over its base, not occludes
             ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
     kept.extend(accents)
@@ -255,9 +263,36 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
                                                   treatment=f"{_stem} enters — feature it"))
     # curated trigger effects (cookbook-defined; folds in the entrance feature as the
     # `instrument_entrance` trigger — replaces the old instrument_feature_layer call).
-    instrs += place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
-                             load_guide("triggers"))
-    instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
+    _triggers = place_triggers(st.song_analysis, st.show_plan.sections, st.available_groups,
+                               load_guide("triggers"))
+    for ins in _triggers:
+        ins.source = ins.source or "triggers"        # provenance (I7; report-only)
+    instrs += _triggers
+    _flashes = key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
+    for ins in _flashes:
+        ins.source = ins.source or "flash"
+    instrs += _flashes
     for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
         feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
+    instrs = place_matrix_narrative(st, instrs)             # sparse narrative Text on the matrix (F-C)
     return finalize_effects(st, instrs)
+
+
+def place_matrix_narrative(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Append F-C narrative Text on the matrix model to `instrs` (idempotent: drops any prior
+    matrix-text before re-placing, so refine/regen splices reproduce exactly one copy per moment).
+
+    `place_matrix_text` reads/dims the existing matrix background in `st.instructions`, so point
+    that at the working list for the duration of the pass. No matrix / no grounded text → no-op."""
+    from .matrix_text import find_matrix, place_matrix_text, strip_matrix_text
+    instrs = strip_matrix_text(instrs)
+    matrix = find_matrix(getattr(st, "model_names", None))
+    if matrix is None:
+        return instrs
+    prior = st.instructions
+    st.instructions = instrs
+    try:
+        text = place_matrix_text(st, matrix)
+    finally:
+        st.instructions = prior
+    return instrs + text

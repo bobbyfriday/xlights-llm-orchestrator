@@ -18,6 +18,7 @@ from pathlib import Path
 from xlights_core.editing import place_preset
 from xlights_core.exceptions import XLightsTargetMissing
 
+from .. import degradations
 from ..agents.generator import candidate_look_ids
 
 log = logging.getLogger(__name__)
@@ -35,32 +36,33 @@ def _fingerprint(groups: list[str], models: list[str]) -> str:
 async def targetable_groups(client, *, cache_root: Path) -> list[str]:
     """The subset of prop groups xLights accepts effects on (cached per layout).
 
-    Best-effort: any failure (or an empty result) falls back to the full group list and
-    does NOT write the cache — so a transient blip never poisons it or drops a real target.
+    A failed *listing* (``get_group_names``) FAILS FAST — it re-raises rather than limping on an
+    empty list. An empty ``available_groups`` has no useful degraded mode: it poisons the Director
+    prompt ("choose from: nothing") and produces a garbage cached brief AFTER paying for analysis +
+    panel + director tokens, so raising early fails before any LLM spend. A failed *probe* (below)
+    keeps its sane full-list fallback; only the listing itself is fatal. A genuinely empty layout
+    that lists successfully returns ``[]`` normally.
     """
-    try:
-        names = await client.get_group_names()
-    except Exception as exc:  # noqa: BLE001 — can't even list groups → caller's problem, but degrade
-        log.warning("targetable_groups: get_group_names failed: %s", exc)
-        return []
+    names = await client.get_group_names()   # a failed listing propagates — see the docstring
     if not names:
         return names
     try:
         model_names = await client.get_model_names()
-    except Exception:  # noqa: BLE001 — fingerprint enrichment only; group names still key the cache
+    except Exception as exc:  # noqa: BLE001 — fingerprint enrichment only; group names still key
+        log.debug("targetable_groups: get_model_names for fingerprint failed: %s", exc)
         model_names = []
 
     cache_file = Path(cache_root) / f"targetable_groups_{_fingerprint(names, model_names)}.json"
     if cache_file.exists():
         try:
             return json.loads(cache_file.read_text())
-        except Exception:  # noqa: BLE001 — corrupt cache → re-probe
-            pass
+        except Exception as exc:  # noqa: BLE001 — corrupt cache → re-probe
+            log.debug("targetable_groups: corrupt cache, re-probing: %s", exc)
 
     try:
         targetable = await _probe(client, names)
     except Exception as exc:  # noqa: BLE001 — non-target error / setup failure → full list, no cache
-        log.warning("targetable_groups: probe failed, using all groups: %s", exc)
+        degradations.note("groups:probe", exc, stage="groups")
         return names
     if not targetable:                       # empty → don't trust it; fall back, don't cache
         log.warning("targetable_groups: probe found none targetable; using all groups")
@@ -90,6 +92,6 @@ async def _probe(client, names: list[str]) -> list[str]:
     finally:
         try:
             await client.close_sequence(force=True, quiet=True)   # discard the disposable sequence
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 — cleanup only; the probe result already stands
+            log.debug("targetable_groups: probe cleanup close failed: %s", exc)
     return ok

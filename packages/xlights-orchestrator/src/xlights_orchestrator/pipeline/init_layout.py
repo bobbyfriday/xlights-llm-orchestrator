@@ -13,6 +13,7 @@ hermetically testable by injecting `prompt`/`out` and stubbing the write/validat
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from xlights_core.knowledge.layout_classify import (
@@ -29,6 +30,8 @@ from xlights_core.knowledge.layout_manifest import (
 )
 from xlights_core.knowledge.layout_semantics import build_sem_groups, layout_modes, write_sem_groups
 
+log = logging.getLogger(__name__)
+
 REVIEW_CONF = 0.8              # props below this go to the review queue (spec §3.5/§7.4)
 _OVERRIDES_NAME = "layout_overrides.json"
 
@@ -43,7 +46,8 @@ async def is_xlights_running(*, timeout: float = 1.0) -> bool:
         async with XLightsClient(timeout=timeout) as client:
             await client.get_version()
         return True
-    except Exception:  # noqa: BLE001 — any connect/timeout/HTTP error = not reachable = closed
+    except Exception as exc:  # noqa: BLE001 — any connect/timeout/HTTP error = not reachable = closed
+        log.debug("xLights not reachable (treated as closed): %s", exc)
         return False
 
 
@@ -165,7 +169,8 @@ def _locate_show_folder(args, *, prompt=input) -> Path | None:
             async with XLightsClient(timeout=1.0) as c:
                 folder = await c.get_show_folder()
             return folder or None
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — no running xLights → fall back to a prompt
+            log.debug("could not auto-detect show folder: %s", exc)
             return None
     folder = asyncio.run(_ask())
     if folder:
@@ -210,6 +215,7 @@ async def run_init_layout(args) -> int:
             plan = analyze_layout(rgb, invert_x=getattr(args, "invert_x", False),
                                   overrides=overrides)   # re-derive with resolved roles
         except Exception as exc:  # noqa: BLE001 — the fallback is optional
+            log.debug("LLM classify fallback failed: %s", exc)
             out(f"LLM fallback skipped: {exc}")
 
     # 3. review
@@ -244,6 +250,7 @@ async def run_init_layout(args) -> int:
         try:
             _run_validation(rgb, show_folder, plan, out=out)
         except Exception as exc:  # noqa: BLE001 — validation is advisory here, not a hard gate
+            log.debug("offline validation failed: %s", exc)
             out(f"validation skipped: {exc}")
 
     # 7. finish

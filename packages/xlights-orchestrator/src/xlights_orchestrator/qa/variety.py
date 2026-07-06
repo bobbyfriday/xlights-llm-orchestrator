@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections import Counter
 
+from ..pipeline.matrix_text import MATRIX_TEXT_MARKER
+from ..pipeline.tuning import MAX_TEXT_MOMENTS
 from ..refine import Finding
 
 DOMINANCE = 0.7      # one effect type covering >70% of effects reads as monotone
@@ -33,6 +35,17 @@ def evaluate(instructions, groups) -> tuple[int, list[Finding]]:
             detail=f"only {distinct} distinct effect types (aim ≥{MIN_DISTINCT_TYPES}) — "
                    "give some sections different effect_types/weave carriers"))
         score -= 10 * (MIN_DISTINCT_TYPES - distinct)
+
+    # Over-captioning guard: narrative Text is outside rules.FEATURES/ENERGY_BAND (objectively
+    # unconstrained), so this advisory is the belt-and-braces backstop against a future author
+    # adding "just one more" text source past the cap. Advisory only — never gates the objective.
+    text_moments = sum(1 for ins in instructions if ins.extra_settings.get(MATRIX_TEXT_MARKER) == "1")
+    if text_moments > MAX_TEXT_MOMENTS:
+        findings.append(Finding(
+            scope="global", severity="warn", metric="matrix-text", objective=False,
+            detail=f"{text_moments} matrix text moments exceed the cap of {MAX_TEXT_MOMENTS} "
+                   "(text is punctuation, not captioning)"))
+        score -= 10
 
     used = {ins.target for ins in instructions}
     if groups:

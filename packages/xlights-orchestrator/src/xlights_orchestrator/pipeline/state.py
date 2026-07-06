@@ -16,6 +16,7 @@ class State:
     song_path: str
     song_analysis: SongAnalysis | None = None
     available_groups: list[str] = field(default_factory=list)
+    model_names: list[str] = field(default_factory=list)   # real MODEL names (F-C matrix-text discovery)
     placeable_types: list[str] = field(default_factory=list)
     music_brief: MusicBrief | None = None
     show_plan: ShowPlan | None = None

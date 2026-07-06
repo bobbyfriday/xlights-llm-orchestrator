@@ -16,6 +16,7 @@ from .meter import DEFAULT_BEATS_PER_BAR as BEATS_PER_BAR, resolve_beats_per_bar
 log = logging.getLogger(__name__)
 
 LAST_MARK_MS = 500            # clamp a final tiled mark so it isn't a giant block
+FRAME_MS = 50                 # sequence frame granularity; xLights drops sub-frame (zero-width) marks
 MAX_ONSET_STEMS = 3           # selective: drums + lead/bass, not all six
 _MIN_ENERGY_SHARE = 0.10      # a stem needs ≥10% of the loudest stem's mean energy to get a track
 
@@ -54,6 +55,23 @@ def _tile(times_ms: list[int], end_ms: int | None, labels: list[str] | None = No
         if e <= t:
             continue
         out.append(TimingMark(labels[i] if labels else "", t, e))
+    return out
+
+
+def _frame_safe(marks: list[TimingMark], frame: int = FRAME_MS) -> list[TimingMark]:
+    """Snap each mark to the frame grid and guarantee ≥1-frame width, so xLights never drops a
+    zero-width mark on load. Dense onsets/phonemes that fall within a single frame (< ``frame`` ms
+    apart) can't be distinguished at the sequence frame rate, so a mark colliding with the previous
+    one is merged (dropped). Contiguous tiled marks (end == next start) are preserved."""
+    out: list[TimingMark] = []
+    for m in marks:
+        s = round(m.start_ms / frame) * frame
+        e = round(m.end_ms / frame) * frame
+        if e <= s:                                  # sub-frame span → give it exactly one frame
+            e = s + frame
+        if out and s < out[-1].end_ms:              # overlaps the previous frame-snapped mark → drop
+            continue
+        out.append(TimingMark(m.label, s, e))
     return out
 
 
@@ -250,7 +268,7 @@ def patch_xsq_timing_tracks(xsq_path: str | Path, tracks: list[TimingTrack]) -> 
             el = ET.SubElement(effects, "Element", {"type": "timing", "name": tr.name})
             for marks in tr.layer_list():            # one <EffectLayer> per layer (phrases/words/phonemes)
                 layer = ET.SubElement(el, "EffectLayer")
-                for m in marks:
+                for m in _frame_safe(marks):         # frame-snap so xLights drops no zero-width marks
                     ET.SubElement(layer, "Effect", {
                         "label": m.label, "startTime": str(int(m.start_ms)),
                         "endTime": str(int(m.end_ms))})
@@ -260,5 +278,6 @@ def patch_xsq_timing_tracks(xsq_path: str | Path, tracks: list[TimingTrack]) -> 
         log.info("timing tracks: wrote %d tracks to %s", len(tracks), xsq_path.name)
         return True
     except Exception as exc:  # noqa: BLE001 — best-effort; leave the .xsq intact
-        log.warning("timing-track patch failed for %s: %s", xsq_path, exc)
+        from ..degradations import note
+        note("finalize:timing-tracks", exc, stage="finalize")
         return False

@@ -1,5 +1,6 @@
 [
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 1000,
   "extra_settings": {
@@ -23,6 +24,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 1000,
   "extra_settings": {
@@ -48,6 +50,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12000,
   "extra_settings": {
@@ -68,6 +71,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 600,
   "extra_settings": {
@@ -88,6 +92,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 1600,
   "extra_settings": {
@@ -108,6 +113,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 2000,
   "extra_settings": {
@@ -130,6 +136,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 2000,
   "extra_settings": {
@@ -155,6 +162,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 10600,
   "extra_settings": {
@@ -175,6 +183,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 11000,
   "extra_settings": {
@@ -198,6 +207,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 11000,
   "extra_settings": {
@@ -223,6 +233,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 11600,
   "extra_settings": {
@@ -243,6 +254,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 12000,
   "extra_settings": {
@@ -265,6 +277,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 12000,
   "extra_settings": {
@@ -290,6 +303,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 2600,
   "extra_settings": {
@@ -310,6 +324,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 3000,
   "extra_settings": {
@@ -333,6 +348,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 3000,
   "extra_settings": {
@@ -358,26 +374,7 @@
   "target": "SEM_MINITREES"
  },
  {
-  "effect_type": "On",
-  "end_ms": 3600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 3000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 4000,
   "extra_settings": {
@@ -400,6 +397,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 4000,
   "extra_settings": {
@@ -425,26 +423,7 @@
   "target": "SEM_MINITREES"
  },
  {
-  "effect_type": "On",
-  "end_ms": 4600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 4000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 5000,
   "extra_settings": {
@@ -468,6 +447,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 5000,
   "extra_settings": {
@@ -493,26 +473,7 @@
   "target": "SEM_MINITREES"
  },
  {
-  "effect_type": "On",
-  "end_ms": 5600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 5000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 6000,
   "extra_settings": {
@@ -535,6 +496,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 6000,
   "extra_settings": {
@@ -560,26 +522,7 @@
   "target": "SEM_MINITREES"
  },
  {
-  "effect_type": "On",
-  "end_ms": 6600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 6000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 7000,
   "extra_settings": {
@@ -603,6 +546,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 7000,
   "extra_settings": {
@@ -628,6 +572,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 7600,
   "extra_settings": {
@@ -648,6 +593,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 8000,
   "extra_settings": {
@@ -670,6 +616,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 8000,
   "extra_settings": {
@@ -695,6 +642,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 8600,
   "extra_settings": {
@@ -715,6 +663,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 9000,
   "extra_settings": {
@@ -738,6 +687,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 9000,
   "extra_settings": {
@@ -763,6 +713,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 10000,
   "extra_settings": {
@@ -785,6 +736,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 10000,
   "extra_settings": {
@@ -810,6 +762,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 9600,
   "extra_settings": {
@@ -830,6 +783,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12000,
   "extra_settings": {
@@ -850,6 +804,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12250,
   "extra_settings": {},
@@ -867,6 +822,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 13000,
   "extra_settings": {
@@ -889,6 +845,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 13000,
   "extra_settings": {
@@ -912,6 +869,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 24000,
   "extra_settings": {
@@ -933,6 +891,7 @@
   "target": "SEM_ALL"
  },
  {
+  "direct_settings": "",
   "effect_type": "VU Meter",
   "end_ms": 24000,
   "extra_settings": {
@@ -953,6 +912,7 @@
   "target": "SEM_BAND_GROUND"
  },
  {
+  "direct_settings": "",
   "effect_type": "Butterfly",
   "end_ms": 24000,
   "extra_settings": {
@@ -978,6 +938,7 @@
   "target": "SEM_FOCAL"
  },
  {
+  "direct_settings": "",
   "effect_type": "Galaxy",
   "end_ms": 24000,
   "extra_settings": {
@@ -1003,6 +964,7 @@
   "target": "SEM_FOCAL"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12750,
   "extra_settings": {},
@@ -1020,6 +982,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 13250,
   "extra_settings": {},
@@ -1037,6 +1000,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 14000,
   "extra_settings": {
@@ -1058,6 +1022,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 14000,
   "extra_settings": {
@@ -1081,6 +1046,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 13750,
   "extra_settings": {},
@@ -1098,6 +1064,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 14250,
   "extra_settings": {},
@@ -1115,6 +1082,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 15000,
   "extra_settings": {
@@ -1137,6 +1105,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 15000,
   "extra_settings": {
@@ -1160,6 +1129,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 14750,
   "extra_settings": {},
@@ -1177,6 +1147,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 15250,
   "extra_settings": {},
@@ -1194,6 +1165,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 16000,
   "extra_settings": {
@@ -1215,6 +1187,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 16000,
   "extra_settings": {
@@ -1238,6 +1211,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 15750,
   "extra_settings": {},
@@ -1255,6 +1229,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 16250,
   "extra_settings": {},
@@ -1272,6 +1247,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 17000,
   "extra_settings": {
@@ -1294,6 +1270,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 17000,
   "extra_settings": {
@@ -1317,6 +1294,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 16750,
   "extra_settings": {},
@@ -1334,6 +1312,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 17250,
   "extra_settings": {},
@@ -1351,6 +1330,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 18000,
   "extra_settings": {
@@ -1372,6 +1352,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 18000,
   "extra_settings": {
@@ -1395,6 +1376,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 17750,
   "extra_settings": {},
@@ -1412,6 +1394,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18250,
   "extra_settings": {
@@ -1431,6 +1414,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 19000,
   "extra_settings": {
@@ -1454,6 +1438,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 19000,
   "extra_settings": {
@@ -1478,6 +1463,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18750,
   "extra_settings": {
@@ -1497,6 +1483,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19250,
   "extra_settings": {
@@ -1516,6 +1503,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 20000,
   "extra_settings": {
@@ -1538,6 +1526,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 20000,
   "extra_settings": {
@@ -1562,6 +1551,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19750,
   "extra_settings": {
@@ -1581,25 +1571,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
-  "effect_type": "On",
-  "end_ms": 20250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 20000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 21000,
   "extra_settings": {
@@ -1623,6 +1595,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 21000,
   "extra_settings": {
@@ -1647,6 +1620,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 20750,
   "extra_settings": {
@@ -1666,25 +1640,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
-  "effect_type": "On",
-  "end_ms": 21250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 21000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 22000,
   "extra_settings": {
@@ -1707,6 +1663,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 22000,
   "extra_settings": {
@@ -1731,6 +1688,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 21750,
   "extra_settings": {
@@ -1750,25 +1708,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
-  "effect_type": "On",
-  "end_ms": 22250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 22000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 23000,
   "extra_settings": {
@@ -1792,6 +1732,7 @@
   "target": "SEM_ARCHES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 23000,
   "extra_settings": {
@@ -1816,6 +1757,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 22750,
   "extra_settings": {
@@ -1835,25 +1777,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
-  "effect_type": "On",
-  "end_ms": 23250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 23000,
-  "target": "SEM_SPINNERS"
- },
- {
+  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 24000,
   "extra_settings": {
@@ -1876,6 +1800,7 @@
   "target": "SEM_CANES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Twinkle",
   "end_ms": 24000,
   "extra_settings": {
@@ -1900,6 +1825,7 @@
   "target": "SEM_MINITREES"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 23750,
   "extra_settings": {
@@ -1919,6 +1845,7 @@
   "target": "SEM_SIDE_CENTER"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 220,
   "extra_settings": {
@@ -1949,6 +1876,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 1220,
   "extra_settings": {
@@ -1979,6 +1907,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 10220,
   "extra_settings": {
@@ -2009,6 +1938,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 11220,
   "extra_settings": {
@@ -2039,6 +1969,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 12150,
   "extra_settings": {
@@ -2059,6 +1990,7 @@
   "target": "SEM_ALL"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 2220,
   "extra_settings": {
@@ -2089,6 +2021,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 3220,
   "extra_settings": {
@@ -2119,6 +2052,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 4220,
   "extra_settings": {
@@ -2149,6 +2083,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 5220,
   "extra_settings": {
@@ -2179,6 +2114,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 6220,
   "extra_settings": {
@@ -2209,6 +2145,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 7220,
   "extra_settings": {
@@ -2239,6 +2176,7 @@
   "target": "SEM_SPINNERS"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 8220,
   "extra_settings": {
@@ -2269,6 +2207,7 @@
   "target": "SEM_SNOWFLAKES"
  },
  {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 9220,
   "extra_settings": {

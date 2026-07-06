@@ -8,6 +8,8 @@ the same split as palettes/beats/brightness.
 
 from __future__ import annotations
 
+import logging
+
 from xlights_core.knowledge.colors import contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
 
@@ -39,6 +41,8 @@ from .tuning import (
     LEGATO_CELL_BEATS_FLOOR,
     WEAVE_BED_BRIGHTNESS as BED_BRIGHTNESS,
 )
+
+log = logging.getLogger(__name__)
 
 MAX_WOVEN_RECIPES = 3            # one carrier + up to two textures/accents (layer pressure cap)
 
@@ -277,7 +281,8 @@ def _effective_direction(recipe: CellRecipe) -> str:
     try:
         look = get_library().get_look(
             recipe.effect_type, recipe.look_id if recipe.look_id in looks else looks[0])
-    except Exception:  # noqa: BLE001 — detection is best-effort
+    except Exception as exc:  # noqa: BLE001 — LTR direction detection is cosmetic
+        log.debug("weave: LTR direction detection failed for %s: %s", recipe.effect_type, exc)
         return ""
     key = table["ltr"][0]
     val = look.frozen_base.get(key)

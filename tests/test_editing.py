@@ -149,6 +149,49 @@ def test_place_preset_happy_path():
     assert isinstance(settings, str)
 
 
+# -- F-J batching seam: prefetched known_targets avoids the per-placement getModels ----
+
+def _counting_handler():
+    counts = {"getModels": 0, "addEffect": 0}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/getModels":
+            counts["getModels"] += 1
+            return httpx.Response(200, json={"models": ["Tree"]})
+        if req.url.path == "/addEffect":
+            counts["addEffect"] += 1
+            return httpx.Response(200, json={"msg": "Added Effects.", "worked": "true"})
+        return httpx.Response(404, json={"msg": "no route"})
+
+    return handler, counts
+
+
+def test_place_preset_uses_prefetched_known_targets():
+    look = _first_look("On")
+    handler, counts = _counting_handler()
+    c = make_client(handler)
+
+    async def go():
+        for i in range(5):                              # 5 placements, ONE prefetched target set
+            await place_preset(c, "Tree", "On", look.look_id, start_ms=i * 10, end_ms=i * 10 + 5,
+                               known_targets={"Tree"})
+    run(go())
+    assert counts["getModels"] == 0 and counts["addEffect"] == 5   # no per-placement getModels
+
+
+def test_place_preset_without_known_targets_fetches_per_call():
+    """Default (None) reproduces the pre-batching behavior: one getModels per placement."""
+    look = _first_look("On")
+    handler, counts = _counting_handler()
+    c = make_client(handler)
+
+    async def go():
+        for i in range(3):
+            await place_preset(c, "Tree", "On", look.look_id, start_ms=i * 10, end_ms=i * 10 + 5)
+    run(go())
+    assert counts["getModels"] == 3                     # unchanged per-call fetch
+
+
 def test_place_preset_unknown_target():
     look = _first_look("On")
     c = make_client(_layout_and_addeffect())

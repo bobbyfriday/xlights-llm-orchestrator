@@ -67,7 +67,7 @@ def _cmudict_lookup() -> Optional[Callable[[str], Optional[list[str]]]]:
     """A `word -> ARPABET | None` lookup backed by the `cmudict` package, or None if unavailable."""
     try:
         import cmudict  # optional `lyrics` extra
-    except Exception:  # noqa: BLE001 — absent extra → fall back to the heuristic
+    except ImportError:  # absent extra → fall back to the letter heuristic (a valid state)
         return None
     table = cmudict.dict()
 

@@ -127,5 +127,5 @@ def align_lyrics(vocal_path: str, text: str) -> dict | None:
                  len(timed), len(lines), len(sections), len(repeated))
         return {"lines": timed, "sections": sections, "repeated": repeated}
     except Exception as exc:  # noqa: BLE001 — lyrics are enrichment, never block analysis
-        log.info("lyric alignment unavailable: %s", exc)
+        log.warning("lyric alignment lost: %s", exc)   # whole-capability loss → warning
         return None

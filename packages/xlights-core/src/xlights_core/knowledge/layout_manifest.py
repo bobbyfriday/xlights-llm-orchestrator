@@ -9,12 +9,15 @@ folder mounted; ``load_manifest`` is version-tolerant (returns ``None`` on absen
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from .layout_classify import ClassifyResult, SpatialSummary
+
+log = logging.getLogger(__name__)
 
 MANIFEST_VERSION = 1
 MANIFEST_NAME = "layout_semantics.json"
@@ -140,7 +143,8 @@ def load_manifest(show_dir_or_path, *, cache_root=None) -> LayoutManifest | None
             return None
         try:
             return LayoutManifest.model_validate(data)
-        except Exception:  # noqa: BLE001 — a malformed manifest loads as nothing, not a crash
+        except Exception as exc:  # noqa: BLE001 — a malformed manifest loads as nothing, not a crash
+            log.debug("malformed layout manifest at %s ignored: %s", path, exc)
             return None
     return None
 

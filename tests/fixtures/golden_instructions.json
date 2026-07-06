@@ -4,7 +4,7 @@
   "effect_type": "On",
   "end_ms": 12000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "108"
+   "C_VALUECURVE_Brightness": "Active=TRUE|Id=ID_VALUECURVE_Brightness|Type=Ramp|Min=0.00|Max=400.00|P1=54.25|P2=108.50|RV=TRUE|"
   },
   "knob_values": {},
   "layer": 0,
@@ -368,6 +368,28 @@
  },
  {
   "direct_settings": "",
+  "effect_type": "SingleStrand",
+  "end_ms": 12000,
+  "extra_settings": {
+   "C_VALUECURVE_Brightness": "Active=TRUE|Id=ID_VALUECURVE_Brightness|Type=Ramp|Min=0.00|Max=400.00|P1=40.00|P2=180.00|RV=TRUE|",
+   "_XLO_TRANSITION": "riser"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "SingleStrand#0",
+  "on_top": false,
+  "palette_colors": [
+   "Blue",
+   "Red"
+  ],
+  "palette_id": null,
+  "render_style": "Default",
+  "section_index": 0,
+  "start_ms": 8000,
+  "target": "SEM_ALL"
+ },
+ {
+  "direct_settings": "",
   "effect_type": "On",
   "end_ms": 8500,
   "extra_settings": {
@@ -523,7 +545,7 @@
   "end_ms": 24000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 0,
@@ -544,7 +566,7 @@
   "effect_type": "VU Meter",
   "end_ms": 24000,
   "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 0,
@@ -567,7 +589,7 @@
   "extra_settings": {
    "E_SLIDER_Butterfly_Speed": "37",
    "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 1,
@@ -593,7 +615,7 @@
   "extra_settings": {
    "T_CHOICE_Out_Transition_Type": "Dissolve",
    "T_SLIDER_Out_Transition_Adjust": "35",
-   "T_TEXTCTRL_Fadeout": "6"
+   "T_TEXTCTRL_Fadeout": "4"
   },
   "knob_values": {},
   "layer": 0,
@@ -1046,9 +1068,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1070,8 +1090,7 @@
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
    "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_CHOICE_LayerMethod": "Max",
-   "T_TEXTCTRL_Fadeout": "1"
+   "T_CHOICE_LayerMethod": "Max"
   },
   "knob_values": {},
   "layer": 0,
@@ -1091,8 +1110,7 @@
   "effect_type": "Twinkle",
   "end_ms": 19000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170",
-   "T_TEXTCTRL_Fadeout": "1"
+   "C_SLIDER_Brightness": "170"
   },
   "knob_values": {},
   "layer": 0,
@@ -1115,9 +1133,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 18750,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1135,9 +1151,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",
@@ -1158,8 +1172,7 @@
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
    "E_CHOICE_Bars_Direction": "Right",
-   "E_TEXTCTRL_Bars_Cycles": "3.7",
-   "T_TEXTCTRL_Fadeout": "1"
+   "E_TEXTCTRL_Bars_Cycles": "3.7"
   },
   "knob_values": {},
   "layer": 0,
@@ -1179,8 +1192,7 @@
   "effect_type": "Twinkle",
   "end_ms": 20000,
   "extra_settings": {
-   "C_SLIDER_Brightness": "170",
-   "T_TEXTCTRL_Fadeout": "1"
+   "C_SLIDER_Brightness": "170"
   },
   "knob_values": {},
   "layer": 0,
@@ -1203,9 +1215,7 @@
   "direct_settings": "",
   "effect_type": "On",
   "end_ms": 19750,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
+  "extra_settings": {},
   "knob_values": {},
   "layer": 0,
   "look_id": "On#0",

@@ -15,7 +15,6 @@ from ..qa.rules import clamp_hard_caps
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
-from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
 
 from .beats import (
     effective_intensity,
@@ -32,6 +31,7 @@ from .beats import (
     place_beat_accents,
     place_vu_meter,
     resolve_treatment,
+    section_energy_shape,
     section_identity,
     section_is_rhythmic,
     section_rhythm,
@@ -59,6 +59,24 @@ from .weave import (
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
 _PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
 _FINAL_SPARKLE_EFFECT = "Twinkle"    # the extra contrast layer the LAST chorus gains (accent-prop pop)
+_BED_WASH_EFFECTS = {"On", "Color Wash", "Fill", "Plasma"}   # sustained bases that carry phrase curves
+_PHRASE_MIN_BARS = 2                  # only beds/washes ≥ this many bars get an energy-shaped curve
+
+
+def _phrase_brightness(ins, shape: str, wash_b: float, bar_ms: float) -> dict[str, str]:
+    """The brightness setting for a bed/wash, shaped by the section's energy slice (Phase 3):
+    rising → an upward ramp (swell), falling → a downward ramp (decay), flat → a constant level
+    (today's behavior). Only for sustained bed/wash effects spanning ≥ 2 bars; anything shorter or a
+    non-bed effect gets a crisp constant level so features/accents stay punchy."""
+    from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
+    long_enough = (ins.end_ms - ins.start_ms) >= _PHRASE_MIN_BARS * bar_ms
+    if ins.effect_type not in _BED_WASH_EFFECTS or not long_enough:
+        return brightness_setting(wash_b)
+    if shape == "rising":
+        return brightness_ramp(0.5 * wash_b, wash_b)     # swells with the music
+    if shape == "falling":
+        return brightness_ramp(wash_b, 0.5 * wash_b)     # decays with it
+    return brightness_setting(wash_b)                    # flat → constant (unchanged behavior)
 
 # Treatment → which realization LAYERS are included (withheld, not merely dimmed). See design table.
 #   bed: "full" (energy bed / peak fill) | "dim" (a low ≤2-group bed) | "" (none)
@@ -266,6 +284,9 @@ async def realize_section(st: State, si: int, *, agent,
     _layers = _TREATMENT_LAYERS[_treatment]
     wash_b = wash_brightness(_si)            # energy → wash brightness
     rhythm = section_rhythm(st.song_analysis, section, bpb)
+    _shape = section_energy_shape(st.song_analysis, section)   # rising/falling/flat → phrase curves
+    from .beats import _bar_ms as _bar_ms_fn
+    _bar_ms = _bar_ms_fn(rhythm)
     # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
     # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
     kept = trim_coverage(list(out.instructions), _si, _ordinal)   # energy-gated + occurrence bonus
@@ -280,10 +301,10 @@ async def realize_section(st: State, si: int, *, agent,
         ins.section_index = si              # tag for scoped regen / per-section QA
         if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
             ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
-        if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:   # long energetic wash BUILDS
-            ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
-        else:
-            ins.extra_settings.update(brightness_setting(wash_b))
+        # PHRASE DYNAMICS (Phase 3): a ≥2-bar bed/wash carries a brightness curve shaped by the
+        # section's own energy slice (rising swells, falling decays, flat holds); features/accents
+        # keep crisp constant levels. Supersedes the old ">15s energetic wash builds" special case.
+        ins.extra_settings.update(_phrase_brightness(ins, _shape, wash_b, _bar_ms))
         ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
     # BED, per treatment: full/pulse get the energy bed (or peak fill at the peak); feature/rest get
     # a dim ≤2-group bed; gesture gets none — UNLESS the bed floor trips (>2 consecutive bedless
@@ -365,8 +386,16 @@ async def realize_section(st: State, si: int, *, agent,
 
 def finalize_effects(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
     """Whole-list passes needed after ANY generation or section splice (idempotent):
-    wash-occlusion layering (the 2:15 bug guard), sub-frame stretch (xLights silently
-    drops effects shorter than a render frame), song-end stop+fade."""
+    boundary transitions (risers/blackouts/sweeps), wash-occlusion layering (the 2:15 bug guard),
+    sub-frame stretch (xLights silently drops effects shorter than a render frame), song-end
+    stop+fade.
+
+    Transitions run FIRST (before the occlusion guard sees final geometry) and are idempotent, so a
+    regenerated section that re-runs finalize replaces its boundary transitions rather than stacking
+    them — the pass owns the OUTGOING section's time range, so regenerating the incoming section
+    never orphans them."""
+    from .transitions import place_transitions
+    instrs = place_transitions(st, instrs)   # composed section joins from energy arc + downbeats + cues
     instrs = _guard_wash_occlusion(instrs)   # opaque washes sit under features; features blend Max
     for ins in instrs:
         if ins.end_ms - ins.start_ms < _MIN_EFFECT_MS:

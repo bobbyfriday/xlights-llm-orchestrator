@@ -222,6 +222,12 @@ async def run_pipeline(
         agent = director or director_mod.director_agent()
         prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
         st.show_plan = (await agent.run(prompt)).output
+        # show-level color script (Phase 3): one anchor thread, a shared chorus signature pair, and
+        # a bridge contrast — deterministic, no LLM round-trip. Runs on the fresh plan (a cached plan
+        # already carries it). Redesigned sections are re-scripted in the refine loop.
+        from .color_script import apply_color_script
+        rm = st.music_brief.repetition_map if st.music_brief else None
+        apply_color_script(st.show_plan, rm)
     _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)

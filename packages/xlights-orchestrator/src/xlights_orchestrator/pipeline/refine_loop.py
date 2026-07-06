@@ -230,6 +230,11 @@ async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, l
                         new_sec.target_groups = list(old.target_groups)
                     st.show_plan.sections[si] = new_sec
                     ledger.mark_redesigned(si)
+                    # re-apply the show-level color script so the redesigned section rejoins the
+                    # anchor thread / chorus signature (Phase 3) — deterministic, idempotent.
+                    from .color_script import apply_color_script
+                    apply_color_script(st.show_plan,
+                                       st.music_brief.repetition_map if st.music_brief else None)
                     log.info("design-escalated section %d (%d findings)", si, len(sec_f))
             except Exception as exc:  # noqa: BLE001 — escalation is best-effort
                 log.warning("section redesign failed for %d: %s", si, exc)

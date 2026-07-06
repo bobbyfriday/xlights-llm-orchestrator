@@ -239,6 +239,31 @@ def section_rhythm(sa, section: SectionPlan, beats_per_bar: int = BEATS_PER_BAR)
             "tempo": getattr(sa, "tempo_overall", None)}
 
 
+_ENERGY_SHAPE_MIN_DELTA = 0.08     # a slice whose RMS moves less than this reads as flat
+
+
+def section_energy_shape(sa, section) -> str:
+    """The section's in-window energy trend: "rising" | "falling" | "flat".
+
+    Compares the mean RMS of the first vs the last third of the section's own energy-arc slice.
+    Drives phrase dynamics — a bed over a rising slice swells, over a falling slice decays, flat
+    keeps a constant level (today's behavior). "flat" when the arc is too sparse to tell."""
+    s, e = section.start_ms / 1000.0, section.end_ms / 1000.0
+    pts = [p for p in (getattr(sa, "energy_arc", None) or []) if s <= p.time <= e]
+    if len(pts) < 2:
+        return "flat"
+    third = max(1, len(pts) // 3)
+    head = sum(p.rms for p in pts[:third]) / third
+    tail = sum(p.rms for p in pts[-third:]) / third
+    peak = max((p.rms for p in pts), default=0.0) or 1.0
+    delta = (tail - head) / peak
+    if delta >= _ENERGY_SHAPE_MIN_DELTA:
+        return "rising"
+    if delta <= -_ENERGY_SHAPE_MIN_DELTA:
+        return "falling"
+    return "flat"
+
+
 def _onset_energy(arc, t_s: float, peak: float) -> float:
     """The stem's normalized RMS at an onset (nearest ~0.5s sample) — a small/big-hit magnitude."""
     if not arc:

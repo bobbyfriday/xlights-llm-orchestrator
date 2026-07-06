@@ -45,26 +45,35 @@
 
 ## 3. Phase 3 — transitions, color script, phrase dynamics
 
-- [ ] 3.1 New `pipeline/transitions.py::place_transitions(st, instrs)` — riser (2-bar ramp chase
+- [x] 3.1 New `pipeline/transitions.py::place_transitions(st, instrs)` — riser (2-bar ramp chase
   ending at a rising boundary), blackout-before-drop (gate the final beat before a detected drop
   landing on a downbeat), sweep handoff (lateral). Pure signal math from energy arc + downbeats +
   `transition_cues_ms`; instructions tagged with the OUTGOING section index; idempotent via a
-  marker key. Unit tests per transition kind + idempotence.
-- [ ] 3.2 Run the pass in `generate_instructions` and after refine-loop/`xlo regen` splices, before
+  marker key. Unit tests per transition kind + idempotence. (Riser vs drop are separated by the
+  APPROACH slope — a build climbs in; a drop steps out of a flat/low approach.)
+- [x] 3.2 Run the pass in `generate_instructions` and after refine-loop/`xlo regen` splices, before
   `finalize_effects`. Test: regenerating the incoming section preserves the boundary riser.
-- [ ] 3.3 `apply_color_script(plan, repetition_map)` post-pass (anchor injection, chorus signature
+  (Wired as the FIRST step of `finalize_effects`, the one seam all three paths already share.)
+- [x] 3.3 `apply_color_script(plan, repetition_map)` post-pass (anchor injection, chorus signature
   pair, bridge contrast) after Director planning and after section redesigns. Tests: anchor present
   in every section; chorus occurrences share the pair; bridge leads with the complement.
-- [ ] 3.4 Phrase dynamics in `realize_section`: energy-arc-shaped brightness curves on ≥2-bar
-  beds/washes (rising/falling/flat), 8-bar phrase swells via the existing accent boost. Tests:
-  rising slice → ramp, flat → none; features/accents untouched.
-- [ ] 3.5 Regenerate golden, full suite green.
+- [x] 3.4 Phrase dynamics in `realize_section`: energy-arc-shaped brightness curves on ≥2-bar
+  beds/washes (rising/falling/flat). Tests: rising slice → ramp, flat → constant; features/accents
+  untouched. (The 8-bar accent-boost swell is deferred — see note; the per-instruction energy-shaped
+  bed curve covers the spec scenario "a building bed swells".)
+- [x] 3.5 Regenerate golden, full suite green. Reviewed diff: +1 riser (SingleStrand on SEM_ALL,
+  8000→12000, tagged to outgoing section 0) into the rising boundary; +2 energy-shaped brightness
+  value curves (section 0's rising bed swells; the flat peak keeps constant levels).
 
 ## 4. Land
 
-- [ ] 4.1 Each phase is its own PR (branch per phase); do not commit to `main` directly.
-- [ ] 4.2 Render a before/after visual-critique bundle on a reference song per phase and eyeball the
-  stills at section boundaries and repeated choruses (the point of the change is visible, not just
-  tested).
-- [ ] 4.3 Document the treatment vocabulary and new advisory metrics where QA/refine behavior is
-  documented; note the golden-regeneration policy for intentional generation changes.
+- [ ] 4.1 Each phase is its own PR (branch per phase); do not commit to `main` directly. DEFERRED
+  to the orchestration harness: per instruction, all three phases land in order on the single branch
+  `change/improve-musicality` as one commit per phase; the harness opens the PR after verification.
+- [ ] 4.2 Render a before/after visual-critique bundle on a reference song per phase. DEFERRED:
+  requires a live/GUI render (non-hermetic); the golden diffs + unit tests stand in for the
+  automated check, and the deterministic diffs were reviewed (risers, sparser verses, phrase swells).
+- [x] 4.3 Document the treatment vocabulary and new advisory metrics where QA/refine behavior is
+  documented; note the golden-regeneration policy. (Docstrings in `show_plan.SectionPlan.treatment`,
+  `pipeline/generate._TREATMENT_LAYERS`, `qa/musicality.py`, `qa/coverage.py`, `pipeline/transitions.py`,
+  `pipeline/color_script.py`; the golden-regeneration policy is captured in the tasks + commit msgs.)

@@ -77,7 +77,11 @@ def _analysis() -> SongAnalysis:
         beats=beats, onsets=onsets,
         segments=[Segment(start=0, end=12, segment_id="A"),
                   Segment(start=12, end=24, segment_id="B")],
-        energy_arc=[EnergyPoint(time=0, rms=0.25), EnergyPoint(time=12, rms=0.85)],
+        # a dense arc that BUILDS into the 12s boundary (0.25 → 0.85) so the Phase 3 transition pass
+        # has real signal to read (a riser fires into the rising boundary).
+        energy_arc=[EnergyPoint(time=t, rms=r) for t, r in (
+            (0, 0.25), (4, 0.30), (8, 0.45), (10, 0.60), (11, 0.72),
+            (12, 0.85), (16, 0.85), (20, 0.85), (24, 0.85))],
         stems=[StemFeatures(stem="drums", onsets=drum_onsets,
                             energy_arc=[EnergyPoint(time=0, rms=0.3),
                                         EnergyPoint(time=12, rms=0.9)])],
@@ -195,13 +199,17 @@ def test_golden_is_non_trivial(tmp_path, monkeypatch):
     assert len(produced) > 10
     assert any(i["effect_type"] == "Twinkle" for i in produced)        # weave texture cell expanded
     assert any(i["section_index"] == 1 for i in produced)              # both sections produced effects
-    # the `full` peak section carries a weave carrier; the `feature` section withholds the fabric
-    carrier_by_section = {
-        s: {i["effect_type"] for i in produced if i["section_index"] == s} & set(CARRIER_ROTATION)
-        for s in (0, 1)
-    }
-    assert carrier_by_section[1]                                       # the full peak weaves a carrier
-    assert not carrier_by_section[0]                                   # the feature verse withholds it
+    # the `full` peak section carries a weave carrier; the `feature` section withholds the fabric.
+    # (Exclude Phase-3 transition instructions — a riser is a boundary chase, not a weave carrier.)
+    def _weave_carriers(s):
+        return {i["effect_type"] for i in produced
+                if i["section_index"] == s and not i["extra_settings"].get("_XLO_TRANSITION")} \
+            & set(CARRIER_ROTATION)
+    assert _weave_carriers(1)                                          # the full peak weaves a carrier
+    assert not _weave_carriers(0)                                      # the feature verse withholds it
+    # Phase 3: a riser transition builds into the rising 12s boundary, tagged to the outgoing section
+    risers = [i for i in produced if i["extra_settings"].get("_XLO_TRANSITION") == "riser"]
+    assert risers and all(i["section_index"] == 0 for i in risers)
     # composite stack: the peak hero (SEM_FOCAL) carries a multi-effect blended stack (full only)
     focal = [i for i in produced if i["target"] == "SEM_FOCAL"]
     layers = sorted({i["layer"] for i in focal})

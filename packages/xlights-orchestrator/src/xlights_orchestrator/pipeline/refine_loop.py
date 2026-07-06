@@ -154,13 +154,14 @@ class ReportBuilder:
     samples THIS render, then evaluate QA. The save/refresh is best-effort (sampling degrades to
     neutral). Injected qa fakes keep the legacy 5-arg signature (no ``sampler`` kwarg)."""
 
-    def __init__(self, st, *, client, qa_eval, sampler, save_as, real_render):
+    def __init__(self, st, *, client, qa_eval, sampler, save_as, real_render, fseq_series_provider=None):
         self.st = st
         self.client = client
         self.qa_eval = qa_eval
         self.sampler = sampler
         self.save_as = save_as
         self.real_render = real_render
+        self.fseq_series_provider = fseq_series_provider   # optional: build a FseqSeries post-flush
 
     async def report(self, applied):
         if self.sampler is not None and self.save_as:
@@ -170,9 +171,16 @@ class ReportBuilder:
                     await self.real_render.refresh(self.client)
             except Exception:  # noqa: BLE001 — sampling degrades to neutral
                 pass
-        if self.sampler is not None:              # injected qa fakes keep the legacy signature
+        series = None
+        if self.fseq_series_provider is not None:          # Tier 0 rendered-pixel metrics (post-flush)
+            try:
+                series = self.fseq_series_provider()
+            except Exception as exc:  # noqa: BLE001 — never gate blind on a metrics build error
+                log.debug("fseq series unavailable: %s", exc)
+        if self.sampler is not None or series is not None:   # rendered eyes → new-signature call
             return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
-                                applied, self.st.available_groups, sampler=self.sampler)
+                                applied, self.st.available_groups, sampler=self.sampler,
+                                fseq_series=series)
         return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
                             applied, self.st.available_groups)
 
@@ -255,7 +263,7 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                       visual_critique=None, revlog=None, run_id="run", song_key="",
                       models=None, clock=None, review_base=None,
                       sampler=None, save_as=None, redesign=None, real_render=None,
-                      skip_objective=None) -> None:
+                      skip_objective=None, fseq_series_provider=None) -> None:
     qa_eval = qa or qa_pkg.evaluate
     judge_agent = judge or judge_mod.judge_agent()
     if checkpoint is not None:
@@ -289,7 +297,8 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
     revlog = revlog or NullRevisionLog()
     clock = clock or (lambda: "")
     reporter = ReportBuilder(st, client=client, qa_eval=qa_eval, sampler=sampler,
-                             save_as=save_as, real_render=real_render)
+                             save_as=save_as, real_render=real_render,
+                             fseq_series_provider=fseq_series_provider)
     recorder = IterationRecorder(revlog, run_id=run_id, song_key=song_key, clock=clock,
                                  models=models, review_base=review_base,
                                  usage_log=telemetry.current())

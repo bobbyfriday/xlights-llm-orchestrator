@@ -41,7 +41,7 @@ from .beats import feature_prop_contrast
 from .groups import targetable_groups
 from .media import prepare_media
 from .state import State
-from .visual import RealRender, make_lit_sampler, make_visual_critique
+from .visual import RealRender, make_fseq_series_provider, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
 from .generate import generate_instructions, realize_section
 from .finalize import finalize_sequence
@@ -280,6 +280,9 @@ async def run_pipeline(
             revlog = RevisionLog(base / "revision_log.jsonl", base / "revision_log.md")
         sampler = None if qa is not None else make_lit_sampler(save_as=save_as,
                                                                 show_folder=show_folder, real=real)
+        # Tier 0 rendered-pixel metrics (advisory-first): a per-group series over the current .fseq
+        fseq_provider = None if qa is not None else make_fseq_series_provider(
+            save_as=save_as, show_folder=show_folder, groups=st.available_groups)
         await _refine_loop(st, client=client, emitter=emitter, generator=generator,
                            duration_secs=dur, max_iterations=max_iterations,
                            judge=judge, qa=qa, regenerate=regenerate, checkpoint=checkpoint,
@@ -288,7 +291,8 @@ async def run_pipeline(
                            clock=lambda: datetime.now(timezone.utc).isoformat(),
                            review_base=mdir / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real,
-                           skip_objective=_refine_skip_objective())
+                           skip_objective=_refine_skip_objective(),
+                           fseq_series_provider=fseq_provider)
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
             _emit_editable_brief(st, mdir)          # keep the brief schema-backed after refine
             (mdir / "creative_brief.md").write_text(render_creative_brief(st.show_plan))

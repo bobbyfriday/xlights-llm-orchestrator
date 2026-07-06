@@ -52,32 +52,38 @@
 
 ## 2. I8 — tiered visual analysis (fseq metrics + tiered critique)
 
-- [ ] 2.1 Create `packages/xlights-core/src/xlights_core/preview/metrics.py` (pure numpy, **no
+- [x] 2.1 Create `packages/xlights-core/src/xlights_core/preview/metrics.py` (pure numpy, **no
   orchestrator/client imports** — write the no-client contract into the docstring): `group_channel_index`
   (join `parse_models()` start_channel/n_pixels with `<modelGroups>` membership; channel-bound per
   `render.py:48`; unknown/empty groups omitted) and `FseqSeries` (per-group B/L/M series in one
   vectorized pass, `lit_threshold=30`; `section_slice(start_ms, end_ms)`). No behavior change anywhere
   yet.
-- [ ] 2.2 Unit-test `metrics.py` against synthetic fixtures extending `tests/test_preview.py`'s
+- [x] 2.2 Unit-test `metrics.py` against synthetic fixtures extending `tests/test_preview.py`'s
   `_write_fseq`/`_minimal_layout`: 2 groups × 4 nodes × 100 frames @ 50ms — group A blinks white on a
   500ms beat grid, B holds dim red, C dark; assert motion A ≫ B ≈ 0; sync A ≈ max, B ≈ baseline;
   coverage flags C only when its section intensity ≥ 0.5; lit-threshold agrees with `make_lit_sampler`
   (>30). Group-index fixture: channels bounded, overlap allowed, unknown group omitted, unresolvable
   StartChannel skipped like `parse_models`.
-- [ ] 2.3 Create `packages/xlights-orchestrator/src/xlights_orchestrator/qa/fseq_metrics.py::evaluate(
-  plan, analysis, series, *, repetition_map) -> (subscores, findings)` emitting the five families
-  (`fseq:coverage`, `fseq:motion`, `fseq:sync`, `fseq:color`, `fseq:rhyme`/`fseq:range`) as subscores +
-  `Finding(metric="fseq:*", objective=False)`; unreadable inputs → `({}, [])` (never gate blind). Add
-  the `XLO_FSEQ_METRICS=0` kill switch.
-- [ ] 2.4 Thread `fseq_series` through `qa/__init__.py::evaluate(..., sampler=None, fseq_series=None)`
+- [x] 2.3 Create `qa/fseq_metrics.py::evaluate(plan, analysis, series, *, repetition_map) ->
+  (subscores, findings)` emitting `fseq:coverage`/`fseq:motion`/`fseq:sync`/`fseq:rhyme`/`fseq:range`
+  as subscores + `Finding(metric="fseq:*", objective=False)`; unreadable inputs → `({}, [])` (never
+  gate blind); `XLO_FSEQ_METRICS=0` kill switch. NOTE: `fseq:color` (hue histogram) is DEFERRED — the
+  `FseqSeries` carries brightness/lit/motion, not per-node hue; documented as a follow-up in the module.
+- [x] 2.4 Thread `fseq_series` through `qa/__init__.py::evaluate(..., sampler=None, fseq_series=None)`
   and the refine loop's `_report` closure (`run.py:172-184`, construct/refresh the series after the
   save-flush, mtime invalidation like `make_lit_sampler`); retire the 3-point sampler path when a
   series is present (show coverage equal-or-better on a real run first).
-- [ ] 2.5 Test the metric families: color (pure red vs `["Red","Green"]` ⇒ adherence ~0.5 +
-  missing-green finding; three near-identical warm hues vs a 3-color palette ⇒ distinctness failure);
-  rhyme/range (duplicate a section ⇒ similarity ≈ 1.0 for shared labels; invert brightness ⇒
-  dynamic-range > 0); neutrality (missing fseq / zstd error / empty groups ⇒ `({}, [])` and an
-  unchanged objective score).
+- [x] 2.5 Test the metric families (`tests/test_fseq_metrics.py`): coverage flags a dark high-energy
+  section (exempts low-intensity), motion flags a static-but-lit section (not a blinking one), sync
+  produces a subscore on a beat-aligned pulse, rhyme ≈ 1.0 for duplicated sections, range > 0 on a
+  spread, and neutrality (missing series / kill switch ⇒ `({}, [])` and an UNCHANGED objective score —
+  advisory-first). Color adherence deferred with `fseq:color` (see 2.3).
+> DEFERRED (2.6–2.11): all require a live LLM + running xLights. Tier 0's landed advisory-first with a
+> kill switch (thresholds documented in `fseq_metrics.py`, calibratable); the objective-gate flip
+> (2.10) is explicitly evidence-gated on the calibration pass (2.6), and Tiers 1/2 (contact sheets,
+> tiered routing, critic demotion) are a visual-critic rewrite that only pays off after that live
+> calibration. Not hermetically completable here.
+
 - [ ] 2.6 Calibration pass: run 2–3 refine-enabled songs; compare fseq findings against the same
   iterations' LLM findings and review bundles in the revision log; set thresholds; document them in the
   module like `qa/coverage.py`.

@@ -145,6 +145,40 @@ def make_lit_sampler(*, save_as: str | None, show_folder: str | None, real=None)
     return sampler
 
 
+def make_fseq_series_provider(*, save_as: str | None, show_folder: str | None, groups=None):
+    """A callable `() -> FseqSeries | None` over the current `.fseq` (I8 Tier 0).
+
+    Lazily (re)builds the per-group series when the `.fseq` changes on disk (mtime-invalidated like
+    `make_lit_sampler`); returns None when it can't see (missing fseq/layout/deps) so the metrics
+    degrade to neutral rather than gating blind. Reads channel data only — no live client."""
+    if not save_as:
+        return None
+    state: dict = {}
+
+    def provider():
+        try:
+            from xlights_core.preview import FseqSeries, group_channel_index
+        except ImportError:
+            return None
+        fseq = _resolve_fseq(save_as, show_folder)
+        if fseq is None or not show_folder:
+            return None
+        rgb = Path(show_folder) / "xlights_rgbeffects.xml"
+        net = Path(show_folder) / "xlights_networks.xml"
+        if not (rgb.exists() and net.exists()):
+            return None
+        mtime = fseq.stat().st_mtime
+        if state.get("mtime") != mtime:
+            idx = group_channel_index(str(rgb), str(net), groups=list(groups) if groups else None)
+            if not idx:
+                return None
+            state["series"] = FseqSeries(str(fseq), idx)
+            state["mtime"] = mtime
+        return state.get("series")
+
+    return provider
+
+
 def _ffprobe_duration(path) -> float | None:
     import subprocess
     try:

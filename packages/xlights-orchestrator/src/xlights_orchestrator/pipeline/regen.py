@@ -136,7 +136,8 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
     before = sum(1 for i in st.instructions if i.section_index == section_index)
     await regenerate_into(st, section_index, note, gen_agent=gen_agent, redesign=rd_agent)
     if redesign:                    # persist the re-planned section so a later load/regen keeps it
-        cache_path(key, "creative_brief", models=True).write_text(st.show_plan.model_dump_json(indent=1))
+        cache_path(key, "creative_brief", models=True).write_text(
+            require(st.show_plan, "show_plan").model_dump_json(indent=1))
     # whole-list passes after the splice (idempotent): occlusion guard, sub-frame stretch,
     # and the song-end stop+fade (a regenerated FINAL section runs out to the section end).
     st.instructions = finalize_effects(st, st.instructions)

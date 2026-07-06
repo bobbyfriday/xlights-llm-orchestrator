@@ -61,4 +61,7 @@ def test_pricing_table_present():
     p = registry.pricing()
     assert "claude-opus-4-8" in p and "claude-sonnet-4-6" in p
     assert registry.price_for("anthropic:claude-opus-4-8")["input"] == 5.00
-    assert registry.price_for("google:gemini-3.5-flash") is None      # unpriced (TODO row)
+    # Gemini now priced from Google's published rates (ai.google.dev/gemini-api/docs/pricing, 2026)
+    assert registry.price_for("google:gemini-3.5-flash")["input"] == 1.50
+    assert registry.price_for("google:gemini-3.1-flash-lite")["output"] == 1.50
+    assert registry.price_for("google:gemini-3.1-pro-preview")["input"] == 2.00

@@ -50,6 +50,13 @@ def test_effect_family_split():
     assert effect_family("Nonexistent") == "other"
 
 
+def test_effect_family_canonicalizes_display_names():
+    # xLights writes the display name into a finalized .xsq ('Single Strand'); it must classify the
+    # same as the placeable form, else our own output measures a false 'other' bucket.
+    assert effect_family("Single Strand") == "motion"
+    assert effect_family("SingleStrand") == effect_family("Single Strand")
+
+
 # -- stats_from_instructions --------------------------------------------------------------------
 def test_stats_from_instructions_known_shares_and_durations():
     # 4 motion + 4 On + 2 Twinkle = 10 effects over 60s → 10/min. motion 40%, punctuation 60%.
@@ -192,6 +199,23 @@ def test_stats_from_xsq_same_shape_as_instructions(tmp_path):
     b = stats_from_instructions([_ins("SingleStrand")], duration_s=1.0)
     assert type(a) is type(b) is FabricStats
     assert set(vars(a)) == set(vars(b))              # identical field set → directly comparable
+
+
+def test_stats_from_xsq_canonicalizes_display_names(tmp_path):
+    """A finalized .xsq may store the display name 'Single Strand' — it must count as motion, not
+    fall into 'other' (the real-output miscount that hid our motion share)."""
+    root = ET.Element("xsequence")
+    ET.SubElement(root, "EffectDB")
+    ee = ET.SubElement(root, "ElementEffects")
+    m = ET.SubElement(ee, "Element", {"type": "model", "name": "SEM_ARCHES"})
+    lay = ET.SubElement(m, "EffectLayer")
+    ET.SubElement(lay, "Effect", {"name": "Single Strand", "startTime": "0", "endTime": "500"})
+    ET.SubElement(lay, "Effect", {"name": "Single Strand", "startTime": "500", "endTime": "1000"})
+    p = tmp_path / "spaced.xsq"
+    ET.ElementTree(root).write(p, encoding="UTF-8", xml_declaration=True)
+    stats = stats_from_xsq(p)
+    assert stats.share_by_family["motion"] == 1.0            # both 'Single Strand' → motion
+    assert stats.share_by_type["SingleStrand"] == 1.0        # collapsed to the placeable key
 
 
 # -- expansion from rgbeffects ------------------------------------------------------------------

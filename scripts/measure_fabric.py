@@ -48,7 +48,21 @@ _CORE_SRC = Path(__file__).resolve().parent.parent / "packages" / "xlights-core"
 if _CORE_SRC.is_dir() and str(_CORE_SRC) not in sys.path:
     sys.path.insert(0, str(_CORE_SRC))
 
-from xlights_orchestrator.pipeline.effect_meta import MOTION_EFFECTS  # noqa: E402
+from xlights_orchestrator.pipeline.effect_meta import EFFECT_META, MOTION_EFFECTS  # noqa: E402
+
+# xLights writes an effect's DISPLAY name into a placed <Effect name="…"> (e.g. "Single Strand"),
+# but effect_meta/our instructions use the placeable form ("SingleStrand"). Map the space-collapsed
+# display name back to the placeable key so a finalized .xsq classifies identically to an
+# instructions cache (else "Single Strand" chases fall into the "other" bucket, understating motion).
+_CANON_BY_SQUEEZED: dict[str, str] = {et.replace(" ", ""): et for et in EFFECT_META}
+
+
+def canon_name(name: str) -> str:
+    """Normalize an effect name to its placeable/effect_meta form ('Single Strand' → 'SingleStrand');
+    unknown names pass through unchanged."""
+    if not name or name in EFFECT_META:
+        return name
+    return _CANON_BY_SQUEEZED.get(name.replace(" ", ""), name)
 
 # -- effect families ----------------------------------------------------------------------------
 # The analysis §1 fabric split, made authoritative here. MOTION comes from effect_meta (cell-able
@@ -72,7 +86,11 @@ SOURCE_TAGS: tuple[str, ...] = (
 
 
 def effect_family(effect_type: str) -> str:
-    """The fabric family of an effect type (motion > punctuation > feature > bed > other)."""
+    """The fabric family of an effect type (motion > punctuation > feature > bed > other).
+
+    The name is canonicalized first, so an .xsq display name ('Single Strand') classifies the same
+    as the placeable form ('SingleStrand')."""
+    effect_type = canon_name(effect_type)
     if effect_type in MOTION_FAMILY:
         return "motion"
     if effect_type in PUNCTUATION_FAMILY:
@@ -213,7 +231,7 @@ def _row_from_instruction(d: dict) -> _Row:
     vc_kinds = [_value_curve_kind(k) for k, v in extra.items()
                 if _is_value_curve_key(k) and _is_active_vc(v)]
     return _Row(
-        effect_type=d.get("effect_type", ""),
+        effect_type=canon_name(d.get("effect_type", "")),
         start_ms=int(d.get("start_ms", 0)), end_ms=int(d.get("end_ms", 0)),
         target=d.get("target", ""), layer=int(d.get("layer", 0) or 0),
         section_index=d.get("section_index"),
@@ -357,7 +375,7 @@ def _row_from_xsq_effect(name: str, start_ms: int, end_ms: int, target: str, lay
     vc_kinds = [_value_curve_kind(k) for k, v in pairs
                 if _is_value_curve_key(k) and _is_active_vc(v)]
     return _Row(
-        effect_type=name, start_ms=start_ms, end_ms=end_ms, target=target, layer=layer,
+        effect_type=canon_name(name), start_ms=start_ms, end_ms=end_ms, target=target, layer=layer,
         section_index=None,
         blend=bool(d.get("T_CHOICE_LayerMethod")),
         transition=bool(d.get("T_CHOICE_In_Transition_Type")

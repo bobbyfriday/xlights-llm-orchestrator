@@ -171,7 +171,8 @@ level=WARNING)` that logs AND records in one call and is itself wrapped in `exce
 log.debug` (observability must never break a run, mirroring `RevisionLog.write`). *Closed capability
 taxonomy* (docstring; free-form keys would defeat dashboard aggregation): `audio:lyrics`,
 `audio:stems`, `audio:instrumental-refine`, `groups:probe`, `emit:view`, `qa:coverage-blind`,
-`qa:render-flush`, `visual:critique`, `visual:real-render`, `refine:redesign`, `refine:analyst-drop`,
+`qa:render-flush`, `visual:critique`, `visual:real-render`, `visual:fseq-metrics` (reserved for
+add-cost-and-evaluation's deterministic Tier-0 fseq-metrics skip site), `refine:redesign`, `refine:analyst-drop`,
 `generate:triggers`, `finalize:media`, `finalize:timing-tracks`, `finalize:xsq-patch`,
 `cache:post-refine`. *Alternative weighed:* merging with I1's `UsageLog` into one `runinfo.py` —
 deferred (keep separate modules, extract a shared `_ContextCollector` only if a third collector

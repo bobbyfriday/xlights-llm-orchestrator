@@ -98,10 +98,14 @@ manifest-grounded Director designs, and capability-class QA.
   correctness offline.
 
 ### Modified Capabilities
-- `show-orchestration`: the layout-semantics requirements gain a real classifier + spatial derivation
-  as the source of `SEM_` groups (replacing the hand-classification), a code-managed §5.7 layout-mode
-  attribute, an emitted-and-consumed manifest, and manifest-derived (rather than hardcoded)
-  choreography-vocabulary and QA-capability gating.
+- `show-orchestration`: the manifest requirement defers to `layout-onboarding` as the contract's
+  single canonical home, and the QA-capability-gating and choreography-vocabulary requirements
+  become manifest-derived (rather than hardcoded), with a no-manifest fallback that keeps today's
+  behavior byte-identical. The classifier/spatial-derivation source of `SEM_` groups (replacing the
+  hand-classification), the §5.7 layout-mode attribute, and the convergence-with-current-layout
+  invariant live in `layout-onboarding` (above); the semantic-group requirement itself is
+  deliberately not modified here, to avoid overlapping `add-asset-bound-placement`'s delta on the
+  same requirement.
 
 ## Impact
 

@@ -26,7 +26,7 @@ Each tier SHALL, given the show's creative intent, return scoped findings (namin
 ### Requirement: Deterministic rendered-pixel metrics from the compiled render data
 The system SHALL compute deterministic per-section, per-group metrics directly from the compiled render data and the node-to-group mapping, with no LLM and no running xLights, covering coverage (lit fraction over the section), motion (frame-to-frame change), music-sync (brightness change correlated to the beat grid), palette adherence and distinctness, and section-signature similarity for repeated material.
 
-These metrics SHALL read channel values (not the projected preview image), so the metric layer requires only file paths and never a live client; when the render data or group mapping is unavailable or unreadable the metrics SHALL be neutral (produce nothing) rather than fail or gate blind.
+These metrics SHALL read channel values (not the projected preview image), so the metric layer requires only file paths and never a live client; when the render data or group mapping is unavailable or unreadable the metrics SHALL be neutral (produce nothing) rather than fail or gate blind, and the neutral skip SHALL be recorded as a degradation (under the `visual:fseq-metrics` capability key once the per-run degradations collector from add-pipeline-operability exists) rather than passing silently.
 
 #### Scenario: Metrics computed from channel data
 - **WHEN** the compiled render data and the node-to-group mapping are available
@@ -39,3 +39,4 @@ These metrics SHALL read channel values (not the projected preview image), so th
 #### Scenario: Missing render data is neutral
 - **WHEN** the compiled render data cannot be read or the group mapping is empty
 - **THEN** the metrics produce no findings and no subscores, leaving the evaluation unchanged
+- **AND** the skip is recorded as a degradation under the `visual:fseq-metrics` capability key (once the per-run degradations collector from add-pipeline-operability exists) rather than passing silently

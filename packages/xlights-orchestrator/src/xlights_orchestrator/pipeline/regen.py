@@ -19,6 +19,7 @@ from .. import degradations, telemetry
 from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..agents.catalog import placeable_effect_types
+from ..agents import director as director_mod
 from ..agents import generator as generator_mod
 from ..music_brief import MusicBrief
 from ..refine import RevisionBrief, replace_section
@@ -84,13 +85,27 @@ def _validate_index(st: State, section_index: int) -> None:
         raise IndexError(f"section {section_index} out of range (show has {n} sections: 0..{n - 1})")
 
 
-async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent) -> list[EffectInstruction]:
+async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent,
+                          redesign=None) -> list[EffectInstruction]:
     """Splice a freshly regenerated section into `st.instructions`; other sections untouched.
 
-    Section structure (start/end/target groups) stays pinned; `note` steers the generator via the
-    same RevisionBrief path the refine loop uses. Returns (and sets) the new full instruction list.
+    By default the section's PLAN is pinned (start/end/target-groups/look) and `note` only steers
+    the generator — the same RevisionBrief path the refine loop uses. When `redesign` (a
+    section-redesigner agent) is given, the Director RE-PLANS the section first (with `note` as the
+    steer; only start/end pinned), then the generator realizes the new plan — for when a section's
+    plan, not just its effects, is the problem. Returns (and sets) the new full instruction list.
     """
     _validate_index(st, section_index)
+    if redesign is not None:                              # re-plan the SECTION, then realize it
+        plan = require(st.show_plan, "show_plan")
+        old = plan.sections[section_index]
+        new_sec = (await redesign.run(
+            director_mod.redesign_input(old, plan, [note or "redesign this section"]))).output
+        if new_sec is not None:
+            new_sec.start_ms, new_sec.end_ms = old.start_ms, old.end_ms   # structure pinned
+            if not new_sec.target_groups:                                 # keep the old targets if none
+                new_sec.target_groups = list(old.target_groups)
+            plan.sections[section_index] = new_sec
     section = require(st.show_plan, "show_plan").sections[section_index]
     rev = RevisionBrief(section_index=section_index, groups=list(section.target_groups),
                         issue=note or "manual regenerate", suggested_fix=note or "")
@@ -101,8 +116,14 @@ async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent
 
 
 async def regen_section(song: str, *, client, section_index: int, note: str = "",
-                        save_as: str | None = None, generator=None, emitter=None) -> State:
-    """Regenerate one section of a cached show in place and re-emit/re-save the sequence."""
+                        redesign: bool = False, save_as: str | None = None,
+                        generator=None, emitter=None) -> State:
+    """Regenerate one section of a cached show in place and re-emit/re-save the sequence.
+
+    `redesign=True` re-PLANS the section via the Director first (for when the section's plan — its
+    treatment/target-groups/look — is the problem, which the generator alone can't fix), then
+    persists the new plan so it sticks; otherwise only the effects are regenerated within the plan.
+    """
     telemetry.start_run()          # measure manual regens too
     dl = degradations.start_run()               # per-run degradations collector (best-effort)
     key, st = load_cached_state(song)
@@ -110,9 +131,13 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
     st.available_groups = await targetable_groups(client, cache_root=cache_root())
     st.placeable_types = placeable_effect_types()
     gen_agent = generator or generator_mod.generator_agent()
+    rd_agent = director_mod.section_redesigner() if redesign else None
 
     before = sum(1 for i in st.instructions if i.section_index == section_index)
-    await regenerate_into(st, section_index, note, gen_agent=gen_agent)
+    await regenerate_into(st, section_index, note, gen_agent=gen_agent, redesign=rd_agent)
+    if redesign:                    # persist the re-planned section so a later load/regen keeps it
+        cache_path(key, "creative_brief", models=True).write_text(
+            require(st.show_plan, "show_plan").model_dump_json(indent=1))
     # whole-list passes after the splice (idempotent): occlusion guard, sub-frame stretch,
     # and the song-end stop+fade (a regenerated FINAL section runs out to the section end).
     st.instructions = finalize_effects(st, st.instructions)

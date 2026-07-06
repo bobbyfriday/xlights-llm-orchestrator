@@ -1,0 +1,40 @@
+{
+ "sections": [
+  {
+   "start_ms": 0,
+   "end_ms": 12000,
+   "label": "build",
+   "intensity": 0.45,
+   "musical_description": "",
+   "dominant_instruments": [],
+   "stem_shares": {},
+   "instrumentation_phrase": "",
+   "accents_ms": []
+  },
+  {
+   "start_ms": 12000,
+   "end_ms": 24000,
+   "label": "drop",
+   "intensity": 0.92,
+   "musical_description": "",
+   "dominant_instruments": [],
+   "stem_shares": {},
+   "instrumentation_phrase": "",
+   "accents_ms": []
+  }
+ ],
+ "repetition_map": {},
+ "energy_arc": [],
+ "key_mood": "",
+ "candidate_themes": [],
+ "transition_points_ms": [],
+ "identity": null,
+ "dynamic_arc": null,
+ "harmony_summary": "",
+ "transition_cues_ms": [],
+ "narrative_or_journey": null,
+ "featured_lyric_moments": [],
+ "narrative_summary": null,
+ "sentiment": null,
+ "featured_lines": []
+}

@@ -110,6 +110,7 @@ class PreviewRenderer:
                    "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
                    "-pix_fmt", "yuv420p", tmp.name]
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            assert p.stdin is not None                     # guaranteed by stdin=PIPE
             try:
                 for fi in range(s, e):
                     p.stdin.write(self._frame_img(fi, sx, sy, ch, w_, h_).tobytes())

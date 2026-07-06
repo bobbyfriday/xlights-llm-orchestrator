@@ -66,7 +66,7 @@ def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
         if byrole.get(role):
             g[gname] = [p.name for p in byrole[role]]
     for role in ("ARCH", "MINI_TREE", "CANE"):                      # §5.2 ordered LTR
-        ordered = sorted((p for p in byrole.get(role, []) if p.sweep_order), key=lambda q: q.sweep_order)
+        ordered = sorted((p for p in byrole.get(role, []) if p.sweep_order), key=lambda q: q.sweep_order or 0)
         if len(ordered) > 1:
             g[f"{_ROLE_GROUP[role]}_LTR"] = [p.name for p in ordered]
     for band, gname in (("ROOF", "SEM_BAND_ROOF"), ("MID", "SEM_BAND_MID"), ("GROUND", "SEM_BAND_GROUND")):
@@ -174,7 +174,8 @@ def write_sem_groups(rgb_path, groups: dict[str, list[str]], *, modes: dict[str,
     for el in existing_sem:                          # remove ALL old SEM_ groups (stale ones too)
         mg.remove(el)
 
-    created, replaced = [], []
+    created: list[str] = []
+    replaced: list[str] = []
     for name, members in groups.items():
         (replaced if name in existing_names else created).append(name)
         ET.SubElement(mg, "modelGroup", {

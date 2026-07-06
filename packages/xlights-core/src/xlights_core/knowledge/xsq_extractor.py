@@ -69,7 +69,7 @@ def extract_file(path: Path):
     palettes = [(e.text or "").strip() for e in root.findall("ColorPalettes/ColorPalette")]
 
     records = []
-    skipped = Counter()
+    skipped: Counter[str] = Counter()
     for eff in root.iter("Effect"):
         ref = eff.get("ref")
         name = eff.get("name")

@@ -1,0 +1,378 @@
+{
+ "path": "song.mp3",
+ "duration_s": 24.0,
+ "sample_rate": 44100,
+ "tempo": [],
+ "tempo_overall": 120.0,
+ "beats": [
+  {
+   "time": 0.0,
+   "bar_position": 1
+  },
+  {
+   "time": 0.5,
+   "bar_position": 2
+  },
+  {
+   "time": 1.0,
+   "bar_position": 3
+  },
+  {
+   "time": 1.5,
+   "bar_position": 4
+  },
+  {
+   "time": 2.0,
+   "bar_position": 1
+  },
+  {
+   "time": 2.5,
+   "bar_position": 2
+  },
+  {
+   "time": 3.0,
+   "bar_position": 3
+  },
+  {
+   "time": 3.5,
+   "bar_position": 4
+  },
+  {
+   "time": 4.0,
+   "bar_position": 1
+  },
+  {
+   "time": 4.5,
+   "bar_position": 2
+  },
+  {
+   "time": 5.0,
+   "bar_position": 3
+  },
+  {
+   "time": 5.5,
+   "bar_position": 4
+  },
+  {
+   "time": 6.0,
+   "bar_position": 1
+  },
+  {
+   "time": 6.5,
+   "bar_position": 2
+  },
+  {
+   "time": 7.0,
+   "bar_position": 3
+  },
+  {
+   "time": 7.5,
+   "bar_position": 4
+  },
+  {
+   "time": 8.0,
+   "bar_position": 1
+  },
+  {
+   "time": 8.5,
+   "bar_position": 2
+  },
+  {
+   "time": 9.0,
+   "bar_position": 3
+  },
+  {
+   "time": 9.5,
+   "bar_position": 4
+  },
+  {
+   "time": 10.0,
+   "bar_position": 1
+  },
+  {
+   "time": 10.5,
+   "bar_position": 2
+  },
+  {
+   "time": 11.0,
+   "bar_position": 3
+  },
+  {
+   "time": 11.5,
+   "bar_position": 4
+  },
+  {
+   "time": 12.0,
+   "bar_position": 1
+  },
+  {
+   "time": 12.5,
+   "bar_position": 2
+  },
+  {
+   "time": 13.0,
+   "bar_position": 3
+  },
+  {
+   "time": 13.5,
+   "bar_position": 4
+  },
+  {
+   "time": 14.0,
+   "bar_position": 1
+  },
+  {
+   "time": 14.5,
+   "bar_position": 2
+  },
+  {
+   "time": 15.0,
+   "bar_position": 3
+  },
+  {
+   "time": 15.5,
+   "bar_position": 4
+  },
+  {
+   "time": 16.0,
+   "bar_position": 1
+  },
+  {
+   "time": 16.5,
+   "bar_position": 2
+  },
+  {
+   "time": 17.0,
+   "bar_position": 3
+  },
+  {
+   "time": 17.5,
+   "bar_position": 4
+  },
+  {
+   "time": 18.0,
+   "bar_position": 1
+  },
+  {
+   "time": 18.5,
+   "bar_position": 2
+  },
+  {
+   "time": 19.0,
+   "bar_position": 3
+  },
+  {
+   "time": 19.5,
+   "bar_position": 4
+  },
+  {
+   "time": 20.0,
+   "bar_position": 1
+  },
+  {
+   "time": 20.5,
+   "bar_position": 2
+  },
+  {
+   "time": 21.0,
+   "bar_position": 3
+  },
+  {
+   "time": 21.5,
+   "bar_position": 4
+  },
+  {
+   "time": 22.0,
+   "bar_position": 1
+  },
+  {
+   "time": 22.5,
+   "bar_position": 2
+  },
+  {
+   "time": 23.0,
+   "bar_position": 3
+  },
+  {
+   "time": 23.5,
+   "bar_position": 4
+  }
+ ],
+ "key": [],
+ "key_overall": "C major",
+ "chords": [],
+ "segments": [
+  {
+   "start": 0.0,
+   "end": 12.0,
+   "segment_id": "A"
+  },
+  {
+   "start": 12.0,
+   "end": 24.0,
+   "segment_id": "B"
+  }
+ ],
+ "onsets": [
+  0.0,
+  0.5,
+  1.0,
+  1.5,
+  2.0,
+  2.5,
+  3.0,
+  3.5,
+  4.0,
+  4.5,
+  5.0,
+  5.5,
+  6.0,
+  6.5,
+  7.0,
+  7.5,
+  8.0,
+  8.5,
+  9.0,
+  9.5,
+  10.0,
+  10.5,
+  11.0,
+  11.5,
+  12.0,
+  12.5,
+  13.0,
+  13.5,
+  14.0,
+  14.5,
+  15.0,
+  15.5,
+  16.0,
+  16.5,
+  17.0,
+  17.5,
+  18.0,
+  18.5,
+  19.0,
+  19.5,
+  20.0,
+  20.5,
+  21.0,
+  21.5,
+  22.0,
+  22.5,
+  23.0,
+  23.5
+ ],
+ "harmonic_changes": [],
+ "energy_arc": [
+  {
+   "time": 0.0,
+   "rms": 0.25
+  },
+  {
+   "time": 4.0,
+   "rms": 0.3
+  },
+  {
+   "time": 8.0,
+   "rms": 0.45
+  },
+  {
+   "time": 10.0,
+   "rms": 0.6
+  },
+  {
+   "time": 11.0,
+   "rms": 0.72
+  },
+  {
+   "time": 12.0,
+   "rms": 0.85
+  },
+  {
+   "time": 16.0,
+   "rms": 0.85
+  },
+  {
+   "time": 20.0,
+   "rms": 0.85
+  },
+  {
+   "time": 24.0,
+   "rms": 0.85
+  }
+ ],
+ "confidences": {},
+ "plugins_used": [],
+ "stems": [
+  {
+   "stem": "drums",
+   "energy_arc": [
+    {
+     "time": 0.0,
+     "rms": 0.3
+    },
+    {
+     "time": 12.0,
+     "rms": 0.9
+    }
+   ],
+   "onsets": [
+    0.0,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+    7.0,
+    8.0,
+    9.0,
+    10.0,
+    11.0,
+    12.0,
+    13.0,
+    14.0,
+    15.0,
+    16.0,
+    17.0,
+    18.0,
+    19.0,
+    20.0,
+    21.0,
+    22.0,
+    23.0
+   ]
+  }
+ ],
+ "section_instrumentation": [
+  {
+   "segment_id": "A",
+   "start_ms": 0,
+   "end_ms": 12000,
+   "shares": {
+    "drums": 0.6,
+    "bass": 0.4
+   },
+   "dominant": [
+    "drums"
+   ]
+  },
+  {
+   "segment_id": "B",
+   "start_ms": 12000,
+   "end_ms": 24000,
+   "shares": {
+    "drums": 0.7,
+    "vocals": 0.3
+   },
+   "dominant": [
+    "drums"
+   ]
+  }
+ ],
+ "mood": null,
+ "track_id": null,
+ "lyrics": null,
+ "analyzer_version": 2
+}

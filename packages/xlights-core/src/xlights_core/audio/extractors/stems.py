@@ -53,14 +53,14 @@ def separate(path: str, sample_rate: int):
 
 
 def _separate_mlx(path: str):
-    from demucs_mlx import Separator  # type: ignore
+    from demucs_mlx import Separator
 
     _, stems = Separator(model=stems_model()).separate_audio_file(path)
     return _to_named(stems)
 
 
 def _separate_torch(path: str):
-    from demucs.api import Separator  # type: ignore
+    from demucs.api import Separator
 
     device = _torch_device()
     _, stems = Separator(model=stems_model(), device=device).separate_audio_file(path)

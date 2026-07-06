@@ -146,7 +146,7 @@ async def place_direct(
     if serialize_settings(parse_settings(settings)) != settings:
         raise ValueError(f"direct settings do not round-trip (unparseable): {settings!r}")
     merged = _merge_extra_settings(settings, extra_settings)
-    palette = palette_from_colors(palette_colors) if palette_colors else ""
+    palette = (palette_from_colors(palette_colors) or "") if palette_colors else ""
 
     await _check_timing_and_target(client, target, start_ms, end_ms, known_targets)
 

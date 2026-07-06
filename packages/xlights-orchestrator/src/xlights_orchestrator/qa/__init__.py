@@ -22,8 +22,8 @@ def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
     # advisory musicality: repetition-rhyme + dynamic-range + focus-budget (objective=False —
     # informs the Judge/revision log, never gates the objective score or the loop's convergence).
     s_mus, f_mus = musicality.evaluate(instructions, plan, repetition_map)
-    subscores = {"sync": s_sync, "placement": s_place, "rules": s_rules, "variety": s_var,
-                 "musicality": s_mus}
+    subscores: dict[str, float] = {"sync": s_sync, "placement": s_place, "rules": s_rules,
+                                   "variety": s_var, "musicality": s_mus}
     findings = f_sync + f_place + f_rules + f_var + f_mus
     parts = [s_sync, s_place, s_rules]
     # Rendered coverage: when the full render-data series is available it strictly dominates the

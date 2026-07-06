@@ -191,7 +191,7 @@ def summarize_run(records: list[RevisionLogRecord], *, reprice: bool = False) ->
     summary.redesigned_sections = list(finalize.redesigned_sections) if finalize else []
 
     # judge-vs-objective agreement: the judge's final verdict (accept) vs objective gain > 0
-    judge_scores = [r.judge.get("score") for r in iters if r.judge and r.judge.get("score") is not None]
+    judge_scores = [s for r in iters if r.judge and (s := r.judge.get("score")) is not None]
     if judge_scores and summary.objective_gain is not None:
         summary.judge_vs_objective_agree = (
             (judge_scores[-1] >= judge_scores[0]) == (summary.objective_gain >= 0))

@@ -38,11 +38,14 @@ providers:
 # model, not a role). Source: Anthropic public pricing (2025-Q4). Cache-read = 0.1× input,
 # cache-write = 1.25× input per Anthropic's prompt-caching rate card. A model absent from this
 # table makes the derived run cost UNKNOWN (None) — never zero, never a guess. Add rows to
-# re-price without a code change. Gemini rows are TODO — do not guess Google's rates.
+# re-price without a code change.
 pricing:
   claude-opus-4-8:   {input: 5.00, output: 25.00, cache_read: 0.50, cache_write: 6.25}
   claude-sonnet-4-6: {input: 3.00, output: 15.00, cache_read: 0.30, cache_write: 3.75}
-  # TODO(gemini): fill in Google's per-model rates before A/B'ing Gemini arms on cost.
-  # gemini-3.1-pro-preview:  {input: ?, output: ?, cache_read: ?, cache_write: ?}
-  # gemini-3.1-flash-lite:   {input: ?, output: ?, cache_read: ?, cache_write: ?}
-  # gemini-3.5-flash:        {input: ?, output: ?, cache_read: ?, cache_write: ?}
+  # Gemini: Google's published rates (ai.google.dev/gemini-api/docs/pricing, 2026), STANDARD tier at
+  # the ≤200k-context price. Pro doubles above 200k (input 4.00 / output 18.00) — not modeled here;
+  # our calls are well under 200k. Google bills context cache as storage-per-hour, not a per-token
+  # write like Anthropic, so `cache_write` is that hourly storage rate (unused: our cache_write is 0).
+  gemini-3.1-pro-preview:  {input: 2.00, output: 12.00, cache_read: 0.20,  cache_write: 4.50}
+  gemini-3.1-flash-lite:   {input: 0.25, output: 1.50,  cache_read: 0.025, cache_write: 1.00}
+  gemini-3.5-flash:        {input: 1.50, output: 9.00,  cache_read: 0.15,  cache_write: 1.00}

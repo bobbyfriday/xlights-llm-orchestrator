@@ -20,6 +20,17 @@ class XLightsConnectionError(XLightsError):
     """Could not reach an xLights automation endpoint."""
 
 
+class XLightsTransportError(XLightsConnectionError):
+    """A transport-level failure AFTER the request was sent (response lost) — as opposed to
+    the base ``XLightsConnectionError`` "provably never sent" case (``httpx.ConnectError``).
+
+    A subclass of ``XLightsConnectionError`` so every existing ``except XLightsConnectionError``
+    caller keeps catching both. The distinction lets non-idempotent mutation retry require the
+    provably-unsent case (a plain ``XLightsConnectionError``) and NOT retry this sent-but-lost
+    case, which could double-apply an ``addEffect``.
+    """
+
+
 class XLightsTimeout(XLightsError):
     """A request to xLights timed out."""
 

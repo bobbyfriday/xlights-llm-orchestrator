@@ -218,27 +218,6 @@
  {
   "direct_settings": "",
   "effect_type": "On",
-  "end_ms": 3600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 3000,
-  "target": "SEM_SPINNERS"
- },
- {
-  "direct_settings": "",
-  "effect_type": "On",
   "end_ms": 4500,
   "extra_settings": {
    "C_SLIDER_Brightness": "134",
@@ -262,48 +241,6 @@
  {
   "direct_settings": "",
   "effect_type": "On",
-  "end_ms": 4600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 4000,
-  "target": "SEM_SPINNERS"
- },
- {
-  "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 5600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 5000,
-  "target": "SEM_SPINNERS"
- },
- {
-  "direct_settings": "",
-  "effect_type": "On",
   "end_ms": 6500,
   "extra_settings": {
    "C_SLIDER_Brightness": "134",
@@ -323,27 +260,6 @@
   "section_index": 0,
   "start_ms": 6000,
   "target": "SEM_ARCHES"
- },
- {
-  "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 6600,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadein": "0.21",
-   "T_TEXTCTRL_Fadeout": "0.21"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#00FF00"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 0,
-  "start_ms": 6000,
-  "target": "SEM_SPINNERS"
  },
  {
   "direct_settings": "",
@@ -1231,26 +1147,6 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 20250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 20000,
-  "target": "SEM_SPINNERS"
- },
- {
-  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 21000,
   "extra_settings": {
@@ -1317,26 +1213,6 @@
   "section_index": 1,
   "start_ms": 20500,
   "target": "SEM_SIDE_CENTER"
- },
- {
-  "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 21250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 21000,
-  "target": "SEM_SPINNERS"
  },
  {
   "direct_settings": "",
@@ -1408,26 +1284,6 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 22250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 22000,
-  "target": "SEM_SPINNERS"
- },
- {
-  "direct_settings": "",
   "effect_type": "Bars",
   "end_ms": 23000,
   "extra_settings": {
@@ -1494,26 +1350,6 @@
   "section_index": 1,
   "start_ms": 22500,
   "target": "SEM_SIDE_CENTER"
- },
- {
-  "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 23250,
-  "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
-  },
-  "knob_values": {},
-  "layer": 0,
-  "look_id": "On#0",
-  "on_top": false,
-  "palette_colors": [
-   "#FF0000"
-  ],
-  "palette_id": null,
-  "render_style": "Per Model Default",
-  "section_index": 1,
-  "start_ms": 23000,
-  "target": "SEM_SPINNERS"
  },
  {
   "direct_settings": "",

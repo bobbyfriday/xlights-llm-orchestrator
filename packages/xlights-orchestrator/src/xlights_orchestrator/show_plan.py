@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+# The realization-layer provenance vocabulary for EffectInstruction.source (I7 attribution,
+# report-only; excluded from model_dump so cache/golden formats stay byte-identical).
+EFFECT_SOURCES = ("weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite")
+
 
 class ShowPalette(BaseModel):
     name: str = ""
@@ -87,6 +91,10 @@ class EffectInstruction(BaseModel):
     section_index: int | None = None   # which ShowPlan section produced it (for scoped regen/QA)
     on_top: bool = False               # a punch-through accent (trigger): top layer, opaque,
                                        # exempt from the layer-budget clamp so it always shows
+    source: str = Field(default="", exclude=True)   # I7: which realization layer emitted this row
+                                       #   (weave/accents/bed/…); TRANSIENT — excluded from model_dump
+                                       #   so the instructions cache/golden stay byte-identical. Surfaced
+                                       #   only in the fabric-measurement report (per-type-per-source).
 
 
 class CellRecipe(BaseModel):

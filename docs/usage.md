@@ -57,16 +57,39 @@ The orchestrator targets **semantic groups** (`SEM_FOCAL`, `SEM_ARCHES`, `SEM_SI
 position. These are written into your `xlights_rgbeffects.xml` once, and xLights loads them on the
 next restart.
 
-`xlights_core.knowledge.layout_semantics` plans the groups and patches their settings
-(`build_sem_groups`, `patch_sem_gridsize`, `patch_view`) — but classifying props into roles and
-writing the SEM_ modelGroups into `rgbeffects.xml` is a manual/agent step today, following
-[`xlights-layout-semantics-spec.md`](../xlights-layout-semantics-spec.md). Do it once with xLights
-**closed** (so it doesn't overwrite the file on exit), then restart xLights. Re-do it after adding
-props. (A guided `xlo init-layout` command that automates classification, group creation, and
-validation is planned — see [`roadmap-2026-07.md`](roadmap-2026-07.md).)
+Run the guided command **once**, with xLights **closed** (it rewrites `rgbeffects.xml` from memory
+on exit and would clobber the edit — the command refuses to write while xLights answers its port):
 
-Without SEM_ groups the run still works but targets whatever groups exist; the curated layers
-(rhythm pool, accents, peak fill) assume the SEM_ set.
+```
+xlo init-layout --show-folder /path/to/show          # analyze → review → write → manifest → validate
+xlo init-layout --show-folder /path/to/show --dry-run  # preview the group membership diff, write nothing
+```
+
+What it does (all deterministic — **no LLM key required**):
+
+1. **Analyze** — `parse_props` reads every model in the default preview; `classify` assigns a role
+   by DisplayAs map → tree pixel-count → name heuristics → your group names; `derive_spatial`
+   computes bands, sides, sweep order, mirror pairs, and focal flags (`--invert-x` flips the axis
+   if your preview is mirrored).
+2. **Review** — every prop below 0.8 confidence and each excluded outlier is offered in a terminal
+   prompt (accept the suggestion, force a role, or exclude). `--yes` accepts all unattended (they
+   still land in the manifest's `review` list and the command warns). Irreducible judgment calls go
+   in a per-layout `layout_overrides.json` (`{"Prop Name": {"role": "OUTLINE"}}`) beside the show,
+   applied after the deterministic steps. With an LLM key and without `--no-llm`, the unresolved
+   tail is resolved by one batched, enum-constrained call (low-confidence guesses still go to review).
+3. **Write** — the `SEM_` modelGroups are created idempotently (members, GridSize, the layout-mode
+   attribute), your own groups untouched, a timestamped `.bak` taken, the file replaced atomically.
+   A converged re-run is a byte-level no-op.
+4. **Manifest** — `layout_semantics.json` is written to the show folder (and a cache copy) — the
+   compact per-prop role/capability/geometry the Director, QA, and choreography vocabulary consume.
+5. **Validate** — offline (no xLights): structural checks (every member exists, no empty group,
+   `SEM_ALL` excludes faces/signs, `_LTR` order matches sweep order) plus a deterministic
+   sweep-centroid check; `--no-validate` skips it. A backward sweep recommends `--invert-x`.
+
+Then **restart xLights** so it loads the groups; the first `xlo run` re-probes targetability.
+Re-run `init-layout` after adding props. Without SEM_ groups the run still works but targets
+whatever groups exist; the curated layers (rhythm pool, accents, peak fill) assume the SEM_ set.
+Full role/spatial rules: [`xlights-layout-semantics-spec.md`](../xlights-layout-semantics-spec.md).
 
 ## Singing faces (lip-sync)
 

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-A — Land improve-musicality · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-A — Land <code>improve-musicality</code></h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-A (Horizon 1 — Musicality) in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>Three independent phases (visual change / schema field / additive passes); already fully proposed &amp; designed in <code>openspec/changes/improve-musicality/</code></dd>
+<dt>Depends on</dt><dd>I3 (refine-loop decomposition + constants consolidation) <strong>before Phase 2</strong>; nothing before Phase 1</dd>
+<dt>Unblocks</dt><dd>The biggest show-quality lever this cycle; pairs with I7 (density/motion gap) and I8 Tier 0 (fseq metrics are the pixel-level twin of these instruction-level metrics)</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/weave.py</code>, <code>pipeline/generate.py</code>, <code>pipeline/beats.py</code>, <code>pipeline/tuning.py</code>, <code>show_plan.py</code>, <code>qa/coverage.py</code>, <code>qa/__init__.py</code>, <code>agents/director.py</code>, <code>brief_editor.py</code>; new <code>pipeline/transitions.py</code>, <code>pipeline/color_script.py</code>, <code>qa/musicality.py</code></dd>
+</dl></div>
+
+<p><strong>Status note.</strong> This item is <em>not</em> a design exercise — the change is fully proposed
+(<code>openspec/changes/improve-musicality/proposal.md</code>, <code>design.md</code>, <code>tasks.md</code>, and two spec deltas under
+<code>specs/show-orchestration/</code> and <code>specs/show-refinement/</code>). This document is a faithful digest of that design plus
+execution guidance: exact code seams, sequencing constraints, and per-phase acceptance criteria. Where this document and the
+OpenSpec change disagree, the change wins.</p>
+
+<h2>1. Why</h2>
+<p>The proposal's diagnosis (proposal.md "Why"): generated shows are <strong>technically correct but read as samey and
+scattered</strong> next to a hand-sequenced show, and the causes are structural, not tuning:</p>
+<ul>
+<li><strong>One recipe everywhere.</strong> <code>generate.realize_section</code> applies the same stack — bed + weave fabric + beat
+accents + sparkle contrast — to every section; only brightness and coverage scale with intensity. A quiet verse is "the chorus,
+but dimmer"; nothing is ever truly <em>absent</em>, so the peak has no contrast to land against. Coverage QA reinforces this by
+treating darkness as an objective error regardless of section energy.</li>
+<li><strong>Variety is keyed to position, not musical identity.</strong> <code>weave.section_carrier(seed)</code> rotates the
+carrier by section <em>index</em>, so chorus 1 and chorus 2 — which <code>MusicBrief.repetition_map</code> <em>knows</em> are the
+same music — get different carriers, and different peak composites via <code>_PEAK_COMPOSITES[si % n]</code>. The pipeline injects
+difference exactly where a sequencer would enforce sameness; repeated music never visually rhymes. Today <code>repetition_map</code>
+is used only to bump intensity (<code>beats.effective_intensity</code>).</li>
+<li><strong>Section boundaries are butt joints.</strong> The harmony analyst emits <code>transition_cues_ms</code>
+(<code>music_brief.py:62</code>) and the Director writes a <code>SectionPlan.transition</code> field (<code>show_plan.py:40</code>),
+but <em>nothing downstream consumes either</em>. Hand shows live on risers into choruses, a one-beat blackout before the drop, and
+sweep handoffs.</li>
+<li><strong>No show-level color story, no phrase-level dynamics.</strong> Palettes are per-section with no cross-section constraint;
+brightness value curves fire only on &gt;15&nbsp;s washes at intensity ≥ 0.7 (<code>generate.py:172</code>), so nothing swells or
+decays with the music's 2/4/8-bar phrasing.</li>
+<li><strong>The refine loop can't protect any of this</strong> because no metric measures it — what isn't measured gets optimized
+away.</li>
+</ul>
+
+<h2>2. Current state</h2>
+<h3>2.1 Position-keyed variety</h3>
+<p><code>pipeline/weave.py:198–216</code> — the carrier rotation and its per-index keying:</p>
+<pre><code>CARRIER_ROTATION = ("SingleStrand", "Bars", "Garlands", "Wave")
+
+def section_carrier(seed: int) -&gt; str:
+    """The rotated carrier effect for a section index (deterministic; cycles CARRIER_ROTATION)."""
+    return CARRIER_ROTATION[seed % len(CARRIER_ROTATION)]</code></pre>
+<p><code>pipeline/generate.py:184–187</code> calls it with the section index: <code>carrier = section_carrier(si)</code>, then
+<code>diversify_carrier(weave_obj, carrier)</code> swaps any "plain" LLM carrier (chase family + <code>On</code>,
+<code>_ROTATABLE_CARRIERS</code> at <code>weave.py:201</code>) to the rotated one. Distinctive LLM-chosen carriers (Spirals, Pinwheel…)
+are preserved — an invariant Phase 1 must keep.</p>
+<p><code>pipeline/generate.py:55</code> and <code>:196–199</code> — the peak composite is also index-keyed:</p>
+<pre><code>_PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
+...
+if si in _peaks and HERO_GROUP in st.available_groups:
+    cc = curated_composite(_PEAK_COMPOSITES[si % len(_PEAK_COMPOSITES)], [HERO_GROUP])</code></pre>
+<p>Per-effect palettes rotate by instruction index (<code>beats.effect_palette(section_palette, effect_type, index)</code>,
+<code>beats.py:74–82</code>), and the expanded-palette order is therefore also position-derived.</p>
+
+<h3>2.2 Escalation is gain-only</h3>
+<p><code>pipeline/beats.py:127–138</code>:</p>
+<pre><code>def escalation_level(section_index: int, repetition_map: dict | None) -&gt; float:
+    """0 for the first occurrence of a recurring section → 1 for the last; 0 if it doesn't recur."""
+    ...
+
+def effective_intensity(intensity, section_index, repetition_map) -&gt; float:
+    """Section intensity lifted by its escalation level so later recurrences build."""
+    return min(1.0, base + ESCALATION_BOOST * escalation_level(...))</code></pre>
+<p><code>ESCALATION_BOOST = 0.25</code> (<code>pipeline/tuning.py</code>). Escalation today is <em>brightness/speed/coverage-cap via
+intensity only</em> — the chorus gets louder, not structurally bigger. <code>coverage_cap(intensity, n_groups)</code>
+(<code>beats.py:141–144</code>) and <code>trim_coverage</code> are the coverage lever the change will spend ordinally.</p>
+
+<h3>2.3 Coverage QA punishes deliberate darkness only above 0.5</h3>
+<p><code>qa/coverage.py:13–16</code>: <code>MIN_INTENSITY = 0.5</code>, <code>EXPECTATION = 0.6</code>,
+<code>FAIL_FRACTION = 0.5</code>. Sections below 0.5 intensity are exempt; at/above it the expected lit fraction is a flat
+<code>EXPECTATION × intensity</code> against the show's own peak. There is no treatment concept, so a deliberately sparse
+mid-energy "feature" section (say intensity 0.55 with one hero prop lit) is an objective <em>error</em> today.</p>
+
+<h3>2.4 SectionPlan and the Director</h3>
+<p><code>show_plan.py:26–51</code> — <code>SectionPlan</code> has <code>transition: str = ""</code> (unconsumed) and
+<code>phrasing</code> (consumed by <code>resolve_phrasing</code>), but no treatment field. <code>agents/director.py::render_input</code>
+(lines 23–90) builds the Director prompt; it already carries per-section doctrine blocks (phrasing, scenes, feature-prop pop) —
+the treatment doctrine block lands in this string. <code>director.section_redesigner()</code> reuses the same prompt for
+mid-refine section redesigns, so treatment guidance automatically applies there too.</p>
+
+<h3>2.5 The two seams (why this change is tractable)</h3>
+<p>design.md "Context": since the consolidation, <em>all</em> per-section realization flows through
+<code>generate.realize_section</code> (<code>generate.py:146–219</code>) — shared by first-pass generation
+(<code>generate_instructions</code>), the refine loop (<code>run.py::regenerate_section</code>, line 124), and <code>xlo regen</code> —
+and all whole-list passes flow through <code>generate.finalize_effects</code> (<code>generate.py:222–231</code>). That gives exactly
+two seams: treatments/identity/dynamics <em>inside</em> <code>realize_section</code>; transitions/color-script as list-level passes
+<em>before</em> <code>finalize_effects</code>. Every needed signal is already computed and cached: <code>repetition_map</code>,
+<code>transition_cues_ms</code>, per-section intensity, <code>energy_arc</code>, beats/downbeats via <code>section_rhythm</code>,
+stems, key moments. <strong>No new audio analysis.</strong></p>
+
+<h3>2.6 The advisory channel the new metrics ride</h3>
+<p><code>refine.Finding</code> has <code>objective: bool = True</code> — "objective gates the loop; advisory only informs"
+(<code>refine.py:17</code>). <code>qa/__init__.evaluate</code> (lines 16–35) averages only sync/placement/rules(/coverage when a
+sampler exists) into <code>objective_score</code>; advisory findings ride <code>findings</code> into the Judge
+(<code>judge_mod.render_input(report, …)</code> at <code>run.py:229</code>) and into the revision log
+(<code>run.py:201–209</code>, <code>_record</code> maps <code>f.metric</code> through <code>revision_log.source_of</code>).
+<code>qa/variety.py</code> is the house style for advisory metrics: bounded findings, distinct metric names
+(its <code>group-coverage</code> vs objective <code>coverage</code> rename exists precisely because the revision log couldn't
+tell them apart — the new metrics must use distinguishable names from day one: <code>musicality:rhyme</code>,
+<code>musicality:dynamic-range</code>, <code>musicality:focus</code>).</p>
+
+<h2>3. Proposed design (digest of design.md)</h2>
+<p>Three phases; each lands independently and is valuable alone. Governing principles (design.md Goals): all new QA metrics are
+<strong>advisory</strong> (<code>objective=False</code>) so the refine loop's convergence properties are untouched; deterministic and
+code-owned wherever possible — the LLM chooses <em>intent</em> (treatment, palette direction), code realizes it. Non-goals: no
+analyzer schema changes, no emitter/layer-budget/occlusion changes, no lyric-word-level effects, no new Director round-trips for
+the color script.</p>
+
+<h3>3.1 Phase 1 — repetition identity (theme &amp; development)</h3>
+<p><strong>Decision 1 — identity keying: label hash, index fallback.</strong> New
+<code>section_identity(si, repetition_map) -&gt; str | None</code> (in <code>beats.py</code>, beside <code>escalation_level</code>): the
+label whose indices contain <code>si</code>, counted only when that label recurs. <code>section_carrier</code> and the
+peak-composite pick key their rotation on <code>hash(label) % len(rotation)</code> when an identity exists, else on the index as
+today. The expanded-palette rotation order is keyed per label the same way (the per-effect <code>index</code> interplay inside a
+section stays as-is). One-off sections keep today's index-keyed variety. Zero schema change.</p>
+<p><strong>Decision 2 — escalation spends structurally.</strong> Beyond the existing <code>effective_intensity</code> lift:
+occurrence ordinal raises <code>coverage_cap</code> by +1 group per step, tightens the accent stride
+(<code>_off_beat_stride</code>) one step, and the <em>final</em> occurrence adds one extra layer (the sparkle/feature contrast layer
+when the layout has accent props, i.e. <code>ACCENT_GROUPS ∩ available_groups</code>). Bounded by the existing
+<code>clamp_hard_caps</code> (<code>qa/rules.py:137</code>) and <code>clamp_layer_budget</code> (<code>effect_emitter.py:40</code>)
+so it cannot blow the budget.</p>
+<p><strong>New advisory metric — repetition-rhyme</strong> (Decision 8, first metric): for each recurring label, Jaccard similarity
+of <code>(target, effect_type)</code> sets between occurrences, plus carrier equality; score = mean over labels. Emits at most one
+finding per label. A pre-change (index-rotated) show scores low; the point is that the Judge <em>sees</em> when a repeat doesn't
+rhyme, and the revision log can watch the metric across runs.</p>
+<p>Spec anchor (<code>specs/show-orchestration/</code>): "Choruses share a carrier" — repetition-map siblings receive the same weave
+carrier, composite, and palette rotation; "The last chorus is the biggest" — the final occurrence lights at least as many groups,
+denser accents, +1 layer, within budgets.</p>
+<p><em>Touched modules:</em> <code>pipeline/beats.py</code> (new <code>section_identity</code>), <code>pipeline/weave.py</code>
+(<code>section_carrier</code> keying), <code>pipeline/generate.py</code> (thread the label; peak-composite + palette-order keying;
+structural escalation in <code>realize_section</code>), new <code>qa/musicality.py</code> + wiring in <code>qa/__init__.py</code>.
+<em>Risk profile:</em> visual change, <strong>no schema change</strong> — golden churn is expected and deliberate.</p>
+
+<h3>3.2 Phase 2 — section treatments (texture contrast)</h3>
+<p><strong>Decision 3 — treatments are a realization contract, not a prompt suggestion.</strong>
+<code>SectionPlan.treatment: Literal["full","feature","pulse","gesture","rest"] | "" = ""</code> — defaulted so old cached plans
+still validate. The Director prompt gains a short doctrine block ("choose per section; withhold, don't just dim"). Deterministic
+fallback when empty (<code>resolve_treatment(section, peaks)</code>): intensity ≥ peak-band → <code>full</code>; ≥ 0.5 →
+<code>pulse</code>; ≥ 0.25 → <code>feature</code> if the layout has a focal prop else <code>pulse</code>; &lt; 0.25 →
+<code>gesture</code>; explicit near-zero (&lt; 0.1) → <code>rest</code>. <code>realize_section</code> <em>includes layers</em> per
+treatment:</p>
+<table>
+<tr><th>treatment</th><th>bed</th><th>weave</th><th>accents</th><th>composites/VU</th><th>feature</th></tr>
+<tr><td><code>full</code></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td><code>pulse</code></td><td>✓</td><td>—</td><td>✓</td><td>—</td><td>✓</td></tr>
+<tr><td><code>feature</code></td><td>dim</td><td>—</td><td>sparse</td><td>—</td><td>✓ (hero)</td></tr>
+<tr><td><code>gesture</code></td><td>—</td><td>one carrier recipe on ≤2 groups</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><code>rest</code></td><td>dim, ≤2 groups</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+</table>
+<p>Hard floor against a near-black show: at most 2 consecutive non-<code>full</code>/<code>pulse</code> sections get a bed injected
+(design.md Risks). Note the existing restraint machinery (<code>section_is_rhythmic</code>, <code>rhythm_pool</code> returning
+<code>[]</code> for quiet briefs) already withholds <em>some</em> layers; treatments make withholding an explicit, named contract
+rather than an emergent property of empty <code>pulse_groups</code>.</p>
+<p><strong>Decision 4 — coverage QA keys expectations to energy + treatment.</strong> <code>qa/coverage.py</code> scales its
+expected-lit threshold by section intensity (roughly the <code>coverage_cap</code> curve), and <code>gesture</code>/<code>rest</code>
+sections are exempt from the darkness <em>error</em> entirely (advisory note instead). This is the single QA change with
+objective-score impact, and it <strong>loosens only</strong> — existing passing shows keep passing. Spec anchor
+(<code>specs/show-refinement/</code>): "Deliberate darkness passes / a broken bright section still fails."</p>
+<p><strong>New advisory metrics — dynamic-range and focus-budget</strong> (Decision 8): dynamic-range = normalized spread between
+the min and max section of mean(brightness × lit-group-fraction), computed on instructions; low spread → "wall-to-wall brightness"
+finding. Focus-budget = per-section peak count of concurrent distinct moving-effect systems (<code>qa/rules.MOTION_EFFECTS</code>
+targets grouped by effect_type), flagged when it exceeds an energy-keyed budget (quiet: 1, mid: 2, peak: 3 + bed).</p>
+<p><em>Touched modules:</em> <code>show_plan.py</code> (schema field), <code>agents/director.py</code> (doctrine block),
+<code>brief_editor.py</code> (add <code>treatment</code> to the form's field <code>ORDER</code> list, <code>brief_editor.py:76</code>),
+<code>pipeline/generate.py</code> (treatment branching in <code>realize_section</code>), <code>qa/coverage.py</code>,
+<code>qa/musicality.py</code>. <em>Risk profile:</em> adds a schema field (defaulted, backward compatible with cached
+<code>creative_brief</code> JSON) + a behavioral QA loosening; the riskiest phase because it touches the coverage gate and the same
+<code>realize_section</code> seams the refine loop drives — hence the I3 sequencing constraint below.</p>
+
+<h3>3.3 Phase 3 — connective tissue (transitions, color script, phrase dynamics)</h3>
+<p><strong>Decision 5 — transitions are an instruction-list pass, tagged to the outgoing section.</strong> New
+<code>pipeline/transitions.py::place_transitions(st, instrs) -&gt; list[EffectInstruction]</code>, run in
+<code>generate_instructions</code> and after refine-loop/<code>xlo regen</code> splices, <strong>before</strong>
+<code>finalize_effects</code>. Detection is pure signal math from energy arc + downbeats + <code>transition_cues_ms</code>:</p>
+<ul>
+<li>boundary energy delta ≥ riser threshold → a 2-bar brightness-ramp chase on a broad group ending at the boundary;</li>
+<li>delta ≥ drop threshold with a downbeat landing → gate (trim) all instructions in the final beat before the boundary — the
+blackout-before-the-hit;</li>
+<li>otherwise lateral → optional sweep handoff.</li>
+</ul>
+<p>Two load-bearing details: transition instructions carry the <strong>outgoing</strong> section's <code>section_index</code> (they
+occupy its time range), so <code>replace_section</code> regenerating the <em>incoming</em> section never orphans them; and the pass
+is idempotent via an <code>extra_settings</code> marker key, so re-running after a splice <em>replaces</em> rather than stacks
+transitions. Gating only trims end times (never reorders), so <code>_guard_wash_occlusion</code> in <code>finalize_effects</code>
+sees final geometry.</p>
+<p><strong>Decision 6 — color script is a deterministic plan post-pass.</strong>
+<code>apply_color_script(plan, repetition_map)</code> (new <code>pipeline/color_script.py</code>, or a pass in show-plan
+realization): anchor = the most frequent resolvable color across section palettes, injected into any section missing it; the
+chorus label's sections get a shared signature pair (their two most hue-distant colors, reused verbatim across occurrences —
+<code>contrast_anchors</code> in <code>xlights_core.knowledge.colors</code> is the existing hue-distance tool); the
+lowest-recurrence mid-song section (bridge heuristic) gets a complement pushed to the front. Runs right after the Director
+produces the plan <em>and</em> after any section redesign (the <code>_redesign</code> path in <code>run.py:156–165</code>). No LLM
+call.</p>
+<p><strong>Decision 7 — phrase dynamics ride existing value-curve helpers.</strong> In <code>realize_section</code>, beds/washes
+spanning ≥ 2 bars get a brightness curve shaped by the section's energy-arc slice: rising → <code>brightness_ramp(lo, hi)</code>
+(already imported at <code>generate.py:18</code>), falling → reversed, flat → none (today's behavior). 8-bar phrase starts on the
+downbeat grid get a one-beat swell on the bed via the accent layer's existing boost mechanism (<code>_mk(..., boost=)</code> in
+<code>place_beat_accents</code>). Only beds/washes — features and accents keep crisp levels. This generalizes the current
+single-case rule at <code>generate.py:172</code> (<code>_si ≥ 0.7 and span &gt; 15000</code>).</p>
+<p><em>Touched modules:</em> new <code>pipeline/transitions.py</code>, new <code>pipeline/color_script.py</code>,
+<code>pipeline/generate.py</code> (run the pass; phrase curves), <code>pipeline/run.py</code>/<code>pipeline/regen.py</code>
+(re-run after splices). <em>Risk profile:</em> additive passes; the blackout gate is the only piece that mutates existing
+instructions (trim-only, before <code>finalize_effects</code>).</p>
+
+<h3>3.4 The advisory metrics, end to end</h3>
+<p>New <code>qa/musicality.py</code> exposes <code>evaluate(instructions, plan, brief) -&gt; tuple[int, list[Finding]]</code>
+(mirroring <code>qa/variety.py</code>'s shape) and is wired into <code>qa/__init__.evaluate</code> <em>outside</em> the
+<code>parts</code> list that forms <code>objective_score</code>. Every finding carries <code>objective=False</code> and a
+namespaced metric (<code>musicality:rhyme</code>, <code>musicality:dynamic-range</code>, <code>musicality:focus</code>) so
+<code>revision_log.source_of</code> distinguishes them in the JSONL, the Judge sees them in
+<code>judge_mod.render_input</code>, and the human sees them in the attended checkpoint printout
+(<code>run.py:90–95</code>). Each metric emits a bounded number of findings (one per label/section, hard cap) to keep Judge input
+from getting noisy. Because they never enter <code>objective_score</code>, the loop's revert (<code>REGRESS_MARGIN</code>), stall
+(<code>STALL_LIMIT</code>), plateau, and skip (<code>REFINE_SKIP_OBJECTIVE = 88</code>) behaviors are untouched — but note the
+plateau signature at <code>run.py:236</code> includes <code>advisory_score</code>; if <code>advisory_score</code> is later extended
+to blend musicality (open question below), plateau sensitivity changes slightly.</p>
+<p>Roadmap cross-link: I8 Tier 0 defines the <em>pixel-level</em> versions of repetition-rhyme/dynamic-range from
+<code>.fseq</code> channel data, which — unlike these instruction-level metrics — could enter the objective gate. Landing F-A's
+instruction-level metrics first is deliberate: they are cheap, hermetic, and define the vocabulary; I8 can later corroborate them
+with rendered truth.</p>
+
+<h2>4. Implementation plan</h2>
+<p>Ordered per <code>tasks.md</code>; each phase is its own branch/PR (task 4.1 — never commit to <code>main</code> directly).</p>
+<h3>Pre-work (before Phase 1)</h3>
+<ol>
+<li>Archive the three implemented-but-open changes — <code>add-refine-skip-high-objective</code>,
+<code>add-song-end-envelope-fade</code>, <code>add-targeted-section-regen</code> — via live-verify + <code>openspec-archive-change</code>
+(roadmap F-A note; cheap hygiene that keeps <code>openspec/changes/</code> meaning "in flight").</li>
+</ol>
+<h3>Phase 1 (tasks 1.1–1.6)</h3>
+<ol>
+<li><code>beats.section_identity(si, repetition_map) -&gt; str | None</code> beside <code>escalation_level</code>; a label counts
+only when it recurs. Tests: recurring label found; one-off → None; empty map → None.</li>
+<li>Key <code>weave.section_carrier</code> on the label when present (<code>hash(label) % len(CARRIER_ROTATION)</code>), index
+otherwise; thread the label from <code>realize_section</code> (signature grows a keyword or computes it from
+<code>st.music_brief.repetition_map</code> internally — prefer internal, matching how <code>_rm</code> is already fetched at
+<code>generate.py:160</code>). Test: label-sharing sections get the SAME carrier; adjacent one-offs still differ.</li>
+<li>Key the <code>_PEAK_COMPOSITES</code> pick and the expanded-palette rotation offset on the same label. Test: repeated choruses
+share composite + palette order.</li>
+<li>Structural escalation in <code>realize_section</code>: ordinal → <code>coverage_cap</code>+1/step, accent stride −1 step, final
+occurrence + sparkle layer when accent props exist; existing caps bound it. Tests: occurrence 1 vs final differ in
+coverage/density/layer count; caps never exceeded.</li>
+<li>New <code>qa/musicality.py</code> with repetition-rhyme; wire into <code>qa/__init__.evaluate</code> as advisory. Tests:
+rhyming show scores high; an index-rotated (pre-change) fixture scores low; no recurring labels → neutral.</li>
+<li>Regenerate the golden (<code>XLO_REGEN_GOLDEN=1 pytest tests/test_golden_pipeline.py</code>), review the diff — the expected
+signature is carriers becoming stable per label — full suite green (<code>pytest -m "not live"</code>).</li>
+</ol>
+<h3>Gate: I3 before Phase 2</h3>
+<ol start="7">
+<li>Execute roadmap I3: extract <code>pipeline/refine_loop.py</code> with the guards (regression revert, stall, plateau,
+anti-oscillation ledger, design escalation, skip gate) as named functions; move <code>REGRESS_MARGIN</code>/<code>STALL_LIMIT</code>/
+<code>REFINE_SKIP_OBJECTIVE</code> and the effect-metadata tables into <code>pipeline/tuning.py</code>. The roadmap is explicit:
+"Do this <strong>before</strong> improve-musicality Phase 2, which touches the same seams." Phase 2's coverage-QA change and
+treatment branching both alter what the refine loop measures and regenerates; landing them on top of a decomposed, individually
+tested loop keeps failures attributable.</li>
+</ol>
+<h3>Phase 2 (tasks 2.1–2.6)</h3>
+<ol start="8">
+<li><code>SectionPlan.treatment</code> (default <code>""</code>); expose in <code>brief_editor.py</code>'s field list; document
+values in the schema docstring (the editable brief's enum dropdowns come from <code>brief_schema.py</code> — add the vocabulary
+there too).</li>
+<li><code>resolve_treatment(section, peaks)</code> deterministic fallback; Director doctrine block in
+<code>agents/director.py::render_input</code> (and hence <code>section_redesigner</code>).</li>
+<li>Branch <code>realize_section</code> on treatment per the matrix (withhold, not dim); implement the 2-consecutive-sections bed
+floor. Tests: each treatment's layer inventory; fallback mapping thresholds; floor injection.</li>
+<li><code>qa/coverage.py</code>: intensity-scaled expectation; <code>gesture</code>/<code>rest</code> exempt from the objective
+darkness error (advisory note instead). Tests: dark rest section no longer errors; dark high-energy full section still does.</li>
+<li>Add dynamic-range + focus-budget to <code>qa/musicality.py</code>. Tests: wall-to-wall bright show flagged; quiet section
+running 4 moving systems flagged; well-shaped show clean.</li>
+<li>Regenerate golden (verses now visibly sparser), full suite green.</li>
+</ol>
+<h3>Phase 3 (tasks 3.1–3.5)</h3>
+<ol start="14">
+<li><code>pipeline/transitions.py::place_transitions(st, instrs)</code> — riser / blackout-before-drop / sweep handoff; outgoing
+section tagging; idempotence marker. Unit tests per transition kind + idempotence.</li>
+<li>Run the pass in <code>generate_instructions</code> and after refine-loop/<code>xlo regen</code> splices, before
+<code>finalize_effects</code>. Test: regenerating the incoming section preserves the boundary riser (exactly one riser remains).</li>
+<li><code>apply_color_script(plan, repetition_map)</code> after Director planning and after section redesigns. Tests: anchor
+present in every section; chorus occurrences share the pair; bridge leads with the complement.</li>
+<li>Phrase dynamics in <code>realize_section</code>: energy-arc-shaped curves on ≥2-bar beds/washes; 8-bar swells via the existing
+accent boost. Tests: rising slice → ramp; flat → none; features/accents untouched.</li>
+<li>Regenerate golden, full suite green.</li>
+</ol>
+<h3>Landing (tasks 4.1–4.3)</h3>
+<ol start="19">
+<li>Per phase: render a before/after visual-critique bundle on a reference song and eyeball stills at section boundaries and
+repeated choruses — the point of the change is <em>visible</em>, not just tested.</li>
+<li>Document the treatment vocabulary and the advisory metrics where QA/refine behavior is documented; note the
+golden-regeneration policy for intentional generation changes.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Hermetic-first</strong>, per repo convention: <code>pyproject.toml</code> sets <code>addopts = "-m 'not live'"</code>;
+all new tests run without xLights or API keys, using fake agents (the golden test drives <code>run_pipeline</code> end-to-end with
+TestModel agents and a fixed rich <code>SongAnalysis</code>).</li>
+<li><strong>Golden discipline:</strong> <code>tests/test_golden_pipeline.py</code> is the safety net for behavior-preserving
+refactors; each phase changes generation <em>deliberately</em>, so regenerate once per phase with <code>XLO_REGEN_GOLDEN=1</code>
+and review the diff as part of the PR (carriers-per-label in P1; sparser verses in P2; boundary gating/risers in P3). Never
+regenerate to silence an unexplained diff.</li>
+<li><strong>Unit seams:</strong> <code>section_identity</code>, <code>resolve_treatment</code>, <code>place_transitions</code>,
+<code>apply_color_script</code>, and each <code>qa/musicality</code> metric are pure functions over pydantic models — table-driven
+tests, no mocks. The existing suites to extend: <code>tests/test_escalation.py</code>, <code>test_peak_escalation.py</code>,
+<code>test_coverage_qa.py</code>, <code>test_refine.py</code>, <code>test_darkness.py</code>, <code>test_brief_editor.py</code>.</li>
+<li><strong>Back-compat fixtures:</strong> load a cached pre-change <code>creative_brief</code> JSON (no <code>treatment</code>
+field) and assert validation + fallback resolution (spec scenario "Old cached plans still work").</li>
+<li><strong>Refine-loop integration:</strong> a hermetic <code>_refine_loop</code> run (injected fake qa/judge/regenerate as in
+<code>test_refine.py</code>) asserting advisory musicality findings appear in the record stream without moving
+<code>objective_score</code>, and that a splice + re-run of <code>place_transitions</code> leaves exactly one riser.</li>
+<li><strong>Live verify per phase</strong> (opt-in <code>-m live</code> plus the task-4.2 eyeball pass) before archiving.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Mitigation</th></tr>
+<tr><td>Golden test churn each phase masks accidental regressions</td><td>Regenerate deliberately once per phase and review the diff in the PR; the golden exists to catch <em>accidents</em>, and these changes are intentional (design.md Risks).</td></tr>
+<tr><td>Treatment withholding produces a near-black show if the Director over-uses <code>rest</code></td><td>Deterministic fallback only assigns <code>rest</code> below 0.1 intensity; dynamic-range flags an all-quiet show exactly like an all-loud one; hard floor: ≥ every 3rd section keeps a bed (the 2-consecutive rule).</td></tr>
+<tr><td>Blackout-before-drop gating fights the occlusion guard's ordering</td><td>The pass runs before <code>finalize_effects</code> and only trims end times (never reorders), so <code>_guard_wash_occlusion</code> sees final geometry.</td></tr>
+<tr><td>Label hashing picks an unlucky carrier for a whole show</td><td>The Director's explicit distinctive carrier still wins — <code>diversify_carrier</code> only swaps defaults (<code>_ROTATABLE_CARRIERS</code>), exactly as today.</td></tr>
+<tr><td>More advisory findings → noisier Judge input</td><td>Each metric emits at most one finding per label/section with a hard cap, mirroring <code>qa/variety</code>'s style.</td></tr>
+<tr><td>Phase 2 lands on the monolithic <code>_refine_loop</code> and failures become unattributable</td><td>Sequencing constraint: I3 (refine-loop decomposition + constants move) merges first; roadmap sequencing table row 4.</td></tr>
+<tr><td>Coverage-QA loosening hides a genuinely broken dark section</td><td>The loosening is scoped: only <code>gesture</code>/<code>rest</code> are exempt, and only from the <em>error</em> (an advisory note remains); high-energy full-treatment darkness keeps today's objective error (spec scenario).</td></tr>
+<tr><td>Escalation +1-group/+1-layer overshoots small layouts</td><td>Bounded by <code>coverage_cap(…, n_groups)</code>'s <code>min(n_groups, …)</code>, <code>clamp_hard_caps</code>, and <code>clamp_layer_budget</code> (≤4 rows); tests assert caps hold.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<p>Phase 1 is done when:</p>
+<ul>
+<li>☐ Sections sharing a <code>repetition_map</code> label receive the same weave carrier, peak composite, and expanded-palette
+order; one-off sections keep index-keyed variety (tests 1.1–1.3).</li>
+<li>☐ The final occurrence of a recurring label lights ≥ as many groups as the first, with tighter accent stride and one extra
+layer when accent props exist, without exceeding <code>clamp_layer_budget</code>/<code>clamp_hard_caps</code> (test 1.4).</li>
+<li>☐ <code>qa/musicality.py</code> emits advisory repetition-rhyme findings; <code>objective_score</code> is provably unchanged
+by them (test 1.5).</li>
+<li>☐ Golden regenerated once, diff reviewed, <code>pytest -m "not live"</code> green (task 1.6).</li>
+</ul>
+<p>Phase 2 is done when:</p>
+<ul>
+<li>☐ I3 has merged first (refine-loop decomposition + constants in <code>tuning.py</code>).</li>
+<li>☐ <code>SectionPlan.treatment</code> exists, defaulted; old cached briefs load and resolve treatments deterministically
+(tasks 2.1–2.2; spec "Old cached plans still work").</li>
+<li>☐ Each treatment's layer inventory matches the design matrix — layers <em>withheld</em>, not dimmed; a <code>gesture</code>
+section is a single carrier recipe on ≤2 groups (task 2.3; spec "A quiet verse is sparse, not dim").</li>
+<li>☐ A dark <code>rest</code> section produces no objective coverage error; a dark high-energy <code>full</code> section still
+does (task 2.4).</li>
+<li>☐ Dynamic-range and focus-budget advisory metrics behave per tests in 2.5; golden regenerated, suite green (2.6).</li>
+</ul>
+<p>Phase 3 is done when:</p>
+<ul>
+<li>☐ Risers, blackout-before-drop, and sweep handoffs place from pure signal math; transition instructions carry the outgoing
+<code>section_index</code>; the pass is idempotent (task 3.1; spec "Regen keeps the riser" — exactly one riser after a splice).</li>
+<li>☐ The color script injects one anchor color into every section, gives all chorus-label sections a verbatim signature pair,
+and pushes a complement at the bridge — with no LLM call (task 3.3).</li>
+<li>☐ ≥2-bar beds/washes over rising/falling energy carry ramped brightness curves; accents/features keep crisp levels
+(task 3.4).</li>
+<li>☐ Golden regenerated, suite green (3.5).</li>
+</ul>
+<p>Landing is done when:</p>
+<ul>
+<li>☐ Three phase PRs merged; before/after visual bundles reviewed per phase (tasks 4.1–4.2).</li>
+<li>☐ Treatment vocabulary + advisory metrics + golden-regeneration policy documented (task 4.3).</li>
+<li>☐ The three stale changes (<code>add-refine-skip-high-objective</code>, <code>add-song-end-envelope-fade</code>,
+<code>add-targeted-section-regen</code>) are archived.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li>Bridge heuristic: LLM flag (<code>bridge</code> on SectionPlan) vs "lowest-recurrence mid-song section"? The change defaults
+to the heuristic; revisit if it misfires (design.md Open Questions).</li>
+<li>Should <code>treatment</code> eventually gate the <em>generator prompt</em> per treatment (smaller prompts for
+<code>gesture</code>/<code>rest</code>)? A cost lever, explicitly out of scope here.</li>
+<li>Should <code>advisory_score</code> (currently just variety, <code>qa/__init__.py:32</code>) blend the musicality score, or do
+the metrics stay findings-only? Blending changes the plateau signature at <code>run.py:236</code> — recommend findings-only in
+phase PRs and a separate decision afterward.</li>
+<li>Where exactly does the identity label thread — <code>realize_section</code> computing it internally from
+<code>st.music_brief</code> (matching the existing <code>_rm</code> fetch) vs an explicit parameter on
+<code>section_carrier</code>? Internal keeps call sites (<code>run.py</code>, <code>regen.py</code>) untouched.</li>
+<li>Interaction with I7 (density/motion gap re-tuning): Phase 2 changes what "dense" should mean per section — re-run the corpus
+comparison <em>after</em> Phase 2 lands, not before.</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> — Horizon 1 (F-A), I3, I7, I8, and the Recommended sequencing table (rows 3–5).</li>
+<li>OpenSpec change (authoritative): <code>openspec/changes/improve-musicality/proposal.md</code>, <code>design.md</code>,
+<code>tasks.md</code>, <code>specs/show-orchestration/spec.md</code>, <code>specs/show-refinement/spec.md</code>.</li>
+<li>To archive alongside: <code>openspec/changes/add-refine-skip-high-objective/</code>,
+<code>openspec/changes/add-song-end-envelope-fade/</code>, <code>openspec/changes/add-targeted-section-regen/</code>.</li>
+<li>Related archived changes: <code>openspec/changes/archive/2026-06-09-add-motif-escalation</code> (the intensity-only escalation
+this deepens), <code>2026-06-09-add-intentional-darkness</code>, <code>2026-06-13-add-peak-escalation</code>,
+<code>2026-06-11-add-cell-fabric</code>, <code>2026-06-10-add-coverage-qa</code>.</li>
+<li>Docs: <code>docs/effects-layering-analysis.md</code> (the community-fabric numbers), <code>docs/craft-roadmap.md</code> items
+3–5 (intentional darkness, motif reuse, spatial choreography — F-A is their structural completion),
+<code>xlights-scene-cookbook.md</code> (Escalating Chorus Series doctrine cited in the Director prompt).</li>
+<li>Code (current behavior): <code>pipeline/weave.py:198–216</code>, <code>pipeline/generate.py:55,146–261</code>,
+<code>pipeline/beats.py:127–144</code>, <code>pipeline/tuning.py</code>, <code>qa/coverage.py:13–56</code>,
+<code>qa/__init__.py:16–35</code>, <code>refine.py:12–24</code>, <code>pipeline/run.py:58–305</code>,
+<code>agents/director.py:23–96</code>, <code>show_plan.py:26–51</code>.</li>
+</ul>
+</body>
+</html>

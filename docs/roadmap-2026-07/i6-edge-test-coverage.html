@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I6 — Close the test gaps at the edges · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I6 — Close the test gaps at the edges</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I6 in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>S–M, incremental (each target lands independently)</dd>
+<dt>Depends on</dt><dd>Nothing</dd>
+<dt>Unblocks</dt><dd>Safer refactors everywhere; pairs with I4 (mypy gate + coverage reporting), F-I (brief_editor pattern reuse)</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/cli.py</code>, <code>models/registry.py</code>, <code>brief_editor.py</code>, <code>packages/xlights-mcp/src/xlights_mcp/server.py</code>, <code>tests/</code>, <code>.github/workflows/ci.yml</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The deterministic core is thoroughly tested (56 test files, a golden pipeline snapshot, hermetic refine-loop tests), but the <em>edges</em> — the places where a human, a shell, an HTTP client, or an LLM provider touches the system — are not:</p>
+<ul>
+<li><strong><code>cli.py</code> (120 lines) has zero tests.</strong> A flag rename (<code>--max-iterations</code> → anything), a broken default (<code>save_as=None if args.no_save else …</code>), or a checkpoint-wiring regression (<code>checkpoint=_auto_checkpoint if (args.refine and args.auto) else None</code>, cli.py:29) ships silently. The CLI is the only entry point a user actually types.</li>
+<li><strong><code>models/registry.py</code> has zero tests.</strong> It is the single routing point for every LLM call — <code>model_string()</code>, the <code>XLO_PROVIDER</code> override, <code>model_snapshot()</code> (recorded into every revision-log line), and the Anthropic-only <code>_settings()</code> path with its “never set temperature/top_p/top_k (removed on Opus → 400)” invariant (registry.py:60). A config.yaml typo or a broken override currently surfaces as a live-run failure.</li>
+<li><strong><code>brief_editor.py</code>'s HTTP layer is untested.</strong> <code>tests/test_brief_editor.py</code> covers <code>save_brief</code>/<code>render_page</code> as pure functions but never exercises <code>do_GET</code>/<code>do_POST</code>/<code>_handler</code> — the request parsing, Content-Length handling, error-to-400 mapping, and 404 routes. F-I (live progress UI) plans to extend this exact pattern.</li>
+<li><strong>The MCP server (<code>packages/xlights-mcp</code>, ~240 lines, 15 tools) has zero tests</strong> — the whole package. Its tools are thin wrappers over <code>XLightsClient</code>, which <code>tests/test_client.py</code> already proves testable against <code>httpx.MockTransport</code>; the same technique covers the server.</li>
+<li><strong>No schema-drift guard for agent outputs.</strong> Ten pydantic models are LLM <code>output_type</code>s, and three of them are also <em>persisted cache artifacts</em> (<code>song_description</code> → <code>MusicBrief</code>, <code>creative_brief</code> → <code>ShowPlan</code>, <code>instructions</code> → <code>list[EffectInstruction]</code>, run.py:391–433). A field rename or a new required field breaks every cached brief on disk — today that failure appears mid-run (or worse, is silently swallowed by the “stale/invalid cache shape → recompute” branch at run.py:395, quietly discarding an expensive panel run).</li>
+</ul>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 Test-suite conventions (what new tests must follow)</h3>
+<ul>
+<li><strong>Hermetic by default.</strong> <code>pyproject.toml</code>: <code>addopts = "-m 'not live'"</code> with one marker: <code>live: requires a running xLights instance (opt in with -m live)</code>. CI runs plain <code>uv run --no-sync pytest</code> — anything needing network, xLights, or an API key must be marked <code>live</code> or faked.</li>
+<li><strong>Fake agents via PydanticAI <code>TestModel</code>.</strong> The canonical helper (<code>test_golden_pipeline.py:122–126</code>):
+<pre><code>def _test_agent(output):
+    from pydantic_ai import Agent
+    from pydantic_ai.models.test import TestModel
+    return Agent(TestModel(custom_output_args=output.model_dump()),
+                 output_type=type(output), system_prompt="")</code></pre>
+Simpler fakes use <code>SimpleNamespace(output=…)</code> returned from an object with an async <code>run()</code> (<code>test_refine.py:110–115</code>).</li>
+<li><strong>Fake xLights via <code>httpx.MockTransport</code></strong> + recorded JSON fixtures (<code>test_client.py:32–40</code>: <code>XLightsClient(client=httpx.AsyncClient(transport=MockTransport(handler), base_url="http://xlights.test"))</code>), or minimal duck-typed clients (<code>test_refine.py::_FakeClient</code> — only <code>close_sequence</code>; <code>test_golden_pipeline.py::_FakeClient</code> — only <code>get_group_names</code>/<code>get_show_folder</code>).</li>
+<li><strong>Isolation knobs:</strong> <code>XLO_CACHE_DIR</code> is monkeypatched to <code>tmp_path</code> wherever the pipeline runs; guide files load best-effort so tests run without them.</li>
+</ul>
+
+<h3>2.2 What exists per target</h3>
+<table>
+<tr><th>Target</th><th>Existing coverage</th><th>Gap</th></tr>
+<tr><td><code>cli.py</code></td><td>None (no <code>test_cli.py</code>)</td><td>All of argparse wiring: 3 subcommands (<code>run</code>, <code>regen</code>, <code>edit-brief</code>), 14 flags, key-guard exits, <code>regen --list</code>/missing-section path, exception-to-SystemExit mapping (cli.py:105–116)</td></tr>
+<tr><td><code>models/registry.py</code></td><td>None</td><td><code>active_provider</code>/<code>model_string</code>/<code>model_snapshot</code>/<code>_settings</code>/<code>build_agent</code>; the <code>lru_cache</code> on <code>_cfg()</code> (test-ordering hazard)</td></tr>
+<tr><td><code>brief_editor.py</code></td><td><code>test_brief_editor.py</code>: <code>save_brief</code> round-trip ($schema + unrendered fields preserved, invalid → ValueError), <code>render_page</code> substitution, <code>_color_hex_map</code></td><td>The actual HTTP surface: <code>_handler</code>, GET <code>/</code> vs 404, POST <code>/save</code> success/400, and <code>serve()</code>'s schema-missing fallback (brief_editor.py:205–222)</td></tr>
+<tr><td><code>xlights_mcp/server.py</code></td><td>None (whole package untested)</td><td>15 tools; <code>_call()</code> error translation (<code>_TOOL_ERRORS</code> → <code>RuntimeError("TypeName: …")</code>); <code>xl_add_effect_raw</code> input gates (bad timing, unknown target, <code>worked=false</code>); lifespan client construction</td></tr>
+<tr><td>Agent output schemas</td><td>Indirect only — tests construct models in Python, which follows renames automatically and therefore <em>cannot</em> catch drift against persisted JSON</td><td>A stored known-good JSON payload per <code>output_type</code> + per cache artifact, validated in CI</td></tr>
+</table>
+
+<h3>2.3 The agent output types (the drift-guard surface)</h3>
+<p>From <code>grep output_type</code> across <code>agents/</code>:</p>
+<table>
+<tr><th>Agent (role)</th><th><code>output_type</code></th><th>Defined in</th><th>Also persisted?</th></tr>
+<tr><td><code>director_agent()</code> (director)</td><td><code>ShowPlan</code></td><td><code>show_plan.py:53</code></td><td>Yes — cache <code>creative_brief</code> + editable <code>creative_brief.json</code></td></tr>
+<tr><td><code>section_redesigner()</code> (director)</td><td><code>SectionPlan</code></td><td><code>show_plan.py:26</code></td><td>Embedded in ShowPlan</td></tr>
+<tr><td><code>generator_agent()</code> (generator)</td><td><code>SectionEffects</code> (⊃ <code>EffectInstruction</code>, <code>SectionWeave</code>/<code>CellRecipe</code>, <code>CompositeRecipe</code>)</td><td><code>show_plan.py:131</code></td><td><code>EffectInstruction[]</code> — cache <code>instructions</code></td></tr>
+<tr><td><code>synthesizer_agent()</code> (synthesizer)</td><td><code>MusicBrief</code></td><td><code>music_brief.py:52</code></td><td>Yes — cache <code>song_description</code></td></tr>
+<tr><td>panel analysts (analyst ×4)</td><td><code>StructureOut</code>, <code>RhythmOut</code>, <code>HarmonyOut</code>, <code>LyricOut</code></td><td><code>music_brief.py:74–98</code></td><td>No (transient)</td></tr>
+<tr><td><code>judge_agent()</code> (judge)</td><td><code>JudgeVerdict</code> (⊃ <code>RevisionBrief</code>)</td><td><code>refine.py:36</code></td><td>Partially (revision log)</td></tr>
+<tr><td><code>visual_critic_agent()</code> (visual_critic)</td><td><code>VisualFindings</code> (⊃ <code>VisualFinding</code>)</td><td><code>agents/visual_critic.py:33–42</code></td><td><code>findings.json</code> in review bundles</td></tr>
+</table>
+<p>Non-agent persisted schemas worth guarding in the same pass: <code>SongAnalysis</code> (cache <code>song_analysis</code>, run.py:379–384) and <code>RevisionLogRecord</code> (<code>revision_log.jsonl</code> — F-G's dashboard will parse historical lines).</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 <code>tests/test_cli.py</code> — argparse wiring</h3>
+<p><strong>What to fake:</strong> the async entry points, not the parser. <code>main(argv)</code> is already injectable (<code>cli.py:67</code>). Monkeypatch <code>cli._run</code>/<code>cli._regen</code> with capture coroutines, <code>cli.load_env</code> and <code>cli.has_llm_key</code> to no-op/True, and for <code>edit-brief</code> monkeypatch <code>brief_editor.serve</code>. Better still, for <code>run</code>: monkeypatch <code>cli.run_pipeline</code> and <code>XLightsClient</code> (an async-context-manager stub) so the test asserts the <em>exact kwargs</em> the CLI passes into the pipeline — the wiring is the product here.</p>
+<p><strong>What to assert:</strong></p>
+<ul>
+<li><code>xlo run --song s.mp3</code> → <code>use_cache=True, refine=False, max_iterations=3, log_revisions=True, timing_tracks=True, save_as=safe_name("s.mp3")</code>, attended checkpoints (<code>interpret_checkpoint=_interpret_review</code>, <code>design_checkpoint=_design_review</code>, <code>checkpoint=None</code>).</li>
+<li><code>--auto</code> → both review gates <code>None</code>; <code>--refine --auto</code> → <code>checkpoint=_auto_checkpoint</code>; <code>--refine</code> alone → <code>checkpoint=None</code> (interactive default inside the loop) — the three-way matrix at cli.py:27–29 is the likeliest silent-regression site.</li>
+<li><code>--no-save</code> → <code>save_as=None</code>; <code>--name X</code> → <code>save_as="X"</code>; <code>--no-cache/--no-log/--no-timing-tracks</code> flip their booleans; <code>--max-iterations 7</code> parses as int.</li>
+<li>Guard exits: missing LLM key → <code>SystemExit</code> with the “No LLM key found” message (monkeypatch <code>has_llm_key</code> → False); <code>edit-brief</code> with neither <code>--song</code> nor <code>--brief</code> → <code>SystemExit</code>; nonexistent brief path → <code>SystemExit</code> mentioning “run `xlo run`”.</li>
+<li><code>regen</code>: <code>--list</code> (and omitted <code>--section</code>) prints sections via <code>format_sections</code> and does <em>not</em> require a key; <code>FileNotFoundError/IndexError</code> from <code>_regen</code> → <code>SystemExit(str(exc))</code> (cli.py:113–116); a bad subcommand → argparse error (exit code 2).</li>
+</ul>
+
+<h3>3.2 <code>tests/test_registry.py</code> — model routing</h3>
+<p><strong>What to fake:</strong> nothing external — the registry reads a YAML file and env vars. Two approaches: (a) test against the real <code>config.yaml</code> for invariants (every role has an entry for every provider named in <code>providers:</code>; model strings are prefixed <code>anthropic:</code>/<code>google:</code>), and (b) point <code>_CONFIG</code> at a fixture YAML for behavior tests. Because <code>_cfg()</code> is <code>@functools.lru_cache</code> (registry.py:21), fixture-based tests must call <code>registry._cfg.cache_clear()</code> in setup/teardown — encode that in a pytest fixture so the hazard is handled once.</p>
+<p><strong>What to assert:</strong></p>
+<ul>
+<li><code>active_provider()</code>: default from YAML; <code>XLO_PROVIDER=gemini</code> (monkeypatch.setenv) wins.</li>
+<li><code>model_string("judge")</code> = <code>"anthropic:claude-opus-4-8"</code> under the default; <code>"google:gemini-3.5-flash"</code> under gemini; unknown role/provider → <code>KeyError</code> (documenting today's failure mode).</li>
+<li><code>model_snapshot()</code> returns all six roles under both providers, values shaped <code>provider-prefix + model</code> (the revision log and F-G depend on this shape).</li>
+<li><code>_settings("director")</code> → <code>AnthropicModelSettings</code> with <code>anthropic_thinking={"type": "adaptive"}</code> and <code>anthropic_effort="high"</code>; <code>_settings("generator")</code> has thinking but no effort; any role under <code>provider="gemini"</code> → <code>None</code>; and critically: <strong>no sampling keys ever present</strong> (the Opus-400 invariant, registry.py:60).</li>
+<li><code>build_agent("judge", output_type=JudgeVerdict, system_prompt="x")</code> constructs without network/API key (lazy — mirrors the comment at registry.py:65) and carries the expected model string.</li>
+</ul>
+
+<h3>3.3 <code>tests/test_brief_editor_http.py</code> — the stdlib HTTP form</h3>
+<p><strong>What to fake:</strong> nothing — <code>ThreadingHTTPServer(("127.0.0.1", 0), _handler(...))</code> on an ephemeral port in a daemon thread is hermetic (loopback only, port 0; no <code>webbrowser</code> since we build the server directly rather than calling <code>serve()</code>). Use <code>urllib.request</code> against <code>http://127.0.0.1:{port}</code>; <code>tmp_path</code> holds <code>creative_brief.json</code> + schema.</p>
+<p><strong>What to assert:</strong></p>
+<ul>
+<li><code>GET /</code> → 200, <code>text/html</code>, body embeds the brief JSON and schema (the <code>__BRIEF__</code>/<code>__SCHEMA__</code> substitutions) and the escaped path; <code>GET /nope</code> → 404 JSON.</li>
+<li><code>POST /save</code> with a valid edited brief → 200 <code>{"ok": true}</code>, the file on disk contains the edit, keeps <code>$schema</code> first and preserves un-rendered fields (<code>group_motifs</code>) — the file-level assertions reuse the existing unit test's brief fixture.</li>
+<li><code>POST /save</code> with a structurally invalid brief (e.g. <code>sections</code> not a list) → 400 with an <code>error</code> body truncated to ≤300 chars (brief_editor.py:201), and the file is untouched (the atomic <code>.tmp</code>-replace never ran).</li>
+<li><code>POST /save</code> with missing/zero Content-Length → 400, not a hang (the <code>int(self.headers.get("Content-Length", 0))</code> path).</li>
+<li><code>serve()</code>-level: with the schema file absent, the page renders with <code>SCHEMA={}</code> (text-only form fallback, brief_editor.py:209–210) — testable via <code>render_page</code> composition or a handler built with <code>schema={}</code>.</li>
+</ul>
+
+<h3>3.4 <code>tests/test_mcp_server.py</code> — FastMCP tools against a fake client</h3>
+<p><strong>What to fake:</strong> the <code>Context</code> and the client. The tools resolve their client via <code>_client(ctx) → ctx.request_context.lifespan_context["client"]</code> (server.py), so a stub is two <code>SimpleNamespace</code> layers deep:</p>
+<pre><code>def _ctx(client):
+    return SimpleNamespace(request_context=SimpleNamespace(
+        lifespan_context={"client": client}))</code></pre>
+<p>The fake client can be either (a) a duck-typed object with just the awaited methods (the <code>test_refine.py</code> style — simplest), or (b) a real <code>XLightsClient</code> over <code>httpx.MockTransport</code> reusing <code>tests/fixtures/*.json</code> (the <code>test_client.py</code> style — exercises serialization too). Recommend (a) for tool-logic tests and one (b)-style smoke test to prove the composition. Call the tool functions directly (<code>await server.xl_get_models(_ctx(fake))</code>) — FastMCP's <code>@mcp.tool()</code> leaves the underlying coroutine callable; if a FastMCP version pins the wrapper, fall back to <code>mcp._tool_manager</code> lookup or keep module-level plain functions registered explicitly (a one-line server refactor).</p>
+<p><strong>What to assert (grouped):</strong></p>
+<ul>
+<li><strong>Read tools</strong> (<code>xl_get_version</code>, <code>xl_get_show_folder</code>, <code>xl_get_models</code>, <code>xl_get_model</code>, <code>xl_get_controllers</code>): pass-through shape — e.g. <code>xl_get_models</code> returns <code>{"models": [...], "groups": [...]}</code> from <code>get_model_names</code>/<code>get_group_names</code>; <code>xl_get_model</code>/<code>xl_get_controllers</code> return <code>model_dump()</code>ed dicts.</li>
+<li><strong>Error translation</strong> (<code>_call</code>): a fake raising <code>XLightsConnectionError("down")</code> surfaces as <code>RuntimeError("XLightsConnectionError: down")</code> — the typed-name contract MCP clients rely on; same for <code>KnobValueError</code>, <code>ValueError</code>, <code>KeyError</code>.</li>
+<li><strong>Write tools</strong>: <code>xl_new_sequence</code> forwards <code>duration_secs/frame_ms/media_file/force</code> verbatim (the <code>force=True</code> discard-guard is opt-in — assert default False reaches the client); <code>xl_close_sequence</code> forwards <code>force/quiet</code>; <code>xl_save_sequence</code> passes <code>name=None</code> through.</li>
+<li><strong><code>xl_add_effect_raw</code> gates</strong>: <code>end_ms &lt;= start_ms</code> → <code>ValueError("bad timing…")</code> before any client call; target not in <code>get_models()</code> → <code>ValueError</code>; client returning <code>worked=false</code> → <code>RuntimeError("PresetPlacementError: …")</code>.</li>
+<li><strong><code>xl_add_effect</code>/<code>xl_validate_preset</code></strong>: monkeypatch <code>server.place_preset</code>/<code>server.validate_preset</code> to capture args (they're imported into the server's namespace, so patching the module attribute works) — assert knob/palette/layer forwarding.</li>
+<li><strong>Audio tools</strong>: with the import failing (monkeypatch <code>xlights_core.audio</code> import to raise), <code>xl_analyze_song</code> raises <code>RuntimeError("audio extra not installed: …")</code> — not an ImportError traceback.</li>
+</ul>
+
+<h3>3.5 The output-schema drift guard — <code>tests/test_schema_drift.py</code> + <code>tests/fixtures/agent_payloads/</code></h3>
+<p><strong>Mechanism:</strong> one checked-in, known-good JSON payload per schema, validated against the current model. The payloads are frozen artifacts — <em>they never auto-regenerate</em>; updating one is a deliberate act that stands in for “I am knowingly invalidating cached briefs on disk.”</p>
+<pre><code>tests/fixtures/agent_payloads/
+  show_plan.json          section_plan.json      section_effects.json
+  music_brief.json        structure_out.json     rhythm_out.json
+  harmony_out.json        lyric_out.json         judge_verdict.json
+  visual_findings.json    instructions.json      song_analysis.json
+  revision_log_record.json</code></pre>
+<pre><code># tests/test_schema_drift.py (proposed)
+CASES = [
+    ("show_plan.json", ShowPlan), ("music_brief.json", MusicBrief),
+    ("judge_verdict.json", JudgeVerdict), ("visual_findings.json", VisualFindings),
+    ("section_effects.json", SectionEffects), ("section_plan.json", SectionPlan),
+    ("structure_out.json", StructureOut), ("rhythm_out.json", RhythmOut),
+    ("harmony_out.json", HarmonyOut), ("lyric_out.json", LyricOut),
+    ("song_analysis.json", SongAnalysis), ("revision_log_record.json", RevisionLogRecord),
+]
+
+@pytest.mark.parametrize("name,model", CASES)
+def test_known_good_payload_still_validates(name, model):
+    payload = (FIXTURES / "agent_payloads" / name).read_text()
+    model.model_validate_json(payload)          # a breaking model change fails HERE, not mid-run
+
+def test_instructions_cache_shape():            # the list-of-dicts cache (run.py:427–429)
+    items = json.loads((FIXTURES / "agent_payloads" / "instructions.json").read_text())
+    [EffectInstruction.model_validate(x) for x in items]</code></pre>
+<p><strong>Payload provenance:</strong> seed each fixture from a real cached artifact (a redacted <code>song_description</code>/<code>creative_brief</code>/<code>instructions</code> from the cache dir, trimmed to 1–2 sections) so the fixtures carry realistic optional-field usage — <em>not</em> from <code>model_dump()</code> of a freshly constructed object, which would only contain defaults and follow renames automatically. A second, cheaper assertion catches <em>additive</em> drift: compare <code>model.model_json_schema()</code> required-field sets against a small frozen manifest (<code>required_fields.json</code>) so “new required field” fails even if the payload happens to include it.</p>
+<p><strong>Failure protocol (documented in the test's docstring):</strong> when this fails you either (a) revert to a backward-compatible change (new field with default), or (b) intentionally bump: update the fixture <em>and</em> bump the cache key (the established pattern — see run.py:390 “Cache key bumped from music_brief so old flat briefs don't shadow the richer one”). Option (b) without a cache-key bump is the exact bug this guard exists to catch: the silent <code>except Exception → recompute</code> at run.py:394–396 for briefs, and a hard mid-run crash for <code>creative_brief</code>/<code>instructions</code> which validate without a try/except (run.py:411, 427–429).</p>
+
+<h3>3.6 CI coverage reporting</h3>
+<p>Advisory-first, matching the mypy posture (I4):</p>
+<ul>
+<li>Add <code>pytest-cov</code> to <code>[dependency-groups] dev</code>; run <code>uv run --no-sync pytest --cov=packages --cov-report=term-missing:skip-covered --cov-report=xml</code> in <code>.github/workflows/ci.yml</code>.</li>
+<li>Publish visibility without external services: a job-summary step (<code>coverage report ≫ $GITHUB_STEP_SUMMARY</code>) + upload <code>coverage.xml</code> as an artifact. No threshold initially — the roadmap's point is “the trend is visible in PRs”. A soft gate (<code>--cov-fail-under</code>) can come after a few weeks of baseline.</li>
+<li>Expected effect: the four new test files convert today's 0%-covered edges (<code>cli.py</code>, <code>registry.py</code>, <code>xlights_mcp/server.py</code>, brief_editor handlers) into visible numbers, and the report highlights the <em>next</em> gaps (e.g. <code>pipeline/media.py</code>, <code>config.py</code>).</li>
+</ul>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong><code>test_registry.py</code></strong> (smallest, zero fakes): real-config invariants + fixture-config behavior + the <code>lru_cache</code> clear fixture. ~15 tests.</li>
+<li><strong><code>test_cli.py</code></strong>: capture-kwargs harness for <code>run</code>/<code>regen</code>, the checkpoint matrix, guard exits. ~12 tests. (If <code>main()</code> resists patching cleanly, a 3-line refactor extracting <code>build_parser()</code> is acceptable; do not restructure command dispatch.)</li>
+<li><strong><code>test_brief_editor_http.py</code></strong>: ephemeral-port server fixture (yields base URL, shuts down in teardown), 6–8 request/response tests.</li>
+<li><strong><code>test_mcp_server.py</code></strong>: <code>_ctx</code> helper + duck-typed fake client; read-tool shapes, <code>_call</code> translation, raw-effect gates, forwarding checks; one MockTransport composition smoke test. May require adding the <code>mcp</code> dependency to the root test environment (it's a workspace member — <code>uv sync</code> already installs it; verify CI does).</li>
+<li><strong>Schema-drift guard</strong>: harvest + redact payload fixtures from a real run's cache, write <code>test_schema_drift.py</code> + <code>required_fields.json</code>, document the failure protocol in the module docstring.</li>
+<li><strong>CI coverage</strong>: pytest-cov + summary + artifact; confirm runtime stays acceptable (coverage adds ~10–20%).</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>This item <em>is</em> tests; the strategy is about keeping them within house rules:</p>
+<ul>
+<li><strong>Hermetic:</strong> no test opens a non-loopback socket, reads a real API key, or touches the user cache (<code>XLO_CACHE_DIR</code> → <code>tmp_path</code> where relevant). The brief-editor server binds <code>127.0.0.1:0</code> only. Nothing new is marked <code>live</code>.</li>
+<li><strong>Deterministic:</strong> registry tests clear the <code>_cfg</code> lru_cache around fixture-config use so ordering can't leak; CLI tests never spawn an event loop beyond <code>asyncio.run</code> on stub coroutines.</li>
+<li><strong>Anti-tautology:</strong> drift-guard fixtures are hand-frozen JSON, never regenerated by the test itself (contrast with the golden pipeline's explicit <code>XLO_REGEN_GOLDEN</code> escape hatch — mirror that: an <code>XLO_REGEN_PAYLOADS=1</code> helper script is acceptable, an automatic rewrite is not).</li>
+<li><strong>Independence:</strong> each of the six steps lands as its own small PR; none depends on another.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>FastMCP decorator wraps tools un-callably in some version</td><td>MCP tests can't invoke tools directly</td><td>Pin/inspect <code>mcp</code> version; fall back to defining plain functions + explicit <code>mcp.tool()(fn)</code> registration (behavior-identical, 1-line-per-tool diff)</td></tr>
+<tr><td>CLI tests over-fit to internals (patching private names like <code>cli._run</code>)</td><td>Refactors churn tests</td><td>Prefer asserting the <code>run_pipeline</code> kwargs boundary (the public contract); keep private patches to the two dispatch shims</td></tr>
+<tr><td>Drift fixtures drift from reality (models gain fields fixtures never exercise)</td><td>False confidence</td><td>Seed from real cache artifacts; add the required-fields manifest check; refresh fixtures when a schema change legitimately lands</td></tr>
+<tr><td>ThreadingHTTPServer test flakes (port reuse, slow teardown) </td><td>CI noise</td><td>Port 0 (kernel-assigned), <code>server_close()</code> in a finally-teardown fixture, generous but bounded urllib timeouts (2s)</td></tr>
+<tr><td>Coverage step slows CI or misattributes uv-workspace paths</td><td>Annoyance, misleading numbers</td><td><code>--cov=packages</code> with <code>coverage</code> paths config if needed; keep it advisory; measure runtime before merging</td></tr>
+<tr><td><code>lru_cache</code> on <code>_cfg()</code> leaks fixture config into later tests</td><td>Order-dependent failures</td><td>A dedicated autouse-scoped fixture in <code>test_registry.py</code> that clears the cache on entry and exit</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>[ ] <code>tests/test_cli.py</code> exists; renaming any <code>xlo run</code>/<code>regen</code>/<code>edit-brief</code> flag or changing a default breaks a test; the <code>--auto</code>/<code>--refine</code> checkpoint matrix is pinned.</li>
+<li>[ ] <code>tests/test_registry.py</code> exists; <code>XLO_PROVIDER</code> override, per-role model strings for both providers, <code>model_snapshot()</code> shape, and the no-sampling-params invariant are asserted.</li>
+<li>[ ] <code>tests/test_brief_editor_http.py</code> exercises GET/POST/404/400 through a real loopback server; invalid saves leave the file untouched.</li>
+<li>[ ] <code>tests/test_mcp_server.py</code> covers all 15 tools' happy path or gate, plus <code>_call</code>'s typed-error translation; <code>packages/xlights-mcp</code> is no longer a 0-test package.</li>
+<li>[ ] <code>tests/test_schema_drift.py</code> validates ≥12 frozen payloads (all agent output types + the 3 cache artifacts + <code>RevisionLogRecord</code>); a required-field addition to any of them fails CI with the failure-protocol message.</li>
+<li>[ ] CI publishes a coverage summary and <code>coverage.xml</code> artifact; the suite remains green with <code>-m "not live"</code> and no API keys in the environment.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>Where should MCP tests live?</strong> <code>tests/</code> is the workspace-root suite (single pytest run — simplest, matches today); a per-package <code>packages/xlights-mcp/tests/</code> would be cleaner packaging but adds a second pytest target to CI. Recommend workspace root for now.</li>
+<li><strong>Drift-guard scope for <code>SongAnalysis</code>:</strong> it's a large model (beats, stems, lyrics dict, instrumentation). A full fixture is bulky (~100 KB); a trimmed one may miss fields. Trim to one beat/segment/stem each and rely on the required-fields manifest for the rest?</li>
+<li><strong>Should the drift guard also pin <em>enum vocabularies</em></strong> (e.g. <code>Decision.action</code>, <code>JudgeVerdict.verdict</code> literals) that the revision log and checkpoints string-match on? Cheap to add to the manifest; slightly widens the “deliberate update” surface.</li>
+<li><strong>Coverage backend:</strong> plain artifact + step summary (zero external deps) vs Codecov (PR annotations). Start with the former; revisit with F-G.</li>
+<li><strong><code>test_orchestrator.py</code> overlap:</strong> some pipeline-level wiring may already be asserted there — audit before writing test_cli.py to avoid duplicating pipeline-behavior assertions at the CLI layer (CLI tests should stop at the kwargs boundary).</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <a href="../roadmap-2026-07.md">docs/roadmap-2026-07.md</a> §I6; §I4 (coverage note), §F-G/F-H (consumers of <code>model_snapshot</code>/revision-log shapes), §F-I (brief_editor pattern reuse).</li>
+<li>Conventions exemplars: <code>tests/test_client.py</code> (MockTransport + fixtures), <code>tests/test_golden_pipeline.py</code> (<code>_test_agent</code>, fake client, XLO_CACHE_DIR), <code>tests/test_refine.py</code> (duck-typed fakes), <code>tests/test_brief_editor.py</code> (existing unit layer).</li>
+<li>Cache-key-bump precedent: <code>pipeline/run.py:390–391, 407–408</code>; silent-recompute branch <code>run.py:393–396</code>.</li>
+<li>Related items: <a href="i4-mypy-gate.html">I4</a> (CI hardening), <a href="i1-token-cost-telemetry.html">I1</a> (extends the revision-log schema this guard freezes).</li>
+</ul>
+</body>
+</html>

@@ -54,10 +54,6 @@ def with_guides(prompt: str, *keys: str) -> str:
     return out
 
 
-# -- back-compat (the original single-guide API) --
-def sequencing_guide() -> str:
-    return load_guide("sequencing")
-
-
 def with_guide(prompt: str) -> str:
+    """Single-guide convenience: append the sequencing guide only."""
     return with_guides(prompt, "sequencing")

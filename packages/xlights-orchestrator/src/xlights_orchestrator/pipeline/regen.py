@@ -15,6 +15,7 @@ import math
 
 from xlights_core.audio import SongAnalysis
 
+from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..agents.catalog import placeable_effect_types
 from ..agents import generator as generator_mod
@@ -23,18 +24,13 @@ from ..refine import RevisionBrief, replace_section
 from ..show_plan import EffectInstruction, ShowPlan
 from .cache import cache_path, cache_root, song_key
 from .finalize import finalize_sequence
-from .generate import song_end_fade
+from .generate import finalize_effects
 from .groups import targetable_groups
 from .media import prepare_media
 from .run import regenerate_section
 from .state import State
 
 log = logging.getLogger(__name__)
-
-
-def _ms(t: int) -> str:
-    s = max(0, int(t)) // 1000
-    return f"{s // 60}:{s % 60:02d}"
 
 
 def _section_label(section) -> str:
@@ -56,7 +52,7 @@ def list_sections(song: str) -> list[tuple[int, str, int, int]]:
 
 def format_sections(song: str) -> str:
     rows = list_sections(song)
-    return "\n".join(f"  {i:>2}  {_ms(a)}–{_ms(b)}  {label}" for i, label, a, b in rows)
+    return "\n".join(f"  {i:>2}  {mmss(a)}–{mmss(b)}  {label}" for i, label, a, b in rows)
 
 
 def load_cached_state(song: str) -> tuple[str, State]:
@@ -114,9 +110,9 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
 
     before = sum(1 for i in st.instructions if i.section_index == section_index)
     await regenerate_into(st, section_index, note, gen_agent=gen_agent)
-    # keep the song-end tail fade: a regenerated FINAL section is realized out to the section end,
-    # so re-apply the stop+fade (idempotent — already-faded sections are untouched).
-    st.instructions = song_end_fade(st, st.instructions)
+    # whole-list passes after the splice (idempotent): occlusion guard, sub-frame stretch,
+    # and the song-end stop+fade (a regenerated FINAL section runs out to the section end).
+    st.instructions = finalize_effects(st, st.instructions)
     after = sum(1 for i in st.instructions if i.section_index == section_index)
     log.info("regenerated section %d: %d → %d effects", section_index, before, after)
 

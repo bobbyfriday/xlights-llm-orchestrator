@@ -25,8 +25,11 @@ log = logging.getLogger(__name__)
 _SETTLE_SECS = 0.8     # let sequence elements populate before probing (racy — mirrors the emitter)
 
 
-def _fingerprint(names: list[str]) -> str:
-    return hashlib.sha1(",".join(sorted(names)).encode()).hexdigest()[:16]
+def _fingerprint(groups: list[str], models: list[str]) -> str:
+    # Group names AND model names: a membership-affecting layout edit (models
+    # added/removed/renamed under unchanged group names) must invalidate the cache.
+    key = ",".join(sorted(groups)) + "|" + ",".join(sorted(models))
+    return hashlib.sha1(key.encode()).hexdigest()[:16]
 
 
 async def targetable_groups(client, *, cache_root: Path) -> list[str]:
@@ -42,8 +45,12 @@ async def targetable_groups(client, *, cache_root: Path) -> list[str]:
         return []
     if not names:
         return names
+    try:
+        model_names = await client.get_model_names()
+    except Exception:  # noqa: BLE001 — fingerprint enrichment only; group names still key the cache
+        model_names = []
 
-    cache_file = Path(cache_root) / f"targetable_groups_{_fingerprint(names)}.json"
+    cache_file = Path(cache_root) / f"targetable_groups_{_fingerprint(names, model_names)}.json"
     if cache_file.exists():
         try:
             return json.loads(cache_file.read_text())

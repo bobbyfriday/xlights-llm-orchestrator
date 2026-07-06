@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I8 — Cheaper visual analysis: fseq metrics + tiered critique · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I8 — Cheaper visual analysis: fseq metrics + a tiered critique</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I8 in <code>docs/roadmap-2026-07.md</code> (⭐, sequencing row 2 — before the refine-heavy work)</dd>
+<dt>Complexity</dt><dd>M (Tiers 0+1); Tier 2 is the current code, demoted</dd>
+<dt>Depends on</dt><dd>Nothing hard; I1 (token telemetry) makes the savings measurable; its metrics feed F-A's QA and I7's ground truth</dd>
+<dt>Unblocks</dt><dd>Cheap refine iterations for F-A improve-musicality; objective motion/sync/color metrics for I7; F-J headless mode (metrics need no live xLights)</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/visual.py</code>, <code>agents/visual_critic.py</code>, <code>qa/coverage.py</code>, <code>qa/__init__.py</code>, <code>models/config.yaml</code>, <code>packages/xlights-core/src/xlights_core/preview/fseq.py</code>, <code>preview/render.py</code>, <code>preview/layout.py</code>, <code>pipeline/run.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>Every refine iteration currently pays the most expensive model in the fleet to look at up to six stills and six ten-second video clips, with two full markdown guides in its system prompt — and everything it says is <strong>advisory only</strong>. Meanwhile the critic's four judgment aspects (<code>coverage</code>, <code>color</code>, <code>motion</code>, <code>energy</code> — the <code>VisualFinding.aspect</code> literal in <code>agents/visual_critic.py:36</code>) are largely computable from data the pipeline already has: the <code>.fseq</code> file is the <em>exact per-node RGB of every frame</em> as xLights rendered it (<code>xlights_core/preview/fseq.py</code> parses it into a <code>uint8 [frames, channels]</code> array), and the layout gives the node→group mapping. <code>make_lit_sampler</code> (<code>pipeline/visual.py:105–142</code>) already samples this data — but pointwise, three timestamps per section, reduced to a single lit-pixel count.</p>
+
+<h3>1.1 Cost anatomy of one refine iteration (today)</h3>
+<table>
+<tr><th>Component</th><th>Where</th><th>Approx. tokens</th></tr>
+<tr><td>System prompt: critic instructions + <em>sequencing</em> guide (23,926 chars) + <em>layering</em> guide (27,086 chars) via <code>with_guides(_PROMPT, "sequencing", "layering")</code></td><td><code>agents/visual_critic.py:46</code>, <code>agents/guide.py</code></td><td>~13k (≈51k chars)</td></tr>
+<tr><td>Up to 6 stills — 1280×720 PNG per section, the brightest frame (<code>brightest_frame_ms</code>, <code>preview/render.py:130–135</code>)</td><td><code>visual.py:83–84</code></td><td>~1–1.5k each → ~7–9k</td></tr>
+<tr><td>Up to 6 clips — 10s MP4, 640×360, 20 fps (<code>clip_secs=10</code> default, <code>visual.py:50</code>; <code>render_clip</code>, <code>render.py:93</code>)</td><td><code>visual.py:85–88</code></td><td>~2.5k+ each → ~15k+</td></tr>
+<tr><td>Show-intent + per-section music context JSON</td><td><code>visual_critic.py:49–71</code></td><td>~1k</td></tr>
+<tr><td><strong>Total per iteration</strong>, on the <strong>planner tier</strong> (<code>visual_critic:</code> <code>claude-opus-4-8</code> thinking/effort-high, or <code>gemini-3.1-pro-preview</code> — <code>models/config.yaml:21–23</code>)</td><td></td><td><strong>~30–40k multimodal tokens</strong></td></tr>
+</table>
+<p>Multiply by up to <code>max_iterations</code> (default 3, <code>cli.py:81</code>), and note two structural wastes: the critique <strong>re-judges all sections every iteration</strong> even though regeneration is section-scoped (<code>replace_section</code> splices exactly one section), and its findings <strong>cannot move the objective gate</strong> — <code>to_findings()</code> hard-codes <code>objective=False</code> (<code>visual_critic.py:74–81</code>); the only teeth they have is the <code>floor_visual_revisions</code> backstop for severity=error findings (<code>refine.py:57–74</code>). We are paying pro-tier prices for an advisor, while a free, deterministic reading of the same render data — one that <em>could</em> legitimately enter the objective gate — goes uncomputed.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 The critique path</h3>
+<p><code>make_visual_critique(client, *, save_as, song_key, cache_root, critic=None, max_sections=6, clip_secs=10, enable_video=True, real=None)</code> (<code>visual.py:48</code>) builds the async callable the refine loop invokes each iteration (<code>run.py:224–228</code>, best-effort, findings appended to the QA report). Per call it:</p>
+<ol>
+<li><code>await client.save_sequence(save_as)</code> — flush the current <code>.fseq</code> (visual.py:63); resolve it from the macOS sandbox container, <em>not</em> the show folder (module docstring, <code>media.resolve_artifact</code>).</li>
+<li>Construct <code>PreviewRenderer(fseq, rgbeffects, networks)</code> (visual.py:74) — the offline renderer.</li>
+<li><code>use_real = real is not None and await real.refresh(client)</code> (visual.py:79) — prefer the <strong>real xLights render</strong> when exportable.</li>
+<li>Per brief section (max 6): pick the brightest frame offline, take the still and a ≤10s clip from the real render when available, else offline (visual.py:80–89).</li>
+<li>Run the multimodal agent, convert to advisory <code>Finding</code>s, persist a human review bundle to <code>cache_root/song_key/visual_review/iterN/</code> (stills, clips, <code>findings.json</code>, <code>review.md</code>) (visual.py:93–99).</li>
+</ol>
+
+<h3>2.2 The deterministic eyes that already exist</h3>
+<pre><code># fseq.py:24 — the whole render, exact:
+def load_fseq(path) -&gt; tuple[FseqHeader, np.ndarray]:
+    """Return (header, frames) where frames is a uint8 [num_frames, channels] array."""
+
+# render.py:43 — node→channel mapping already built per model:
+chans.append(m.start_channel + 3 * np.arange(m.n_pixels))
+
+# visual.py:105 — but QA only gets a keyhole:
+def make_lit_sampler(...):  # sync t_ms -&gt; lit_pixel_count (max(RGB) &gt; 30), full re-render per sample</code></pre>
+<p><code>qa/coverage.py</code> consumes the sampler at exactly three timestamps per section (<code>_SAMPLES = (0.25, 0.5, 0.75)</code>, line 16), takes the max, and scores sections with intensity ≥ <code>MIN_INTENSITY = 0.5</code> against <code>EXPECTATION = 0.6</code> × intensity of the show's own peak; under <code>FAIL_FRACTION = 0.5</code> of expectation → an objective error finding. When a sampler is present, coverage joins the <em>objective</em> average (<code>qa/__init__.py:24–28</code>) — the precedent this design generalizes: rendered-pixel metrics already gate, they're just crude. Note the current sampler renders a full 1280×720 PNG per sample through PIL just to count pixels (visual.py:136–140) — the fseq array could answer the same question with one vectorized comparison.</p>
+<p><code>parse_models</code> (<code>preview/layout.py:113–165</code>) yields per-model <code>start_channel</code>/<code>n_pixels</code> (Default-preview models only, line 126); group membership lives in the same <code>rgbeffects.xml</code> under <code>&lt;modelGroups&gt;</code>, which <code>xlights_core/knowledge/layout_semantics.py</code> already walks (e.g. <code>patch_sem_gridsize</code>, <code>patch_view</code>) — so the node→group index is a small join of two existing parsers.</p>
+<p><code>RealRender</code> (<code>visual.py:155–215</code>) exists because the offline projection is an approximation of what xLights shows: it exports the true render via <code>client.export_video_preview</code> (media-attached sequences only — a media-less export crashes xLights, the guardrail at visual.py:172–174), caches by <code>.xsq</code> mtime, and serves offset-corrected frames/clips via ffmpeg. Consumers fall back to offline.</p>
+
+<h2>3. Proposed design</h2>
+<p>Three tiers, cheapest first; each tier only escalates what it can't settle.</p>
+
+<h3>3.1 Tier 0 — deterministic fseq metrics (every iteration, ~free, no LLM)</h3>
+<p>New pure-numpy analysis over <code>(header, frames)</code> + a group channel index. All signatures below are <strong>proposed</strong>.</p>
+
+<h4>3.1.1 The group channel index</h4>
+<pre><code># xlights_core/preview/metrics.py  (proposed — core-side, pure, no orchestrator imports)
+def group_channel_index(rgbeffects_path, networks_path,
+                        groups: list[str] | None = None) -&gt; dict[str, np.ndarray]:
+    """group name -&gt; int64 array of R-channel offsets for every member-model pixel.
+    Join of parse_models() (start_channel, n_pixels) with &lt;modelGroups&gt; membership
+    (models=&quot;a,b,c&quot; attribute). Channels bounded against header.channels like
+    PreviewRenderer.__init__ (render.py:48). Unknown/empty groups omitted."""</code></pre>
+
+<h4>3.1.2 The per-group time series (computed once per iteration)</h4>
+<pre><code>class FseqSeries:
+    """Per-group brightness/lit-fraction/motion series over the whole song. One pass, vectorized.
+    A 4-min song at 50ms frames × ~20k channels is a ~92 MB uint8 array — loaded once,
+    reduced immediately to per-group float32 series (~4800 × n_groups)."""
+    def __init__(self, fseq_path, rgbeffects_path, networks_path,
+                 lit_threshold: int = 30):        # same threshold as make_lit_sampler
+        header, frames = load_fseq(fseq_path)
+        # per node: v[t, n] = max(R,G,B) — brightness proxy, matches the sampler's max(axis=2)
+        # B[g][t]   = v[t, nodes_g].mean()                     (brightness)
+        # L[g][t]   = (v[t, nodes_g] &gt; lit_threshold).mean()   (lit fraction)
+        # M[g][t]   = |v[t] - v[t-1]|[nodes_g].mean()          (frame-delta motion)
+    def section_slice(self, start_ms, end_ms) -&gt; ...          # frame-index window</code></pre>
+
+<h4>3.1.3 The five metric families</h4>
+<table>
+<tr><th>Metric</th><th>Computation (per section)</th><th>Replaces / catches</th></tr>
+<tr><td><strong>Coverage</strong> (<code>fseq:coverage</code>)</td><td>Mean + max of the <em>global</em> lit fraction over the whole section window, plus per-group lit fractions. Scored against energy expectation exactly as <code>qa/coverage.py</code> does (peak-relative, intensity-gated) — but from the full series instead of 3 samples, and attributable: “SEM_ARCHES dark for 82% of the chorus”.</td><td>Generalizes <code>coverage.evaluate</code>; catches “dark during the peak” between the sample points; kills the render-a-PNG-to-count-pixels sampler.</td></tr>
+<tr><td><strong>Motion</strong> (<code>fseq:motion</code>)</td><td>Per-group mean frame-delta <code>M[g]</code> over the section, normalized by that group's brightness (so a dim-but-moving chase isn't scored static). Section score = lit-weighted mean across groups; flag when a section with intensity ≥ 0.5 has near-zero normalized delta.</td><td>The critic's “static during a high-energy moment”, with <em>exact group attribution</em> the critic can't give. Also the pixel-level ground truth I7 needs (instruction counts are the proxy; this is the photons).</td></tr>
+<tr><td><strong>Music-sync</strong> (<code>fseq:sync</code>)</td><td>Cross-correlate the positive part of d/dt of global (and per-pulse-group) brightness with a beat impulse train from <code>SongAnalysis.beats</code>, ±1 frame tolerance. Score = correlation at lag 0 normalized against a circular-shift baseline (shuffle-robust). Complements <code>qa/sync.py</code>, which scores instruction <em>timestamps</em>; this scores whether the render actually pulses on the grid (an on-beat instruction whose effect fades in late fails here and nowhere else).</td><td>New capability: sync as a rendered score, not an authored one.</td></tr>
+<tr><td><strong>Color / palette adherence</strong> (<code>fseq:color</code>)</td><td>Hue histogram (e.g. 24 bins, lit nodes only, vectorized RGB→hue) per section vs the planned section palette (names resolved through <code>xlights_core.knowledge.colors</code>, as <code>brief_editor._color_hex_map</code> does). Two checks: (a) adherence — histogram mass within Δhue of planned hues; (b) <em>distinctness</em> — when the palette promises k distinct hues, the rendered histogram must show ≥ min(k, 2) separated peaks. Check (b) is the “gold + amber + warm white reads as one color” failure as arithmetic: three planned colors whose pairwise hue distance is under ~20° collapse to one perceived color.</td><td>The critic's <code>color</code> aspect, plus a failure it demonstrably misses at 640px.</td></tr>
+<tr><td><strong>Section-signature similarity</strong> (<code>fseq:rhyme</code>, <code>fseq:range</code>)</td><td>Per-section signature vector: brightness stats, motion stats, hue histogram, per-group activity vector. Cosine similarity between sections sharing a <code>repetition_map</code> label → <em>pixel-level repetition-rhyme</em> (chorus 2 should look like chorus 1); spread between the quietest and loudest signatures → <em>pixel-level dynamic-range</em>. These are the rendered-side complements of the instruction-level <code>repetition-rhyme</code>/<code>dynamic-range</code> metrics the improve-musicality proposal defines for <code>qa/musicality.py</code> — same names, two layers of the same question.</td><td>Directly measures F-A Phase 1's goal (repeats must rhyme) and Phase 2's (contrast must exist).</td></tr>
+</table>
+
+<h4>3.1.4 Orchestrator-side wrapper and the objective gate</h4>
+<pre><code># xlights-orchestrator/qa/fseq_metrics.py  (proposed)
+def evaluate(plan, analysis, series: FseqSeries | None,
+             *, repetition_map=None) -&gt; tuple[dict[str, float], list[Finding]]:
+    """subscores {'fseq_coverage':…, 'fseq_motion':…, 'fseq_sync':…, 'fseq_color':…}
+    + Findings with metric='fseq:*'. series None / unreadable → ({}, []) — neutral,
+    never gate blind (the qa/coverage.py posture, line 31)."""</code></pre>
+<p>Wiring: <code>qa.evaluate(...)</code> (<code>qa/__init__.py:16</code>) grows an optional <code>fseq_series</code> keyword next to <code>sampler</code>; the refine loop's <code>_report</code> closure (<code>run.py:172–184</code>) constructs/refreshes the <code>FseqSeries</code> after the save-flush (reusing the mtime-invalidation pattern from <code>make_lit_sampler</code>, visual.py:132–137) and passes it through. <strong>Unlike the LLM critique, these findings may be <code>objective=True</code></strong> — they are deterministic and reproducible, the stated bar for the gate. Rollout in two steps: land everything <code>objective=False</code> (advisory) for a few logged runs, calibrate thresholds against the revision log, then flip <code>coverage</code>/<code>motion</code>/<code>sync</code> to objective (color and rhyme likely stay advisory — taste-adjacent). Escape hatch: <code>XLO_FSEQ_METRICS=0</code> disables the whole family, mirroring <code>XLO_REFINE_SKIP_OBJECTIVE</code>'s pattern. When <code>fseq_series</code> is supplied, <code>make_lit_sampler</code>/3-point coverage retire (the series strictly dominates them).</p>
+
+<h3>3.2 Tier 1 — contact sheets on a cheap model (flagged/changed sections only)</h3>
+<ul>
+<li><strong>The artifact:</strong> <code>render_contact_sheet(section, n=8)</code> — 6–9 <em>beat-aligned</em> frames (downbeats spread evenly across the section, from <code>SongAnalysis.beats</code>, rather than one brightest frame) tiled into a single ~512px montage with tiny timestamp captions. One image ≈ <strong>1–2k tokens</strong> vs ~2.5k+ per clip + ~1.2k per still today. Optional ninth tile: a per-pixel standard-deviation heatmap over the section's frames (<code>np.std</code> across the section window, colormapped) — motion rendered as a static picture, so even a stills-only model perceives dynamics. Natural home: a method on <code>PreviewRenderer</code> (<code>preview/render.py</code>) beside <code>render_frame</code>/<code>render_clip</code>, reusing <code>_project</code>/<code>_frame_img</code>.</li>
+<li><strong>The prompt:</strong> drop both guides (<code>with_guides</code> → plain prompt): the critique needs the four aspects and the musical context, not 51k chars of sequencing pedagogy. Saves ~13k tokens per call by itself. Keep the per-section context JSON (<code>visual_critic.render_input</code> shape) and the “judge against the music at that moment” framing — that instruction is what makes darkness-in-a-lull acceptable, and it must survive the trim.</li>
+<li><strong>The model:</strong> a new <code>visual_critic_lite</code> role in <code>models/config.yaml</code> routed to the worker tier (<code>anthropic: claude-sonnet-4-6</code> / <code>gemini: gemini-3.1-flash-lite</code>), built via the existing <code>build_agent</code> path so <code>model_snapshot()</code> records it.</li>
+<li><strong>The scope — only what changed or what Tier 0 flagged:</strong> hash each section's instruction slice (<code>sha256</code> of the sorted <code>model_dump_json</code>s — the stage-cache idiom) and keep <code>{section_index: hash}</code> across iterations. Tier 1 critiques a section iff its hash changed since its last critique <em>or</em> Tier 0 raised a finding on it. Today the critique re-judges all 6 sections every iteration even though <code>regen</code> is section-scoped; after this, iteration 2 of a one-section revision sends <em>one</em> montage. Unchanged sections carry their previous findings forward, tagged stale (or drop them — open question 3).</li>
+</ul>
+
+<h3>3.3 Tier 2 — today's still+clip on the pro model, rarely</h3>
+<p>The current <code>make_visual_critique</code> path survives unchanged as the escalation: full still + 10s clip, planner-tier model, guides optional. Triggers:</p>
+<ul>
+<li><strong>Tier disagreement:</strong> Tier 0 says error but Tier 1 says the section fits its moment (or vice versa) — the case that genuinely needs gestalt judgment.</li>
+<li><strong>Churn:</strong> a section revised ≥2 times per the loop's ledger (the anti-oscillation record already tracks this) keeps failing — ask the strong model <em>why</em>.</li>
+<li><strong>Final gate:</strong> one whole-show pass near the end of the run (see §3.4) — the “random vs intentional” judgment is the one thing that needs a strong multimodal model, and it doesn't need asking six times per iteration.</li>
+</ul>
+
+<h3>3.4 The offline-vs-real fidelity caveat</h3>
+<p>Precision matters here: the <code>.fseq</code> channel data <em>is</em> the true render — xLights wrote it — so Tier 0 measures ground-truth per-node values, not an approximation. What is approximate is everything downstream of the channels: (a) the offline <em>projection</em> (orthographic splat, <code>render.py:54–78</code>) vs xLights' preview drawing — geometry, splat size, background — which is why <code>RealRender</code> exists and why Tier 1/2 prefer real frames when <code>real.refresh()</code> succeeds; (b) <em>staleness</em> — metrics must run only after the save-flush (the ordering <code>_report</code> already enforces at run.py:174–179); (c) <em>scope</em> — the offline parsers include Default-preview models only (layout.py:126), so props parked in other layout groups are invisible to both metrics and montages. Therefore: <strong>keep one real-render check per run</strong> — the Tier 2 final gate runs on <code>RealRender</code> frames whenever the media-attached export is possible — as the ground-truth backstop for anything the offline path miscounts.</p>
+
+<h3>3.5 Module layout and the new flow</h3>
+<pre><code>xlights-core/
+  preview/metrics.py        NEW  group_channel_index, FseqSeries (pure numpy)
+  preview/render.py         MOD  + PreviewRenderer.render_contact_sheet(...)
+xlights-orchestrator/
+  qa/fseq_metrics.py        NEW  evaluate(plan, analysis, series, repetition_map) -&gt; (subscores, findings)
+  qa/__init__.py            MOD  evaluate(..., sampler=None, fseq_series=None)
+  agents/visual_critic.py   MOD  + lite prompt (no guides) + render_sheet_input(...); Tier 2 path unchanged
+  models/config.yaml        MOD  + visual_critic_lite role (worker tier)
+  pipeline/visual.py        MOD  + make_tiered_critique(client, ...) wrapping: section hashes,
+                                 Tier-1 montage calls, Tier-2 escalation; make_visual_critique kept
+  pipeline/run.py           MOD  wire FseqSeries into _report; visual_critique= now the tiered callable</code></pre>
+<p>Per-iteration flow becomes: <em>save-flush → FseqSeries refresh → QA (objective now includes fseq subscores) → Tier 1 montages for changed/flagged sections on the lite model → merge findings → Judge</em>; Tier 2 fires only on its three triggers. The review bundle keeps working: montages and a <code>metrics.json</code> land in the same <code>visual_review/iterN/</code> directory the human already reads.</p>
+
+<h3>3.6 Cost after (same 6-section show, 3 iterations)</h3>
+<table>
+<tr><th></th><th>Today</th><th>Tiered</th></tr>
+<tr><td>Tier 0</td><td>—</td><td>3 × ~0 (numpy)</td></tr>
+<tr><td>LLM critique</td><td>3 × ~30–40k tokens, planner tier</td><td>iter 1: ≤6 montages ≈ 6–12k on worker tier; iters 2–3: 1–2 changed sections ≈ 1–4k each</td></tr>
+<tr><td>Tier 2</td><td>(is the above)</td><td>~1 escalation/run ≈ 4–6k planner-tier (single section or final gate)</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>~100–120k planner-tier tokens</strong></td><td><strong>~15–25k mostly worker-tier + one small planner call</strong> — &gt;10× cheaper, while <em>adding</em> objective metrics that don't exist today</td></tr>
+</table>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong><code>preview/metrics.py</code>:</strong> <code>group_channel_index</code> (modelGroups join, channel-bound checks per render.py:48) + <code>FseqSeries</code> (B/L/M series, section slicing). Unit tests against synthetic fseq/layout fixtures (§5). No behavior change anywhere yet.</li>
+<li><strong><code>qa/fseq_metrics.py</code>:</strong> the five metric families → subscores + <code>Finding(metric="fseq:*", objective=False)</code>; thread <code>fseq_series</code> through <code>qa.evaluate</code> and <code>_report</code>; retire the 3-point sampler path when a series is present (coverage numbers must be shown equivalent-or-better on a real run first). Add <code>XLO_FSEQ_METRICS</code> kill switch.</li>
+<li><strong>Calibration pass:</strong> run 2–3 refine-enabled songs; compare fseq findings against the same iterations' LLM findings and the review bundles in the revision log; set thresholds; document them in the module like <code>qa/coverage.py</code> does.</li>
+<li><strong>Tier 1:</strong> <code>render_contact_sheet</code> (+ std-heatmap tile), lite prompt + <code>visual_critic_lite</code> role, section-hash tracking, <code>make_tiered_critique</code> factory; swap the default in <code>run_pipeline</code> (run.py:451–454) behind the same <code>visual_critique=None</code> seam so injected fakes keep working.</li>
+<li><strong>Tier 2 demotion:</strong> escalation triggers (disagreement, churn-≥2, final gate on RealRender); the old <code>make_visual_critique</code> becomes the escalation implementation.</li>
+<li><strong>Flip the gate:</strong> promote <code>fseq:coverage/motion/sync</code> to <code>objective=True</code> after step 3's evidence; announce in <code>docs/usage.md</code> (env knobs) and regenerate nothing — the golden test doesn't cover refine.</li>
+<li><strong>OpenSpec:</strong> this modifies the <code>visual-critique</code> and <code>show-refinement</code> capabilities (tiering; objective rendered metrics) — write the change doc; I1's token telemetry, if landed, provides the before/after cost evidence for the archive.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>Hermetic-first; the building blocks already exist in <code>tests/test_preview.py</code>: <code>_write_fseq</code> (writes a valid zstd-compressed PSEQ from raw bytes) and <code>_minimal_layout</code> (tiny rgbeffects/networks XML). Extend, don't reinvent:</p>
+<ul>
+<li><strong>Fixture generator:</strong> a helper that synthesizes an fseq with <em>known physics</em> — e.g. 2 groups × 4 nodes, 100 frames at 50ms: group A blinks full-white exactly on a 500ms beat grid, group B holds constant dim red, group C stays dark. Assertions: motion ranks A ≫ B ≈ 0; sync score for A ≈ max and for B ≈ baseline; coverage flags C only when its section intensity ≥ 0.5; lit-threshold agrees with <code>make_lit_sampler</code>'s (&gt;30) on the same frames.</li>
+<li><strong>Group index:</strong> modelGroups fixture with 2 groups + 1 model in both → channels bounded, overlap allowed, unknown group omitted; a model with an unresolvable StartChannel is skipped exactly as <code>parse_models</code> skips it.</li>
+<li><strong>Color:</strong> frames of pure red vs planned <code>["Red", "Green"]</code> → adherence ~0.5 and a missing-green finding; three near-identical warm hues vs a 3-color palette → distinctness failure (the gold/amber/warm-white case as a literal fixture).</li>
+<li><strong>Rhyme/range:</strong> duplicate a section's frames → similarity ≈ 1.0 for shared labels; invert brightness for one section → dynamic-range &gt; 0.</li>
+<li><strong>Contact sheet:</strong> deterministic frame selection from a fixed beat list; output PNG dimensions and tile count; std-heatmap tile is non-uniform iff frames differ.</li>
+<li><strong>Tier routing (no LLM):</strong> fake lite/pro critics counting calls (the <code>test_refine.py</code> duck-type style) + a scripted Tier 0: assert iteration 2 after a single-section regen critiques exactly one section; disagreement triggers exactly one Tier 2 call; unchanged+unflagged sections trigger none; <code>XLO_FSEQ_METRICS=0</code> yields today's behavior.</li>
+<li><strong>Neutrality:</strong> missing fseq / zstd error / empty groups → <code>({}, [])</code> and an unchanged objective score (the never-gate-blind posture, mirroring <code>test_refine.py::test_sync_empty_beats_neutral</code>).</li>
+<li><strong>Live (marked <code>live</code>):</strong> one end-to-end run asserting the review bundle contains <code>metrics.json</code> + montages and that the real-render final gate fired — the only non-hermetic piece, following <code>test_real_render.py</code>'s precedent.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>Miscalibrated Tier 0 thresholds enter the objective gate and trigger wrong reverts/stalls</td><td>Refine loop fights good revisions</td><td>Advisory-first rollout (step 3 before step 6); per-metric objective flip; <code>XLO_FSEQ_METRICS=0</code> kill switch; thresholds documented with evidence like coverage.py's</td></tr>
+<tr><td>Whole-fseq load is heavy on long songs (uint8 [frames, channels])</td><td>Memory/latency per iteration</td><td>~100 MB worst-case is acceptable; if not, reduce per zstd block during decode (the block loop in <code>load_fseq</code> already iterates frames) and keep only per-group float32 series</td></tr>
+<tr><td>Offline projection/scope gaps (non-Default-preview props invisible)</td><td>Metrics blind to part of the display</td><td>Metrics read channels, not projections — only the group index must be complete; log group coverage of total channels; Tier 2 final gate on RealRender backstops</td></tr>
+<tr><td>512px montage too coarse — lite model misses real defects</td><td>Tier 1 under-reports; Tier 2 under-triggers</td><td>Tier 0 flags independently (disagreement escalates); montage size/tile count are dials; calibration pass compares Tier 1 vs today's findings on the same iterations</td></tr>
+<tr><td>Carried-forward findings go stale after whole-list passes (<code>finalize_effects</code> touches all sections)</td><td>Judge sees outdated visual notes</td><td>Tag carried findings (<code>detail</code> prefix “[prev iter]”); hash the <em>finalized</em> section slice, not the raw regen output, so whole-list changes re-trigger critique</td></tr>
+<tr><td>Beat grid vs fseq frame grid misalignment (fseq lead-in, 50ms quantization)</td><td>Sync metric systematically low</td><td>±1 frame tolerance; correlate at small lags and report argmax lag as a diagnostic; RealRender's ffprobe offset trick (visual.py:184) shows the pattern for lead-in handling</td></tr>
+<tr><td>New role/config plumbing drifts (lite role missing under a provider)</td><td>Runtime KeyError on critique</td><td>I6's <code>test_registry.py</code> invariant (every role × provider) covers it once <code>visual_critic_lite</code> is added</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>[ ] <code>preview/metrics.py</code> computes per-group brightness/lit-fraction/motion series from a fixture fseq with unit-tested known-physics results.</li>
+<li>[ ] <code>qa/fseq_metrics.py</code> emits the five metric families as subscores + <code>fseq:*</code> findings; unreadable inputs are neutral (never gate blind); <code>XLO_FSEQ_METRICS=0</code> disables cleanly.</li>
+<li>[ ] Coverage from the series replaces the 3-point sampler in refine runs, with equal-or-better dark-section detection shown on at least one real run.</li>
+<li>[ ] <code>fseq:coverage/motion/sync</code> are objective-gate eligible and flipped on after a documented calibration pass; <code>fseq:color</code>/<code>fseq:rhyme</code> ship advisory.</li>
+<li>[ ] Tier 1 sends one ≤2k-token beat-aligned montage per <em>changed-or-flagged</em> section to a worker-tier <code>visual_critic_lite</code> role, with the guides removed from its prompt; unchanged sections are not re-critiqued.</li>
+<li>[ ] Tier 2 (today's still+clip, planner tier) fires only on disagreement, ≥2-revision churn, or the once-per-run final gate — which runs on the real render when the media-attached export is possible.</li>
+<li>[ ] Per-run visual-analysis token spend drops &gt;10× on a like-for-like refine run (measured via I1 telemetry if landed, else by counted calls × estimated sizes in the revision log).</li>
+<li>[ ] Review bundles still contain everything a human needs: montages, <code>metrics.json</code>, and any Tier 2 media; hermetic suite green; golden fixture untouched.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>Brightness proxy:</strong> <code>max(R,G,B)</code> (matches the sampler) vs luma (0.2126R+0.7152G+0.0722B)? Max is consistent with existing gates; luma is perceptually truer for the color metrics. Proposal: max for coverage/motion (continuity with coverage.py), luma only inside <code>fseq:color</code>.</li>
+<li><strong>Where does sync live long-term?</strong> <code>fseq:sync</code> and <code>qa/sync.py</code> both feed the objective average — double-counting sync-ish signal. Merge them (rendered sync supersedes instruction sync when a series exists), or keep both as independent parts?</li>
+<li><strong>Carry-forward vs drop</strong> for unchanged sections' Tier 1 findings — carrying keeps the Judge informed but risks staleness; dropping under-informs on defects the loop chose not to fix. (Leaning: carry, tagged, and let the plateau detector's signature ignore tagged findings.)</li>
+<li><strong>Should Tier 0 metrics also run at <em>generate</em> time</strong> (before refine) to gate the skip-high-objective decision (run.py:211–216) with rendered evidence — the skip currently trusts instruction-side QA plus the 3-point sampler only? Cheap once the series exists; changes the meaning of <code>REFINE_SKIP_OBJECTIVE</code>'s calibration.</li>
+<li><strong>Montage color fidelity vs downscale:</strong> 512px across 9 tiles ≈ 170px per frame — enough for coverage/motion gestalt, marginal for palette nuance. Does Tier 1 get one extra full-res still for its <em>worst</em> Tier-0-scored moment?</li>
+<li><strong>F-J alignment:</strong> headless/preview-only iteration wants exactly this stack (fseq + metrics, no live app). Should <code>FseqSeries</code> construction avoid any client dependency from day one (yes — it only needs paths) and should that constraint be written into the module docstring as a contract?</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <a href="../roadmap-2026-07.md">docs/roadmap-2026-07.md</a> §I8 (this doc expands its summary), §Recommended sequencing row 2, §F-J (headless mode), §I1 (telemetry for the savings evidence).</li>
+<li>Code: <code>pipeline/visual.py</code> (<code>make_visual_critique</code>, <code>make_lit_sampler</code>, <code>RealRender</code>), <code>agents/visual_critic.py</code> (prompt, aspects, advisory conversion), <code>qa/coverage.py</code> + <code>qa/__init__.py</code> (the objective-gate precedent), <code>xlights_core/preview/fseq.py</code> / <code>render.py</code> / <code>layout.py</code>, <code>xlights_core/knowledge/layout_semantics.py</code> (modelGroups parsing), <code>models/config.yaml</code> (role tiers), <code>pipeline/run.py:172–184, 224–228, 449–470</code> (wiring seams).</li>
+<li>OpenSpec: <code>openspec/specs/visual-critique/</code> and <code>specs/show-refinement/</code> (modified capabilities); <code>openspec/changes/improve-musicality/proposal.md</code> (instruction-level repetition-rhyme/dynamic-range this design complements at the pixel level).</li>
+<li>Tests to build on: <code>tests/test_preview.py</code> (<code>_write_fseq</code>, <code>_minimal_layout</code>), <code>tests/test_visual.py</code> (advisory integration), <code>tests/test_coverage_qa.py</code>, <code>tests/test_real_render.py</code>.</li>
+<li>Related items: <a href="i7-density-motion-gap.html">I7</a> (consumes the motion metric as ground truth), <a href="i3-refine-loop-decomposition.html">I3</a> (the loop these metrics gate), <a href="i1-token-cost-telemetry.html">I1</a> (measures the win), <a href="f-j-headless-mode.html">F-J</a> (builds on the no-live-xLights stack).</li>
+</ul>
+</body>
+</html>

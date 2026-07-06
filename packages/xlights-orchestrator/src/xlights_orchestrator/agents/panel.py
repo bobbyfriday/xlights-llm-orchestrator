@@ -114,24 +114,8 @@ _ANALYSTS = [
 
 _LYRIC = ("lyric", LyricOut, "You are a lyric & narrative analyst.", _lyric_render)
 
-_MUSICOLOGIST_PROMPT = (
-    "You are a musicologist. From the analysis, produce a complete MusicBrief: labeled"
-    " sections (times anchored to the provided segments), repetition map, energy arc,"
-    " key/mood, candidate themes, transition points, and lyric narrative if lyrics are given."
-)
-
-
-def build_panel(*, lyrics_present: bool, mode: str = "full"):
-    """Return (analysts, synthesizer). mode='single' collapses to one musicologist."""
-    if mode == "single":
-        agent = build_agent("synthesizer", output_type=MusicBrief, system_prompt=_MUSICOLOGIST_PROMPT)
-
-        def render(sa, lyrics):
-            base = _structure_render(sa, lyrics) + "\n\n" + _harmony_render(sa, lyrics)
-            return base + (("\n\n" + _lyric_render(sa, lyrics)) if lyrics else "")
-
-        return [AnalystSpec("musicologist", agent, render)], None
-
+def build_panel(*, lyrics_present: bool):
+    """Return (analysts, synthesizer) for the full analyst panel."""
     specs = [AnalystSpec(k, build_agent("analyst", output_type=ot, system_prompt=sp), rnd)
              for (k, ot, sp, rnd) in _ANALYSTS]
     if lyrics_present:
@@ -159,6 +143,11 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
             continue
         key, out = r
         outputs[key] = out
+
+    if not outputs:
+        # Without a single analyst output, single mode would StopIteration and full
+        # mode would synthesize an ungrounded (hallucinated) brief.
+        raise RuntimeError("all panel analysts failed; cannot build a music brief")
 
     if synthesizer is None:  # single-musicologist mode → the one output IS the brief
         brief = next(iter(outputs.values()))

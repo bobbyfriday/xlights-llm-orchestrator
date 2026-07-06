@@ -1,11 +1,12 @@
 [project]
 name = "xlights-mcp"
 version = "0.1.0"
-description = "MCP server exposing xLights read operations as tools."
+description = "MCP server exposing the xLights automation API (reads + sequence editing) as tools."
 requires-python = ">=3.11"
 dependencies = [
     "xlights-core",
     "mcp[cli]>=1.2",
+    "anyio>=4",
 ]
 
 # Audio tools work only when the audio stack is installed; opt in with xlights-mcp[audio].

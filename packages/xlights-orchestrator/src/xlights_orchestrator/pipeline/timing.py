@@ -11,11 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..song_description import _timed_lines
-from .meter import resolve_beats_per_bar
+from .meter import DEFAULT_BEATS_PER_BAR as BEATS_PER_BAR, resolve_beats_per_bar
 
 log = logging.getLogger(__name__)
 
-BEATS_PER_BAR = 4   # default/fallback only; the real meter is resolved per song
 LAST_MARK_MS = 500            # clamp a final tiled mark so it isn't a giant block
 MAX_ONSET_STEMS = 3           # selective: drums + lead/bass, not all six
 _MIN_ENERGY_SHARE = 0.10      # a stem needs ≥10% of the loudest stem's mean energy to get a track
@@ -119,6 +118,13 @@ def _onset_tracks(sa, end_ms, stems_cfg) -> list[TimingTrack]:
     return out
 
 
+def _overall_onset_track(sa, end_ms) -> TimingTrack | None:
+    """Fallback when stems aren't separated: one `Onsets` track from the whole-mix onsets, so we
+    don't lose the onset grid entirely (we compute these regardless of stem availability)."""
+    ons = sorted(int(t * 1000) for t in (getattr(sa, "onsets", None) or []))
+    return TimingTrack("Onsets", _tile(ons, end_ms)) if ons else None
+
+
 def _chord_track(sa, end_ms) -> TimingTrack | None:
     chords = getattr(sa, "chords", None) or []
     if not chords:
@@ -196,11 +202,15 @@ def build_timing_tracks(sa, brief, *, fallback_sections=None, onset_stems=None) 
     """Assemble all reference tracks from the analysis + brief (skips any with no data)."""
     end_ms = int(getattr(sa, "duration_s", 0) * 1000) or None
     bpb = resolve_beats_per_bar(sa, brief)        # label/stride the beat+bar grid at the real meter
+    onset_tracks = _onset_tracks(sa, end_ms, onset_stems)
+    if not onset_tracks:                          # no stems → keep the onset grid from the whole mix
+        fallback = _overall_onset_track(sa, end_ms)
+        onset_tracks = [fallback] if fallback else []
     candidates = [
         _section_track(brief, fallback_sections),
         _beat_track(sa, end_ms, bpb),
         _bar_track(sa, end_ms, bpb),
-        *_onset_tracks(sa, end_ms, onset_stems),
+        *onset_tracks,
         _chord_track(sa, end_ms),
         _lyric_track(sa, end_ms),
         _phoneme_track(sa, end_ms),               # phrases/words/phonemes for the Faces effect

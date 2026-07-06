@@ -59,7 +59,7 @@ from .tuning import (
     WASH_MIN_B,
 )
 
-BEATS_PER_BAR = 4                  # derived 4/4 (downbeat = every 4th beat)
+from .meter import DEFAULT_BEATS_PER_BAR as BEATS_PER_BAR  # single fallback-meter constant
 
 
 def wash_brightness(intensity: float) -> float:
@@ -307,7 +307,8 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
         return []
     bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR    # the song's meter, not always 4/4
     roles = select_rhythm_groups(section, available_groups)
-    intensity = getattr(section, "intensity", 0.8) or 0.8
+    intensity = getattr(section, "intensity", None)
+    intensity = 0.8 if intensity is None else intensity   # keep an explicit 0.0
     legato = resolve_phrasing(getattr(section, "phrasing", ""), intensity) == "legato"
     accent_ms = LEGATO_ACCENT_MS if legato else ACCENT_MS
     eff, look = _accent_look(section.accent_effect)

@@ -107,6 +107,24 @@ def test_patch_no_tracks_is_noop(tmp_path):
     assert f.read_text() == _XSQ                      # untouched
 
 
+# -- overall-onset fallback (no stems) ----------------------------------------
+
+def test_overall_onset_fallback_when_no_stems():
+    sa = _sa(beats=[0.0, 0.5], stems={}, duration_s=10.0)
+    sa = SimpleNamespace(**{**sa.__dict__, "onsets": [0.1, 0.4, 0.9, 1.5]})
+    tracks = {t.name: t for t in T.build_timing_tracks(sa, _brief([("A", 0, 10000)]))}
+    assert "Onsets" in tracks                                   # whole-mix fallback present
+    assert len(tracks["Onsets"].marks) >= 3
+    assert not any(n.startswith("Onsets (") for n in tracks)    # no per-stem tracks (no stems)
+
+
+def test_per_stem_onsets_preferred_over_fallback():
+    sa = _sa(beats=[0.0, 0.5], stems={"drums": ([0.1, 0.6, 1.1], 1.0)}, duration_s=10.0)
+    sa = SimpleNamespace(**{**sa.__dict__, "onsets": [0.1, 0.4, 0.9]})
+    names = {t.name for t in T.build_timing_tracks(sa, _brief([("A", 0, 10000)]))}
+    assert "Onsets (drums)" in names and "Onsets" not in names  # stems win; no redundant fallback
+
+
 # -- phoneme (Faces) track + multi-layer patcher ------------------------------
 
 _LYRICS = {"lines": [

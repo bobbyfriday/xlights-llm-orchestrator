@@ -1,6 +1,7 @@
-"""MCP server exposing xLights read operations as tools.
+"""MCP server exposing the xLights automation API as tools.
 
-Read-only: every tool reads xLights state; none mutate a sequence, effect, or config.
+Reads (models, controllers, effects, layout) plus the write path (new/open/save/close
+sequence, addEffect, render) — mutations are serialized by the shared client's write lock.
 A single shared :class:`XLightsClient` is created at startup and closed on shutdown.
 """
 

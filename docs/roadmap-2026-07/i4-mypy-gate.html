@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I4 — Promote mypy to a hard gate; ship py.typed · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>I4 — Promote mypy to a hard gate; ship <code>py.typed</code></h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>I4 in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>S, mechanical — recommended sequencing slot #1 (paired with I1)</dd>
+<dt>Depends on</dt><dd>Nothing</dd>
+<dt>Unblocks</dt><dd>Durable typing for all later work (I3 refine-loop extraction, F-E manifest types); downstream consumers of <code>xlights-core</code> get real types</dd>
+<dt>Key files</dt><dd><code>.github/workflows/ci.yml</code>, root <code>pyproject.toml</code> (<code>[tool.mypy]</code>), <code>packages/*/pyproject.toml</code> (hatchling), the 15 source files listed in §2.3</dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The codebase is fully annotated (a June-roadmap R1 deliverable), but CI runs mypy with <code>continue-on-error: true</code> — the workflow comment itself says the backlog "is being triaged before this becomes a hard gate." Advisory type-checking decays: nobody reads a red-but-ignorable check, new findings pile onto the backlog invisibly, and the annotations slowly drift from the truth they claim. The roadmap's assessment is blunt: "findings accumulate until the signal is noise."</p>
+<p>Concretely, the backlog already contains real smells, not just pedantry: <code>agents/panel.py</code> types the agent field as bare <code>object</code> and then calls <code>.run()</code> on it; <code>pipeline/generate.py</code> dereferences <code>st.show_plan.sections</code> eleven times on a field typed <code>ShowPlan | None</code>; <code>models/registry.py</code> builds <code>AnthropicModelSettings</code> via an untyped <code>**kw</code> expansion into a TypedDict — exactly the construction that silently broke when Opus rejected sampling params (the comment at <code>registry.py:60</code> memorializes a live 400). A hard gate turns this class of drift into a red PR.</p>
+<p>Separately, none of the three packages ships a <code>py.typed</code> marker (PEP 561), so even a fully-clean codebase presents as <em>untyped</em> to any downstream consumer — including our own cross-package boundary: when mypy checks <code>xlights-orchestrator</code> against an <em>installed</em> <code>xlights-core</code> (rather than the workspace source layout), core's annotations are invisible without the marker.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 CI and config as they stand</h3>
+<p><code>.github/workflows/ci.yml:44–49</code>:</p>
+<pre><code>      # Type checking is wired in but ADVISORY for now: the codebase is fully
+      # annotated but was never type-checked, so a backlog of findings is being
+      # triaged before this becomes a hard gate. Remove continue-on-error to enforce.
+      - name: Type check (mypy, advisory)
+        run: uv run --no-sync mypy
+        continue-on-error: true</code></pre>
+<p>Root <code>pyproject.toml:35–38</code> is the entire mypy config (each package's own <code>pyproject.toml</code> has none):</p>
+<pre><code>[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+files = ["packages"]</code></pre>
+<p>Notable: <code>files = ["packages"]</code> means <strong>tests are not type-checked</strong> (a deliberate scope choice this design keeps — see Open questions #2), and <code>ignore_missing_imports = true</code> blankets <em>all</em> third-party gaps (librosa, vamp, lyricsgenius, mutagen, demucs…), which is broader than needed but pragmatic. The dev group pins <code>mypy&gt;=1.11</code>; the current lock resolves to <strong>mypy 2.1.0</strong>. CI installs with <code>uv sync --extra preview</code> plus <code>librosa soundfile</code>, then runs every step with <code>--no-sync</code>.</p>
+
+<h3>2.2 The real, current finding count (measured, not estimated)</h3>
+<p>Reproduced 2026-07-05 with the CI-equivalent environment (<code>uv sync --extra preview</code>, then <code>uv run --no-sync mypy</code>):</p>
+<pre><code>Found 41 errors in 15 files (checked 87 source files)</code></pre>
+<p>The roadmap's "~30-finding backlog" is stale — it is <strong>41</strong> with the full dependency set installed (a dependency-light venv reports 40 slightly different ones: with <code>pydantic_ai</code> installed, mypy additionally sees <code>qa/__init__.py:34</code> and <code>registry.py:61</code>, while a <code>types-PyYAML</code>-less env adds an <code>import-untyped</code> for yaml instead). The lesson is itself a design input: <strong>the gate is only meaningful against the CI dependency set</strong>, and the burn-down must be measured there.</p>
+<p>By error code:</p>
+<table>
+<tr><th>Code</th><th>Count</th><th>One-line meaning</th></tr>
+<tr><td><code>union-attr</code></td><td>20</td><td>attribute access on <code>X | None</code> without narrowing</td></tr>
+<tr><td><code>assignment</code></td><td>5</td><td>incompatible re-assignment (inferred-too-narrow initializers)</td></tr>
+<tr><td><code>arg-type</code></td><td>5</td><td>argument type mismatch (mostly <code>key=</code> callables returning <code>int | None</code>)</td></tr>
+<tr><td><code>var-annotated</code></td><td>4</td><td>empty-container needs an annotation</td></tr>
+<tr><td><code>operator</code></td><td>2</td><td>arithmetic on mis-inferred types (follow-on from the assignments)</td></tr>
+<tr><td><code>typeddict-item</code>, <code>return-value</code>, <code>misc</code>, <code>index</code>, <code>attr-defined</code></td><td>1 each</td><td>see per-file table</td></tr>
+</table>
+
+<h3>2.3 Per-file inventory and fix strategy</h3>
+<table>
+<tr><th>File (lines)</th><th>Findings</th><th>Fix strategy</th></tr>
+<tr><td><code>pipeline/generate.py</code> :153,156,157,159,239,244,247,248,252,256,259</td><td>11 × <code>union-attr</code> — <code>st.show_plan.&lt;attr&gt;</code> / <code>st.music_brief.repetition_map</code> where <code>State</code> fields are Optional</td><td><strong>Category A (Optional-State)</strong>: these functions are only called after the design stage populated the plan. Narrow once at function entry: <code>plan = require(st.show_plan, "show_plan")</code> where <code>require()</code> is a 3-line helper in <code>pipeline/state.py</code> (raises <code>RuntimeError</code> with the field name), then use the local. Converts 11 findings into 2–3 narrowing lines and makes the stage precondition explicit at runtime too.</td></tr>
+<tr><td><code>pipeline/run.py</code> :131,257,261,366,459 + :191</td><td>4 × <code>union-attr</code> (show_plan, and <code>sa.lyrics or {}</code> dict-None at :366), 1 × <code>assignment</code> (<code>revlog</code> inferred <code>NullRevisionLog</code> then assigned <code>RevisionLog</code> at :459), 1 × <code>var-annotated</code> (<code>ledger</code> at :191)</td><td>Category A for show_plan sites; :366 restructure to <code>_ly = getattr(...) or {}</code> before <code>.get</code> (mirroring :358, which mypy accepts); :459 annotate <code>revlog: RevisionLog | NullRevisionLog</code> — or, better, give both classes a tiny shared <code>Protocol</code> (<code>class RevisionSink(Protocol): def write(self, record) -&gt; None</code>) in <code>revision_log.py</code>; :191 <code>ledger: list[RevisionBrief] = []</code>.</td></tr>
+<tr><td><code>pipeline/regen.py</code> :93,133</td><td>2 × <code>union-attr</code> (show_plan / song_analysis on State)</td><td>Category A; <code>load_cached_state</code> in fact guarantees both — <code>require()</code> documents it.</td></tr>
+<tr><td><code>cli.py</code> :32</td><td>1 × <code>union-attr</code></td><td>Category A.</td></tr>
+<tr><td><code>agents/panel.py</code> :135,144</td><td><code>attr-defined</code> ("object" has no attribute "run") — <code>AnalystSpec.agent: object</code>; <code>misc</code> ("BaseException" not iterable) — unpacking the gather result</td><td><strong>Category B (protocol the seam)</strong>: define <code>class RunsAgent(Protocol): async def run(self, prompt: str) -&gt; Any</code> (or type as <code>pydantic_ai.Agent[Any, Any]</code>; Protocol preferred — test fakes are <code>SimpleNamespace</code>s). For :144, keep <code>isinstance(r, BaseException)</code> for the guard and unpack in an <code>else</code> branch so mypy narrows the union from <code>gather(..., return_exceptions=True)</code>.</td></tr>
+<tr><td><code>models/registry.py</code> :61</td><td><code>typeddict-item</code> — <code>AnthropicModelSettings(**kw)</code> with <code>kw: dict[str, Any]</code></td><td><strong>Category B</strong>: build the TypedDict literally: <code>settings: AnthropicModelSettings = {}</code> then conditional key assignments (<code>settings["anthropic_thinking"] = ...</code>) — mypy checks each key; the <code>**kw</code> expansion is exactly where a renamed setting key would today slip through untyped.</td></tr>
+<tr><td><code>qa/__init__.py</code> :34</td><td><code>arg-type</code> — <code>subscores: dict[str, int]</code> vs declared <code>dict[str, float]</code></td><td>Trivial: annotate the local as <code>dict[str, float]</code> (int is not a dict-value subtype under invariance).</td></tr>
+<tr><td><code>qa/rules.py</code> :90</td><td><code>var-annotated</code> (<code>events</code>)</td><td>Annotate the empty list.</td></tr>
+<tr><td><code>pipeline/beats.py</code> :197,199,605</td><td>2 × <code>arg-type</code> (<code>max(..., key=d.get)</code> — bound-method <code>.get</code> returns <code>V | None</code>), 1 × <code>assignment</code> (float into int var)</td><td><code>key=lambda k: d[k]</code> (keys come from the same dict, so no None case exists — the lambda states that); :605 annotate the variable <code>float</code> at first assignment.</td></tr>
+<tr><td><code>pipeline/visual.py</code> :185</td><td><code>assignment</code> — <code>self._stamp</code> initialized bare <code>None</code> in <code>RealRender.__init__</code>, later assigned <code>float | None</code></td><td>Annotate attributes in <code>__init__</code>: <code>self._stamp: float | None = None</code> (and <code>self.path: Path | None</code> is already annotated — mirror it).</td></tr>
+<tr><td><code>xlights_core/knowledge/layout_semantics.py</code> :61 (×2)</td><td><code>arg-type</code> + <code>return-value</code> — <code>sorted(key=)</code> callable returning <code>int | None</code></td><td><code>key=lambda p: p.&lt;field&gt; or 0</code> (or a sentinel) — encodes the None ordering decision explicitly.</td></tr>
+<tr><td><code>xlights_core/audio/lyrics_align.py</code> :112,118</td><td><code>var-annotated</code> (<code>sections</code>), <code>index</code> (<code>dict | None</code> indexed)</td><td>Annotate; guard the Optional dict before indexing (<code>if d is None: continue</code> — behavior-preserving because the surrounding block already catches).</td></tr>
+<tr><td><code>xlights_core/preview/layout.py</code> :152,278,279,285,287</td><td>1 × <code>arg-type</code> (<code>float(attr)</code> where attr is <code>str | None</code> from XML), 2 × <code>assignment</code> + 2 × <code>operator</code> (a variable first bound to <code>list[int]</code> then reused as scalar <code>int</code>)</td><td>:152 <code>float(attr or 0)</code> — matches the parser's existing default posture; :278–287 rename the scalar (the reuse of one name for a list and its element is the actual smell mypy caught).</td></tr>
+<tr><td><code>xlights_core/preview/render.py</code> :115,116</td><td>2 × <code>union-attr</code> — <code>proc.stdin.write/close</code> on <code>IO[bytes] | None</code></td><td><code>assert proc.stdin is not None</code> after <code>Popen(..., stdin=PIPE)</code> (guaranteed by construction; the assert documents it).</td></tr>
+<tr><td><code>xlights_core/knowledge/xsq_extractor.py</code> :72</td><td><code>var-annotated</code> (<code>skipped</code>)</td><td>Annotate.</td></tr>
+</table>
+<p>Net: <strong>zero behavioral changes required</strong>; the burn-down is annotations, four narrowing helpers/guards, one dict-construction restyle, and one variable rename. Estimated at well under a day — consistent with the roadmap's "mostly mechanical."</p>
+
+<h3>2.4 Packaging (why <code>py.typed</code> is currently absent everywhere)</h3>
+<p>All three packages build with hatchling and enumerate their package dir explicitly, e.g. <code>packages/xlights-core/pyproject.toml</code>:</p>
+<pre><code>[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xlights_core"]</code></pre>
+<p>Hatchling includes <em>all</em> files under a listed package directory in the wheel (not just <code>*.py</code> — this repo already relies on that: <code>models/config.yaml</code> and the <code>agents/prompts/</code> guides ship as package data). So shipping the marker is literally <code>touch src/&lt;pkg&gt;/py.typed</code> per package — no build-config change needed. A one-line check in CI (below) guards against a future packaging refactor silently dropping it.</p>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 Gate semantics: zero-findings, not a ratchet</h3>
+<p>With only 41 mechanical findings, a baseline/ratchet system (mypy-baseline files, per-module overrides that get deleted over time) is overkill and leaves ignore-debt around. The design is: <strong>burn the list to zero in one change, then flip CI to hard-fail in the same PR.</strong> The gate is "mypy exits 0", full stop. Inline <code># type: ignore[code]</code> is permitted only with a same-line reason comment, and <code>warn_unused_ignores</code> (below) makes stale ignores themselves errors, so ignore-count cannot silently grow.</p>
+
+<h3>3.2 Config hardening (modest, deliberate)</h3>
+<pre><code># root pyproject.toml — PROPOSED [tool.mypy]
+[tool.mypy]
+python_version = "3.11"
+files = ["packages"]
+ignore_missing_imports = true        # keep: librosa/vamp/demucs/lyricsgenius have no stubs
+warn_unused_ignores = true           # NEW: stale `# type: ignore` becomes an error
+warn_redundant_casts = true          # NEW: same for casts
+check_untyped_defs = true            # NEW: bodies of any未annotated defs still get checked
+# NOT enabled (deliberately): strict, disallow_untyped_defs, disallow_any_*.
+# The gate freezes today's honesty level; strictness增量 are separate, per-package steps.</code></pre>
+<p>(Replace the two placeholder words with plain English in the actual file — shown here to flag they are comments.) Rationale for <em>not</em> jumping to <code>disallow_untyped_defs</code>: the roadmap claims full annotation, but enforcing it is a separate, noisier diff; the gate's value is stopping <em>new</em> drift, which the zero-findings rule already does. Add <code>types-PyYAML</code> to the dev group so the yaml stubs are present regardless of which transitive dependency currently drags them in (today's clean result for <code>registry.py:15</code> is accidental).</p>
+
+<h3>3.3 <code>py.typed</code> for all three packages</h3>
+<ul>
+<li><code>packages/xlights-core/src/xlights_core/py.typed</code> (empty file)</li>
+<li><code>packages/xlights-orchestrator/src/xlights_orchestrator/py.typed</code></li>
+<li><code>packages/xlights-mcp/src/xlights_mcp/py.typed</code></li>
+</ul>
+<p>Effects: (a) PEP 561 consumers (including editors and any external user of <code>xlights-core</code>) see the packages as typed; (b) if the workspace ever switches from source-tree checking to checking against built wheels, cross-package types keep resolving; (c) it is an implicit contract that the types are maintained — which the hard gate now guarantees. Verification that the marker actually ships: <code>uv build --package xlights-core &amp;&amp; unzip -l dist/xlights_core-*.whl | grep py.typed</code>.</p>
+
+<h3>3.4 CI changes</h3>
+<pre><code># .github/workflows/ci.yml — PROPOSED diff
+-      # Type checking is wired in but ADVISORY for now: ...
+-      - name: Type check (mypy, advisory)
+-        run: uv run --no-sync mypy
+-        continue-on-error: true
++      - name: Type check (mypy)
++        run: uv run --no-sync mypy</code></pre>
+<p>Also update the two prose comments that document the advisory state (workflow lines 44–46 and root <code>pyproject.toml</code> lines 31–34) — both currently promise "a backlog of ~30 findings is being triaged", which becomes false the moment this lands. Optional half-measure rejected: keeping advisory-on-PRs/hard-on-main splits the signal and lets PRs merge red; the finding count (0) doesn't justify it.</p>
+
+<h3>3.5 Optional: coverage reporting (roadmap's "optional" clause)</h3>
+<p>Scope-boxed to visibility, no threshold (the roadmap: "even without a threshold, the trend is visible in PRs"):</p>
+<ul>
+<li>Add <code>pytest-cov</code> to the dev group; run <code>uv run --no-sync pytest --cov=packages --cov-report=term --cov-report=xml</code>.</li>
+<li>Surface it as a job-summary line (<code>coverage report --format=markdown &gt;&gt; $GITHUB_STEP_SUMMARY</code> or equivalent) — no third-party upload service, keeping CI hermetic.</li>
+<li>Explicitly <em>no</em> <code>--cov-fail-under</code> initially; revisit once I6 (edge-test gaps) lands and the number stabilizes.</li>
+</ul>
+
+<h2>4. Implementation plan</h2>
+<p>One PR, commits ordered so each is independently green under the <em>advisory</em> gate, with the flip last:</p>
+<ol>
+<li><strong>Reproduce and pin the baseline</strong>: run CI-equivalent mypy locally (<code>uv sync --extra preview &amp;&amp; uv run --no-sync mypy</code>); confirm 41/15 (§2.2). Add <code>types-PyYAML</code> to <code>[dependency-groups].dev</code>.</li>
+<li><strong>Category-A burn-down (Optional State)</strong>: add <code>require()</code> to <code>pipeline/state.py</code> (signature: <code>def require(value: T | None, name: str) -&gt; T</code>); apply in <code>generate.py</code> (<code>realize_section</code>, <code>generate_instructions</code>), <code>run.py:131,257,261</code>, <code>regen.py</code>, <code>cli.py:32</code>. ~18 findings.</li>
+<li><strong>Category-B seams</strong>: <code>panel.py</code> Protocol + gather narrowing; <code>registry.py:61</code> literal TypedDict construction; <code>revision_log.py</code> <code>RevisionSink</code> Protocol + <code>run.py:459</code> annotation. ~4 findings.</li>
+<li><strong>Mechanical remainder</strong>: the per-file fixes from §2.3 (annotations, <code>or 0</code>/<code>or {}</code> guards, <code>assert proc.stdin is not None</code>, the <code>layout.py</code> variable rename, <code>qa/__init__.py</code> dict type). ~19 findings.</li>
+<li><strong>Run the full suite</strong> (<code>uv run --no-sync pytest</code>, then the golden pipeline specifically) — every fix above is intended as zero-behavior; the suite is the proof. Run <code>ruff check</code>.</li>
+<li><strong>Add the three <code>py.typed</code> markers</strong>; verify wheel inclusion via <code>uv build</code> + <code>unzip -l</code> for each package.</li>
+<li><strong>Harden <code>[tool.mypy]</code></strong> (§3.2) and fix anything the new warnings surface (expected: near-zero; <code>warn_unused_ignores</code> may flag leftovers from step 2–4).</li>
+<li><strong>Flip CI</strong> (§3.4) and rewrite the stale advisory comments in <code>ci.yml</code> and <code>pyproject.toml</code>.</li>
+<li><strong>Optional coverage step</strong> (§3.5) as a separate commit so it can be dropped independently.</li>
+<li><strong>Docs/spec hygiene</strong>: note the gate in <code>docs/roadmap-2026-07.md</code>'s scorecard on next revision; this item needs no OpenSpec capability delta (tooling-only), matching how R1 (CI itself) shipped.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<p>The "tests" here are mostly the existing suite plus CI mechanics; hermetic-first as always (<code>-m "not live"</code>):</p>
+<ul>
+<li><strong>Behavior-preservation</strong>: the full hermetic suite (65 test files) must pass unchanged after every burn-down commit. The golden pipeline snapshot (<code>tests/test_golden_pipeline.py</code>) is the strongest guard: <code>require()</code> narrowings and guard reorderings must not perturb any artifact byte.</li>
+<li><strong>New unit tests where the fix adds runtime semantics</strong>:
+  <ul>
+  <li><code>require(None, "show_plan")</code> raises <code>RuntimeError</code> naming the field; <code>require(x, ...)</code> is identity — 4-line test in <code>tests/test_orchestrator.py</code>.</li>
+  <li><code>registry._settings()</code> still yields the exact settings dict for a thinking+effort role and <code>None</code> for a bare one (pins the TypedDict restyle; extend the existing registry coverage or add to I6's planned <code>test_registry</code>).</li>
+  <li><code>panel.run_panel</code> with a fake raising analyst still drops-and-continues (existing tests cover; re-run).</li>
+  </ul></li>
+<li><strong>Gate self-test</strong>: after the flip, verify locally that an injected error (e.g. temporarily add <code>x: int = "a"</code>) fails <code>uv run --no-sync mypy</code> with exit ≠ 0 — i.e. the workflow step actually gates (guards against a silent <code>files=</code> misconfiguration checking nothing).</li>
+<li><strong>Environment parity check</strong>: a one-line make/CI assertion that mypy checked ≥ 87 files (<code>mypy ... | tail -1</code> parse or <code>--no-error-summary</code> counterpart) — protects against the §2.2 failure mode where a thinner venv quietly checks fewer modules and reports a different truth. (Optional; cheap.)</li>
+<li><strong>Wheel test</strong>: <code>uv build</code> each package and assert <code>py.typed</code> present (script or manual checklist in the PR; not a permanent CI step unless packaging churn recurs).</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>A "mechanical" narrow changes behavior (e.g. <code>require()</code> raising where code previously limped through on <code>None</code>)</td><td>Medium</td><td>Every Category-A site is provably post-population today (a <code>None</code> there would already crash with <code>AttributeError</code> one line later); <code>require()</code> only improves the error message. Full suite + golden snapshot per commit.</td></tr>
+<tr><td>mypy version drift re-opens the gate (2.x minor bumps add checks)</td><td>Medium</td><td><code>uv.lock</code> pins the resolved version (2.1.0 today); bumps arrive as explicit lock-update PRs where new findings are fixed in the same diff. Do <em>not</em> pin in <code>pyproject.toml</code> beyond <code>&gt;=1.11</code> — the lock is the pin.</td></tr>
+<tr><td>Local runs disagree with CI (the 40-vs-41 trap from §2.2)</td><td>Medium</td><td>Document the canonical invocation (<code>uv sync --extra preview &amp;&amp; uv run --no-sync mypy</code>) in the workflow comment; optional checked-file-count assertion.</td></tr>
+<tr><td><code>ignore_missing_imports = true</code> hides a genuinely mistyped third-party usage</td><td>Low</td><td>Accepted trade-off for the audio stack; revisit per-module <code>[[tool.mypy.overrides]]</code> with <code>ignore_missing_imports</code> scoped to the known-stubless libs as a later tightening step.</td></tr>
+<tr><td>Hard gate frustrates rapid prototyping in <code>pipeline/</code></td><td>Low</td><td>Escape hatch is the documented same-line <code># type: ignore[code]  # reason</code>; <code>warn_unused_ignores</code> garbage-collects them. The suite is fast and mypy is incremental (~seconds warm).</td></tr>
+<tr><td><code>py.typed</code> exposes half-true types of <code>xlights-core</code> to external consumers</td><td>Low</td><td>The gate itself is the mitigation: core is checked clean before the marker ships in the same PR.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>☐ <code>uv run --no-sync mypy</code> exits 0 in the CI environment (all 87+ source files checked, 0 errors).</li>
+<li>☐ <code>.github/workflows/ci.yml</code> has no <code>continue-on-error</code> on the mypy step; the "advisory" comments in <code>ci.yml</code> and <code>pyproject.toml</code> are rewritten to describe the hard gate.</li>
+<li>☐ A deliberately-injected type error makes the CI job fail (verified once during rollout).</li>
+<li>☐ <code>py.typed</code> exists in all three packages' source trees and is present in each built wheel.</li>
+<li>☐ <code>warn_unused_ignores</code> and <code>warn_redundant_casts</code> enabled; any <code># type: ignore</code> in the tree carries an error code and a reason.</li>
+<li>☐ Full hermetic pytest suite and the golden pipeline snapshot pass unchanged; <code>ruff check</code> clean.</li>
+<li>☐ No new runtime dependencies; only <code>types-PyYAML</code> (and optionally <code>pytest-cov</code>) added to the dev group.</li>
+<li>☐ (If coverage step adopted) coverage summary visible in the PR job summary with no threshold enforcement.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>State-typing altitude</strong>: <code>require()</code> is the minimal fix, but the deeper design question is whether <code>State</code> should grow typed accessors (<code>State.plan → ShowPlan</code>, raising) or even split into per-stage dataclasses (pre-design vs post-design). That intersects I3's refine-loop extraction — propose deciding there, keeping I4 minimal.</li>
+<li><strong>Type-check tests too?</strong> <code>files = ["packages"]</code> excludes <code>tests/</code>. Checking tests would catch fixture drift (I6's schema-drift concern) but adds a large annotation surface of intentional fakes. Proposal: out of scope for I4; reconsider with I6.</li>
+<li><strong><code>xlights-mcp</code> strictness</strong>: at ~240 lines and 0 current findings, should it jump straight to <code>disallow_untyped_defs = true</code> via a per-package override as the pilot for gradual strictification? Cheap; low blast radius.</li>
+<li><strong>mypy vs. adding pyright</strong>: editors mostly run pyright, whose inference differs (it would likely flag more). One checker as the gate is enough; is pyright-advisory worth a follow-up look, or noise?</li>
+<li><strong>Coverage destination</strong>: job summary only (proposed) vs. an artifact XML for future trend tooling — decide when F-G dashboard scoping happens; artifacts are cheap to add later.</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> §I4, June scorecard row R1 ("mypy is <strong>advisory</strong> (<code>continue-on-error</code>), no <code>py.typed</code>"), sequencing row 1.</li>
+<li>Prior roadmap: <code>docs/roadmap-2026-06.md</code> §R1 (CI + ruff + mypy — the item this completes).</li>
+<li>CI &amp; config: <code>.github/workflows/ci.yml:44–49</code>; root <code>pyproject.toml</code> <code>[tool.mypy]</code> (:35–38) and <code>[dependency-groups]</code> (:7–8); <code>packages/*/pyproject.toml</code> hatchling wheel targets.</li>
+<li>Measured baseline (2026-07-05, mypy 2.1.0, CI-equivalent env): 41 errors / 15 files / 87 source files — full listing reproduced in §2.3's table; scratch capture retained during implementation for diffing.</li>
+<li>Key finding sites: <code>pipeline/generate.py:153–259</code>, <code>pipeline/run.py:131–459</code>, <code>agents/panel.py:135,144</code>, <code>models/registry.py:61</code>, <code>xlights_core/preview/layout.py:152–287</code>, <code>xlights_core/preview/render.py:115–116</code>.</li>
+<li>PEP 561 (py.typed distribution of inline types); hatchling packaging behavior (package-dir file inclusion — already relied on for <code>models/config.yaml</code> and <code>agents/prompts/</code>).</li>
+<li>OpenSpec: no capability delta required (tooling-only, matching how R1 shipped); <code>openspec/changes/archive/</code> contains no typing-related change to supersede.</li>
+</ul>
+</body>
+</html>

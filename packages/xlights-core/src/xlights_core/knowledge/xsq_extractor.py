@@ -30,8 +30,6 @@ def iter_corpus(show_dir: str | Path):
     """Yield community-authored .xsq paths: author not 'xlight*', skipping Backup/."""
     show = Path(show_dir)
     for path in sorted(show.glob("*.xsq")):  # top-level only -> never enters Backup/
-        if "Backup" in path.parts:
-            continue
         author, _ = _read_head(path)
         if author.lower().startswith("xlight"):
             continue

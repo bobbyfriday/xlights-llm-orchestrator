@@ -13,18 +13,13 @@ from pathlib import Path
 
 from ..agents import visual_critic as vc_mod
 from ..refine import Finding
+from .media import SANDBOX_DATA as _SANDBOX, resolve_artifact
 
 log = logging.getLogger(__name__)
 
-_SANDBOX = Path.home() / "Library/Containers/org.xlights/Data"
-
 
 def _resolve_fseq(seq_name: str, show_folder: str | None) -> Path | None:
-    fname = f"{seq_name}.fseq"
-    for d in (_SANDBOX, Path(show_folder) if show_folder else None):
-        if d and (d / fname).exists():
-            return d / fname
-    return None
+    return resolve_artifact(f"{seq_name}.fseq", show_folder)
 
 
 def _persist_bundle(root: Path, media: list[tuple], vf, findings: list[Finding]) -> None:

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-B — Asset-bound placement path · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-B — Asset-bound placement path</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-B (Horizon 2 — enabler) in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>M (per roadmap)</dd>
+<dt>Depends on</dt><dd>Nothing</dd>
+<dt>Unblocks</dt><dd>F-C (Matrix narrative Text), F-D (Lyric-driven Faces) — "Build it once, unblock both features"</dd>
+<dt>Key files</dt><dd><code>packages/xlights-core/src/xlights_core/knowledge/constants.py</code>, <code>knowledge/preset_library.py</code>, <code>knowledge/xsq_extractor.py</code>, <code>knowledge/settings.py</code>, <code>xlights_core/editing.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/effect_emitter.py</code>, <code>show_plan.py</code>, <code>agents/catalog.py</code>; proposed new <code>knowledge/direct_settings.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>Both remaining <code>craft-roadmap.md</code> items — Matrix narrative Text (item 8) and lyric-driven Faces (item 7) — have been
+blocked since June on the same wall: <em>every</em> effect the pipeline can place must come out of the mined preset catalog, and
+Text/Faces (and Pictures/Video/Shader) are not in it and structurally cannot be. The June roadmap scorecard row is blunt:
+"F1 Matrix Text / F2 Faces — ❌ Open — still blocked on an asset-bound placement path."</p>
+<p>The block is not an oversight; it is a consequence of a correct design decision. The catalog is mined from community
+<code>.xsq</code> files precisely so that every settings string we emit is <strong>valid by construction</strong> — observed working
+in a real show. That guarantee cannot extend to effects whose settings reference things <em>outside the settings string</em>:
+image/video file paths on someone else's disk, face definitions in someone else's <code>rgbeffects.xml</code>, timing-track names
+in someone else's sequence. A mined Text look whose value curve reads "Timing Track: Verse 1" is worse than useless in our
+sequence — it silently renders nothing.</p>
+<p>So the fix is not "stop excluding them from mining." It is a <strong>second placement route</strong>: for the narrow set of
+asset-bound effects we actually want (Text now, Faces next), construct the settings string <em>from scratch in code</em>, bind its
+external references to resources <em>we ourselves create</em> (our own timing tracks, the layout's own face definitions), validate
+the string with the settings parser we already have, and carry it through the existing emitter seam. This document designs that
+route.</p>
+
+<h2>2. Current state</h2>
+<h3>2.1 The exclusion, in three layers</h3>
+<p><strong>Layer 1 — mining.</strong> <code>knowledge/constants.py:9</code>:</p>
+<pre><code># Effect types whose settings reference external resources not guaranteed to exist
+# in a target sequence. Excluded from mining.
+ASSET_BOUND_TYPES = frozenset({"Faces", "Pictures", "Video", "Shader", "DMX"})</code></pre>
+<p><code>knowledge/xsq_extractor.py::extract_file</code> (lines 73–89) skips them at the source, plus a second, subtler filter:
+any effect whose settings carry an <em>active timing-track value curve</em> is skipped too
+(<code>_has_active_timing_track_curve</code>, lines 51–56, built on <code>settings.classify_value_curve</code> /
+<code>constants.is_timing_track_curve_type</code>):</p>
+<pre><code>if name in ASSET_BOUND_TYPES:
+    skipped["asset_type"] += 1
+    continue
+...
+if _has_active_timing_track_curve(parse_settings(s)):
+    skipped["timing_track_vc"] += 1
+    continue</code></pre>
+<p>The committed catalog's own metadata records the cost: <code>presets/looks.json</code> meta shows
+<code>"skipped": {"asset_type": 453, "timing_track_vc": 197}</code> across the 17-file corpus. Note a nuance the roadmap wording
+papers over: <strong><code>Text</code> is not in <code>ASSET_BOUND_TYPES</code></strong> — it simply never survived mining (community
+Text is typically lyric text bound to timing tracks, caught by the second filter, or absent from this corpus's top-level files).
+The committed catalog's 37 <code>looks_by_type</code> keys include neither <code>Text</code> nor <code>Faces</code>. Either way the
+practical effect is identical: no <code>Look</code>, no placement.</p>
+<p><strong>Layer 2 — agent vocabulary.</strong> <code>agents/catalog.py::placeable_effect_types()</code> (line 15) is
+<code>get_library().list_effect_types()</code> minus <code>KNOWN_REJECTED_TYPES</code> — so the Director and Generator are never even
+offered Text/Faces, QA's <code>ENERGY_BAND</code> has no entries for them, and <code>weave.canon_effect_type</code> /
+<code>beats._accent_look</code> (which guard on <code>candidate_look_ids(effect_type)</code> being non-empty) silently drop or
+fall back if an LLM hallucinates one. This defense-in-depth is good and should stay: F-B does <em>not</em> add these types to the
+LLM's free-choice menu; the new deterministic passes (F-C/F-D) are the only authors.</p>
+<p><strong>Layer 3 — placement.</strong> Every placement goes through
+<code>editing.place_preset</code> (<code>editing.py:35–94</code>), whose first act is a library lookup:</p>
+<pre><code>lib = library or get_library()
+look = lib.get_look(effect_type, look_id)      # raises KeyError for Text/Faces
+...
+settings = lib.assemble(look, knob_values)     # validates knobs per constraint</code></pre>
+<p>For an unmined type, <code>get_look</code> raises <code>KeyError</code> — and in
+<code>effect_emitter.apply_instructions</code>, <code>KeyError</code> is in <code>_SKIPPABLE</code> (line 16), so the instruction
+would be quietly recorded in <code>skipped</code> and the show goes on. There is no path by which an
+<code>EffectInstruction</code> can deliver a settings string that didn't come from a mined <code>Look</code>.</p>
+
+<h3>2.2 The seams we get to reuse</h3>
+<ul>
+<li><strong><code>place_preset</code>'s override mechanics</strong> (<code>editing.py:67–78</code>): <code>extra_settings</code>
+entries override same-keyed pairs in the assembled string (first-occurrence-wins is handled) and append the rest; values may
+contain <code>|</code> (value curves) but never <code>,</code>, so comma-splitting is safe. The direct path can reuse this exact
+merge logic.</li>
+<li><strong>Palettes are already independent of looks.</strong> <code>colors.palette_from_colors</code> builds the
+<code>C_BUTTON_Palette1..N=,C_CHECKBOX_Palette1..N=</code> string from named/hex colors — nothing preset-bound. Text/Faces colors
+ride this unchanged.</li>
+<li><strong>The wire format is trivial.</strong> <code>client.add_effect(target, effect, settings, palette, layer, start_ms,
+end_ms)</code> (<code>client.py:223–244</code>) takes an opaque settings string; xLights doesn't care where it came from.</li>
+<li><strong>The parser round-trip exists.</strong> <code>knowledge/settings.py</code>:
+<code>parse_settings</code>/<code>serialize_settings</code> (lines 13–30) and <code>constants.classify_kind</code> (key-prefix →
+slider/choice/checkbox/valuecurve/text) give us syntactic validation of any string we synthesize.</li>
+<li><strong>The scratch-sequence validator exists.</strong> <code>editing.validate_preset</code> (lines 97–177) proves a placement
+against live xLights on a disposable sequence — the pattern the direct path copies for its live smoke test.</li>
+<li><strong>Buffer style stays orthogonal.</strong> The emitter injects <code>B_CHOICE_BufferStyle</code> via
+<code>resolve_buffer_style</code> (<code>effect_emitter.py:113–114</code>) regardless of provenance.</li>
+</ul>
+
+<h2>3. Proposed design</h2>
+<h3>3.1 Principle: templates in code, references we own</h3>
+<p>A "direct effect" is an effect whose settings string is built by a code-owned template — a curated, hand-verified analogue of a
+mined <code>Look</code> — where every external reference points at a resource the pipeline itself creates or verifies:</p>
+<ul>
+<li><strong>Text:</strong> no external file at all when using OS font rendering; the only "asset" is the glyph content, which is a
+plain settings value. Fully self-contained → the easiest case, and why F-C is the first consumer.</li>
+<li><strong>Faces:</strong> two external references — the target model's <em>face definition</em> (lives in the user's
+<code>rgbeffects.xml</code>; must be detected, never invented) and a <em>phoneme timing track</em> (which F-D's pipeline itself
+writes, so the name is ours). Placeable only when both exist → gated, not assumed.</li>
+<li><strong>Pictures/Video/Shader: explicitly OUT</strong> (§3.6).</li>
+</ul>
+
+<h3>3.2 New module: <code>xlights_core/knowledge/direct_settings.py</code> (proposed)</h3>
+<p>All code below is <strong>proposed</strong>, not existing. The module owns the per-type templates and builders:</p>
+<pre><code>"""Code-owned settings templates for asset-bound effect types (Text, Faces).
+
+These types cannot ride the mined preset catalog (ASSET_BOUND_TYPES / no corpus
+looks): their settings reference resources outside the string. Each builder
+constructs a settings string from scratch, binding references only to resources
+the caller proves exist. Round-trip-validated via settings.parse_settings.
+"""
+
+DIRECT_TYPES = frozenset({"Text", "Faces"})   # the only types the direct path serves
+
+def build_text_settings(
+    text: str,
+    *,
+    movement: str = "none",        # "none" | "left" | "up"  (validated against _TEXT_DIRS)
+    font_size: int = 12,           # px; clamp to the target matrix height upstream
+    bold: bool = True,
+    speed: int = 10,               # scroll speed when movement != "none"
+    center: bool = True,
+) -&gt; str: ...
+
+def build_faces_settings(
+    *,
+    timing_track: str,             # the phoneme track THIS run writes (F-D)
+    face_definition: str,          # a definition verified present on the target model
+    eyes: str = "Auto",
+    outline: bool = True,
+) -&gt; str: ...</code></pre>
+<p><strong>Text setting keys.</strong> The Text effect's panel maps to <code>E_*</code> keys in the standard self-describing scheme
+(<code>classify_kind</code> already understands all the prefixes). The working set the builder emits:</p>
+<table>
+<tr><th>Key</th><th>Kind</th><th>Purpose / values</th></tr>
+<tr><td><code>E_TEXTCTRL_Text</code></td><td>text</td><td>The rendered string itself (the one mandatory key)</td></tr>
+<tr><td><code>E_FONTPICKER_Text_Font</code></td><td>other</td><td>Legacy wx font descriptor (kept at its default)</td></tr>
+<tr><td><code>E_CHOICE_Text_Font</code></td><td>choice</td><td>"Use OS Fonts" — avoids xLights' bundled bitmap fonts</td></tr>
+<tr><td><code>E_CHOICE_Text_Dir</code></td><td>choice</td><td>Movement: "none", "left", "right", "up", "down" (+ vector variants)</td></tr>
+<tr><td><code>E_TEXTCTRL_Text_Speed</code></td><td>text</td><td>Scroll speed for moving text</td></tr>
+<tr><td><code>E_CHOICE_Text_Effect</code></td><td>choice</td><td>"normal" (others: vert/rotate variants — out of scope v1)</td></tr>
+<tr><td><code>E_CHOICE_Text_Count</code></td><td>choice</td><td>"none" (countdown modes — out of scope v1)</td></tr>
+<tr><td><code>E_CHECKBOX_TextToCenter</code></td><td>checkbox</td><td>Center static text on the buffer</td></tr>
+<tr><td><code>E_SLIDER_Text_XStart</code> / <code>E_SLIDER_Text_YStart</code></td><td>slider</td><td>Static offsets (default 0)</td></tr>
+</table>
+<p><strong>Verification protocol for the exact key list</strong> (a hard task in the implementation plan, because key names drift
+across xLights versions and must not be trusted from memory): author one Text effect by hand in the pinned xLights version, save,
+and read the settings string out of the <code>.xsq</code>'s <code>EffectDB</code> — the extractor's own parsing utilities
+(<code>parse_settings</code>) make this a five-line script. The observed string becomes the frozen template; the builder only
+varies the table's keys. This is exactly how the mined catalog earns "valid by construction," applied to a corpus of one
+hand-authored probe.</p>
+<p><strong>Faces setting keys</strong> (same verification protocol; the F-D design doc covers semantics): the builder binds
+<code>E_CHOICE_Faces_TimingTrack</code> (the phoneme track name), the face-definition choice key observed in the probe
+(<code>E_CHOICE_Faces_FaceDefinition</code> in current builds), phoneme source mode, eyes, and outline. Unlike Text, the builder
+<em>requires</em> its two reference arguments and performs no defaulting — a Faces string with a dangling reference renders a
+blank prop.</p>
+
+<h3>3.3 Carrying it: <code>EffectInstruction.direct_settings</code> (proposed schema addition)</h3>
+<p>Add one defaulted field to <code>EffectInstruction</code> (<code>show_plan.py:63–80</code>):</p>
+<pre><code>class EffectInstruction(BaseModel):
+    target: str
+    effect_type: str
+    look_id: str                      # "" allowed when direct_settings is set
+    ...
+    direct_settings: str = ""         # PROPOSED: full settings string built by
+                                      # knowledge.direct_settings; when non-empty the
+                                      # emitter bypasses the preset library entirely</code></pre>
+<p>Defaulted → cached instruction lists (<code>instructions</code> stage cache, golden fixture) validate unchanged. The generator
+LLM is <em>not</em> told about the field (it isn't in any prompt); only deterministic passes populate it. QA treats a
+direct-settings instruction like any other (it has a real <code>target</code>/<code>effect_type</code>/span);
+<code>rules.ENERGY_BAND</code> simply has no entry for Text/Faces, which means "unconstrained" by construction
+(<code>qa/rules.py:15</code> comment).</p>
+<p><em>Alternative considered and rejected:</em> a magic <code>look_id="direct:…"</code> sentinel carrying the payload — saves a
+field but hides a load-bearing behavior switch inside a string convention, and <code>look_id</code> is threaded through logging,
+review bundles, and skip reasons where the full settings string would be noise.</p>
+
+<h3>3.4 Placement: <code>editing.place_direct</code> (proposed) + emitter branch</h3>
+<p>A sibling of <code>place_preset</code> that skips assembly but keeps every guard:</p>
+<pre><code>async def place_direct(
+    client: XLightsClient,
+    target: str,
+    effect_type: str,
+    settings: str,                      # from knowledge.direct_settings builders
+    *,
+    palette_colors: list[str] | None = None,
+    extra_settings: dict[str, str] | None = None,
+    layer: int = 0,
+    start_ms: int,
+    end_ms: int,
+) -&gt; str:
+    """Place a code-templated (non-catalog) effect. Validates the settings string
+    syntactically (parse_settings round-trip, known key kinds), merges
+    extra_settings with the same first-occurrence-wins override as place_preset,
+    resolves the palette via palette_from_colors, then add_effect. Raises
+    PresetPlacementError on worked=false, ValueError on bad timing/target."""</code></pre>
+<p>Shared code: the extra-settings merge loop and the timing/target guards get extracted from <code>place_preset</code> into
+private helpers (<code>_merge_extra_settings(settings, extra)</code>, <code>_check_timing_and_target(...)</code>) both functions
+call — no behavior change to the preset path, provable by the existing <code>tests/test_editing.py</code> and the golden test.</p>
+<p><code>effect_emitter.apply_instructions</code> branches per instruction (around line 116):</p>
+<pre><code>if ins.direct_settings:
+    await place_direct(client, ins.target, ins.effect_type, ins.direct_settings,
+                       palette_colors=ins.palette_colors or None,
+                       extra_settings=extra,     # still carries B_CHOICE_BufferStyle
+                       layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms)
+else:
+    await place_preset(...)                      # exactly today's call</code></pre>
+<p>Layer accounting (<code>_free_layer</code>/<code>_top_layer</code>/occupancy) and <code>_SKIPPABLE</code> handling are identical
+for both branches — a failed direct placement degrades to a logged skip, never a crashed run, the same best-effort posture as
+everything else in the emitter.</p>
+
+<h3>3.5 Validation: three rings</h3>
+<ol>
+<li><strong>Syntactic (hermetic, every build).</strong> Round-trip through the existing parser:
+<code>serialize_settings(parse_settings(s)) == s</code>; every key classifies to a known kind via <code>classify_kind</code>
+(no <code>"other"</code> except the audited font-picker key); no active timing-track value curves unless the builder deliberately
+bound one (reuse <code>_has_active_timing_track_curve</code>'s logic — inverted: for Faces the track reference is <em>required</em>
+and its name must equal the track the run writes).</li>
+<li><strong>Reference (hermetic for Text, gated for Faces).</strong> Text: none needed. Faces:
+<code>face_definitions(rgb_path, model) -&gt; list[str]</code> (proposed helper in <code>knowledge/layout_semantics.py</code> or a new
+<code>knowledge/faces.py</code> — it parses <code>rgbeffects.xml</code> <code>faceInfo</code> elements) must return the referenced
+definition, and the timing-track name must be one the pipeline schedules for writing.</li>
+<li><strong>Live (opt-in, <code>-m live</code>).</strong> A <code>validate_direct(client, effect_type, settings)</code> mirroring
+<code>validate_preset</code>'s scratch-sequence protocol (clean slate → place → <code>render_all</code> → discard), used once per
+template per xLights upgrade, not per run.</li>
+</ol>
+
+<h3>3.6 Explicitly out of scope: Pictures, Video, Shader (and DMX)</h3>
+<p>These stay excluded, deliberately:</p>
+<table>
+<tr><th>Type</th><th>Why not now</th></tr>
+<tr><td>Pictures / Video</td><td>Settings embed <em>file paths</em>; a real feature needs asset acquisition, show-folder copying, path rewriting (the catalog doc itself warns "imports break paths; fix via Bulk Edit Path"), resolution gating (&lt;~50 px canvases turn detailed imagery "to mush"), and content curation — a full asset-management subsystem with no LLM-pipeline leverage until we have assets worth showing.</td></tr>
+<tr><td>Shader</td><td>References <code>.fs</code> shader files (same asset problem), heavy render cost, and per-GPU behavior differences the offline preview renderer cannot reproduce — validation story doesn't exist.</td></tr>
+<tr><td>DMX</td><td>Device-bound by definition; this layout drives pixels.</td></tr>
+</table>
+<p>The design keeps the door open: each future type is one more builder in <code>direct_settings.py</code> plus its reference
+ring — no new plumbing.</p>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong>Probe &amp; freeze the Text template.</strong> Hand-author one static and one scrolling Text effect in the pinned
+xLights version; extract both settings strings from the saved <code>.xsq</code> via <code>parse_settings</code>; commit them as the
+frozen template + a fixture. Reconcile the §3.2 key table against reality; document any version-gated keys (the
+<code>DROP_KEYS</code> mechanism at <code>editing.py:22</code> is the precedent for stripping stale keys).</li>
+<li><strong><code>knowledge/direct_settings.py</code></strong> with <code>DIRECT_TYPES</code>, <code>build_text_settings</code>
+(and a <code>build_faces_settings</code> skeleton that raises until F-D lands its probe), each returning strings that pass ring-1
+validation; unit tests per builder including clamped/invalid inputs (negative font size, unknown movement → <code>ValueError</code>).</li>
+<li><strong>Refactor <code>editing.py</code></strong>: extract <code>_merge_extra_settings</code> + guards from
+<code>place_preset</code>; add <code>place_direct</code>. Existing <code>test_editing.py</code> must pass untouched (behavior-
+preserving for the preset path — the golden test corroborates).</li>
+<li><strong>Schema + emitter</strong>: add <code>EffectInstruction.direct_settings: str = ""</code>; branch
+<code>apply_instructions</code>; extend the emitter's fake-client test (pattern of <code>tests/test_orchestrator.py</code> /
+<code>test_client.py</code> fakes) asserting a direct instruction reaches <code>add_effect</code> with the exact string, correct
+layer accounting, and skip-on-failure parity.</li>
+<li><strong>Guard rails in QA/realization</strong>: assert (test, not runtime) that <code>DIRECT_TYPES ∩
+placeable_effect_types() == ∅</code> so the LLM menu never grows these types silently if the catalog is ever re-mined with
+different filters; add a placement-rules note that direct types bypass <code>candidate_look_ids</code>-based guards
+(<code>weave._valid_recipes</code>, <code>beats._accent_look</code>) by never entering recipes.</li>
+<li><strong><code>validate_direct</code> live check</strong> (marked <code>live</code>): place the frozen Text template on the
+Matrix model on a scratch sequence, render, assert <code>worked</code>; wire into the live-verify checklist.</li>
+<li><strong>Docs</strong>: a short section in <code>docs/architecture/README.md</code> (or the knowledge package docstring)
+describing the two placement routes and the rule for choosing (mined look when one exists; direct only for
+<code>DIRECT_TYPES</code>, authored only by deterministic passes).</li>
+</ol>
+<p>Estimated blast radius: 2 new files, ~4 edited; no changes to <code>run.py</code>, QA scoring, or any agent prompt. F-C/F-D
+then consume <code>build_*_settings</code> + <code>direct_settings</code> without further core changes.</p>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Hermetic-first</strong> (<code>pytest -m "not live"</code>): builder unit tests (round-trip, key-kind audit, override
+merge, error cases); emitter branch tests against a fake client capturing <code>add_effect</code> calls; schema back-compat test
+loading a pre-change cached <code>instructions</code> JSON (no <code>direct_settings</code> key) and the golden fixture unchanged —
+<strong>this change must not perturb the golden</strong>, since nothing emits direct instructions yet.</li>
+<li><strong>Template fixtures:</strong> the hand-probed settings strings live in <code>tests/fixtures/</code>; a test asserts
+<code>build_text_settings</code> output differs from the frozen probe only in the deliberately variable keys (text, dir, speed,
+size) — the "corpus of one" invariant.</li>
+<li><strong>Parser property tests:</strong> for generated inputs, <code>parse_settings(build_text_settings(...))</code> yields
+unique keys, values contain no commas, and glyph text with commas/equals is rejected or escaped explicitly (settings strings are
+CSV of <code>KEY=VALUE</code> — a lyric containing "," would corrupt the string; the builder must strip or substitute, and a test
+pins that decision).</li>
+<li><strong>Live (opt-in):</strong> <code>validate_direct</code> against a running xLights; visual eyeball that glyphs are legible
+on the Matrix at distance (F-C's checklist item, but the placement smoke test belongs here).</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Mitigation</th></tr>
+<tr><td>Setting keys drift across xLights versions; a template goes stale and renders defaults silently</td><td>Templates frozen from a probe against the pinned version; <code>validate_direct</code> re-run on every xLights upgrade; <code>DROP_KEYS</code>-style strip list for removed keys; xLights logs <code>ApplySetting: Unable to find</code> — check the log in live verify.</td></tr>
+<tr><td>Comma/equals in user-visible text corrupts the CSV settings string</td><td>Builder sanitizes glyph text (documented substitution); property test pins it; ring-1 round-trip catches any escape bug.</td></tr>
+<tr><td>The LLM starts emitting Text/Faces once it sees them in shows / review bundles</td><td>Types never enter <code>placeable_effect_types()</code>; guard test in step 5; existing look-guards drop hallucinated types as today.</td></tr>
+<tr><td>Direct path drifts from preset-path behavior (palette handling, override precedence)</td><td>Shared extracted helpers, not copies; parity tests assert both paths produce identical merged strings for identical extra_settings.</td></tr>
+<tr><td>A dangling Faces reference (missing face definition / track) renders a dark prop</td><td>Ring-2 validation is mandatory for Faces — the builder takes verified references only; the F-D pass gates on detection, never invents.</td></tr>
+<tr><td>Scope creep toward Pictures/Video asset management</td><td>§3.6 is explicit; <code>DIRECT_TYPES</code> is the allowlist and adding to it requires a new OpenSpec change.</td></tr>
+<tr><td>Emitter branch introduces a regression in the hot preset path</td><td>Branch is a two-line dispatch; golden test + <code>test_editing.py</code> + emitter tests must stay green with zero fixture changes.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>☐ <code>knowledge/direct_settings.py</code> exists with <code>DIRECT_TYPES = {"Text", "Faces"}</code> and a
+<code>build_text_settings</code> whose output round-trips through <code>parse_settings</code>/<code>serialize_settings</code> and
+whose every key classifies to a known kind.</li>
+<li>☐ The Text template is frozen from a hand-authored probe <code>.xsq</code> committed as a fixture; the builder varies only the
+documented knobs.</li>
+<li>☐ <code>EffectInstruction.direct_settings</code> (default <code>""</code>) exists; pre-change cached instruction JSON and the
+golden fixture load and compare unchanged.</li>
+<li>☐ <code>editing.place_direct</code> places a direct instruction via <code>client.add_effect</code> with palette from
+<code>palette_from_colors</code> and the same extra-settings override semantics as <code>place_preset</code> (parity test).</li>
+<li>☐ <code>apply_instructions</code> routes on <code>direct_settings</code>, with identical layer accounting and
+skip-on-failure behavior for both branches (fake-client test).</li>
+<li>☐ Text and Faces remain absent from <code>placeable_effect_types()</code>; a test asserts the invariant.</li>
+<li>☐ A <code>live</code>-marked <code>validate_direct</code> proves the frozen Text template places (<code>worked=true</code>) and
+renders on a scratch sequence.</li>
+<li>☐ Hermetic suite green: <code>pytest -m "not live"</code>; golden untouched.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li>Should the direct path also serve <em>synthesized non-asset</em> strings someday (e.g. an effect type mined with too few
+looks)? Recommend no — the catalog is the source of truth for anything minable; keep <code>DIRECT_TYPES</code> minimal.</li>
+<li>Comma handling in glyph text: substitute (e.g. "," → "&nbsp;·") or reject? Recommend substitute-with-log — a lyric fragment
+should never fail a run. Needs the probe to confirm whether xLights itself escapes commas in <code>E_TEXTCTRL_Text</code> when
+saving (if it does, mirror its escape exactly).</li>
+<li>Does <code>addEffect</code> accept multi-line text (newlines in a query/body value) for stacked static text? Probe during
+step 1; v1 can restrict to single-line.</li>
+<li>Where does the Faces reference-detection helper live — <code>knowledge/layout_semantics.py</code> (already parses
+<code>rgbeffects.xml</code>) or a new <code>knowledge/faces.py</code>? Leaning <code>layout_semantics.py</code> for cohesion with
+the other rgbeffects readers; F-D decides.</li>
+<li>Should skipped direct placements surface in the roadmap-I5 degradation summary with a dedicated reason? (Cheap once I5
+lands; flag it there.)</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> Horizon 2 (F-B, F-C, F-D); June scorecard row "F1/F2 blocked on an asset-bound
+placement path"; <code>docs/roadmap-2026-06.md</code> §F1/F2 (the original block statement).</li>
+<li>Craft roadmap: <code>docs/craft-roadmap.md</code> items 7 (<code>lyric-driven-effects</code>) and 8
+(<code>matrix-narrative-text</code>) — both list this as the missing enabler.</li>
+<li>Code: <code>knowledge/constants.py:9</code> (<code>ASSET_BOUND_TYPES</code>), <code>knowledge/xsq_extractor.py:59–90</code>
+(mining skips), <code>knowledge/preset_library.py:56–76</code> (<code>assemble</code>), <code>knowledge/settings.py</code>
+(parser), <code>xlights_core/editing.py:35–94</code> (<code>place_preset</code>), <code>:97–177</code>
+(<code>validate_preset</code>), <code>effect_emitter.py:16,62–135</code> (<code>_SKIPPABLE</code>,
+<code>apply_instructions</code>), <code>agents/catalog.py:15–17</code> (<code>placeable_effect_types</code>),
+<code>show_plan.py:63–80</code> (<code>EffectInstruction</code>).</li>
+<li>Related OpenSpec archive: <code>2026-06-08-add-effect-presets</code> (the catalog), <code>2026-06-12-add-settings-hygiene</code>
+(<code>DROP_KEYS</code> precedent), <code>2026-06-10-add-render-style</code> (buffer-style injection the direct path inherits),
+<code>2026-06-14-unblock-color-wash</code> (<code>KNOWN_REJECTED_TYPES</code> mechanism).</li>
+<li>Guides: <code>xlights-effects-catalog.md</code> §8 (Media &amp; Content Effects — Text/Pictures/Video/Shader behavior and
+placement rules).</li>
+<li>Downstream design docs: <a href="f-c-matrix-text.html">F-C Matrix narrative Text</a>,
+<a href="f-d-lyric-faces.html">F-D Lyric-driven Faces</a>.</li>
+</ul>
+</body>
+</html>

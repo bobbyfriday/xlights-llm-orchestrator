@@ -101,6 +101,7 @@ class RevisionLog:
         self.jsonl_path = Path(jsonl_path)
         self.md_path = Path(md_path)
         self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        self.md_path.parent.mkdir(parents=True, exist_ok=True)
 
     def write(self, record: RevisionLogRecord) -> None:
         try:

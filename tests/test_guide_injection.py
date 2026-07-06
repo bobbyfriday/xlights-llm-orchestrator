@@ -19,14 +19,14 @@ def test_loads_from_env_and_caches(tmp_path, monkeypatch):
     f = tmp_path / "guide.md"
     f.write_text("# House rules\nDarkness is a tool.")
     monkeypatch.setenv("XLO_SEQUENCING_GUIDE", str(f))
-    assert "Darkness is a tool" in G.sequencing_guide()
+    assert "Darkness is a tool" in G.load_guide("sequencing")
     f.write_text("CHANGED")                                  # cached by path → not re-read
-    assert "Darkness is a tool" in G.sequencing_guide()
+    assert "Darkness is a tool" in G.load_guide("sequencing")
 
 
 def test_missing_guide_is_empty(tmp_path, monkeypatch):
     monkeypatch.setenv("XLO_SEQUENCING_GUIDE", str(tmp_path / "nope.md"))
-    assert G.sequencing_guide() == ""                        # no raise
+    assert G.load_guide("sequencing") == ""                  # no raise
 
 
 def test_with_guide_appends_when_present(tmp_path, monkeypatch):

@@ -26,6 +26,7 @@ class LyricData(BaseModel):
 
 def _tags(song_path: str) -> tuple[str | None, str | None]:
     """(artist, title) from audio tags, else (None, filename-derived title)."""
+    artist = title = None
     try:
         from mutagen import File as MutagenFile  # type: ignore
 
@@ -33,14 +34,15 @@ def _tags(song_path: str) -> tuple[str | None, str | None]:
         if m:
             artist = (m.get("artist") or [None])[0]
             title = (m.get("title") or [None])[0]
-            if artist or title:
-                return artist, title
     except Exception as exc:  # noqa: BLE001 — tags are best-effort
         log.debug("tag read failed for %s: %s", song_path, exc)
-    # filename fallback: "01 - Some Title.mp3" -> "Some Title"
+    if title:
+        return artist, title
+    # filename fallback: "01 - Some Title.mp3" -> "Some Title". Keep a tag artist even
+    # when the title tag is missing — artist-only tags used to skip lyrics entirely.
     stem = Path(song_path).stem
     stem = re.sub(r"^\s*\d+\s*[-_.]\s*", "", stem).strip()
-    return None, (stem or None)
+    return artist, (stem or None)
 
 
 def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:

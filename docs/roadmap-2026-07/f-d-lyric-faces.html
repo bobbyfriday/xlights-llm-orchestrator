@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-D — Lyric-driven Faces · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-D — Lyric-driven Faces</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-D (Horizon 2) in <code>docs/roadmap-2026-07.md</code> — "singing faces on character props. Word/line timing exists (<code>lyrics_align.py</code>); phoneme timing needs a new extractor. Vocal songs only."</dd>
+<dt>Complexity</dt><dd>L (per roadmap)</dd>
+<dt>Depends on</dt><dd><a href="f-b-asset-bound-placement.html">F-B Asset-bound placement path</a> (Faces is in <code>ASSET_BOUND_TYPES</code>); lyric alignment (shipped); <strong>hardware: singing-face props with face definitions — the current layout has none detected (§2.4)</strong></dd>
+<dt>Unblocks</dt><dd>Closes the Faces half of craft-roadmap item 7 (<code>lyric-driven-effects</code>) — "the whole vocal dimension"</dd>
+<dt>Key files</dt><dd><code>packages/xlights-core/src/xlights_core/audio/lyrics_align.py</code>, <code>pipeline/timing.py</code>, <code>pipeline/finalize.py</code>, <code>xlights_core/knowledge/constants.py</code>, <code>knowledge/layout_semantics.py</code>; F-B's <code>knowledge/direct_settings.py</code>; proposed new <code>xlights_core/audio/phonemes.py</code>, <code>pipeline/faces.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>Singing faces are the community's signature vocal-song move: a character prop whose mouth shapes follow the vocal line. The
+effects catalog names the effect plainly — "Faces: Phoneme-driven mouth rendering for singing face models, with eye and outline
+options … Vocal lip-sync" (<code>xlights-effects-catalog.md</code> §8/roster table) — and the craft roadmap scopes it as the
+biggest single build of the vocal dimension (item 7, Complexity L). The pipeline already does the hard audio work: fetched lyric
+text is force-aligned against the separated vocal stem with <em>word-level</em> timestamps
+(<code>lyrics_align.py</code>), and that timing already drives lyric color triggers and the "Lyrics" reference timing track.</p>
+<p>What's missing is three specific things, none of them mysterious: (1) <strong>phoneme</strong>-level timing — xLights' Faces
+effect animates mouth shapes from a timing track whose marks are phoneme labels, one level finer than the words we have; (2) a
+placement route — Faces is in <code>ASSET_BOUND_TYPES</code> (<code>constants.py:9</code>), excluded from the mined catalog
+because its settings reference a face definition and a timing track that only exist in a specific layout/sequence (F-B builds the
+route); and (3) <strong>hardware</strong> — a prop with a face definition to sing on, which the current layout does not have.
+This document designs the full path and is explicit about what is buildable now versus conditional on props arriving.</p>
+
+<h2>2. Current state</h2>
+<h3>2.1 Word-level timing exists; that is the ceiling today</h3>
+<p><code>xlights_core/audio/lyrics_align.py</code>: Whisper (MLX, <code>mlx-community/whisper-small-mlx</code>) transcribes the
+vocal stem with <code>word_timestamps=True</code> (<code>_transcribe</code>, lines 42–52); each lyric line is fuzzy-matched into
+the transcript word stream with a monotonic cursor (<code>_match_lines</code>, lines 55–87), and — crucially for F-D — the
+matched <strong>per-word spans are persisted</strong>:</p>
+<pre><code># lyrics_align.py:80–83 — inside the matched-line record
+# persist the matched per-word timing (already computed) so lyric
+# triggers can hit the WORD, not just the line — see triggers.py
+"words": [{"word": w[0], "start": round(w[1], 2), "end": round(w[2], 2)}
+          for w in words[best_i:j + 1]]</code></pre>
+<p>Output shape: <code>SongAnalysis.lyrics = {lines: [{text, start, end, words: [...]}], sections: [...], repeated: [...]}</code>.
+Alignment is fully graceful — any failure returns <code>None</code> and the run proceeds (lines 129–131). There is no
+phoneme anywhere in the codebase (no g2p dependency, no ARPAbet/Papagayo vocabulary).</p>
+
+<h3>2.2 Timing tracks are authored offline at finalize</h3>
+<p><code>pipeline/finalize.py::finalize_sequence</code> (lines 21–40): after <code>save_sequence</code>, the run closes the
+sequence and patches the <code>.xsq</code> <em>offline</em> — "attaching media / reordering via the live API crashes xLights" —
+including reference timing tracks via <code>build_timing_tracks</code> + <code>patch_xsq_timing_tracks</code>
+(<code>pipeline/timing.py</code>). The patcher already mirrors the corpus timing-track XML exactly and is idempotent
+(same-named tracks are removed before re-adding, <code>timing.py:167–169</code>) and atomic (temp + <code>os.replace</code>).
+Today each track is a single <code>&lt;EffectLayer&gt;</code> of labeled marks:</p>
+<pre><code># timing.py:170–179
+ET.SubElement(display, "Element", {"type": "timing", "name": tr.name, ...})
+el = ET.SubElement(effects, "Element", {"type": "timing", "name": tr.name})
+layer = ET.SubElement(el, "EffectLayer")
+for m in tr.marks:
+    ET.SubElement(layer, "Effect", {"label": m.label, "startTime": ..., "endTime": ...})</code></pre>
+<p>The existing "Lyrics" track (<code>_lyric_track</code>, lines 123–127) is <em>line</em>-granular. A Papagayo-style lyric track
+in xLights is the same <code>Element type="timing"</code> but with <strong>three</strong> <code>EffectLayer</code> children —
+phrases, words, phonemes — which the current dataclass (<code>TimingTrack(name, marks)</code>, one flat list) cannot express.
+That is the concrete extension point (§3.4).</p>
+
+<h3>2.3 Faces is excluded from placement, by design</h3>
+<p><code>knowledge/constants.py:9</code>: <code>ASSET_BOUND_TYPES = frozenset({"Faces", "Pictures", "Video", "Shader",
+"DMX"})</code> — "settings reference external resources not guaranteed to exist in a target sequence." For Faces those references
+are (a) the target model's <em>face definition</em> (the <code>faceInfo</code> mapping in the user's <code>rgbeffects.xml</code>
+that says which nodes/submodels form each mouth shape, the eyes, the outline) and (b) a <em>timing track name</em> to drive the
+phonemes from. The extractor skips them at mining (<code>xsq_extractor.py:78–80</code>), so there is no <code>Look</code>, and
+<code>place_preset</code>'s <code>get_look</code> would raise <code>KeyError</code>. F-B's <code>build_faces_settings</code> +
+<code>place_direct</code> is the designed route; its Faces builder deliberately <em>requires</em> verified references
+(F-B §3.2/§3.5 ring 2).</p>
+
+<h3>2.4 Hardware honesty: this layout has no singing faces</h3>
+<p>The spec reserves the role and quarantines it from choreography:</p>
+<ul>
+<li><code>xlights-layout-semantics-spec.md</code> §2: role <code>SINGING_FACE</code> ("Singing faces / talking props — Custom
+with face submodels"), capability class <code>SPECIAL</code>: "singing faces. <strong>Excluded from general choreography; driven
+by dedicated face tracks only.</strong>" §5: "SEM_ALL — every model except SINGING_FACE and SIGN … Do not put SINGING_FACE models
+into any SEM_ group except where explicitly listed. Faces are driven independently." Name heuristics (§3): "face, sing, carol,
+mouth → SINGING_FACE."</li>
+<li>Code implements the quarantine but nothing else: <code>layout_semantics._NON_ENSEMBLE = ("SINGING_FACE", "SIGN")</code>
+(line 47) excludes the role from every ensemble group, and <code>_ROLE_GROUP</code> (line 43) has <em>no</em> SEM_ group for it —
+correctly, since it must never receive beds/weaves/accents.</li>
+<li>The actual layout: <code>tests/fixtures/getModels.json</code> lists <code>Arches, Matrix, Mega Tree, House Outline</code> (+
+two groups); no face-named prop, and no <code>faceInfo</code> handling exists anywhere in the codebase to detect one.</li>
+</ul>
+<p><strong>Consequently every rendering deliverable of F-D is conditional on hardware.</strong> What is <em>not</em> conditional:
+the phoneme extractor, the multi-layer timing-track writer, the Faces settings builder, and the gating logic — all buildable and
+hermetic-testable now, and the phoneme timing track is independently useful (it makes the saved <code>.xsq</code> hand-editable
+for faces the moment a prop arrives, and it is exactly what a human sequencer would import from Papagayo). A realistic landing
+is: ship the track + builder + gated pass; the pass no-ops on this layout until a face prop with a definition appears. Note:
+technically a Faces effect can render "mouth movements" on a matrix/mega-tree with a face definition drawn for it — if the user
+ever defines one on the Matrix, the same pass lights up unchanged.</p>
+
+<h2>3. Proposed design</h2>
+<h3>3.1 xLights Faces anatomy (what we must produce)</h3>
+<p>The Faces effect renders a mouth shape per frame chosen from the model's face definition. The mouth-shape vocabulary is the
+Papagayo/Preston Blair set xLights uses for its phoneme timing: <code>AI, E, etc, FV, L, MBP, O, rest, U, WQ</code> — ten
+labels, where <code>rest</code> is the closed mouth between words and <code>etc</code> is the consonant catch-all. Driven mode:
+the effect binds to a <strong>timing track</strong> whose phoneme layer's mark labels are these tokens; at each frame xLights
+shows the mouth image/node-set mapped to the active label. The settings string therefore references (key names to be frozen from
+the F-B probe protocol — author one by hand, read it back from the <code>.xsq</code> <code>EffectDB</code>):
+the phoneme source (timing track name), the face definition name, eyes mode, and outline toggle. The catalog adds one placement
+rule we adopt as-is: "when Faces is active, surrounding props dim to ≤30% so the singer owns focus"
+(<code>xlights-effects-catalog.md</code> §8 Faces).</p>
+
+<h3>3.2 The phoneme-extraction gap: two candidate approaches</h3>
+<table>
+<tr><th></th><th>A. G2P lookup + heuristic distribution (recommended first)</th><th>B. Forced aligner (Montreal Forced Aligner)</th></tr>
+<tr><td>Mechanism</td><td>CMUdict lookup (via <code>g2p-en</code> or <code>pronouncing</code>; g2p-en falls back to a trained model for OOV words) → ARPAbet phonemes per word → map ARPAbet → Papagayo set → distribute across the word's <em>already-aligned</em> Whisper span</td><td>Acoustic model force-aligns audio + transcript to phone-level timestamps directly</td></tr>
+<tr><td>New deps</td><td>One small pure-Python package + bundled CMUdict (~4 MB)</td><td>MFA: Kaldi-based, conda-distributed, model downloads, heavy native deps — hostile to this repo's uv workspace and CI</td></tr>
+<tr><td>Accuracy</td><td>Word boundaries exact (Whisper-aligned); intra-word phoneme boundaries approximate</td><td>Phone boundaries genuinely acoustic</td></tr>
+<tr><td>Failure mode</td><td>Slightly early/late mouth shapes <em>within</em> a word (tens of ms at yard-viewing distance)</td><td>Whole-pipeline fragility; alignment failures on separated stems with bleed</td></tr>
+<tr><td>Fit</td><td>Matches the repo's graceful-degradation posture; hermetic-testable (dict lookup is deterministic)</td><td>Overkill until someone can see the difference on a real prop</td></tr>
+</table>
+<p><strong>Recommendation: A now, B never-unless-proven-needed.</strong> Community practice calibrates this: hand sequencers use
+Papagayo/xLights' own "breakdown words" — also dictionary lookup with even distribution — and it reads fine on props. The
+distribution heuristic can be slightly better than uniform: weight vowel-class phonemes (AI/E/O/U/WQ) ~2× consonant classes
+(MBP/FV/L/etc) within the word span, since vowels carry the sung duration; insert <code>rest</code> in inter-word gaps &gt; ~120 ms.</p>
+<pre><code># PROPOSED — xlights_core/audio/phonemes.py
+_ARPA_TO_PAPAGAYO = {  # 39 ARPAbet phones → 10 Papagayo mouth shapes
+    "AA": "AI", "AE": "AI", "AH": "AI", "AY": "AI", "AW": "AI",
+    "EH": "E", "EY": "E", "IY": "E", "IH": "E",
+    "AO": "O", "OW": "O", "OY": "O",
+    "UW": "U", "UH": "U",
+    "W": "WQ", "R": "WQ", "ER": "WQ",
+    "F": "FV", "V": "FV",
+    "M": "MBP", "B": "MBP", "P": "MBP",
+    "L": "L",
+    # everything else (S, Z, T, D, K, G, N, NG, CH, JH, SH, TH, DH, HH, Y) → "etc"
+}
+
+def word_phonemes(word: str) -&gt; list[str]:
+    """Papagayo labels for a word via CMUdict/g2p-en; ['etc'] fallback for
+    unpronounceable tokens. Pure + deterministic for in-dictionary words."""
+
+def phoneme_marks(lines: list[dict]) -&gt; list[tuple[str, int, int]]:
+    """(label, start_ms, end_ms) marks from aligned lyric lines' word spans:
+    per word, distribute its phonemes across [start, end] (vowels 2× weight);
+    'rest' marks fill inter-word gaps &gt; REST_GAP_MS."""</code></pre>
+<p>The mapping table is committed and unit-tested; it is judgment-free realization, consistent with the repo's split.</p>
+
+<h3>3.3 Vocal-songs-only gating</h3>
+<p>The pass runs only when <em>all</em> hold, each already computable:</p>
+<ol>
+<li><strong>Vocal song:</strong> <code>sa.lyrics["lines"]</code> non-empty with word spans (the same signal that flips the
+panel's <code>instrumental</code> flag; cf. <code>director.render_input</code>'s
+<code>instrumental = not brief.featured_lyric_moments and not brief.narrative_summary</code>, <code>director.py:24</code> — but
+prefer the analysis-side signal: aligned words are what the track is built from).</li>
+<li><strong>Singing prop present:</strong> a model classified/nameable as <code>SINGING_FACE</code> (spec §3 name heuristics:
+face/sing/carol/mouth) <em>and</em> carrying a face definition — detected by a new
+<code>face_definitions(rgb_path) -&gt; dict[str, list[str]]</code> helper parsing <code>faceInfo</code> elements in
+<code>rgbeffects.xml</code> (proposed home: <code>knowledge/layout_semantics.py</code>, beside the other rgbeffects readers).
+No definition → no Faces, ever — the reference must be verified, never invented (F-B ring 2).</li>
+<li><strong>Track scheduled:</strong> the run will write the phoneme track at finalize (i.e. <code>timing_tracks=True</code> and
+save path known), since the placed effect references it by name.</li>
+</ol>
+<p>Instrumental songs skip at gate 1 with a single degradation-log line (roadmap I5 style). This layout skips at gate 2 today.</p>
+
+<h3>3.4 Timing-track authoring: extend the finalize path</h3>
+<p>Extend <code>timing.py</code> minimally:</p>
+<ul>
+<li><code>TimingTrack</code> gains <code>layers: list[list[TimingMark]] | None = None</code> (or a sibling
+<code>MultiLayerTimingTrack</code>) — when present, <code>patch_xsq_timing_tracks</code> emits one <code>&lt;EffectLayer&gt;</code>
+per layer instead of the single layer at <code>timing.py:175</code>. Existing single-layer tracks are untouched (back-compat by
+default value).</li>
+<li>New builder <code>_phoneme_track(sa, end_ms) -&gt; TimingTrack | None</code>: name <code>"Lyric Phonemes"</code>, three layers —
+phrases (the aligned lines, reusing <code>_lyric_track</code>'s marks), words (the per-word spans), phonemes
+(<code>phonemes.phoneme_marks</code>) — the exact Papagayo import shape a human would recognize. Appended to the candidate list
+in <code>build_timing_tracks</code> (<code>timing.py:134–141</code>), so it inherits idempotent replace + atomic write for
+free.</li>
+</ul>
+<p><strong>The ordering wrinkle (and why it resolves):</strong> effects are placed <em>live</em> during generation, but timing
+tracks are patched <em>offline after save</em> (<code>finalize.py</code> — live timing edits crash xLights). So the placed Faces
+effect references a track that does not exist in the open sequence yet. That is acceptable by design: the settings string binds
+by <em>name</em>; when the user opens the saved <code>.xsq</code>, the track (patched moments after save) resolves and the faces
+sing. The cost: <strong>in-run renders — the visual critic, coverage sampler, and RealRender — never see mouth movement</strong>,
+only whatever the effect renders trackless (typically rest/outline). Mitigations: (a) faces are <code>SPECIAL</code>-class and
+excluded from choreography QA anyway — coverage/variety must ignore the face prop (it is outside every SEM_ ensemble already);
+(b) the acceptance eyeball happens on the finalized file, called out in the live-verify checklist. A future alternative —
+placing the Faces effect itself via offline <code>.xsq</code> patch at finalize, after the track — is sketched in Open
+Questions.</p>
+
+<h3>3.5 The placement pass</h3>
+<pre><code># PROPOSED — pipeline/faces.py
+PHONEME_TRACK_NAME = "Lyric Phonemes"
+
+def place_faces(st: State, face_models: dict[str, str]) -&gt; list[EffectInstruction]:
+    """One Faces instruction per singing-face model per SUNG region (the aligned
+    lines' spans, merged with ≤2 s gaps), not the whole song — faces close and go
+    dark in instrumental breaks. direct_settings = build_faces_settings(
+    timing_track=PHONEME_TRACK_NAME, face_definition=face_models[model], ...);
+    on_top=True (a face must never sit under a wash — though ensembles exclude it
+    by construction, an explicit Generator instruction could still target it)."""</code></pre>
+<p>Companion rule from the catalog: during sung regions, dim surrounding props to ≤30% — v1 scopes this to a gentle brightness
+multiplier on concurrent <code>SEM_ALL</code>-bed instructions only (full "singer owns focus" choreography is a later refinement;
+it interacts with improve-musicality's treatments). Instructions are tagged with the owning section's <code>section_index</code>
+per span so refine-loop splices recreate them (<code>replace_section</code> semantics), and the pass re-runs after splices,
+idempotent by construction (it fully owns all Faces-type instructions: filter-and-rebuild).</p>
+
+<h2>4. Implementation plan</h2>
+<p>Stages 1–3 are buildable and shippable now (no hardware); stage 4 is conditional.</p>
+<ol>
+<li><strong>Phoneme extractor</strong> (<code>xlights_core/audio/phonemes.py</code>): add <code>g2p-en</code> (or
+<code>pronouncing</code>) to <code>xlights-core</code> deps; commit <code>_ARPA_TO_PAPAGAYO</code>; implement
+<code>word_phonemes</code> + <code>phoneme_marks</code> with vowel-weighted distribution and rest-gap insertion. Hermetic tests:
+known words → exact label sequences; OOV token → <code>['etc']</code>; distribution sums to the word span; rest marks in gaps;
+deterministic across runs. Heavy import deferred inside functions, mirroring <code>lyrics_align._transcribe</code>'s pattern.</li>
+<li><strong>Multi-layer timing track</strong>: extend <code>TimingTrack</code>/<code>patch_xsq_timing_tracks</code> for N
+<code>EffectLayer</code>s (back-compat default); add <code>_phoneme_track</code> to <code>build_timing_tracks</code> gated on
+aligned words existing. Tests: XML round-trip (parse the patched file, assert 3 layers + labels), idempotent re-patch, no track
+when no lyrics. This alone delivers user value: a Papagayo-shaped track in every vocal <code>.xsq</code>.</li>
+<li><strong>Faces builder + detection</strong> (with F-B): freeze the Faces settings template from a hand-authored probe on a
+scratch model with a throwaway face definition (F-B probe protocol); implement <code>build_faces_settings</code> (required refs,
+no defaults) and <code>face_definitions()</code> over <code>rgbeffects.xml</code>; ring-1 round-trip + ring-2 reference tests
+with a fixture rgbeffects containing a synthetic <code>faceInfo</code>.</li>
+<li><strong>Placement pass</strong> (<code>pipeline/faces.py</code>): gates (§3.3), sung-region merging, instruction
+construction, wiring into <code>generate_instructions</code> + splice re-run; degradation log lines for each gate. Hermetic
+tests with a fake layout that has a face model: instructions span sung regions only; instrumental → none; no definition → none;
+this repo's real fixture layout → none (the honest default).</li>
+<li><strong>Live verify (hardware-conditional)</strong>: on a layout with a real face prop — or a face definition drawn on the
+Matrix as a stand-in — run a vocal song end-to-end; open the finalized <code>.xsq</code>; confirm the phoneme track imported,
+the Faces effect bound to it, mouths track the vocal by eye, and surrounding dim applies. Until then, the golden stays
+untouched (the fixture song is instrumental-shaped and the fixture layout has no faces — assert that explicitly in a test).</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Hermetic-first</strong> (<code>pytest -m "not live"</code>): everything except stage 5. Extractor tests are pure
+dictionary/math; track tests parse real XML written by the patcher (pattern of existing timing-track tests); builder tests reuse
+F-B's parser round-trip; pass tests use fake <code>State</code>/layout fixtures — no xLights, no network, no Whisper (aligned
+<code>lyrics</code> dicts are fed as fixtures, as <code>tests/test_lyric_alignment.py</code> already does).</li>
+<li><strong>Negative-space tests are first-class:</strong> instrumental song → no track additions beyond today, no instructions;
+layout without faces (the shipped fixtures) → pass no-ops; missing face definition → refused with a logged reason. These encode
+the honesty constraints so they cannot regress.</li>
+<li><strong>Schema-drift guard:</strong> a stored known-good <code>lyrics</code> payload (with <code>words</code>) validated in
+tests, per roadmap I6's convention, since the extractor now depends on that shape.</li>
+<li><strong>Golden:</strong> expected zero change (both gates fail on the fixture); if any diff appears, that is a bug, not a
+regeneration case.</li>
+<li><strong>Live (opt-in <code>-m live</code>, hardware-conditional):</strong> a <code>validate_direct</code>-style scratch
+placement of the frozen Faces template; the finalized-file eyeball checklist from stage 5.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Mitigation</th></tr>
+<tr><td>No hardware to verify on — the feature ships dark</td><td>Stages 1–3 deliver standalone value (Papagayo-shaped track in every vocal <code>.xsq</code>); the pass is gated + logged, not assumed; stage 5 is an explicit conditional milestone. Set expectations in the PR description.</td></tr>
+<tr><td>Faces effect placed before its timing track exists (live-render blindness)</td><td>By-name binding resolves at file open (§3.4); faces are excluded from QA/critic expectations; finalized-file eyeball is the acceptance gate. Fallback design (offline effect patch) sketched if live placement misbehaves.</td></tr>
+<tr><td>Whisper word timing drifts on melisma/held notes → mouths linger or snap early</td><td>Vowel-weighted distribution absorbs most of it (the held phone is usually the vowel); alignment already discards weak matches (<code>min_ratio=0.55</code>, whole-run bail at &lt;25% lines); if visible on hardware, revisit with MFA (§3.2 B).</td></tr>
+<tr><td>G2P dependency friction (model download in g2p-en's OOV path)</td><td>Prefer dictionary-only lookup (<code>pronouncing</code>/raw CMUdict) with <code>etc</code> fallback for OOV — zero downloads; upgrade to g2p-en only if OOV rate proves high.</td></tr>
+<tr><td>Face prop accidentally receives choreography (washes over a singing face)</td><td>Already structurally excluded from every SEM_ ensemble (<code>_NON_ENSEMBLE</code>); pass adds <code>on_top=True</code>; add a placement-rules advisory if any non-Faces instruction targets a SINGING_FACE model.</td></tr>
+<tr><td>Timing-track name collision with a user's own track</td><td><code>patch_xsq_timing_tracks</code> replaces only same-named tracks we own; <code>PHONEME_TRACK_NAME</code> is distinctive; documented in usage.md.</td></tr>
+<tr><td>Papagayo label set drifts across xLights versions</td><td>Labels frozen from the same pinned-version probe as the settings template; live template validation re-run on upgrades (F-B protocol).</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<p>Unconditional (this layout, now):</p>
+<ul>
+<li>☐ <code>phonemes.word_phonemes</code>/<code>phoneme_marks</code> produce deterministic Papagayo-label marks from aligned
+word spans; vowel-weighted distribution and rest-gap insertion covered by tests.</li>
+<li>☐ A vocal song's finalized <code>.xsq</code> contains a 3-layer "Lyric Phonemes" timing track (phrases/words/phonemes) that
+round-trips the XML parser; instrumental songs get no such track; re-finalize is idempotent.</li>
+<li>☐ <code>build_faces_settings</code> exists (F-B), requires verified <code>timing_track</code> + <code>face_definition</code>,
+and its output round-trips <code>parse_settings</code>; <code>face_definitions()</code> reads <code>faceInfo</code> from a fixture
+<code>rgbeffects.xml</code>.</li>
+<li>☐ <code>place_faces</code> gates correctly: instrumental → no-op; no face model/definition → no-op with a degradation log
+line; the shipped fixture layout produces zero Faces instructions and an unchanged golden.</li>
+<li>☐ Hermetic suite green: <code>pytest -m "not live"</code>.</li>
+</ul>
+<p>Hardware-conditional (when a face prop with a definition exists):</p>
+<ul>
+<li>☐ Faces instructions span exactly the sung regions (merged ≤2 s gaps), bound to "Lyric Phonemes" and the model's real
+definition, placed <code>on_top</code>.</li>
+<li>☐ Opening the finalized <code>.xsq</code> in xLights shows mouths tracking the vocal by eye; surrounding bed dims during
+sung regions.</li>
+<li>☐ Refine-loop/<code>xlo regen</code> splices recreate the face instructions without duplication.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li>Should the Faces <em>effect</em> also be patched offline at finalize (after the track) instead of placed live — trading the
+live-render blindness for a second offline-patch pathway? v1 keeps live placement for emitter uniformity; revisit if the
+trackless in-run render looks wrong in review bundles.</li>
+<li>Dictionary choice: <code>pronouncing</code> (pure CMUdict, zero downloads, OOV → <code>etc</code>) vs <code>g2p-en</code>
+(neural OOV fallback, model download). Leaning <code>pronouncing</code> for CI hygiene — measure the OOV rate on real lyric
+corpora first.</li>
+<li>Where does surrounding-dim live long-term — this pass, or improve-musicality's treatment system (a <code>feature</code>-like
+"vocal focus" treatment)? v1: local multiplier; revisit after F-A Phase 2.</li>
+<li>Should the phoneme track write even for layouts without faces (pure hand-editing value) — i.e. decouple stage 2 from the
+feature flag entirely? Recommend yes (it is this doc's stage-2 default); confirm no xLights UI clutter objection from the
+user.</li>
+<li>Multiple singing faces (duets): round-robin lines across props, or all props sing everything? Defer until hardware exists;
+the pass signature (<code>face_models: dict</code>) already permits both.</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> Horizon 2 F-D; June scorecard row F2; <code>docs/roadmap-2026-06.md</code> §F2.</li>
+<li>Craft roadmap: <code>docs/craft-roadmap.md</code> item 7 (<code>lyric-driven-effects</code>) — "Needs phoneme-level timing
+(we have phrase/word; phonemes may need extraction). Instrumental songs skip entirely."</li>
+<li>Enabler design doc: <a href="f-b-asset-bound-placement.html">F-B Asset-bound placement path</a> (builder, probe protocol,
+reference-verification rings); companion: <a href="f-c-matrix-text.html">F-C Matrix narrative Text</a>.</li>
+<li>Spec &amp; guides: <code>xlights-layout-semantics-spec.md</code> §2 (SINGING_FACE role, SPECIAL class), §3 (name
+heuristics), §5 (ensemble exclusion); <code>xlights-effects-catalog.md</code> §8 Faces (anatomy + the ≤30% dim rule).</li>
+<li>Code: <code>xlights_core/audio/lyrics_align.py:42–131</code> (word-level alignment, persisted word spans),
+<code>pipeline/timing.py:23–48,123–188</code> (track dataclasses, lyric track, offline patcher),
+<code>pipeline/finalize.py:21–40</code> (the offline-patch seam), <code>knowledge/constants.py:9</code>
+(<code>ASSET_BOUND_TYPES</code>), <code>knowledge/layout_semantics.py:43–80</code> (<code>_NON_ENSEMBLE</code>, role groups),
+<code>pipeline/triggers.py:155–166</code> (existing word-timing consumer), <code>agents/director.py:24</code> (instrumental
+signal), <code>show_plan.py:78</code> (<code>on_top</code>), <code>refine.py:48–54</code> (<code>replace_section</code>).</li>
+<li>Related OpenSpec archive: <code>2026-06-11-add-lyric-alignment</code>, <code>2026-06-09-add-timing-tracks</code>,
+<code>2026-06-17-extend-downbeat-cuts-to-lyric-path</code>, <code>2026-06-08-add-effect-presets</code> (the mining exclusion's
+origin).</li>
+</ul>
+</body>
+</html>

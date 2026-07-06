@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-I — Live progress streaming UI · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-I — Live progress streaming UI</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-I in <code>docs/roadmap-2026-07.md</code> (Horizon 4 — Operability &amp; evaluation; carried forward from June's F8)</dd>
+<dt>Complexity</dt><dd>M</dd>
+<dt>Depends on</dt><dd>Nothing hard; benefits from I5 (degradation events)</dd>
+<dt>Unblocks</dt><dd>Attended runs without a captive terminal; groundwork for F-J observability</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/brief_editor.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/run.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/generate.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/cli.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/revision_log.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/qa/__init__.py</code>, <code>packages/xlights-orchestrator/src/xlights_orchestrator/refine.py</code>, <code>tests/test_brief_editor.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>An attended <code>xlo run --refine</code> is a 10–30 minute pipeline whose only live surface is stdout. Worse, in attended mode the run <em>stops and holds the terminal hostage</em> at blocking <code>input()</code> prompts. The two stage-gate checkpoints, in <code>pipeline/run.py</code>:</p>
+<pre><code># run.py:110-116 — the interpret review gate (input() at line 115)
+async def _interpret_review(desc_md: str, brief) -&gt; bool:
+    """Attended interpret gate: show the song description; approve to proceed, abort to stop
+    (hand-edit description.md / adjust and re-run). Returns True to continue."""
+    print("\n" + "=" * 70 + "\n" + desc_md + "\n" + "=" * 70)
+    print("Review the song description above (also written to description.md).")
+    ans = input("Proceed to creative direction? [Y/n] (n = stop so you can correct) ").strip().lower()
+    return not ans.startswith("n")
+</code></pre>
+<pre><code># run.py:102-107 — the design review gate (input() at line 106)
+async def _design_review(brief_md: str, plan) -&gt; bool:
+    """Attended design gate: show the creative brief; approve to generate, abort to correct."""
+    print("\n" + "=" * 70 + "\n" + brief_md + "\n" + "=" * 70)
+    print("Review the creative brief above (also written to creative_brief.md).")
+    ans = input("Proceed to effect generation? [Y/n] (n = stop so you can correct) ").strip().lower()
+    return not ans.startswith("n")
+</code></pre>
+<p>Two more <code>input()</code> sites share the same posture: the per-iteration refine checkpoint <code>_interactive_checkpoint</code> (run.py:88–99, <code>input()</code> at line 96) and <code>_final_approval</code> (run.py:119–121, <code>input()</code> at line 120). All four calls are synchronous <code>input()</code> inside <code>async</code> functions — the whole event loop is parked, which is tolerable only because nothing else is scheduled. Meanwhile the operator has no view of stage progress, per-section generation, QA scores per iteration, or refine-loop decisions (revert / stall / plateau / skip-gate) except scrolling log lines.</p>
+<p>The project already solved the "stdlib browser surface" problem once: <code>brief_editor.py</code> serves a schema-driven brief form on localhost with zero dependencies. F-I extends that exact pattern to (a) a live pipeline view and (b) browser-based approve/edit checkpoints, so an attended run is something you glance at in a tab rather than babysit in a terminal.</p>
+
+<h2>2. Current state</h2>
+
+<h3>2.1 The brief editor — the stdlib-browser pattern to extend</h3>
+<p><code>brief_editor.py</code> (222 lines) is stdlib-only by design (module docstring: "Stdlib only (http.server); no framework, no CDN"). Its shape:</p>
+<ul>
+<li><strong>Page as a Python string</strong> — <code>_PAGE</code> (lines 28–147) is one raw-string HTML document with inline CSS and inline vanilla JS; <code>render_page()</code> (lines 150–156) substitutes <code>__BRIEF__</code>/<code>__SCHEMA__</code>/<code>__COLORS__</code>/<code>__PATH__</code> placeholders with <code>json.dumps</code>/<code>html.escape</code> output.</li>
+<li><strong>Handler factory</strong> — <code>_handler(brief_path, schema, colors)</code> (lines 172–202) closes over its state and returns a <code>BaseHTTPRequestHandler</code> subclass: <code>do_GET</code> serves the page at <code>/</code>, <code>do_POST</code> handles <code>/save</code> by reading <code>Content-Length</code> bytes, validating via <code>save_brief()</code> (lines 159–169, which runs <code>ShowPlan.model_validate</code> and writes atomically via a <code>.json.tmp</code> rename), and replying JSON. <code>log_message</code> is overridden to silence request logging (line 174).</li>
+<li><strong>Server + browser</strong> — <code>serve()</code> (lines 205–222) binds <code>ThreadingHTTPServer(("127.0.0.1", port), …)</code> with <code>port=0</code> by default (OS-assigned; the real port is read back from <code>httpd.server_address[1]</code>, line 213), opens the browser after 0.4 s via <code>threading.Timer(0.4, lambda: webbrowser.open(url))</code> (line 216), then blocks in <code>httpd.serve_forever()</code> until Ctrl+C.</li>
+</ul>
+<p>Note what it does <em>not</em> do: it never returns edits to a running pipeline. It is a standalone <code>xlo edit-brief</code> command (cli.py:52–64); Save writes <code>creative_brief.json</code> back to disk, and the pipeline consumes the edit on the <em>next</em> run through the stage cache (run.py:410–411 loads <code>ShowPlan.model_validate_json(sp_cache.read_text())</code>; run.py:420 even logs "edit + re-run to apply"). F-I closes that loop for a <em>live</em> run.</p>
+
+<h3>2.2 The pipeline stages and checkpoint wiring</h3>
+<p><code>run_pipeline()</code> (run.py:320–486) is a sequential stage skeleton: <strong>analyze</strong> (lines 350–377, incl. lyric attach and instrumental refine), <strong>groups probe</strong> (line 386), <strong>interpret</strong> (lines 391–402, cached panel → <code>description.md</code>), <strong>design</strong> (lines 409–418, cached Director → <code>creative_brief.md</code> + editable JSON), <strong>generate</strong> (lines 426–433), <strong>apply/render</strong> (lines 437–446), <strong>refine</strong> (lines 449–477, opt-in), <strong>finalize</strong> (lines 479–485). The checkpoints are injected callables with <code>None</code> meaning "no gate":</p>
+<pre><code># run.py:403-405 — interpret gate call site
+if interpret_checkpoint is not None:                    # hard review gate (attended); --auto passes None
+    if not await interpret_checkpoint(desc_md, st.music_brief):
+        return st                                        # human declined → stop before downstream
+</code></pre>
+<p>and identically for the design gate at run.py:419–423. The refine loop <code>_refine_loop</code> (run.py:135–305) resolves its per-iteration checkpoint as <code>decide = checkpoint or _interactive_checkpoint</code> (line 143), and carries the closures <code>_regen</code> (148), <code>_redesign</code> (156), <code>_report</code> (172 — flush-save, real-render refresh, QA evaluate), <code>_obj</code> (186), and <code>_record</code> (201 — the revision-log tap). <code>_auto_checkpoint</code> (run.py:81–85) takes the Judge's verdict verbatim for unattended runs.</p>
+
+<h3>2.3 What <code>--auto</code> gates</h3>
+<p><code>--auto</code> is declared at cli.py:80 ("unattended refine (no human checkpoints)") and read in exactly three places when threading into <code>run_pipeline</code>:</p>
+<pre><code># cli.py:27-29
+interpret_checkpoint=None if args.auto else _interpret_review,
+design_checkpoint=None if args.auto else _design_review,
+checkpoint=_auto_checkpoint if (args.refine and args.auto) else None,
+</code></pre>
+<p>So <code>--auto</code> means: no interpret gate, no design gate, and Judge-verbatim refine decisions. The final-save prompt is also implicitly gated: run.py:481 asks <code>_final_approval</code> only when <code>checkpoint is None and refine</code> — i.e. attended refine runs. These four injection points are precisely where the browser checkpoints slot in without touching <code>--auto</code> semantics.</p>
+
+<h3>2.4 What the UI would display</h3>
+<p><code>qa/__init__.py::evaluate</code> (lines 16–35) returns a <code>QAReport</code> (refine.py:21–26): <code>objective_score</code>, <code>advisory_score</code>, <code>findings: list[Finding]</code>, and <code>subscores</code> (sync/placement/rules/variety, plus coverage when a sampler exists). Per refine iteration, <code>_record</code> (run.py:201–209) already serializes a <code>RevisionLogRecord</code> (revision_log.py:33–51) with iteration, scores, findings, judge verdict, revisions, regenerated sections, <code>obj_before/obj_after/obj_delta</code>, <code>reverted</code>, and <code>human_decision</code> — the revision-log tail is effectively the event stream F-I needs, just currently written only to <code>revision_log.jsonl</code>/<code>.md</code> (revision_log.py:106–113).</p>
+
+<h2>3. Proposed design</h2>
+<p>Everything below is <strong>proposed</strong> — none of these classes exist today. Constraint carried over from <code>brief_editor.py</code>: stdlib only (<code>http.server</code>, <code>threading</code>, <code>queue</code>, <code>json</code>, <code>webbrowser</code>), no web framework, no CDN; the served page may use inline vanilla JS and inline SVG, but no external resources.</p>
+
+<h3>3.1 Event model — <code>ProgressBus</code> (proposed, new module <code>progress.py</code>)</h3>
+<pre><code># Proposed: packages/xlights-orchestrator/src/xlights_orchestrator/progress.py
+@dataclass(frozen=True)
+class ProgressEvent:
+    seq: int                    # monotonic, assigned by the bus (SSE id: + reconnect replay)
+    ts: str                     # UTC isoformat
+    type: str                   # "stage" | "section" | "score" | "refine" | "checkpoint"
+                                # | "checkpoint_resolved" | "log" | "done"
+    stage: str = ""             # "analyze" | "interpret" | "design" | "generate" | "apply"
+                                # | "refine" | "finalize"
+    section: int | None = None  # section index for per-section events
+    payload: dict = field(default_factory=dict)   # JSON-serializable details
+
+class ProgressBus:
+    """Thread-safe, append-only event log with queue-based fan-out. The async pipeline
+    emits from the event-loop thread; SSE handler threads consume via per-client queues."""
+    def __init__(self) -&gt; None:
+        self._lock = threading.Lock()
+        self._events: list[ProgressEvent] = []
+        self._subs: list[queue.Queue[ProgressEvent]] = []
+    def emit(self, type: str, *, stage: str = "", section: int | None = None,
+             **payload) -&gt; ProgressEvent: ...        # append + fan-out, never raises
+    def subscribe(self, since: int = 0) -&gt; tuple[list[ProgressEvent], queue.Queue]: ...
+    def unsubscribe(self, q: queue.Queue) -&gt; None: ...
+
+class NullProgressBus:
+    """No-op twin (--auto, tests) — mirrors NullRevisionLog (revision_log.py:116-120)."""
+    def emit(self, *a, **kw) -&gt; None: return None
+</code></pre>
+<p><strong>Injection, not module-level.</strong> <code>run_pipeline</code> already injects every observability seam explicitly (<code>revlog</code>, <code>checkpoint</code>, <code>clock</code> — run.py:135–140, 320–344); a module-level singleton would leak events across concurrent tests and hide the dependency. Add a keyword-only <code>progress=None</code> parameter to <code>run_pipeline</code> and <code>_refine_loop</code>, resolved as <code>progress = progress or NullProgressBus()</code>, exactly the <code>revlog = revlog or NullRevisionLog()</code> idiom at run.py:193. <code>--auto</code> and every existing test pass nothing and see zero behavior change. <code>emit()</code> must be exception-swallowing (log-and-continue), matching the revision log's "pure observability — never breaks a run" contract (revision_log.py:112–113).</p>
+<p><strong>Emission points</strong> — each is one <code>progress.emit(...)</code> line at an existing seam; per-stage events bracket the numbered stages of <code>run_pipeline</code>:</p>
+<table>
+<tr><th>Code location (today)</th><th>Event emitted (proposed)</th></tr>
+<tr><td>run.py:350–353 — <code>AudioAnalyzer().analyze(...)</code></td><td><code>stage</code> start/end for <code>analyze</code> (payload: duration_s, stems, section count)</td></tr>
+<tr><td>run.py:358–377 — lyric attach / instrumental refine best-effort blocks</td><td><code>log</code> events (these become I5 degradation events when I5 lands)</td></tr>
+<tr><td>run.py:386 — <code>targetable_groups(...)</code></td><td><code>stage</code> end for groups probe (payload: group count, cache hit)</td></tr>
+<tr><td>run.py:391–400 — song-description cache check / panel run</td><td><code>stage</code> start/end for <code>interpret</code> (payload: cached true/false)</td></tr>
+<tr><td>run.py:403–405 — <code>interpret_checkpoint</code> call</td><td><code>checkpoint</code> (kind=interpret, body=desc_md) / <code>checkpoint_resolved</code></td></tr>
+<tr><td>run.py:409–418 — Director run + brief render</td><td><code>stage</code> start/end for <code>design</code> (payload: sections, cached)</td></tr>
+<tr><td>run.py:419–423 — <code>design_checkpoint</code> call</td><td><code>checkpoint</code> (kind=design, body=brief_md) / <code>checkpoint_resolved</code></td></tr>
+<tr><td>generate.py:239–240 — <code>for i in range(len(st.show_plan.sections)): instrs.extend(await realize_section(st, i, ...))</code></td><td><code>section</code> per iteration (stage=generate, section=i, payload: effect count). Requires threading <code>progress</code> into <code>generate_instructions</code> (generate.py:234) — or emitting from a thin wrapper loop in run.py to keep generate.py untouched; recommend the wrapper.</td></tr>
+<tr><td>run.py:446 — <code>st.applied = await emitter(...)</code></td><td><code>stage</code> end for <code>apply</code> (payload: placed/skipped counts from <code>st.applied</code>)</td></tr>
+<tr><td>run.py:211–216 — skip-high-objective gate</td><td><code>refine</code> (payload: decision=skip-high-objective, objective)</td></tr>
+<tr><td>run.py:223 — <code>report = await _report(st.applied)</code></td><td><code>score</code> (payload: objective_score, advisory_score, <code>subscores</code>, top findings) — the sparkline feed</td></tr>
+<tr><td>run.py:229–231 — Judge verdict + <code>decide(...)</code></td><td><code>refine</code> (payload: judge score/verdict, revision count) and, when <code>decide</code> is the interactive checkpoint, a <code>checkpoint</code> (kind=refine) event</td></tr>
+<tr><td>run.py:238–242 — plateau detector</td><td><code>refine</code> (payload: decision=plateau)</td></tr>
+<tr><td>run.py:252–265 — design escalation (<code>_redesign</code>)</td><td><code>section</code> (payload: escalated=true, findings count)</td></tr>
+<tr><td>run.py:266–267 — <code>replace_section(...)</code> per revision</td><td><code>section</code> (stage=refine, section=rev.section_index, payload: issue)</td></tr>
+<tr><td>run.py:275–296 — revert / keep branch + <code>_record</code></td><td><code>refine</code> (payload mirrors the <code>RevisionLogRecord</code>: obj_before/after/delta, reverted, regenerated_sections). Cleanest tap: emit inside/alongside <code>_record</code> (run.py:201) so the SSE stream and revision log can never disagree.</td></tr>
+<tr><td>run.py:297–298 — stall stop</td><td><code>refine</code> (payload: decision=stall)</td></tr>
+<tr><td>run.py:304–305 — final report + finalize record</td><td><code>score</code> + <code>refine</code> (kind=finalize)</td></tr>
+<tr><td>run.py:483–485 — <code>finalize_sequence(...)</code></td><td><code>stage</code> for <code>finalize</code>, then a terminal <code>done</code> event (UI stops reconnecting)</td></tr>
+</table>
+
+<h3>3.2 The server — SSE over long-poll (proposed, new module <code>live_server.py</code>)</h3>
+<p>Two stdlib-compatible options were weighed:</p>
+<table>
+<tr><th></th><th>Long-poll (<code>GET /events?since=N</code>, blocks up to ~25 s)</th><th>Server-Sent Events (<code>GET /events</code>, response held open)</th></tr>
+<tr><td>Stdlib fit</td><td>Trivial — every request is an ordinary short-lived handler; <code>ThreadingHTTPServer</code>'s thread-per-request model is designed for it</td><td>Also fine — an SSE response is just a normal HTTP response whose handler never returns: write headers, then keep writing <code>data:</code> frames to <code>self.wfile</code>. One thread pinned per client, but there is exactly 1 client (occasionally 2 tabs)</td></tr>
+<tr><td>Client code</td><td>Hand-rolled fetch loop with since-cursor, backoff, dedup</td><td>Built-in <code>EventSource</code>: auto-reconnect, <code>Last-Event-ID</code> replay for free</td></tr>
+<tr><td>Chatter/latency</td><td>One request per event burst (or per timeout); events between polls batch up; more moving parts to get low-latency right</td><td>Push-latency ~0; one connection for the whole run</td></tr>
+<tr><td>Disconnect detection</td><td>Implicit (requests stop)</td><td>Needs heartbeats: write a comment frame <code>: hb\n\n</code> every ~15 s; a <code>BrokenPipeError</code>/<code>ConnectionResetError</code> on write ends the handler and unsubscribes the queue</td></tr>
+<tr><td>Proxies/buffering</td><td>Robust anywhere</td><td>Can be buffered by intermediaries — irrelevant on <code>127.0.0.1</code></td></tr>
+</table>
+<p><strong>Recommendation: SSE.</strong> On localhost with one viewer, SSE's only real cost (a pinned thread per client) is negligible, and it deletes the entire client-side polling machinery in exchange for ~15 lines of handler loop. Long-poll's robustness advantages only matter across proxies we don't have. Concretely:</p>
+<pre><code># Proposed: packages/xlights-orchestrator/src/xlights_orchestrator/live_server.py
+class LiveProgressServer:
+    """ThreadingHTTPServer (daemon_threads=True) on 127.0.0.1:0, following
+    brief_editor.serve() (brief_editor.py:205-222) but running in a background
+    thread so the async pipeline continues underneath it."""
+    def __init__(self, bus: ProgressBus, gate: CheckpointGate, *, port: int = 0): ...
+    def start(self, *, open_browser: bool = True) -&gt; str:   # returns the URL
+        # httpd = ThreadingHTTPServer(("127.0.0.1", port), handler); read back
+        # server_address[1]; threading.Thread(target=httpd.serve_forever,
+        # daemon=True).start(); threading.Timer(0.4, webbrowser.open) as in
+        # brief_editor.py:216
+    def stop(self) -&gt; None: ...                              # shutdown() + server_close()
+
+# Handler routes (handler factory closing over bus/gate, like brief_editor._handler):
+#   GET  /                      → the live page (Section 3.3), text/html
+#   GET  /events                → SSE stream: replay bus.subscribe(since=Last-Event-ID),
+#                                 then loop: q.get(timeout=15) → "id: {seq}\ndata: {json}\n\n";
+#                                 on queue.Empty → ": hb\n\n" heartbeat; on write error →
+#                                 bus.unsubscribe(q) and return
+#   POST /checkpoint/&lt;id&gt;       → resolve a pending checkpoint (Section 3.4)
+#   GET  /revlog?tail=20        → last N revision_log.jsonl records (read from disk)
+</code></pre>
+<p>SSE responses set <code>Content-Type: text/event-stream</code>, <code>Cache-Control: no-cache</code>, and <em>omit</em> <code>Content-Length</code> (the brief editor's <code>_send</code> helper at brief_editor.py:177–183 always sets it; the SSE path writes headers directly instead). <code>daemon_threads = True</code> ensures pinned SSE threads never block interpreter exit.</p>
+
+<h3>3.3 The page</h3>
+<p>One self-contained HTML string in a Python module constant, rendered with placeholder substitution exactly like <code>_PAGE</code>/<code>render_page</code> (brief_editor.py:28–156). Inline CSS + inline vanilla JS, no external resources. Regions, all driven by one <code>EventSource("/events")</code> dispatcher keyed on <code>event.type</code>:</p>
+<ul>
+<li><strong>Stage timeline</strong> — the seven stages as a horizontal strip; <code>stage</code> events flip pending → running → done, with elapsed time per stage.</li>
+<li><strong>Per-section grid</strong> — one cell per <code>ShowPlan</code> section (count arrives in the <code>design</code> stage-end payload); <code>section</code> events mark generated / regenerating / escalated / reverted, with the section's <code>look</code> as a tooltip.</li>
+<li><strong>QA sparkline</strong> — <code>score</code> events append (iteration, objective, advisory) points; an inline SVG <code>&lt;polyline&gt;</code> is rebuilt client-side per event (client-side SVG keeps the server dumb; ~20 lines of JS). Subscores render as a small labelled bar row from <code>QAReport.subscores</code>.</li>
+<li><strong>Revision-log tail</strong> — the last N iteration records, populated from <code>refine</code> events (whose payloads mirror <code>RevisionLogRecord</code>) with <code>GET /revlog</code> as the catch-up path for a page opened mid-run: iteration, obj_before → obj_after (delta), kept/reverted, regenerated sections, judge verdict, human decision.</li>
+<li><strong>Checkpoint panel</strong> — hidden until a <code>checkpoint</code> event arrives; see 3.4.</li>
+</ul>
+
+<h3>3.4 Replacing the blocking checkpoints — <code>CheckpointGate</code> (proposed)</h3>
+<p>The state machine, per checkpoint:</p>
+<ol>
+<li><strong>Pipeline posts.</strong> The browser-backed checkpoint callable (same signatures as today's <code>_interpret_review(desc_md, brief)</code>, <code>_design_review(brief_md, plan)</code>, <code>_interactive_checkpoint(report, verdict, ledger)</code>) registers a pending checkpoint with the gate and emits a <code>checkpoint</code> event: <code>{id, kind: "interpret"|"design"|"refine"|"final", body_md, options}</code>.</li>
+<li><strong>UI shows approve/edit.</strong> The panel renders <code>body_md</code> (pre-rendered to HTML server-side, or shown in a <code>&lt;pre&gt;</code> — see Open questions) plus the kind's buttons: interpret/design → <em>Proceed</em> / <em>Stop</em> (+ a link to <code>xlo edit-brief</code>'s form for design, reusing brief_editor as-is: edit, save, then <em>Stop</em> and re-run picks up the cache per run.py:410); refine → <em>Approve revisions</em> / <em>Stop</em> / <em>Keep as final</em>, mirroring the <code>[A/s/k]</code> prompt at run.py:96; final → <em>Save</em> / <em>Discard</em>.</li>
+<li><strong>Server sets the result.</strong> <code>POST /checkpoint/&lt;id&gt;</code> with <code>{"action": "..."}</code> validates the id matches the pending checkpoint (stale posts → 409) and puts the action on the gate's <code>queue.Queue</code>.</li>
+<li><strong>Pipeline resumes.</strong> The pipeline side waits with <code>action = await asyncio.to_thread(self._q.get)</code> — a thread-safe blocking wait that does <em>not</em> park the event loop (unlike today's raw <code>input()</code>). It maps the action to the existing return types (<code>bool</code> for the stage gates, <code>Decision(action="accept"|"approve", revisions=...)</code> per refine.py:42–45 for refine) and emits <code>checkpoint_resolved</code>.</li>
+</ol>
+<pre><code># Proposed sketch
+class CheckpointGate:
+    def __init__(self, bus: ProgressBus) -&gt; None:
+        self._q: queue.Queue[str] = queue.Queue()
+        self._pending: PendingCheckpoint | None = None   # id, kind, valid actions
+    async def wait(self, kind: str, body_md: str, options: list[str]) -&gt; str:
+        cp_id = self._register(kind, options)
+        self._bus.emit("checkpoint", payload={"id": cp_id, "kind": kind,
+                                              "body_md": body_md, "options": options})
+        action = await asyncio.to_thread(self._q.get)     # blocks a worker thread, not the loop
+        self._bus.emit("checkpoint_resolved", payload={"id": cp_id, "action": action})
+        return action
+
+def browser_interpret_review(gate) -&gt; Callable:           # factory per checkpoint kind
+    async def _review(desc_md: str, brief) -&gt; bool:
+        return await gate.wait("interpret", desc_md, ["proceed", "stop"]) == "proceed"
+    return _review
+</code></pre>
+<p><strong>Terminal fallback is kept.</strong> <code>_interpret_review</code>, <code>_design_review</code>, <code>_interactive_checkpoint</code>, and <code>_final_approval</code> remain unchanged in run.py and remain the wired defaults whenever the live server is not running: <code>--no-browser</code>, <code>--auto</code>, or a failed server bind all leave today's behavior intact. Additionally, each <code>checkpoint</code> event is mirrored to stdout as a one-line notice with the URL, so an operator who closed the tab knows the run is waiting. (A dual stdin+browser race — first answer wins — is deliberately out of scope; two authorities for one decision invites lost answers. See Open questions.)</p>
+
+<h3>3.5 CLI wiring</h3>
+<p>In <code>cli.py::_run</code> (cli.py:16–30), before entering the client context:</p>
+<pre><code># Proposed change to cli.py — attended runs get the live surface by default
+live = not args.auto and not args.no_browser        # new flag: --no-browser
+bus  = ProgressBus() if live else NullProgressBus()
+gate = CheckpointGate(bus) if live else None
+server = LiveProgressServer(bus, gate).start() if live else None   # prints the URL
+...
+interpret_checkpoint=None if args.auto else (browser_interpret_review(gate) if live else _interpret_review),
+design_checkpoint=None if args.auto else (browser_design_review(gate) if live else _design_review),
+checkpoint=_auto_checkpoint if (args.refine and args.auto) else (browser_refine_checkpoint(gate) if live else None),
+progress=bus,
+</code></pre>
+<p><code>--auto</code> is untouched by construction: it selects <code>NullProgressBus</code>, no server, no gate, and the same <code>None</code>/<code>_auto_checkpoint</code> injections as today (cli.py:27–29). The final-approval prompt at run.py:481 gets the same treatment via a new optional <code>final_checkpoint</code> parameter (defaulting to <code>_final_approval</code> so existing callers are unaffected). Server shutdown (<code>stop()</code>) goes in a <code>finally</code> after <code>run_pipeline</code> returns, after emitting <code>done</code>.</p>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong><code>progress.py</code></strong> — <code>ProgressEvent</code>, <code>ProgressBus</code> (lock + list + queue fan-out, seq assignment, swallow-and-log <code>emit</code>), <code>NullProgressBus</code>. Pure stdlib, no imports from the pipeline. Unit tests first.</li>
+<li><strong>Bus injection</strong> — add <code>progress=None</code> to <code>run_pipeline</code> (run.py:320) and <code>_refine_loop</code> (run.py:135); resolve to <code>NullProgressBus()</code>; add the stage-level emits at the run.py seams in the Section 3.1 table, the per-section generate emits via a wrapper loop in run.py step 3 (leaving generate.py:234–261 untouched), and the refine emits inside <code>_record</code> (run.py:201) plus the decision-point emits (skip-gate 211, plateau 238, revert 275, stall 297). Golden test (<code>tests/test_golden_pipeline.py</code>) must pass unchanged with the default bus.</li>
+<li><strong><code>CheckpointGate</code> + browser checkpoint factories</strong> — in <code>progress.py</code> or a sibling <code>checkpoints.py</code>; map actions to the existing return contracts (<code>bool</code>, <code>Decision</code>). Add <code>final_checkpoint</code> parameter to <code>run_pipeline</code> replacing the hardcoded <code>_final_approval</code> call at run.py:481 (default preserves behavior).</li>
+<li><strong><code>live_server.py</code></strong> — handler factory (GET <code>/</code>, GET <code>/events</code> SSE loop with heartbeat + Last-Event-ID replay, POST <code>/checkpoint/&lt;id&gt;</code>, GET <code>/revlog</code>), <code>LiveProgressServer.start/stop</code> on a daemon thread, port 0, <code>webbrowser.open</code> timer per brief_editor.py:216.</li>
+<li><strong>The page</strong> — <code>_PAGE</code>-style module constant + <code>render_page()</code>: stage timeline, section grid, SVG sparkline, revlog tail, checkpoint panel; EventSource dispatcher.</li>
+<li><strong>CLI</strong> — <code>--no-browser</code> flag on <code>xlo run</code> (cli.py:74–84 block); the wiring from Section 3.5; stdout mirror lines for pending checkpoints.</li>
+<li><strong>Docs</strong> — README run-mode matrix (attended+browser / attended+terminal / auto); note the URL line in run output.</li>
+</ol>
+<p>Steps 1–2 are landable alone (events into a null bus = pure refactor); 3–6 ride behind them. Total new code ≈ 450–600 lines, roughly half of it the page string.</p>
+
+<h2>5. Testing strategy</h2>
+<p>The repo's convention is hermetic-first: <code>tests/test_brief_editor.py</code> tests the editor with "No real browser/server" (its docstring, line 1) by exercising the pure seams — <code>render_page</code> placeholder substitution and <code>save_brief</code> round-trip/validation (lines 30–58). Follow that split, plus a real-server tier that stays hermetic because everything is loopback:</p>
+<ul>
+<li><strong>Bus unit tests</strong> (<code>tests/test_progress.py</code>) — emit/subscribe ordering, seq monotonicity, late-subscriber replay via <code>since</code>, fan-out to two queues, unsubscribe, emit-never-raises (a poisoned subscriber queue), thread-safety (emit from N threads, assert count and order).</li>
+<li><strong>Pipeline emission tests</strong> — extend the existing hermetic pipeline tests (<code>test_orchestrator.py</code> / <code>test_refine.py</code> style: fake client, injected <code>analyze</code>/<code>interpret</code>/<code>generator</code>/<code>qa</code>/<code>judge</code>): pass a real <code>ProgressBus</code>, run, assert the expected event sequence (stage bracketing, one <code>section</code> event per section, one <code>score</code> per refine iteration, <code>refine</code> payloads matching the <code>RevisionLogRecord</code> the injected revlog captured, <code>done</code> last). Assert the default (<code>progress=None</code>) run emits nothing and the golden snapshot is byte-identical.</li>
+<li><strong>Server tests</strong> (<code>tests/test_live_server.py</code>) — start <code>LiveProgressServer</code> on port 0 (OS-assigned, no collisions — same trick as brief_editor.py:212), read back the port, and drive it with <code>urllib.request</code> against <code>127.0.0.1</code>: GET <code>/</code> contains the substituted page (no leftover placeholders, mirroring <code>test_render_page_embeds_brief_schema_colors</code>); open <code>/events</code> as a raw socket or unbuffered <code>urlopen</code>, feed 3 synthetic events through the bus, read and parse the frames (assert <code>id:</code> ordering, <code>data:</code> JSON payloads, heartbeat comment after a quiet timeout with the heartbeat interval injected small); reconnect with <code>Last-Event-ID: 2</code> and assert replay starts at 3.</li>
+<li><strong>Checkpoint round-trip without a browser</strong> — register a pending checkpoint via <code>gate.wait(...)</code> in an asyncio task; assert the <code>checkpoint</code> event appears on the SSE stream; <code>urllib</code>-POST <code>{"action":"proceed"}</code> to <code>/checkpoint/&lt;id&gt;</code>; assert the task resolves <code>True</code> and <code>checkpoint_resolved</code> is emitted. Repeat for the refine kind asserting a proper <code>Decision</code>; POST a stale/unknown id and assert 409 with the pending checkpoint unconsumed.</li>
+<li><strong>Fallback tests</strong> — with no live gate wired, monkeypatch <code>builtins.input</code> and assert <code>_interpret_review</code>/<code>_design_review</code> still gate exactly as today (this also back-fills part of the I6 cli/brief_editor coverage gap).</li>
+</ul>
+<p>No test opens a browser, touches the network beyond loopback, or needs an API key (the injected-agent pattern from run.py:145–146 already guarantees the latter).</p>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Mitigation</th></tr>
+<tr><td>Blocking the asyncio event loop while waiting on a browser action (today's <code>input()</code> already does this, but the server makes it fatal: SSE writes come from other threads, yet checkpoint emits originate on the loop)</td><td><code>await asyncio.to_thread(queue.get)</code> in <code>CheckpointGate.wait</code>; the loop stays free; bus emit is plain thread-safe code callable from any thread</td></tr>
+<tr><td>Operator closes the tab and the run waits forever at a checkpoint</td><td>Stdout mirror line with the URL on every <code>checkpoint</code> event; page reopen replays state via Last-Event-ID + <code>/revlog</code>; optional idle-timeout warning line repeated every few minutes</td></tr>
+<tr><td>SSE handler thread leaks after client disconnect</td><td>Heartbeat every ~15 s forces a write; <code>BrokenPipeError</code>/<code>ConnectionResetError</code> ends the handler and unsubscribes; <code>daemon_threads=True</code> guarantees exit anyway</td></tr>
+<tr><td>Event payload drift vs the revision log (two views disagree)</td><td>Emit refine events inside <code>_record</code> (run.py:201) from the same <code>RevisionLogRecord</code> fields; one construction site</td></tr>
+<tr><td>Bus emit failure breaks a run</td><td><code>emit()</code> swallows and <code>log.warning</code>s, same contract as <code>RevisionLog.write</code> (revision_log.py:112–113); enforced by a unit test</td></tr>
+<tr><td>Behavior change for <code>--auto</code>, tests, or cached runs</td><td>Explicit injection with <code>NullProgressBus</code> default; golden pipeline test unchanged; <code>--auto</code> wiring (cli.py:27–29) untouched</td></tr>
+<tr><td>Port collisions / multiple concurrent runs</td><td>Port 0 everywhere (already the brief_editor default, brief_editor.py:205); each run prints its own URL</td></tr>
+<tr><td>Security surface of a local HTTP server accepting POSTs</td><td>Bind <code>127.0.0.1</code> only (as brief_editor does); checkpoint ids are single-use random tokens; no state-changing GET routes</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>Attended <code>xlo run --refine</code> prints a localhost URL and opens a live page showing stage timeline, per-section generation, per-iteration objective/advisory scores with subscores, and the revision-log tail, updating without manual refresh.</li>
+<li>The interpret and design reviews (today's <code>input()</code> at run.py:115 and run.py:106) are answerable from the browser; choosing Stop returns <code>st</code> early exactly as the current gates do (run.py:403–405, 419–423).</li>
+<li>The refine checkpoint and final save approval (run.py:96, run.py:120) are likewise answerable from the browser, with the refine panel offering approve/stop/keep matching <code>_interactive_checkpoint</code>'s semantics.</li>
+<li><code>--no-browser</code> reproduces today's terminal-only attended behavior byte-for-byte; <code>--auto</code> starts no server, opens no browser, and blocks on nothing (cli.py:27–29 wiring unchanged).</li>
+<li>A page opened (or reloaded) mid-run reconstructs full state from event replay; a run that finishes shows a terminal <code>done</code> state.</li>
+<li>All new tests are hermetic (loopback-only, port 0, no API keys, no browser); the golden pipeline snapshot and the existing brief_editor tests pass unchanged.</li>
+<li>The live page loads zero external resources (verifiable by grepping the page constant for <code>http</code>/<code>//</code> URLs).</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li><strong>Markdown rendering of checkpoint bodies.</strong> <code>desc_md</code>/<code>brief_md</code> are Markdown (render_description, render_creative_brief). Stdlib has no Markdown renderer; options are a <code>&lt;pre&gt;</code> block (zero risk, adequate), a ~40-line subset renderer (headings/bold/lists), or linking the on-disk <code>.md</code>. Lean: subset renderer, shared by the revlog tail.</li>
+<li><strong>Should the design checkpoint embed the brief editor?</strong> The cleanest v1 links to a separately-served <code>edit-brief</code> form (edit → save → Stop → re-run picks up the cache per run.py:410–411). Mounting brief_editor's handler under the live server (<code>/brief</code>) and adding an "edit → save → proceed" path that reloads <code>st.show_plan</code> in-place before the design gate returns would remove the re-run — but mutating <code>st</code> mid-checkpoint needs care with the instructions cache (run.py:426–433 keys off the song, not the brief hash). Defer unless cheap.</li>
+<li><strong>Dual stdin+browser answering.</strong> Racing <code>input()</code> against the gate queue (first answer wins) is possible via a daemon stdin-reader thread, but abandoned <code>input()</code> threads are messy. v1: browser-only when the server is up (with stdout notices), terminal-only otherwise.</li>
+<li><strong>Event scope for F-J.</strong> Should <code>ProgressEvent</code> carry the I5 degradation events and (post-I1) token/cost payloads now, or add types later? The <code>type</code>+<code>payload</code> shape is open-ended by design; recommend defining only the types in Section 3.1 and letting I1/I5 add theirs.</li>
+<li><strong>Persist the event stream?</strong> Dumping <code>bus._events</code> to <code>progress.jsonl</code> alongside <code>revision_log.jsonl</code> at run end is nearly free and would feed the F-G dashboard; deferred to keep F-I's surface minimal.</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> — F-I under "Horizon 4 — Operability &amp; evaluation"; June scorecard row "F8 Live progress UI — Open".</li>
+<li>Pattern source: <code>packages/xlights-orchestrator/src/xlights_orchestrator/brief_editor.py</code> (page string 28–147, handler factory 172–202, serve 205–222) and its OpenSpec change <code>openspec/changes/archive/2026-06-14-add-brief-editor/</code> (sibling: <code>2026-06-14-add-editable-brief/</code>).</li>
+<li>Checkpoint/injection seams: <code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/run.py</code> (81–121, 135–305, 320–486); <code>cli.py</code> (16–30, 74–84).</li>
+<li>Data shown: <code>refine.py</code> (QAReport 21–26, Decision 42–45), <code>qa/__init__.py::evaluate</code> (16–35), <code>revision_log.py</code> (RevisionLogRecord 33–51).</li>
+<li>Related roadmap items: I5 (degradation events feed the <code>log</code> event type), I1/F-G (token/cost payloads and the dashboard consumer), F-J (headless mode would reuse the same bus), I3 (refine-loop decomposition — land the <code>_record</code>-adjacent emits so they survive the extraction to <code>pipeline/refine_loop.py</code>).</li>
+<li>Active OpenSpec changes checked for overlap: <code>add-refine-skip-high-objective</code>, <code>add-song-end-envelope-fade</code>, <code>add-targeted-section-regen</code>, <code>improve-musicality</code> — none touch the checkpoint or server surface; the skip-gate change is why the <code>refine</code> skip event (run.py:211–216) exists.</li>
+<li>Test conventions: <code>tests/test_brief_editor.py</code> (pure-seam testing, no server), <code>tests/test_golden_pipeline.py</code> (behavior-freeze for the bus refactor), <code>tests/test_refine.py</code> / <code>tests/test_orchestrator.py</code> (injected-fake pipeline harness).</li>
+</ul>
+
+</body>
+</html>

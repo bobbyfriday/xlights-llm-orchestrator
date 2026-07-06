@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-F — Submodel targeting · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-F — Submodel targeting</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-F in <code>docs/roadmap-2026-07.md</code> (Horizon 3 — "L, conditional … deferred, not dead")</dd>
+<dt>Complexity</dt><dd>L — but the honest v1 (discovery + planning) is S–M; the L is the choreography payoff</dd>
+<dt>Depends on</dt><dd>F-E (<code>xlo init-layout</code> — submodel discovery rides its classifier and writer) <em>and</em> a layout that actually has submodels</dd>
+<dt>Unblocks</dt><dd>Tree-zone/ring drum-kit mapping, vertical build runs, outline section-by-section builds, window rhythm cells, vendor HD-prop effect compatibility</dd>
+<dt>Key files</dt><dd><code>xlights-layout-semantics-spec.md</code> (§1, §5.6), <code>packages/xlights-core/src/xlights_core/knowledge/layout_semantics.py</code>, <code>xlights_core/client.py</code>, <code>xlights_core/editing.py</code>, <code>xlights_core/preview/layout.py</code>, <code>pipeline/groups.py</code>, <code>pipeline/beats.py</code>, <code>pipeline/weave.py</code>, <code>docs/craft-roadmap.md</code> (item 9)</dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>Everything the orchestrator places today lands on whole models or groups of whole models. That
+caps choreography resolution at the prop: the mega tree is one target, the roofline is one line,
+a window frame is indivisible. The community craft this forecloses is spelled out in the repo's
+own guides:</p>
+<blockquote>
+<p>"Split into submodels (vertical halves, rings) for drum-kit mapping and call-response."
+— <code>xlights-sequencing-guide.md</code>, line 179 (mega tree)</p>
+<p>"Window/door submodels can pulse independently as rhythm cells."
+— <code>xlights-sequencing-guide.md</code>, line 198</p>
+<p>"Submodels — finest-grained accents (tree topper, window frames, spinner rings)"
+— <code>xlights-layering-rendering-guide.md</code>, line 144 (the layering hierarchy's bottom tier)</p>
+<p>"Defining submodels (tree rings/slices, spinner arms, window frames) is what unlocks surgical
+layering — and HD-prop vendors ship effects targeted at <em>their</em> submodel definitions …
+We have no documented submodel scheme yet."
+— <code>xlights-layering-rendering-guide.md</code>, line 272</p>
+</blockquote>
+<p>Concretely, submodel targeting enables three families of gesture the current pipeline cannot
+express:</p>
+<ul>
+<li><strong>Tree zones/rings as a drum kit</strong> — kick on the bottom ring, snare answering on the
+mid band, cymbal hits on the topper: the instrument-mapped groove overlay
+(<code>pipeline/beats.py::place_beat_accents</code>) gains vertical structure inside its hero prop
+instead of flashing the whole cone.</li>
+<li><strong>Vertical build runs</strong> — a riser that climbs the tree ring by ring into a drop, the
+pixel-level version of the value-curve builds the guides call the workhorse.</li>
+<li><strong>Outline segment sweeps</strong> — spec §5.6's <code>SEM_OUTLINE_SEGMENTS</code>: roofline
+submodels (Roof_Left, Peak, Garage_Line) in left-to-right order so an intro can "draw" the house
+section by section (sequencing guide: "Outline chases that 'draw' the house are a great intro
+move").</li>
+</ul>
+<p><strong>The honest conditionality.</strong> <code>docs/craft-roadmap.md</code> line 11, verified
+against the user's file: "this user's <code>rgbeffects.xml</code> has <strong>0 SubModels</strong> →
+submodel work is DEFERRED", and item 9 (line 74) marks the change deferred for exactly that
+reason. Nothing here benefits the current layout. F-F activates only when F-E onboards a layout
+that has submodels — vendor HD props ship with them, so any shared-tool user is likely to bring
+some — or when this user adds them (the layering guide's line 272 explicitly contemplates
+defining a scheme). This document exists so that design intent is captured now and the F-E
+classifier leaves the right seams; it deliberately proposes a minimal-first plan where everything
+buildable without submodel hardware is cheap and everything else is parked behind an explicit
+verification gate.</p>
+
+<h2>2. Current state</h2>
+<p>There is <strong>no submodel handling anywhere in the packages</strong> — and one guard that
+actively blocks it:</p>
+<ul>
+<li><strong>The spec preserves but doesn't use them.</strong>
+<code>xlights-layout-semantics-spec.md</code> §1 lists
+"<code>&lt;subModel&gt;</code> children (named pixel subsets, preserve these)" among the inputs, and
+§5.6 sketches the one concrete deliverable:
+<blockquote>"Do not flatten submodels. If <code>OUTLINE</code> models have submodels (Roof_Left,
+Peak, Garage_Line), additionally create <code>SEM_OUTLINE_SEGMENTS</code> containing the submodels in
+left-to-right order to enable section-by-section builds." (line 173)</blockquote>
+The 2026-06-10 <code>add-layout-semantics</code> change explicitly listed "submodel
+<code>SEM_OUTLINE_SEGMENTS</code>" as a non-goal.</li>
+<li><strong><code>layout_semantics.py</code> has no submodel concept.</strong> The <code>Prop</code>
+dataclass (lines 23–40) carries no submodel field; <code>build_sem_groups()</code> (line 50) plans
+groups of model names only. (The F-E design adds <code>Prop.submodels</code> as a forward seam.)</li>
+<li><strong>The preview parser skips them.</strong>
+<code>preview/layout.py::parse_models()</code> (line 113) iterates
+<code>models_el.findall("model")</code> and never reads <code>&lt;subModel&gt;</code> children — the
+offline renderer can light a submodel's pixels (they're just parent-model channels) but has no
+mapping from submodel name to channel subset.</li>
+<li><strong>The write path rejects submodel targets today.</strong>
+<code>xlights_core/editing.py::place_preset()</code> (lines 83–84):
+<pre><code>if target not in await client.get_models():
+    raise ValueError(f"target {target!r} not in layout")</code></pre>
+<code>client.get_models()</code> (<code>client.py:147</code>) returns model and group <em>names</em>
+only, so even if xLights' <code>addEffect</code> accepted a submodel element, this client-side guard
+raises first. Every effect the pipeline places flows through <code>place_preset</code>
+(<code>effect_emitter.py::apply_instructions</code>, line 62), so this is a single, well-defined
+choke point.</li>
+<li><strong>The targetability probe covers groups only.</strong>
+<code>pipeline/groups.py::targetable_groups()</code> (line 35) probes
+<code>get_group_names()</code> — but that is exactly the right tool to extend: it exists because
+"targetability genuinely isn't derivable from the XML, so probing beats parsing" (roadmap
+assessment), which applies with even more force to submodels.</li>
+<li><strong>A partial workaround exists and is documented:</strong> the layering guide's
+<em>Sub-Buffer</em> row (line 98) — "splitting one prop into zones without making submodels" by
+redefining the effect's buffer region. It's per-effect, unnamed, and unordered; it can fake a
+"top half of the tree" but not an ordered ring walk or a named segment vocabulary. Noted as the
+alternative considered (§3.6).</li>
+</ul>
+
+<h2>3. Proposed design</h2>
+
+<h3>3.1 Discovery during F-E classification (verifiable today)</h3>
+<p>Submodel discovery is an extension of the F-E classifier's <code>parse_props()</code>, not a new
+pass. Each <code>&lt;model&gt;</code>'s <code>&lt;subModel&gt;</code> children are parsed into records
+attached to the parent <code>Prop</code>:</p>
+<pre><code># knowledge/layout_classify.py  (proposed extension; new dataclass in layout_semantics.py)
+@dataclass
+class SubModel:
+    name: str                 # e.g. "Ring 1", "Roof_Left"
+    parent: str               # owning model name
+    node_ranges: str          # the raw range spec, e.g. "1-50,101-150"
+    nodes: int                # count expanded from the ranges
+    kind: str = ""            # derived segment semantics: RING | ZONE | HALF |
+                              # SEGMENT | ARM | TOPPER | "" (unknown)
+    order_hint: int | None = None   # trailing integer in the name ("Ring 3" → 3)</code></pre>
+<p>Two facts and one hedge about the XML shape: submodels are child elements of
+<code>&lt;model&gt;</code> carrying a <code>name</code> and a node-subset definition (typically a
+<code>type="ranges"</code> spec whose <code>line0..lineN</code> attributes hold comma-separated node
+ranges referencing the <em>parent's</em> node indices, or a sub-buffer rectangle). Since this repo
+contains zero examples (0 SubModels in the only real layout), the exact attribute grammar is
+pinned the same way F-E pins group layout modes: <strong>define one of each kind in the target
+xLights build, save, and commit the diff as a fixture</strong> before the parser merges. The parser
+must round-trip-preserve anything it doesn't understand — spec §1 says <em>preserve</em>, and the
+F-E writer never touches non-<code>SEM_</code> elements anyway.</p>
+<p><strong>Segment semantics</strong> follow the F-E pattern — a name-heuristic table, inherited
+context from the parent's role:</p>
+<pre><code>SUBMODEL_KIND = [
+    (("ring",),                       "RING"),     # tree rings (order = vertical)
+    (("zone", "band", "tier"),        "ZONE"),
+    (("half", "left", "right"),       "HALF"),
+    (("roof", "peak", "garage", "gutter", "eave", "ridge"), "SEGMENT"),
+    (("arm", "blade", "spoke"),       "ARM"),      # spinner arms
+    (("top", "topper", "star"),       "TOPPER"),
+]</code></pre>
+<p>Roles are <em>inherited</em>: a submodel of an OUTLINE model is an outline segment; a RING of a
+MEGA_TREE is a tree zone. Submodels never get independent roles in the §2 taxonomy — they refine
+their parent. Spatial derivation gives segments a left-to-right order (for SEGMENT/HALF kinds,
+by the mean x of their node subset once the parent's pixel geometry is known via
+<code>model_world_pixels()</code>) or a bottom-to-top order (RING/ZONE, by mean y or by
+<code>order_hint</code>). The manifest's <code>PropRecord.submodels</code> (already stubbed in the F-E
+schema as <code>submodels: list[str] = []</code>) upgrades to a list of records:
+<code>{"name", "kind", "nodes", "order"}</code> — a few hundred bytes for a typical layout, still
+within the §6 10 KB budget.</p>
+
+<h3>3.2 Targeting mechanics — the central investigation</h3>
+<p>Two candidate routes for getting an effect <em>onto</em> a submodel:</p>
+<table>
+<tr><th></th><th>Route A — direct element target</th><th>Route B — groups with submodel members (recommended)</th></tr>
+<tr><td>Mechanism</td><td><code>client.add_effect(target="Tree/Ring 1", ...)</code> — xLights' <code>addEffect</code> resolves <code>target</code> to a sequence element; whether it resolves submodel child elements (and under what name syntax) is <strong>unverified</strong>.</td><td>xLights model groups may contain submodels as members (<code>models="Tree/Ring 1,Tree/Ring 2"</code> in the <code>modelGroup</code> element — the group dialog's "show submodels" affordance). The group is then an ordinary top-level element.</td></tr>
+<tr><td>Client changes</td><td><code>place_preset</code>'s layout guard (<code>editing.py:83</code>) must learn submodel names — a new tolerant check (manifest lookup or a widened name set), plus whatever name syntax the API wants.</td><td><strong>None.</strong> The group's name appears in <code>get_group_names()</code>, flows through <code>targetable_groups()</code>, <code>place_preset</code>, the emitter, QA, and render-order untouched.</td></tr>
+<tr><td>Verification</td><td>New live probe logic; unknown failure modes (<code>XLightsTargetMissing</code>? silent <code>worked=false</code>?).</td><td>The <em>existing</em> empirical probe (<code>pipeline/groups.py::_probe</code>, line 75) answers it per layout, cached by fingerprint — the same "probing beats parsing" doctrine the roadmap endorses.</td></tr>
+<tr><td>Expressiveness</td><td>Per-submodel simultaneous distinct effects, arbitrary layering.</td><td>Equivalent, via <em>singleton</em> groups (one submodel per group) where independence is needed; ordered multi-member groups where traversal is needed.</td></tr>
+</table>
+<p><strong>Decision: Route B first.</strong> It reuses every proven mechanism (the probe, the write
+lock, the emitter's layer allocation, <code>canonical_order</code>), needs zero client changes, and
+its one unknown — "does xLights accept <code>addEffect</code> on a group whose members are
+submodels?" — is answered by the probe in one disposable-sequence pass on real hardware. Route A
+stays a recorded investigation (one live experiment: try <code>addEffect</code> with
+<code>Model/Submodel</code> and with the bare submodel name; log status codes) because if it works it
+saves group proliferation for one-off accents; it is not on the critical path.</p>
+
+<h3>3.3 SEM_ group extensions (planning verifiable today)</h3>
+<p><code>build_sem_groups()</code> grows a companion that emits submodel-membered groups, kept
+separate so layouts without submodels are byte-identical to today:</p>
+<pre><code># knowledge/layout_semantics.py  (proposed)
+def build_submodel_groups(props: list[Prop]) -&gt; dict[str, list[str]]:
+    """SEM_ groups whose members are 'Parent/SubModel' references.
+    Emitted only for kinds with a choreography contract:
+
+    SEM_OUTLINE_SEGMENTS      OUTLINE submodels of kind SEGMENT, left-to-right
+                              (spec §5.6, ordered, layout mode = ordered traversal)
+    SEM_TREE_ZONES            MEGA_TREE submodels of kind RING/ZONE, bottom-to-top
+    SEM_TREE_ZONE_&lt;i&gt;         singleton per zone (i = 1..N, bottom-up) — the
+                              drum-kit targets: distinct simultaneous effects
+    SEM_TREE_TOPPER           TOPPER submodels (the cymbal)
+    SEM_WINDOW_CELLS          WINDOW submodels — independent rhythm cells
+    """</code></pre>
+<p>Design points:</p>
+<ul>
+<li><strong>Ordering is the value.</strong> <code>SEM_OUTLINE_SEGMENTS</code> and
+<code>SEM_TREE_ZONES</code> follow the <code>_LTR</code> doctrine — member order = traversal order,
+group layout mode = the ordered mode F-E pins in its slice-3.1 spike — so a chase draws the house
+left-to-right and a riser climbs the tree, with direction reversal via effect parameters
+(spec §5.2: no <code>_RTL</code> variants).</li>
+<li><strong>Singletons make the drum kit.</strong> Placing kick/snare/cymbal <em>simultaneously</em> on
+different zones requires three independent targets; per-zone singleton groups deliver that through
+Route B without any per-submodel element support. Cost: a handful of extra groups (N zones +
+topper), all probe-verified, all excluded from ensemble beds.</li>
+<li><strong>Ensemble hygiene:</strong> submodel groups never join <code>SEM_ALL</code> or the band/side
+ensembles — their parents are already there; double membership would double-render. They slot
+into <code>canonical_order</code>'s <code>accent</code>/<code>rhythm</code> tiers
+(<code>layout_semantics.py:113-124</code>) so zone accents win overlaps against the parent's bed, the
+same occlusion contract the rest of the vocabulary relies on.</li>
+<li><strong>Manifest:</strong> each group lands in <code>groups</code> with
+<code>ordered</code>/<code>layout_mode</code>, exactly the §6 <code>GroupRecord</code> shape from F-E, so
+downstream consumers need no new schema.</li>
+</ul>
+
+<h3>3.4 Choreography hooks (design today, verify on hardware)</h3>
+<ul>
+<li><strong>Drum-kit mapping</strong> (<code>pipeline/beats.py</code>): extend
+<code>RhythmRoles</code> (line 252) with optional <code>zones: list[str]</code> (bottom-up singleton
+zone groups) and <code>topper: str | None</code>. In <code>place_beat_accents()</code> (line 296),
+when zones exist and the section's <code>follow_stem</code> is drums: downbeats → bottom zone,
+backbeat positions (<code>_backbeat_positions</code>, line 287) → mid zone, and the sparkle layer's
+strongest-hit selection retargets from <code>ACCENT_GROUPS</code> to the topper. First cut needs
+<em>no new audio analysis</em> — it maps beat-grid structure, not per-drum separation. A true
+kick/snare split (spectral band classification of drum-stem onsets) is a separate, optional
+analyzer follow-up; kept out of v1 deliberately.</li>
+<li><strong>Vertical build runs</strong> (<code>pipeline/weave.py</code>): the weave's directional
+sweeps (line 356–363 forces sweep cells onto the group buffer so motion traverses the group)
+work unchanged on <code>SEM_TREE_ZONES</code> — a chase-family cell with an "up" direction on an
+ordered bottom-to-top group <em>is</em> the riser. The only new logic: the direction vocabulary for
+zone groups maps up/down instead of left/right.</li>
+<li><strong>Outline draw</strong>: an intro-scene recipe (scene cookbook candidate) placing a
+single slow chase on <code>SEM_OUTLINE_SEGMENTS</code> — pure data once the group exists.</li>
+<li><strong>Director awareness</strong>: the F-E layout block gains one line per submodel-bearing
+prop ("MegaTree: 1600 nodes, 4 zones bottom-to-top + topper — zone-mapped drum accents
+available"), and <code>pulse_groups</code> can name zone groups like any other group. No schema
+change.</li>
+</ul>
+
+<h3>3.5 Offline rendering & QA (verifiable today)</h3>
+<p>Because a submodel is just a channel subset of its parent, the offline
+<code>PreviewRenderer</code> can validate all of this without hardware: parse the node ranges →
+parent node indices → absolute channels (<code>start_channel + 3*node</code>, as
+<code>render.py:43</code> computes) → synthesize frames lighting one zone/segment at a time → run
+the F-E sweep-centroid check vertically for <code>SEM_TREE_ZONES</code> (centroid <em>y</em> strictly
+increasing) and horizontally for <code>SEM_OUTLINE_SEGMENTS</code>. The F-E validator generalizes
+with one parameter (which axis). Coverage QA needs nothing: submodel-group effects light parent
+channels, which <code>make_lit_sampler</code> (<code>pipeline/visual.py:105</code>) already counts.</p>
+
+<h3>3.6 Alternative considered: Sub-Buffer zones</h3>
+<p>The layering guide (line 98) documents Sub-Buffer as zone-splitting "without making submodels".
+Rejected as the primary mechanism: it's a per-effect buffer rectangle (no named, reusable,
+ordered vocabulary; no group-canvas traversal across zones; invisible to the probe and the
+manifest). It remains useful as a per-placement escape hatch (e.g. "top half of the matrix"),
+possibly via <code>extra_settings</code>, but that's an independent feature.</p>
+
+<h2>4. Implementation plan</h2>
+<p>Minimal-first; phases 0–2 are buildable and testable in this repo today, 3–5 are gated on a
+submodel-bearing layout + live xLights.</p>
+<table>
+<tr><th>#</th><th>Phase</th><th>Contents</th><th>Verifiable</th></tr>
+<tr><td>0</td><td>Fixture + parser</td><td>Author submodels in the target xLights build once; commit the saved XML as <code>tests/fixtures/layout_submodels.xml</code> (tree with rings + topper, outline with segments, window cells, plus a sub-buffer-type submodel for the preserve-unknown path). Implement <code>SubModel</code> parsing + range expansion + kind/order heuristics in the F-E classifier.</td><td>Today (hermetic)</td></tr>
+<tr><td>1</td><td>Plan + manifest</td><td><code>build_submodel_groups()</code>; ordered/singleton emission rules; manifest <code>submodels</code> records + group records; F-E dry-run diff includes them; layouts with 0 submodels produce zero new groups (regression guard on the real-layout fixture).</td><td>Today (hermetic)</td></tr>
+<tr><td>2</td><td>Writer + offline validation</td><td>F-E's <code>write_sem_groups()</code> accepts <code>Parent/Sub</code> members unchanged (member strings are opaque to it); vertical/horizontal sweep validation over synthesized frames; behind an <code>--submodels</code> flag on <code>xlo init-layout</code> until phase 3 clears.</td><td>Today (hermetic + offline render)</td></tr>
+<tr><td>3</td><td>Live verification gate</td><td>On real hardware: (a) restart xLights, confirm submodel-membered SEM_ groups load; (b) run <code>targetable_groups()</code> — do they probe targetable? (c) the Route-A experiment (direct <code>addEffect</code> on <code>Model/Sub</code>), logged either way; (d) place one chase on <code>SEM_OUTLINE_SEGMENTS</code> and one riser on <code>SEM_TREE_ZONES</code>, export, human watch. Results recorded in the change's design doc; flag flips to default-on only if (a)+(b)+(d) pass.</td><td><strong>Hardware-blocked</strong></td></tr>
+<tr><td>4</td><td>Choreography</td><td><code>RhythmRoles.zones/topper</code> + drum-kit mapping in <code>place_beat_accents</code>; zone-direction weave sweeps; outline-draw intro recipe; Director layout-block line. Each lands separately, guarded by <code>if zones</code> so submodel-less layouts are untouched.</td><td>Logic today; perceptual on hardware</td></tr>
+<tr><td>5</td><td>Optional follow-ups</td><td>Kick/snare spectral split of drum-stem onsets; Route-A direct targeting if the phase-3 experiment succeeded; Sub-Buffer escape hatch; vendor-naming import mappings (sequencing guide line 223).</td><td>Deferred</td></tr>
+</table>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Hermetic (repo convention, no xLights/LLM):</strong>
+<ul>
+<li>Parser: fixture round-trip — names, ranges ("1-50,101-150" → 100 nodes), kinds, order
+hints; unknown submodel types preserved untouched; a model with zero submodels yields
+<code>[]</code>.</li>
+<li>Ordering: ring order from <code>order_hint</code> vs from mean-y geometry agree on the fixture;
+segment LTR order matches world-x; inverted-x flips it (shares F-E's <code>invert_x</code> tests).</li>
+<li>Group plan: exact expected group set on the submodel fixture; <em>empty delta</em> on the real
+0-submodel layout (the conditionality guard, asserted forever); singletons exclude ensemble
+membership; <code>canonical_order</code> tier placement.</li>
+<li>Manifest: records serialize/load; size budget holds.</li>
+<li>Choreography: <code>select_rhythm_groups</code> with zones present maps downbeat/backbeat/sparkle
+to bottom/mid/topper; without zones, byte-identical output to today (golden pipeline snapshot
+unchanged).</li>
+<li>Offline validation: synthesized zone frames pass the vertical centroid check; a deliberately
+misordered group fails it.</li>
+</ul></li>
+<li><strong>Live (opt-in <code>-m live</code>, hardware-blocked):</strong> the phase-3 gate as a test
+module — group load, probe targetability, Route-A experiment (xfail-tolerated, result logged),
+one placed sweep per new group kind. Perceptual confirmation (does the riser <em>read</em> as
+climbing) stays a human watch, per the repo's live-verify convention.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>No submodel-bearing layout exists to verify against (the defining condition)</td><td>Design drifts from reality; dead code ships</td><td>Phases 0–2 only, behind a flag, exercised purely by fixtures; phase 3 is an explicit gate before anything defaults on; the 0-submodel no-op is a permanent regression test.</td></tr>
+<tr><td>xLights rejects submodel members in groups, or renders them unpredictably (echoes the group-of-group caution in spec §5.6)</td><td>Route B collapses</td><td>The empirical probe answers it cheaply per layout before any show depends on it; fallback是 Route A if the phase-3 experiment passed, else Sub-Buffer for the narrow cases; nothing downstream assumes success (all hooks are <code>if zones</code>-guarded).</td></tr>
+<tr><td>Submodel XML grammar mis-parsed (ranges vs sub-buffer vs future types)</td><td>Wrong channels lit; corrupted preserve-round-trip</td><td>Fixture authored by real xLights, not hand-written; unknown types preserved verbatim and excluded from planning (listed in the manifest <code>review</code>); offline channel-subset validation catches range math errors deterministically.</td></tr>
+<tr><td>Group proliferation (N singleton zones × props)</td><td>Probe time, sequencer clutter, prompt bloat</td><td>Emit singletons only for kinds with a consumer (tree zones, topper); cap zones folded into planning (e.g. merge &gt;6 rings into 3–4 zones); Director block summarizes ("4 zones") instead of listing groups.</td></tr>
+<tr><td>Double-rendering: zone effect + parent-model effect overlap</td><td>Muddy blends, occluded beds</td><td>Same overlap doctrine as today: render order via <code>canonical_order</code> tiers decides winners; zone accents ride the accent tier; QA rule #4 merging already treats same-window gestures as one event.</td></tr>
+<tr><td>Vendor naming diversity defeats the kind heuristics</td><td>Segments unclassified → no ordered groups</td><td>Same escape as F-E: low-confidence kinds → review queue + per-layout overrides file; geometry-based ordering works even when names don't.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<p><strong>Verifiable today (phases 0–2):</strong></p>
+<ul>
+<li>☐ The classifier parses <code>&lt;subModel&gt;</code> children from the authored fixture into
+<code>SubModel</code> records (names, expanded node counts, kinds, order) and preserves unknown
+submodel types untouched.</li>
+<li>☐ <code>build_submodel_groups()</code> emits <code>SEM_OUTLINE_SEGMENTS</code> (LTR),
+<code>SEM_TREE_ZONES</code> (bottom-up), per-zone singletons, and <code>SEM_TREE_TOPPER</code> on the
+fixture — and emits <em>nothing</em> on the current real layout (0 submodels → zero behavior
+change, asserted by test).</li>
+<li>☐ The manifest carries submodel records and submodel-group records within the 10 KB
+budget.</li>
+<li>☐ Offline validation lights each zone/segment via its channel subset and the
+axis-appropriate centroid check passes (and fails on a shuffled order).</li>
+<li>☐ <code>xlo init-layout --submodels --dry-run</code> shows the planned groups in the diff.</li>
+<li>☐ Golden pipeline snapshot unchanged; <code>select_rhythm_groups</code> without zones is
+byte-identical to today.</li>
+</ul>
+<p><strong>Hardware-blocked (phase 3+ — required before default-on):</strong></p>
+<ul>
+<li>☐ Submodel-membered SEM_ groups load in xLights after restart and pass the
+<code>targetable_groups()</code> probe.</li>
+<li>☐ The Route-A direct-target experiment is run once and its result recorded in the change
+docs.</li>
+<li>☐ A chase on <code>SEM_OUTLINE_SEGMENTS</code> traverses left-to-right and a riser on
+<code>SEM_TREE_ZONES</code> climbs, confirmed by a real render + human watch.</li>
+<li>☐ Drum-kit mapping places zone-differentiated accents in a drums-prominent section on a
+real layout.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ol>
+<li><strong>Member name syntax</strong> — the exact <code>models=</code> string for a submodel member
+(<code>Parent/Sub</code> is the expected convention; pinned by the phase-0 fixture, like F-E's
+layout-mode strings).</li>
+<li><strong>Does <code>getModels</code> ever list submodels?</strong> If a future xLights exposes
+them, <code>place_preset</code>'s guard passes for free and Route A becomes testable without client
+changes — worth re-checking per version bump.</li>
+<li><strong>Zone granularity policy</strong> — merge many rings into 3–4 zones (readable at
+distance, fewer groups) vs faithful per-ring groups? Leaning merge, with the ring→zone map
+recorded in the manifest.</li>
+<li><strong>Kick/snare separation</strong> — is beat-position mapping (downbeat/backbeat) good
+enough for the drum-kit illusion, or does the spectral split of drum-stem onsets earn its
+analyzer complexity? Decide after watching phase-4 output on hardware.</li>
+<li><strong>Vendor submodel import</strong> — adopting vendor-compatible naming (sequencing guide
+lines 223, 263) so purchased HD props classify cleanly: a heuristic-table growth path or an
+import-mapping file?</li>
+<li><strong>Should this user add submodels?</strong> The layering guide (line 272) argues yes for
+the mega tree/spinners; if so, F-F's phase 3 unblocks on the current display and the
+"conditional" label falls away — a cheap way to de-risk the whole item.</li>
+</ol>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> — F-F (lines 260–261) and the Horizon 3
+prop-grouping assessment it inherits; <code>docs/roadmap-2026-06.md</code> F4;
+<code>docs/craft-roadmap.md</code> item 9 + grounding line 11 ("0 SubModels → DEFERRED").</li>
+<li>The spec: <code>xlights-layout-semantics-spec.md</code> §1 (preserve <code>&lt;subModel&gt;</code>
+children), §5.6 (<code>SEM_OUTLINE_SEGMENTS</code>), §5.2 (ordered-group doctrine), §6 (manifest
+shapes reused).</li>
+<li>Companion design: <a href="f-e-init-layout.html">F-E — <code>xlo init-layout</code></a>
+(classifier seams, group writer, manifest schema, validation machinery this item extends).</li>
+<li>Guides: <code>xlights-sequencing-guide.md</code> lines 179, 198, 223, 263, 289;
+<code>xlights-layering-rendering-guide.md</code> lines 98 (Sub-Buffer), 144, 272;
+<code>xlights-effects-catalog.md</code> lines 168, 304.</li>
+<li>Code: <code>packages/xlights-core/src/xlights_core/knowledge/layout_semantics.py</code>
+(<code>Prop</code>, <code>build_sem_groups</code>, <code>canonical_order</code>);
+<code>xlights_core/editing.py</code> (<code>place_preset</code> guard, lines 83–84);
+<code>xlights_core/client.py</code> (<code>get_models</code> line 147, <code>add_effect</code> line 223);
+<code>xlights_core/preview/layout.py</code>/<code>render.py</code> (channel math);
+<code>pipeline/groups.py</code> (the probe); <code>pipeline/beats.py</code>
+(<code>RhythmRoles</code> line 252, <code>select_rhythm_groups</code> line 260,
+<code>_backbeat_positions</code> line 287); <code>pipeline/weave.py</code> (sweep forcing,
+lines 356–363); <code>pipeline/visual.py</code> (<code>make_lit_sampler</code> line 105).</li>
+<li>Prior OpenSpec change: <code>openspec/changes/archive/2026-06-10-add-layout-semantics/</code>
+(submodel segments listed as an explicit non-goal — the deferral this item ends).</li>
+</ul>
+</body>
+</html>

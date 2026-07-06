@@ -19,6 +19,7 @@ from ..show_plan import EffectInstruction
 from .beats import _downsample, effect_palette
 from .features import STEM_EFFECT, instrument_entrances
 from .semantic_groups import ACCENT_GROUPS, HERO_GROUP, RHYTHM_POOL, WHOLE_HOUSE_GROUPS
+from .tuning import PEAK_BAND, PEAK_FLOOR
 
 log = logging.getLogger(__name__)
 
@@ -204,9 +205,10 @@ def _eligible_sections(spec: TriggerSpec, sa, sections) -> list[int]:
     if spec.sections == "any":
         elig = list(range(n))
     elif spec.sections == "peak":
+        # same definition as beats.peak_sections — the tuning dials, not local copies
         peak = max((getattr(s, "intensity", 0.0) or 0.0 for s in sections), default=0.0)
         elig = [i for i, s in enumerate(sections)
-                if peak >= 0.66 and (getattr(s, "intensity", 0.0) or 0.0) >= peak - 0.12]
+                if peak >= PEAK_FLOOR and (getattr(s, "intensity", 0.0) or 0.0) >= peak - PEAK_BAND]
     elif spec.sections in ("drum_prominent", "sparse_beat", "stem_prominent"):
         # which stem must be prominent: the chosen stem for stem_prominent, else drums.
         stem = (spec.stem or "drums") if spec.sections == "stem_prominent" else "drums"

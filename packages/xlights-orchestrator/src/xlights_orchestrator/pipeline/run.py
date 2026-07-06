@@ -19,7 +19,6 @@ from xlights_core.audio import AudioAnalyzer, SongAnalysis
 import logging
 
 from .. import qa as qa_pkg
-from ..qa.rules import clamp_hard_caps
 from ..agents import director as director_mod
 from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
@@ -44,39 +43,15 @@ from ..brief_schema import write_editable_brief
 from ..agents.guide_extracts import scene_ids as _scene_ids
 from xlights_core.knowledge.colors import NAMED_COLORS
 from ..song_description import render_description
-from xlights_core.knowledge.value_curves import brightness_ramp, brightness_setting
 
-from .beats import (
-    effective_intensity,
-    place_beat_accents,
-    section_rhythm,
-    feature_prop_contrast,
-    effect_palette,
-    effect_speed_setting,
-    ensemble_bed,
-    normalize_durations,
-    peak_fill,
-    peak_sections,
-    section_is_rhythmic,
-    trim_coverage,
-    wash_brightness,
-)
+from .beats import feature_prop_contrast
 from .groups import targetable_groups
-from .weave import (
-    canon_effect_type,
-    carrier_covers,
-    diversify_carrier,
-    expand_weave,
-    fallback_weave,
-    section_carrier,
-)
 from .media import prepare_media
 from .state import State
 from .visual import RealRender, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
-from .generate import generate_instructions, song_end_fade
+from .generate import finalize_effects, generate_instructions, realize_section
 from .finalize import finalize_sequence
-from .meter import resolve_beats_per_bar
 
 log = logging.getLogger(__name__)
 
@@ -147,59 +122,13 @@ async def _final_approval(st: State) -> bool:
 
 
 async def regenerate_section(st: State, rev, *, gen_agent) -> list[EffectInstruction]:
-    """Realize ONE section's instructions from a RevisionBrief — the deterministic per-section
-    pipeline (coverage, palette/brightness/speed, bed/peak-fill, carrier-rotated weave, beat
-    accents, feature contrast), with section structure pinned. Shared by the automatic refine loop
-    and the manual `xlo regen` command so both realize a section identically."""
-    section = st.show_plan.sections[rev.section_index]
-    motifs = {g: st.show_plan.group_motifs[g]
-              for g in section.target_groups if g in st.show_plan.group_motifs}
-    out = (await gen_agent.run(generator_mod.render_input(
-        section, revision=rev, concept=st.show_plan.concept, motifs=motifs))).output
-    _rm = st.music_brief.repetition_map if st.music_brief else None
-    _si = effective_intensity(getattr(section, "intensity", 0.5), rev.section_index, _rm)
-    _rhythm = section_rhythm(st.song_analysis, section,
-                             resolve_beats_per_bar(st.song_analysis, st.music_brief))
-    instrs = trim_coverage(list(out.instructions), _si)   # energy-gated coverage on regen too
-    for ins in instrs:
-        ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
-    instrs = normalize_durations(instrs, _rhythm)
-    wash_b = wash_brightness(_si)
-    for j, ins in enumerate(instrs):
-        if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
-            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
-        if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:
-            ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
-        else:
-            ins.extra_settings.update(brightness_setting(wash_b))
-        ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
-    _is_peak = rev.section_index in peak_sections(st.show_plan)   # payoff section?
-    bed = (peak_fill(section, _si, st.available_groups, instrs) if _is_peak
-           else ensemble_bed(section, _si, st.available_groups, {k.target for k in instrs}))
-    if bed is not None:
-        bed.section_index = rev.section_index
-        instrs.append(bed)
-    _carrier = section_carrier(rev.section_index)        # keep carrier rotation on regen too
-    weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
-                                                             carrier=_carrier)
-    diversify_carrier(weave_obj, _carrier)
-    woven = expand_weave(section, weave_obj, _rhythm, _si, st.available_groups,
-                         based_targets={k.target for k in instrs})   # cells blend over washes
-    for ins in woven:
-        ins.section_index = rev.section_index
-    instrs += woven                                  # the cell fabric on regen too
-    clamp_hard_caps(instrs, getattr(st.song_analysis, "tempo_overall", None))
-    accents = place_beat_accents(            # beat layer on regen too — only if the brief is rhythmic
-        section, _rhythm, st.available_groups,
-        carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
-        if section_is_rhythmic(section) else []
-    under = {k.target for k in instrs}
-    for ins in accents:
-        ins.section_index = rev.section_index
-        if ins.target in under:                      # a pulse ADDS over its base, not occludes
-            ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
-    instrs += accents
-    feature_prop_contrast(instrs, section)           # featured sparkle/snow props pop (white-on-bed)
+    """Realize ONE section's instructions from a RevisionBrief via the SAME per-section
+    pipeline first-pass generation uses (`generate.realize_section`), with section structure
+    pinned. Shared by the automatic refine loop and the manual `xlo regen` command. Callers
+    splice the result in with `replace_section` and then run `finalize_effects` over the
+    full list (occlusion guard, sub-frame stretch, tail fade are whole-list passes)."""
+    instrs = await realize_section(st, rev.section_index, agent=gen_agent, revision=rev)
+    feature_prop_contrast(instrs, st.show_plan.sections[rev.section_index])
     return instrs
 
 
@@ -337,13 +266,21 @@ async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
             st.instructions = replace_section(st.instructions, si, await _regen(rev))
             ledger.append(rev)
         st.instructions, _ = clamp_layer_budget(st.instructions)      # rule #10 on regen too
-        st.instructions = song_end_fade(st, st.instructions)          # re-stop/fade the tail after regen
+        # occlusion guard + sub-frame stretch + tail fade on the spliced list — a regenerated
+        # section must not reintroduce an opaque wash (the 2:15 bug) or sub-frame slivers
+        st.instructions = finalize_effects(st, st.instructions)
         await client.close_sequence(force=True, quiet=True)
         st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
         obj = await _obj(st.applied)
         reverted = obj < best_obj - REGRESS_MARGIN
         if reverted:                                      # objective REGRESSION → revert it
-            st.instructions, st.applied, open_is_best = list(best), best_applied, False
+            st.instructions, st.applied = list(best), best_applied
+            # Re-emit the reverted best NOW: the open xLights sequence otherwise keeps
+            # the regressed effects, and the next iteration's report/sampler/critic
+            # would measure (and the Judge would see) the render we just discarded.
+            await client.close_sequence(force=True, quiet=True)
+            st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
+            best_applied, open_is_best = st.applied, True
             stall += 1                                    # repeated regressions → stall stop
         else:                                             # gain OR held-objective → keep the revision
             gained = obj > best_obj + REGRESS_MARGIN      # (a creative change that holds sync/placement

@@ -1,5 +1,8 @@
 # Roadmap — June 2026: state, refactoring & new features
 
+> **Superseded by [`roadmap-2026-07.md`](roadmap-2026-07.md)**, which carries a scorecard of what
+> shipped from this document and the current improvement/feature plan.
+
 A forward-looking assessment of the orchestrator after the first ~56 OpenSpec changes.
 Companion to [`craft-roadmap.md`](craft-roadmap.md) (which is now ~85% delivered).
 

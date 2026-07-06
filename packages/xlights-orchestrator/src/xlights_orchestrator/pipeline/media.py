@@ -8,6 +8,7 @@ and attach THAT path. See [[xlights-automation-quirks]].
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 from pathlib import Path
@@ -52,12 +53,18 @@ def prepare_media(song_path: str | Path, show_folder: str | Path | None) -> Path
         return None
 
 
+def resolve_artifact(basename: str, show_folder: str | Path | None) -> Path | None:
+    """Find a saved artifact (e.g. `x.xsq`, `x.fseq`) — the sandbox container Data dir
+    first, then the show folder."""
+    for d in (SANDBOX_DATA, Path(show_folder) if show_folder else None):
+        if d and (d / basename).exists():
+            return d / basename
+    return None
+
+
 def resolve_xsq(save_as: str, show_folder: str | Path | None) -> Path | None:
     """Find the saved `.xsq` — the sandbox container Data dir first, then the show folder."""
-    for d in (SANDBOX_DATA, Path(show_folder) if show_folder else None):
-        if d and (d / f"{save_as}.xsq").exists():
-            return d / f"{save_as}.xsq"
-    return None
+    return resolve_artifact(f"{save_as}.xsq", show_folder)
 
 
 def patch_xsq_media(xsq_path: str | Path, media_path: str | Path, duration_s: float) -> bool:
@@ -85,7 +92,11 @@ def patch_xsq_media(xsq_path: str | Path, media_path: str | Path, duration_s: fl
         _set("sequenceType", "Media")
         _set("mediaFile", str(media_path))
         _set("sequenceDuration", f"{float(duration_s):.3f}")
-        tree.write(xsq_path, encoding="UTF-8", xml_declaration=True)
+        # Atomic replace (like timing.patch_xsq_timing_tracks): a mid-write failure
+        # must not corrupt the sequence file.
+        tmp = xsq_path.with_suffix(xsq_path.suffix + ".tmp")
+        tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+        os.replace(tmp, xsq_path)
         return True
     except Exception as exc:  # noqa: BLE001 — best-effort; leave the animation .xsq intact
         log.warning("xsq patch failed for %s: %s", xsq_path, exc)

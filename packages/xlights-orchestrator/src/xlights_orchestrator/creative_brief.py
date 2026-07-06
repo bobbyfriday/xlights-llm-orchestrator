@@ -6,12 +6,9 @@ grounded direction (palette, group motifs, per-section direction, key moments).
 
 from __future__ import annotations
 
+from ._fmt import mmss
 from .show_plan import ShowPlan
 
-
-def _mmss(ms: int) -> str:
-    s = max(0, int(ms)) // 1000
-    return f"{s // 60}:{s % 60:02d}"
 
 
 def render_creative_brief(plan: ShowPlan) -> str:
@@ -33,7 +30,7 @@ def render_creative_brief(plan: ShowPlan) -> str:
 
     L.append("\n## Sections\n")
     for i, s in enumerate(plan.sections):
-        L.append(f"\n### {i}. {_mmss(s.start_ms)}–{_mmss(s.end_ms)} · intensity {s.intensity:.2f}\n")
+        L.append(f"\n### {i}. {mmss(s.start_ms)}–{mmss(s.end_ms)} · intensity {s.intensity:.2f}\n")
         if s.look:
             L.append(f"*{s.look}*\n")                                     # plain "what you see"
         if s.scene_id:
@@ -54,5 +51,5 @@ def render_creative_brief(plan: ShowPlan) -> str:
     if plan.key_moments:
         L.append("\n## Key moments\n")
         for k in plan.key_moments:
-            L.append(f"- **{_mmss(k.at_ms)}** ({k.kind}) — {k.treatment}\n")
+            L.append(f"- **{mmss(k.at_ms)}** ({k.kind}) — {k.treatment}\n")
     return "".join(L)

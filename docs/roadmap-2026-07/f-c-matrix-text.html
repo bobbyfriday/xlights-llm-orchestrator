@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F-C — Matrix narrative Text · xLights LLM Orchestrator roadmap</title>
+<style>
+:root { --fg:#1a1a1a; --bg:#ffffff; --muted:#57606a; --accent:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --bg:#0d1117; --muted:#8b949e; --accent:#58a6ff; --border:#30363d; --code-bg:#161b22; } }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); max-width:900px; margin:0 auto; padding:2rem 1.5rem 4rem; line-height:1.6; }
+h1,h2,h3 { line-height:1.25; } h1 { border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); border-radius:6px; }
+code { padding:.15em .35em; font-size:.9em; } pre { padding:1rem; overflow-x:auto; } pre code { padding:0; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; } th,td { border:1px solid var(--border); padding:.4rem .6rem; text-align:left; vertical-align:top; }
+th { background:var(--code-bg); }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+.meta { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:.75rem 1rem; margin:1rem 0; }
+.meta dl { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; margin:0; } .meta dt { font-weight:600; } .meta dd { margin:0; }
+blockquote { border-left:4px solid var(--border); margin:1rem 0; padding:.25rem 1rem; color:var(--muted); }
+.crumb { color:var(--muted); font-size:.9rem; margin-bottom:1.5rem; }
+</style>
+</head>
+<body>
+<p class="crumb"><a href="index.html">← Roadmap detail index</a> · xLights LLM Orchestrator</p>
+<h1>F-C — Matrix narrative Text</h1>
+<div class="meta"><dl>
+<dt>Roadmap item</dt><dd>F-C (Horizon 2 — "Highest visible payoff per unit work") in <code>docs/roadmap-2026-07.md</code></dd>
+<dt>Complexity</dt><dd>M (per roadmap)</dd>
+<dt>Depends on</dt><dd><a href="f-b-asset-bound-placement.html">F-B Asset-bound placement path</a> (the direct-settings route; Text has no mined <code>Look</code>)</dd>
+<dt>Unblocks</dt><dd>Closes craft-roadmap item 8 (<code>matrix-narrative-text</code>) and the text half of item 7; establishes the "matrix as storyteller" pattern F-D's face work sits beside</dd>
+<dt>Key files</dt><dd><code>packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/generate.py</code>, <code>show_plan.py</code>, <code>music_brief.py</code>, <code>pipeline/semantic_groups.py</code>, <code>xlights_core/knowledge/layout_semantics.py</code>, <code>xlights_core/audio/lyrics_align.py</code>, <code>pipeline/timing.py</code>/<code>finalize.py</code>; proposed new <code>pipeline/matrix_text.py</code>; F-B's <code>knowledge/direct_settings.py</code></dd>
+</dl></div>
+
+<h2>1. Why</h2>
+<p>The effects catalog and scene cookbook both name the matrix's real job — "the matrix is the storyteller"
+(<code>xlights-scene-cookbook.md</code> SC-08, citing Vol 3 §6) — and the craft roadmap's item 8 scopes the achievable slice:
+<em>"generate Text effects on the matrix (section labels, lyric phrases, song title) — achievable with stock effects + no
+assets."</em> Today the pipeline generates zero narrative content. The matrix (a real model in this layout —
+<code>tests/fixtures/getModels.json</code> lists <code>"Matrix"</code> alongside Arches / Mega Tree / House Outline) is treated as
+just another focal canvas: it gets washes, weave cells, the hero onset layer, and peak composite stacks via
+<code>SEM_FOCAL</code>, but never a single word — even when the brief has already picked out the song's featured lyric lines
+with timestamps and reasons (<code>MusicBrief.featured_lyric_moments</code>, <code>music_brief.py:65</code>).</p>
+<p>The payoff-to-effort ratio is the best on the board (roadmap: "Highest visible payoff per unit work"): the lyric timing
+track already exists, the brief already contains curated lyric moments and the song's identity, the Text effect is stock and
+asset-free, and F-B provides the placement route. What's missing is one deterministic pass and a fistful of taste rules about
+<em>when text should not appear</em>.</p>
+
+<h2>2. Current state</h2>
+<h3>2.1 The matrix in the layout and the group vocabulary</h3>
+<p>The layout-semantics spec classifies matrices as role <code>MATRIX</code> ("2D pixel surface capable of images/text",
+capability class <code>2D_SURFACE</code>: "Supports pictures, text, video, shader-style effects" —
+<code>xlights-layout-semantics-spec.md</code> §2). Two consequences in code:</p>
+<ul>
+<li><strong>No dedicated SEM_ group.</strong> Spec §5: "Single-instance roles (<code>MEGA_TREE</code>, <code>MATRIX</code>,
+<code>STAR</code>, <code>SIGN</code>) do not need a group; the planner addresses the model directly." Accordingly
+<code>layout_semantics._ROLE_GROUP</code> (line 43) has no MATRIX entry, and <code>pipeline/semantic_groups.py</code> has no
+matrix constant.</li>
+<li><strong>It is focal.</strong> Spec §4 step 6 marks <code>MATRIX</code> props <code>focal: true</code>, so it lands in
+<code>SEM_FOCAL</code> (<code>build_sem_groups</code>, <code>layout_semantics.py:75</code>), and the render-order tiers treat any
+name containing "matrix" as the focal tier (<code>_ORDER_TIERS</code>, <code>layout_semantics.py:122</code>:
+<code>lambda n: n == "SEM_FOCAL" or "matrix" in n.lower()</code>) — rendered late, i.e. <em>winning overlaps</em>.</li>
+</ul>
+<p>Targeting the model directly is legal end-to-end: <code>place_preset</code>'s only target check is membership in
+<code>await client.get_models()</code> (<code>editing.py:83</code>), which includes plain models, and the emitter passes any
+<code>EffectInstruction.target</code> through. The one caveat: <code>State.available_groups</code> comes from
+<code>targetable_groups()</code> (<code>pipeline/groups.py</code>), which probes <em>groups</em> — the pass must resolve the
+matrix model name separately (see §3.2).</p>
+
+<h3>2.2 What already targets the matrix (the collision surface)</h3>
+<p>Because the matrix rides <code>SEM_FOCAL</code>, three existing layers can be live on it at any moment
+(<code>generate.realize_section</code>):</p>
+<ul>
+<li>the <strong>hero onset layer</strong> — the melodic lead's onsets on <code>HERO_GROUP = SEM_FOCAL</code>
+(<code>beats.place_beat_accents</code>, <code>semantic_groups.py:28</code>);</li>
+<li>the <strong>peak composite stack</strong> — <code>curated_composite(_PEAK_COMPOSITES[...], [HERO_GROUP])</code> on peak
+sections (<code>generate.py:196–199</code>), 2 blended layers of Morph/Galaxy/etc.;</li>
+<li>whatever <strong>washes/weave cells</strong> the Generator aims at <code>SEM_FOCAL</code> per the brief.</li>
+</ul>
+<p>Any Text design that ignores this puts glyphs behind (or under) a kaleidoscope. §3.5 addresses it.</p>
+
+<h3>2.3 Content sources that already exist</h3>
+<pre><code># music_brief.py:44–48, 65
+class FeaturedLyricMoment(BaseModel):
+    line: str
+    start_ms: int
+    end_ms: int
+    why: str = ""            # why this line is worth featuring
+...
+featured_lyric_moments: list[FeaturedLyricMoment] = []</code></pre>
+<ul>
+<li><code>MusicBrief.identity.title</code> / <code>.artist</code> (<code>music_brief.py:30–31</code>) — the song title.</li>
+<li><code>LabeledSection.label</code> (intro/verse/chorus/…) — section labels, though see §3.3 for why these are the
+<em>weakest</em> content source.</li>
+<li><code>ShowPlan.key_moments</code> — <code>KeyMoment.kind</code> already documents a <code>"lyric"</code> kind
+(<code>show_plan.py:22</code>: <code># accent | climax | lyric</code>) and the Director prompt explicitly asks for
+"<code>key_moments</code> (accents/climax/featured lyrics → deliberate punctuation at their times)"
+(<code>director.py:38</code>) — but <code>KeyMoment</code> has no text payload field, and nothing downstream consumes lyric-kind
+moments beyond the white flash filter (<code>beats.key_moment_flashes</code> matches only climax/accent/drop/hit kinds).</li>
+<li>Word-level timing exists when lyrics aligned: <code>lyrics_align._match_lines</code> persists per-word
+<code>{word,start,end}</code> spans (<code>lyrics_align.py:80–83</code>), already consumed by the <code>lyric_color</code> trigger
+(<code>pipeline/triggers.py:155–166</code>). Line-level timing feeds the "Lyrics" reference timing track
+(<code>timing.py:123–127</code>) that F-C's phrases can cross-check against.</li>
+</ul>
+
+<h3>2.4 Text effect ground truth from the guides</h3>
+<blockquote><p><code>xlights-effects-catalog.md</code> §8 — Text: "Static or scrolling text rendering with font/size/movement
+controls. … Needs pixel density — minimum ~10–12 px of height for legible characters; test at distance. Group canvases spanning
+mismatched props mangle glyphs; keep Text on a single matrix or a carefully built group. Best on: Matrix only (practically)."
+Catalog rule (§9 #2): "Never place media effects (Text, Pictures, Video) on canvases under ~50px of resolution."</p></blockquote>
+<blockquote><p><code>xlights-scene-cookbook.md</code> SC — Masked Texture Reveal (lines 170–182): Text with "1 is Mask" over
+Bars/Plasma = "texture shows only inside glyphs … premium production value at near-zero render cost." Failure modes: "text too
+small for canvas density; busy effects behind small glyphs destroy legibility — bars beat plasma for thin fonts."</p></blockquote>
+<p>And Text is absent from the mined catalog (<code>presets/looks.json</code> has no <code>Text</code> key), so placement is
+impossible today — the F-B dependency.</p>
+
+<h2>3. Proposed design</h2>
+<h3>3.1 Shape: a deterministic pass, LLM judgment upstream</h3>
+<p>New <code>pipeline/matrix_text.py</code> with one entry point, run inside <code>generate_instructions</code> after the
+per-section loop (beside <code>place_triggers</code>/<code>key_moment_flashes</code>, <code>generate.py:256–258</code>):</p>
+<pre><code># PROPOSED
+def place_matrix_text(st: State, matrix: str) -&gt; list[EffectInstruction]:
+    """Text moments on the matrix: song title at the intro, featured lyric phrases
+    at their aligned times, an optional outro sign-off. Deterministic; content and
+    times come from the brief (LLM judgment already spent there). Instructions
+    carry direct_settings (F-B) and the OWNING section's section_index."""</code></pre>
+<p><strong>Decision: deterministic pass, not a new Director field — recommended after weighing both.</strong></p>
+<table>
+<tr><th>Option</th><th>For</th><th>Against</th></tr>
+<tr><td>A. Director chooses via a new <code>SectionPlan</code>/<code>KeyMoment</code> field (e.g. <code>KeyMoment.text</code>)</td>
+<td>Matches "LLM chooses intent"; the Director could phrase-pick creatively (a word, not a line)</td>
+<td>Schema churn + prompt churn + cached-brief invalidation for judgment that is <em>already in the brief</em>: the panel's lyric analyst curated <code>featured_lyric_moments</code> with timestamps and a <code>why</code>. Asking the Director again duplicates a decision and adds a hallucination surface (text not in the song).</td></tr>
+<tr><td>B. Deterministic pass over existing brief fields</td>
+<td>Zero schema change; content is grounded by construction (only strings that exist in <code>featured_lyric_moments</code>/<code>identity</code> can appear); testable as a pure function; consistent with the codebase's judgment-vs-realization split (the same reasoning as design decision 6 in improve-musicality: "no new Director round-trips … deterministic post-pass")</td>
+<td>Can't invent a clever caption; section labels as text would be literal ("VERSE 2") — mitigated by simply not using them (§3.3)</td></tr>
+</table>
+<p><strong>Recommendation: Option B now</strong>, with a forward-compatible escape hatch: if a <code>KeyMoment</code> of kind
+<code>"lyric"</code> ever gains a <code>text</code> field (one defaulted string — cheap to add later), the pass prefers it over
+its own selection. That keeps the door open for Director-chosen captions without blocking on prompt work.</p>
+
+<h3>3.2 Resolving the matrix target</h3>
+<pre><code># PROPOSED (matrix_text.py)
+def find_matrix(model_names: list[str]) -&gt; str | None:
+    """The single narrative canvas: a model whose name contains 'matrix'
+    (case-insensitive), mirroring layout_semantics._ORDER_TIERS' focal test.
+    None → the whole pass no-ops (layouts without a matrix skip F-C entirely)."""</code></pre>
+<p>The pass needs model names, not group names: add a best-effort fetch beside the existing
+<code>targetable_groups</code> call in <code>run_pipeline</code> (<code>run.py:386</code>) — <code>st.model_names =
+await client.get_model_names()</code> wrapped in the usual <code>except Exception</code> posture — or pipe it through
+<code>State</code>. Never place Text on <code>SEM_FOCAL</code> (a group canvas spanning matrix + mega tree would "mangle
+glyphs" per the catalog). Longer-term this is exactly the manifest gap roadmap F-E fixes (spec §6's
+<code>has_matrix</code>/node-count data); until then the name heuristic matches the one already shipped in
+<code>canonical_order</code>.</p>
+
+<h3>3.3 Content selection: when text appears — and when it must not</h3>
+<p>Doctrine: <strong>do not caption the song.</strong> A matrix that talks all night is a chyron, not a showpiece; text is
+punctuation, like the white climax flash. Rules, in priority order, with an overall cap:</p>
+<ol>
+<li><strong>Title card</strong> — <code>identity.title</code> (+ artist if it fits) once, in the intro section, static or slow
+scroll, ending ≥ 1 bar before the first downbeat-anchored section boundary. Skip if the intro is shorter than 8&nbsp;s or the
+title is empty.</li>
+<li><strong>Featured lyric phrases</strong> — each <code>FeaturedLyricMoment</code> whose span can be cross-checked against the
+aligned lyric lines (<code>sa.lyrics["lines"]</code>): snap the Text span to the matched line's <code>start/end</code> when a
+fuzzy match exists; if the brief's moment matches no aligned line, <em>drop it</em> (never show text at a guessed time). Cap:
+at most <code>MAX_TEXT_MOMENTS = 4</code> lyric phrases per show, minimum <code>TEXT_SPACING_MS = 20_000</code> apart, at most
+one per section, none inside the peak section (the peak belongs to the composite payoff — text would compete with the biggest
+gesture).</li>
+<li><strong>Outro sign-off</strong> (optional, config-gated): a short "Merry Christmas"-class message only if the brief's
+<code>key_moments</code> contain a lyric-kind moment in the final section; otherwise nothing. v1 may ship without this.</li>
+</ol>
+<p>Explicit <strong>non-sources</strong>: section labels ("CHORUS") — literal scaffolding, never audience-facing; full lyric
+captioning — out of scope by doctrine; anything not present verbatim in the brief/analysis — grounding rule, mirroring the
+Director prompt's "do NOT invent lyrics."</p>
+<p><strong>Instrumental behavior:</strong> with no <code>featured_lyric_moments</code> and no aligned lines, only the title card
+survives — acceptable and desirable (the roadmap's instrumental flag in <code>director.render_input</code>,
+<code>director.py:24</code>, is the same signal).</p>
+
+<h3>3.4 Text settings anatomy (via F-B's builder)</h3>
+<p>The pass emits <code>EffectInstruction</code>s with <code>direct_settings = build_text_settings(...)</code> (F-B §3.2).
+Choices keyed to readability on a low-res matrix:</p>
+<table>
+<tr><th>Knob</th><th>Title card</th><th>Lyric phrase</th><th>Rationale</th></tr>
+<tr><td><code>E_TEXTCTRL_Text</code></td><td>title (sanitized)</td><td>the phrase, ≤ ~24 chars or scrolled</td><td>comma/equals sanitization per F-B open question</td></tr>
+<tr><td><code>E_CHOICE_Text_Dir</code></td><td><code>none</code> (static)</td><td><code>none</code> if it fits the width at the chosen size, else <code>left</code> scroll</td><td>static beats scrolling for legibility; scroll only when forced</td></tr>
+<tr><td><code>E_TEXTCTRL_Text_Speed</code></td><td>—</td><td>sized so one full traverse ≈ the phrase's aligned duration (scroll-once rule)</td><td>text that loops twice reads as a glitch</td></tr>
+<tr><td>font/size</td><td colspan="2">bold, sized to ≥ 10–12 px glyph height but ≤ matrix height − 2</td><td>catalog §8 legibility floor; needs the matrix's pixel dims — probe once via <code>client.get_model("Matrix")</code> (<code>parm1/parm2</code>, cf. <code>tests/fixtures/live/getModel.Tree.json</code>) or hardcode for this layout with a TODO for the F-E manifest</td></tr>
+<tr><td><code>palette_colors</code></td><td colspan="2">the section palette's <em>lightest</em> color (reuse <code>beats._lightest_hex</code>) on layer over a dim/dark background</td><td>LED readability: hue contrast + brightness, same logic as <code>feature_prop_contrast</code></td></tr>
+<tr><td><code>render_style</code></td><td colspan="2"><code>"Default"</code> (single-model buffer)</td><td>per-model vs group irrelevant on one model; never a group canvas</td></tr>
+</table>
+
+<h3>3.5 Interaction with the matrix's focal duties</h3>
+<p>The matrix is likely <code>SEM_FOCAL</code>'s biggest member, so a Text moment coexists with hero onsets, washes, and (at the
+peak) composites. Design rules:</p>
+<ul>
+<li><strong>Render order already favors us:</strong> the focal tier renders late (<code>canonical_order</code>), and placing Text
+on the <em>model</em> row (not the group) means the model row's effects sit visually with the group rows resolved by
+<code>patch_xsq_render_order</code> at finalize. But layer blending is the real mechanism:</li>
+<li><strong>Text rides on top, masked or Max-blended.</strong> Emit Text with <code>on_top=True</code>
+(<code>show_plan.py:78</code> — the punch-through mechanism triggers already use: top layer, exempt from
+<code>clamp_layer_budget</code>) so <code>_top_layer</code> places it above every overlapping layer, plus
+<code>T_CHOICE_LayerMethod: "Max"</code> in <code>extra_settings</code> so glyph pixels add over the busy background instead of
+black-boxing it. v2 option: the cookbook's "1 is Mask" recipe (Text as mask over a Bars layer) for the premium look — defer until
+the plain version is verified live.</li>
+<li><strong>Calm the background during text.</strong> During each Text span, the pass dims concurrent <em>matrix-targeted</em>
+non-text instructions (multiply their <code>C_SLIDER_Brightness</code> by ~0.4, floor via <code>brightness_setting</code>) —
+the catalog's Faces rule ("surrounding props dim to ≤30% so the singer owns focus") applied to glyphs. Never dim other props:
+only the canvas behind the letters.</li>
+<li><strong>Keep out of the peak</strong> (§3.3 rule 2) so Text never collides with the curated composite on
+<code>HERO_GROUP</code>.</li>
+<li><strong>QA:</strong> Text is not in <code>rules.FEATURES</code> (one-feature-at-a-time) nor <code>ENERGY_BAND</code> —
+unconstrained objectively; add one advisory in <code>qa/variety.py</code>-style if text moments exceed the cap (belt-and-braces
+against future authors).</li>
+</ul>
+
+<h3>3.6 Tagging, regen, and idempotence</h3>
+<p>Each Text instruction carries the owning section's <code>section_index</code>, so <code>replace_section</code>
+(<code>refine.py:48–54</code>) drops-and-recreates them correctly when that section regenerates — which means the pass must
+re-run after refine-loop/<code>xlo regen</code> splices, exactly like improve-musicality's transitions pass (design decision 5
+there), and be idempotent the same way: a marker key in <code>extra_settings</code> (e.g. <code>X_MatrixText=1</code> — stripped
+before emit or tolerated as an unknown key xLights ignores; verify in the F-B probe) lets the pass replace its own prior output
+instead of stacking. Sequence the implementation after improve-musicality Phase 3 lands <code>place_transitions</code>, and copy
+its splice-hook pattern.</p>
+
+<h2>4. Implementation plan</h2>
+<ol>
+<li><strong>Land F-B first</strong> (hard dependency): <code>build_text_settings</code>, <code>direct_settings</code> field,
+emitter branch, frozen Text template.</li>
+<li><strong>Matrix discovery:</strong> <code>find_matrix()</code> + <code>State.model_names</code> plumbing (best-effort fetch in
+<code>run_pipeline</code> step 1 area, near <code>targetable_groups</code>); hermetic test with the fixtures'
+<code>getModels.json</code> list.</li>
+<li><strong>Selection engine:</strong> <code>select_text_moments(brief, sa, plan) -&gt; list[TextMoment]</code> (pure): title-card
+rule, featured-phrase cross-check against aligned lines, caps/spacing/peak-exclusion, instrumental degradation. Table-driven
+tests: vocal song with 6 candidate moments → 4 placed, spacing enforced; moment with no aligned line → dropped; instrumental →
+title only; no matrix → [].</li>
+<li><strong>Realization:</strong> <code>place_matrix_text(st, matrix)</code> building instructions
+(<code>direct_settings</code>, <code>on_top=True</code>, Max blend, lightest-color palette, static-vs-scroll decision,
+background-dim adjustments); wire into <code>generate_instructions</code> after the section loop and into the refine/regen
+splice path beside (or inside) the transitions re-run.</li>
+<li><strong>Idempotence + regen tests:</strong> re-running the pass after <code>replace_section</code> yields exactly the same
+text moments (no stacking); regenerating a section that owns a text moment recreates it.</li>
+<li><strong>Golden:</strong> the fixture brief has no lyrics, so expected golden impact is nil or a title card only — regenerate
+with <code>XLO_REGEN_GOLDEN=1</code> if it changes, review the diff.</li>
+<li><strong>Live verify:</strong> run a vocal reference song end-to-end; eyeball the review bundle stills at each text moment
+(legibility, scroll-once timing, background dim); check the xLights log for <code>ApplySetting</code> errors from the Text
+template.</li>
+<li><strong>Docs:</strong> note the text doctrine (punctuation, caps, non-sources) in <code>docs/usage.md</code>'s features
+section and cross-link the craft roadmap item as closed.</li>
+</ol>
+
+<h2>5. Testing strategy</h2>
+<ul>
+<li><strong>Hermetic-first</strong> (<code>pytest -m "not live"</code>, fake agents): everything in steps 2–5 is pure-function or
+fake-client testable. New <code>tests/test_matrix_text.py</code> covering selection (caps, spacing, peak exclusion, grounding
+drops, instrumental, no-matrix), realization (settings keys via <code>parse_settings</code>, <code>on_top</code>/blend/palette),
+and splice idempotence via the <code>test_refine.py</code>-style injected loop.</li>
+<li><strong>Fixture:</strong> extend a copy of the golden's <code>SongAnalysis</code> with <code>lyrics.lines</code> (word spans)
++ a brief with <code>featured_lyric_moments</code>, so selection tests run against realistic timing data.</li>
+<li><strong>Settings validation:</strong> every emitted <code>direct_settings</code> round-trips through
+<code>parse_settings</code>/<code>serialize_settings</code> and contains <code>E_TEXTCTRL_Text</code> equal to the sanitized
+source string (F-B ring-1).</li>
+<li><strong>Live (opt-in <code>-m live</code>):</strong> place the title card + one scrolling phrase on the real Matrix via
+<code>validate_direct</code>-style scratch sequence; human eyeball at render.</li>
+</ul>
+
+<h2>6. Risks &amp; mitigations</h2>
+<table>
+<tr><th>Risk</th><th>Mitigation</th></tr>
+<tr><td>Glyphs illegible at the matrix's real resolution</td><td>Catalog floor (≥10–12 px glyph height) enforced from probed matrix dims; live-verify eyeball is an explicit checklist item; if the matrix is under ~50 px the pass refuses (catalog rule #2) and logs a degradation.</td></tr>
+<tr><td>Text fights the focal choreography (kaleidoscope behind words)</td><td>Peak exclusion; <code>on_top</code> + Max blend; background dim to ≤ ~40% during text spans; one-per-section cap.</td></tr>
+<tr><td>Wrong-time text (brief timestamps drift from the audio)</td><td>Grounding rule: snap to the aligned lyric line or drop the moment; never trust brief times alone.</td></tr>
+<tr><td>Over-captioning creeps in (each future feature adds "just one more" text source)</td><td><code>MAX_TEXT_MOMENTS</code>/<code>TEXT_SPACING_MS</code> as named dials in <code>pipeline/tuning.py</code>; advisory QA finding when exceeded; doctrine documented.</td></tr>
+<tr><td>Regen splices duplicate or orphan text moments</td><td>Section-index tagging + marker-key idempotence, copied from (and tested like) the transitions pass.</td></tr>
+<tr><td>Layout has no matrix / a renamed matrix</td><td><code>find_matrix</code> returns None → clean no-op + degradation log line; F-E's manifest later replaces the name heuristic.</td></tr>
+<tr><td>Comma/equals or non-ASCII in lyric text corrupts the settings CSV</td><td>F-B's sanitizer + property test; phrases failing sanitization are dropped, not mangled.</td></tr>
+</table>
+
+<h2>7. Acceptance criteria</h2>
+<ul>
+<li>☐ On a vocal reference song with aligned lyrics, the show contains a title card in the intro and ≤ 4 featured lyric phrases,
+each snapped to its aligned line's span, ≥ 20 s apart, none in the peak section.</li>
+<li>☐ On an instrumental song, at most the title card appears; with no matrix in the layout, the pass no-ops with a logged
+reason.</li>
+<li>☐ Every Text instruction targets the matrix <em>model</em> (never a group), carries <code>direct_settings</code> that
+round-trip the parser, <code>on_top=True</code>, Max blend, and the section's lightest palette color.</li>
+<li>☐ Scrolling phrases traverse exactly once within their aligned span (speed math test); static text fits the probed width.</li>
+<li>☐ Concurrent matrix-targeted instructions are dimmed during text spans; non-matrix props are untouched.</li>
+<li>☐ Regenerating a section that owns a text moment (refine splice or <code>xlo regen</code>) reproduces exactly one copy of it.</li>
+<li>☐ Hermetic suite green (<code>pytest -m "not live"</code>); golden regenerated-and-reviewed only if it changed; live eyeball
+checklist done on a real render.</li>
+</ul>
+
+<h2>8. Open questions</h2>
+<ul>
+<li>Matrix pixel dimensions: probe via <code>get_model</code> at run time vs a one-line layout constant until F-E's §6 manifest
+exists? (Probe is ~free and self-maintaining; recommend probe with constant fallback.)</li>
+<li>Should the masked-texture recipe (Text "1 is Mask" over Bars — cookbook SC) be v1 or v2? Recommend v2: it doubles the layer
+choreography and the plain bright-on-dim version must be proven legible first.</li>
+<li>Outro sign-off content: config option (<code>xlo</code> flag / brief field) or omit entirely in v1?</li>
+<li>Later Director hook: add <code>KeyMoment.text</code> so the LLM can hand-pick a word ("HALLELUJAH" not the whole line)? Cheap
+and back-compatible; decide after watching v1 output.</li>
+<li>Does the white <code>key_moment_flashes</code> flash on <code>SEM_ALL</code> visually stomp a concurrent text moment (the
+matrix is in SEM_ALL)? If live verify says yes, exclude flash overlap in selection.</li>
+</ul>
+
+<h2>9. References</h2>
+<ul>
+<li>Roadmap: <code>docs/roadmap-2026-07.md</code> Horizon 2 F-C; June scorecard row F1; sequencing table row 6 ("F-B + F-C …
+closes the craft roadmap's biggest gap").</li>
+<li>Craft roadmap: <code>docs/craft-roadmap.md</code> item 8 (<code>matrix-narrative-text</code>) and item 7's text subset.</li>
+<li>Enabler design doc: <a href="f-b-asset-bound-placement.html">F-B Asset-bound placement path</a> (builder, schema field,
+emitter branch, probe protocol).</li>
+<li>Guides: <code>xlights-effects-catalog.md</code> §8 Text (+ §9 rule #2), <code>xlights-scene-cookbook.md</code> masked-reveal
+and SC-08 ("the matrix is the storyteller"), <code>xlights-layout-semantics-spec.md</code> §2 (MATRIX role, 2D_SURFACE), §4
+step 6 (focal flag), §5 (single-instance roles addressed directly).</li>
+<li>Code: <code>music_brief.py:44–65</code>, <code>show_plan.py:20–23,63–80</code>, <code>agents/director.py:23–90</code>,
+<code>pipeline/generate.py:146–261</code>, <code>pipeline/beats.py:219–231,508–531</code>,
+<code>xlights_core/knowledge/layout_semantics.py:43–139</code>, <code>xlights_core/audio/lyrics_align.py:55–131</code>,
+<code>pipeline/timing.py:123–127</code>, <code>pipeline/triggers.py:155–166</code>, <code>refine.py:48–54</code>.</li>
+<li>Related OpenSpec: <code>openspec/changes/improve-musicality/design.md</code> decision 5 (the splice-safe list-pass pattern
+this copies); archive <code>2026-06-11-add-lyric-alignment</code>, <code>2026-06-14-add-melodic-triggers</code>,
+<code>2026-06-13-add-trigger-effects</code>.</li>
+<li>Companion feature: <a href="f-d-lyric-faces.html">F-D Lyric-driven Faces</a>.</li>
+</ul>
+</body>
+</html>

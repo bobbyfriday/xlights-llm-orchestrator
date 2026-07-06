@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict
 class Model(BaseModel):
     """A single xLights model's attributes, as returned by ``getModel``."""
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(extra="allow")
 
     name: str | None = None
 
@@ -25,6 +25,6 @@ class Model(BaseModel):
 class Controller(BaseModel):
     """A controller, as returned by ``getControllers``."""
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(extra="allow")
 
     name: str | None = None

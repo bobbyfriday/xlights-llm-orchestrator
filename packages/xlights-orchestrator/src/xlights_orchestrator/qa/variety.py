@@ -38,7 +38,10 @@ def evaluate(instructions, groups) -> tuple[int, list[Finding]]:
     if groups:
         ratio = len(used) / len(groups)
         if ratio < COVERAGE:
-            findings.append(Finding(scope="global", severity="info", metric="coverage", objective=False,
+            # "group-coverage", not "coverage" — the latter is the objective rendered-coverage
+            # metric (qa/coverage.py) and the two were indistinguishable in the revision log
+            findings.append(Finding(scope="global", severity="info", metric="group-coverage",
+                                    objective=False,
                                     detail=f"only {len(used)}/{len(groups)} groups used"))
             score -= 20
 

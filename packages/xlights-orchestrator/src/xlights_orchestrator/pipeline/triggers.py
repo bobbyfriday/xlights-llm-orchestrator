@@ -293,6 +293,9 @@ def realize_triggers(specs: list[TriggerSpec], sa, sections, available_groups: l
             events = _mag_keep(spec, det(sa, sections, spec))
         except Exception as exc:  # noqa: BLE001 — a detector failure never sinks the run
             log.warning("trigger %r detector failed: %s", spec.name, exc)
+            from ..degradations import note                 # aggregate into the run summary
+            note("generate:triggers", f"{spec.name}: {exc}", stage="generate",
+                 level=logging.DEBUG)                        # DEBUG: log.warning above is the detail
             continue
         selected = _select(spec, _eligible_sections(spec, sa, sections), offset, sections)
         # group events by their section, keep only selected sections, cap density

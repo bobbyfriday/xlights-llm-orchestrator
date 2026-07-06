@@ -51,12 +51,18 @@ def _merge_extra_settings(settings: str, extra: dict[str, str] | None) -> str:
 
 
 async def _check_timing_and_target(
-    client: XLightsClient, target: str, start_ms: int, end_ms: int
+    client: XLightsClient, target: str, start_ms: int, end_ms: int,
+    known_targets: set[str] | None = None,
 ) -> None:
-    """Shared placement guards: a valid window and a target that exists in the layout."""
+    """Shared placement guards: a valid window and a target that exists in the layout.
+
+    ``known_targets`` (F-J batching seam) is a prefetched layout-name set — pass it to check
+    against a set fetched ONCE per emit instead of a ``get_models()`` round-trip per placement
+    (~270 placements/emit → one call). ``None`` keeps the per-call fetch (unchanged default)."""
     if start_ms < 0 or end_ms <= start_ms:
         raise ValueError(f"bad timing: start={start_ms} end={end_ms}")
-    if target not in await client.get_models():
+    names = known_targets if known_targets is not None else set(await client.get_models())
+    if target not in names:
         raise ValueError(f"target {target!r} not in layout")
 
 
@@ -74,12 +80,16 @@ async def place_preset(
     start_ms: int,
     end_ms: int,
     library: PresetLibrary | None = None,
+    known_targets: set[str] | None = None,
 ) -> str:
     """Assemble a preset and place it. Returns the assembled settings string.
 
     Raises on bad knob values (KnobValueError), unknown layout target (ValueError),
     bad timing (ValueError), missing sequence element (XLightsTargetMissing), or a
     placement that xLights didn't accept (PresetPlacementError).
+
+    ``known_targets`` (optional) is a prefetched layout-name set for the target check — pass it
+    from a batching caller to avoid one ``get_models()`` round-trip per placement.
     """
     lib = library or get_library()
     look = lib.get_look(effect_type, look_id)
@@ -94,7 +104,7 @@ async def place_preset(
                             if p and p.split("=", 1)[0] not in DROP_KEYS)
     settings = _merge_extra_settings(settings, extra_settings)
 
-    await _check_timing_and_target(client, target, start_ms, end_ms)
+    await _check_timing_and_target(client, target, start_ms, end_ms, known_targets)
 
     worked = await client.add_effect(
         target, effect_type, settings, palette, layer=layer,
@@ -119,6 +129,7 @@ async def place_direct(
     layer: int = 0,
     start_ms: int,
     end_ms: int,
+    known_targets: set[str] | None = None,
 ) -> str:
     """Place an **asset-bound** (code-templated) effect whose settings are built from scratch
     rather than assembled from the mined catalog — the sibling of :func:`place_preset` for the
@@ -137,7 +148,7 @@ async def place_direct(
     merged = _merge_extra_settings(settings, extra_settings)
     palette = palette_from_colors(palette_colors) if palette_colors else ""
 
-    await _check_timing_and_target(client, target, start_ms, end_ms)
+    await _check_timing_and_target(client, target, start_ms, end_ms, known_targets)
 
     worked = await client.add_effect(
         target, effect_type, merged, palette, layer=layer,

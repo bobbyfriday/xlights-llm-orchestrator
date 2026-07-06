@@ -4,6 +4,12 @@ Reads artist/title from the audio file's tags (filename fallback), then fetches 
 lyric TEXT (untimed) from Genius. Any miss — no token, no tags, no match, network
 error, timeout — returns None and the panel simply runs without the lyric analyst.
 Word-level timing (forced alignment) is out of scope (a later enrichment).
+
+Retry asymmetry (I2): this module deliberately keeps ``lyricsgenius(retries=1)`` (Genius'
+own internal retry) and is NOT wrapped by ``xlights_core.retry.with_retry`` — doing so
+would stack a second retry loop on top of the library's, doubling worst-case wall time on
+a persistently-down Genius. The LLM/transport ``with_retry`` seams are separate and do not
+touch this path.
 """
 
 from __future__ import annotations
@@ -67,5 +73,6 @@ def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:
         return LyricData(title=song.title or title, artist=song.artist or (artist or ""),
                          text=song.lyrics)
     except Exception as exc:  # noqa: BLE001 — lyrics are optional enrichment
-        log.warning("lyric fetch failed for %r: %s", title, exc)
+        from .degradations import note
+        note("audio:lyrics", f"Genius fetch failed for {title!r}: {exc}", stage="analyze")
         return None

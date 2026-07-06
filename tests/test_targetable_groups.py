@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from xlights_core.exceptions import XLightsTargetMissing
+from xlights_core.exceptions import XLightsConnectionError, XLightsTargetMissing
 from xlights_orchestrator.pipeline import groups as G
 
 
@@ -93,3 +93,23 @@ def test_empty_probe_falls_back(tmp_path):
     c = _FakeClient(["A", "B"], targetable=[])          # nothing targetable → distrust → full list
     assert run(G.targetable_groups(c, cache_root=tmp_path)) == ["A", "B"]
     assert not list(tmp_path.glob("*.json"))
+
+
+# -- I5: a failed LISTING fails fast (re-raises) rather than limping on [] -----
+
+class _ListFailsClient(_FakeClient):
+    async def get_group_names(self):
+        raise XLightsConnectionError("cannot reach xLights")
+
+
+def test_failed_group_listing_reraises(tmp_path):
+    # A failed listing has no useful degraded mode → propagate before any LLM spend (was []).
+    c = _ListFailsClient(["A"], targetable=["A"])
+    with pytest.raises(XLightsConnectionError):
+        run(G.targetable_groups(c, cache_root=tmp_path))
+
+
+def test_genuinely_empty_layout_returns_empty(tmp_path):
+    # A SUCCESSFUL listing that is genuinely empty still returns [] normally (not a failure).
+    c = _FakeClient([], targetable=[])
+    assert run(G.targetable_groups(c, cache_root=tmp_path)) == []

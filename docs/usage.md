@@ -100,15 +100,29 @@ and reference timing tracks attached.
 | `--name NAME` | sequence name (default: derived from the filename). |
 | `--refine` | run the test → critique → judge → regenerate loop (recommended). |
 | `--auto` | unattended: take the Judge's verdict, skip the human review checkpoints. |
+| `--no-browser` | attended run **without** the live browser surface (terminal checkpoints only). |
 | `--max-iterations N` | cap on refine iterations (default 3). |
 | `--no-save` | generate but don't save (leave the sequence open). |
 | `--no-cache` | ignore cached analysis/brief/instructions and recompute. |
 | `--no-timing-tracks` | skip patching reference timing tracks into the `.xsq`. |
 | `--no-log` | disable the per-iteration revision log. |
 
-**Attended vs `--auto`:** without `--auto`, the run pauses at two checkpoints — after interpreting
-the song (shows `description.md`) and after the creative brief (shows `creative_brief.md`) — so you
-can stop and hand-edit before generation. With `--auto` it runs straight through.
+**Attended vs `--auto`:** without `--auto`, the run pauses at checkpoints — after interpreting
+the song (shows `description.md`), after the creative brief (shows `creative_brief.md`), on each
+refine iteration, and at final save — so you can stop and hand-edit before generation. With `--auto`
+it runs straight through.
+
+### Run-mode matrix
+
+| Mode | Command | Live browser | Checkpoints answered via |
+| --- | --- | --- | --- |
+| **Attended + browser** (default) | `xlo run --song … --refine` | yes — opens a local page (stage timeline, section grid, QA sparkline, refine log) | the browser (approve / edit / stop), never parking the event loop; a stdout line mirrors the URL |
+| **Attended + terminal** | `xlo run … --refine --no-browser` | no | the original blocking terminal prompts — byte-for-byte the pre-F-I behavior |
+| **Unattended** | `xlo run … --refine --auto` | no | the Judge's verdict (no human gate) |
+
+The live surface is a stdlib-only HTTP server bound to `127.0.0.1` on an ephemeral port (no
+framework, no CDN, zero external resources). A reopened/reconnected page replays missed events via
+SSE `Last-Event-ID`. It exposes no state-changing GET route; checkpoint tokens are single-use.
 
 ## What the pipeline does
 
@@ -129,6 +143,61 @@ Under `data/analyses/`:
 
 The saved `.xsq` lands in your xLights show folder. Re-running reuses caches; `--no-cache` forces a
 recompute. To re-plan only, delete the relevant `orchestrator/<song-key>/*.json` stage files.
+
+## Resilience & degradations
+
+**Transient-failure retry (I2).** A run makes ~10–20 LLM requests and hundreds of xLights REST
+calls; a single 429/529 or a momentary connection blip used to drop an analyst or abort a whole
+stage. Both seams now self-heal with bounded exponential backoff + jitter (a shared, stdlib-only
+`with_retry` primitive):
+
+- **LLM calls** retry provider overload/rate-limit/timeout classes only (HTTP 408/429/500/502/503/529
+  and escaping transport/timeout errors) — never schema/auth/bad-request errors (those repeat
+  identically at full token cost). Run-fatal roles (director, synthesizer, generator, judge) get 3
+  attempts; best-effort roles (panel analysts, visual critic, section redesigner) get 2.
+- **xLights transport**: reads retry on connection failure *and* timeout; mutations retry on
+  connection failure *only*, inside the write lock (ordering preserved), and never double-apply. The
+  long-running `renderAll`/`exportVideoPreview` are excluded. The retry budget is a client constructor
+  knob (`retry_attempts`, default 3; `0`/`1` disables — used in tests). Constants-first: no env knob in
+  v1.
+
+The `lyricsgenius` fetch keeps its own internal `retries=1` and is intentionally **not** wrapped
+(no double-retry).
+
+**Degradations summary (I5).** Best-effort enrichments (lyrics, stems, the visual critic, the real
+render, timing tracks, caching) fail gracefully — but a lost capability is no longer silent. Every
+best-effort block logs at least at DEBUG; a *whole-capability* loss logs at WARNING, so
+`grep -i warning` over a run log is a complete degradation list. A per-run collector aggregates them
+and the run ends with a summary block; a degraded run also writes `degradations.json` beside
+`revision_log.jsonl`. The closed capability taxonomy:
+
+| Key | Meaning |
+| --- | --- |
+| `audio:lyrics` | lyric fetch/attach failed → no timed lines |
+| `audio:stems` | all stem-separation backends failed → no per-section instruments |
+| `audio:instrumental-refine` | instrumental section subdivision failed |
+| `groups:probe` | targetability probe failed → using the full group list |
+| `emit:view` | the SEM Master render-order view wasn't loaded → default view |
+| `qa:coverage-blind` | coverage sampling failed → the objective can't see darkness |
+| `qa:render-flush` | the pre-QA `.fseq` save / real-render refresh failed |
+| `visual:critique` | the multimodal visual critic couldn't run this iteration |
+| `visual:real-render` | the real xLights render/export was unavailable |
+| `refine:redesign` | a section redesign escalation failed |
+| `refine:analyst-drop` | a panel analyst was dropped after its retry |
+| `generate:triggers` | one or more trigger detectors failed |
+| `finalize:media` | the show folder / media staging was unavailable |
+| `finalize:timing-tracks` | reference timing tracks couldn't be patched into the `.xsq` |
+| `finalize:xsq-patch` | the offline `.xsq` patch step failed |
+| `cache:post-refine` | persisting the revised brief/instructions failed |
+
+Reading a summary: `stems failed` + `qa:coverage-blind` explains "the show looks off and the
+objective looked fine" — the coverage QA had no `.fseq` to sample. A failed *group listing* (as
+opposed to the targetability probe) is fatal by design — it raises before any LLM spend rather than
+poisoning the Director prompt with an empty group list.
+
+> **Project convention:** every new best-effort `except` block must log (at least DEBUG), record a
+> `degradations.note(...)`, or re-raise — never a silent `pass`. A structural AST audit test
+> (`tests/test_log_audit.py`) enforces this.
 
 ## Tuning the show's voice
 

@@ -49,6 +49,34 @@ async def _regen(args) -> None:
     print(f"Open '{name}' in xLights to play it with audio (File → Open Sequence).")
 
 
+def _report(args) -> None:
+    """Deterministic offline cost/quality dashboard over the revision logs. No LLM, no xLights,
+    no network — and NO has_llm_key() gate."""
+    from pathlib import Path
+
+    from . import reporting
+    from .pipeline.cache import cache_root, song_key
+
+    root = Path(args.cache_dir) / "orchestrator" if args.cache_dir else cache_root()
+    song = song_key(args.song) if args.song else None
+    if not reporting.discover_logs(root) and (song is None):
+        print(f"no revision logs found under {root}")
+        return
+    rep = reporting.build_report(root, song=song, reprice=args.reprice)
+    if not rep.runs:
+        print(f"no revision logs found under {root}")
+        return
+    if args.json:
+        print(rep.model_dump_json(indent=1))
+        return
+    if args.html is not None:
+        out = Path(args.html) if args.html else (root / "report.html")
+        out.write_text(reporting.render_html(rep))
+        print(f"wrote {out}")
+        return
+    print(reporting.render_text(rep), end="")
+
+
 def _edit_brief(args) -> None:
     from pathlib import Path
     from .brief_editor import serve
@@ -89,9 +117,19 @@ def main(argv: list[str] | None = None) -> None:
     g.add_argument("--note", default=None, help="free-text fix to steer the regen (e.g. 'too busy, calm it down')")
     g.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
     g.add_argument("--no-save", action="store_true", help="don't save (re-emit only, leave unsaved/open)")
+    rp = sub.add_parser("report", help="offline cost & quality dashboard over the revision logs")
+    rp.add_argument("--song", default=None, help="limit to one song (path); default: all songs")
+    rp.add_argument("--cache-dir", default=None, help="cache dir (default: $XLO_CACHE_DIR or ./data)")
+    rp.add_argument("--html", nargs="?", const="", default=None,
+                    help="write a self-contained HTML page (optional PATH; default: <root>/report.html)")
+    rp.add_argument("--json", action="store_true", help="emit the Report as JSON")
+    rp.add_argument("--reprice", action="store_true", help="recompute cost from the current price table")
     args = ap.parse_args(argv)
 
     load_env()
+    if args.cmd == "report":            # offline, deterministic — NO has_llm_key() gate
+        _report(args)
+        return
     if args.cmd == "edit-brief":
         _edit_brief(args)
         return

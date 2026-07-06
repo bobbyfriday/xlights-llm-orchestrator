@@ -105,15 +105,15 @@
 
 ## 3. F-G — cost & quality dashboard
 
-- [ ] 3.1 Reconcile field names against I1's shipped writer (`usage`, `usage_total`/`run_usage`,
+- [x] 3.1 Reconcile field names against I1's shipped writer (`usage`, `usage_total`/`run_usage`,
   `cost_usd`, `pricing`); F-G's loader must match I1's writer exactly; write the post-I1 fixture from
   I1's actual output.
-- [ ] 3.2 Create `packages/xlights-orchestrator/src/xlights_orchestrator/reporting.py` — load layer:
+- [x] 3.2 Create `packages/xlights-orchestrator/src/xlights_orchestrator/reporting.py` — load layer:
   `discover_logs(root)` (`root.glob("*/revision_log.jsonl")`, skips `targetable_groups_*.json` by
   shape), `load_records(path)` (tolerant per-line `model_validate_json`, count-and-skip on
   `ValidationError`/`JSONDecodeError`), `group_runs(records)` (ordered dict keyed by `run_id`, file
   order). Deterministic — no LLM, no xLights, no network.
-- [ ] 3.3 Metrics layer: `RunSummary` (run_id, song_key, iterations, first/final objective, advisory,
+- [x] 3.3 Metrics layer: `RunSummary` (run_id, song_key, iterations, first/final objective, advisory,
   `trajectory: list[IterationPoint]`, churn `Counter`, `revisions_by_origin`, reverts, `stop_reason`,
   `skipped_by_gate`, `has_cost`, `role_usage`, `cost_usd`, `cost_per_point`, `models`) + `summarize_run`;
   `Report` (runs, `skipped_lines`, `fleet` rollups) + `build_report` (discover→load→group→summarize→
@@ -122,19 +122,19 @@
   per-role/per-tier cost attribution, revert frequency + wasted spend, judge-vs-objective agreement.
   Prefer the record's run-time `cost_usd`; recompute only under `--reprice` or when absent. Pricing via
   a `pricing()` accessor next to `_cfg()` in `models/registry.py` (added by I1; F-G reads it).
-- [ ] 3.4 Renderers (compute once, render twice — arithmetic lives only in summarize/build):
+- [x] 3.4 Renderers (compute once, render twice — arithmetic lives only in summarize/build):
   `render_text(report)` (fixed-width stdlib tables, the costed-runs caveat line, `—` for missing cost,
   no `rich`/`tabulate`); `render_html(report)` (one self-contained page, the roadmap CSS block, inline
   SVG score sparklines + horizontal churn bars, no JS/external URLs, escape all detail strings,
   light/dark).
-- [ ] 3.5 CLI: add the `report` subparser to `cli.py` (`--song`, `--cache-dir`, `--html [PATH]`,
+- [x] 3.5 CLI: add the `report` subparser to `cli.py` (`--song`, `--cache-dir`, `--html [PATH]`,
   `--json`, `--reprice`); dispatch synchronously (no `asyncio.run`, no `XLightsClient`, **no
   `has_llm_key()` gate**); `--song` reuses `_song_key`; `--json` prints
   `report.model_dump_json(indent=1)`.
-- [ ] 3.6 Optional pipeline assist (coordinate with I3): additive `stop_reason: str | None = None`
+- [x] 3.6 Optional pipeline assist (coordinate with I3): additive `stop_reason: str | None = None`
   (`skip-gate|accept|stop|plateau|stall|cap`) and `redesigned_sections: list[int] = []` on
   `RevisionLogRecord`; the dashboard treats absence as `stall-or-cap` for old runs.
-- [ ] 3.7 `tests/test_reporting.py` (new) with fixtures under `tests/fixtures/revision_logs/`, hermetic
+- [x] 3.7 `tests/test_reporting.py` (new) with fixtures under `tests/fixtures/revision_logs/`, hermetic
   (matching `test_revision_log.py`): programmatic fixtures via the real `RevisionLog` writer into
   `tmp_path`, plus checked-in raw pre-I1 and post-I1 JSONL that freeze backward compatibility. Load
   layer (malformed line skipped+counted; multiple `run_id`s group in order; `discover_logs` finds
@@ -144,7 +144,7 @@
   corpus reports `has_cost` and totals only costed runs). Renderers (substring assertions on the caveat
   line and `—`; HTML contains no `http://`/`https://`/`<script`, escapes `<b>&`). CLI end-to-end via
   capsys; `--json` round-trips through `Report.model_validate_json`.
-- [ ] 3.8 Empty-cache behavior: `xlo report` exits 0 with "no revision logs found under <root>". One
+- [x] 3.8 Empty-cache behavior: `xlo report` exits 0 with "no revision logs found under <root>". One
   `README.md` CLI-section paragraph; note in the roadmap scorecard that F6 is closed by F-G.
 
 ## 4. F-H — provider A/B eval harness

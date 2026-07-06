@@ -42,61 +42,26 @@ from .tuning import (
 
 MAX_WOVEN_RECIPES = 3            # one carrier + up to two textures/accents (layer pressure cap)
 
-# Motion vocabulary for the fallback weave's texture pick (cell-able types; see qa.rules).
+# Motion vocabulary for the fallback weave's texture pick (cell-able types; see effect_meta).
 _FALLBACK_CARRIER = "SingleStrand"
-# Only bed-CAPABLE effects may run as the section-spanning bed (catalog §2.1 v0.3) — an LLM
-# recipe naming Pinwheel/Meteors as "bed" demotes to a texture (it weaves instead).
-_BED_EFFECTS = {"Color Wash", "Plasma", "On"}
 
+# Per-effect capability metadata now lives in the consolidated table (effect_meta.py). Aliased to the
+# historical private names so the weaver body reads unchanged:
+#   DIRECTION_KNOBS — direction -> (key, value) effect-native settings (corpus-observed).
+#   _BED_EFFECTS    — only bed-CAPABLE effects may run as the section-spanning bed (catalog §2.1 v0.3);
+#                     an LLM recipe naming Pinwheel/Meteors as "bed" demotes to a texture.
+#   _NATIVE_BOUNCE  — effects whose bounce lives INSIDE the effect (no per-bar flipping needed).
+#   _CHASE_FAMILY   — a HORIZONTAL/RADIAL sweep on these must travel across the GROUP to be seen
+#                     (per-model rendering confines it to each prop — the invisible-sweep failure).
+from .effect_meta import (  # noqa: E402 — re-export DIRECTION_KNOBS (external callers + direction_setting), under legend
+    BED_EFFECTS as _BED_EFFECTS,
+    CHASE_FAMILY as _CHASE_FAMILY,
+    DIRECTION_KNOBS,
+    DURATION_CELLABLE,
+    NATIVE_BOUNCE as _NATIVE_BOUNCE,
+)
 
-# Direction realized through the EFFECTS' OWN settings (no grouping/target changes — user
-# decision). Values are strictly corpus-observed (community .xsq) — valid by construction.
-# direction -> (key, value) per effect type; missing pairs no-op.
-DIRECTION_KNOBS: dict[str, dict[str, tuple[str, str]]] = {
-    "SingleStrand": {"ltr": ("E_CHOICE_Chase_Type1", "Left-Right"),
-                     "rtl": ("E_CHOICE_Chase_Type1", "Right-Left"),
-                     "bounce": ("E_CHOICE_Chase_Type1", "Dual Bounce"),
-                     "center_out": ("E_CHOICE_Chase_Type1", "From Middle"),
-                     "center_in": ("E_CHOICE_Chase_Type1", "To Middle")},
-    "Bars": {"ltr": ("E_CHOICE_Bars_Direction", "Right"),
-             "rtl": ("E_CHOICE_Bars_Direction", "Left"),
-             "up": ("E_CHOICE_Bars_Direction", "up"),
-             "down": ("E_CHOICE_Bars_Direction", "down"),
-             "center_out": ("E_CHOICE_Bars_Direction", "H-expand"),
-             "center_in": ("E_CHOICE_Bars_Direction", "H-compress")},
-    "Garlands": {"ltr": ("E_CHOICE_Garlands_Direction", "Right"),
-                 "rtl": ("E_CHOICE_Garlands_Direction", "Left"),
-                 "up": ("E_CHOICE_Garlands_Direction", "Up"),
-                 "down": ("E_CHOICE_Garlands_Direction", "Down"),
-                 "bounce": ("E_CHOICE_Garlands_Direction", "Left then Right")},
-    "Meteors": {"ltr": ("E_CHOICE_Meteors_Effect", "Right"),
-                "up": ("E_CHOICE_Meteors_Effect", "Up"),
-                "down": ("E_CHOICE_Meteors_Effect", "Down"),
-                "center_out": ("E_CHOICE_Meteors_Effect", "Explode"),
-                "center_in": ("E_CHOICE_Meteors_Effect", "Implode")},
-    "Fill": {"ltr": ("E_CHOICE_Fill_Direction", "Right"),
-             "rtl": ("E_CHOICE_Fill_Direction", "Left"),
-             "up": ("E_CHOICE_Fill_Direction", "Up"),
-             "down": ("E_CHOICE_Fill_Direction", "Down")},
-    "Wave": {"ltr": ("E_CHOICE_Wave_Direction", "Left to Right"),
-             "rtl": ("E_CHOICE_Wave_Direction", "Right to Left")},
-    "Butterfly": {"ltr": ("E_CHOICE_Butterfly_Direction", "Normal"),
-                  "rtl": ("E_CHOICE_Butterfly_Direction", "Reverse")},
-    "Marquee": {"ltr": ("E_CHECKBOX_Marquee_Reverse", "0"),
-                "rtl": ("E_CHECKBOX_Marquee_Reverse", "1")},
-    "Fan": {"center_out": ("E_CHECKBOX_Fan_Reverse", "0"),
-            "center_in": ("E_CHECKBOX_Fan_Reverse", "1")},
-    "Galaxy": {"center_out": ("E_CHECKBOX_Galaxy_Reverse", "0"),
-               "center_in": ("E_CHECKBOX_Galaxy_Reverse", "1")},
-    "Pinwheel": {"ltr": ("E_CHECKBOX_Pinwheel_Rotation", "1"),
-                 "rtl": ("E_CHECKBOX_Pinwheel_Rotation", "0")},
-}
-# effects whose bounce lives INSIDE the effect (no per-bar flipping needed)
-_NATIVE_BOUNCE = {"SingleStrand", "Garlands"}
-# a HORIZONTAL/RADIAL sweep on a chase-family effect must travel across the GROUP to be seen —
-# per-model rendering confines it to each prop for half a second (the invisible-sweep failure)
 _SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}
-_CHASE_FAMILY = {"SingleStrand", "Garlands", "Marquee", "Wave", "Bars"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
 
 
@@ -224,7 +189,6 @@ def fallback_weave(section: SectionPlan, available_groups: list[str],
 
     NON-RHYTHMIC sections get NO synthesized fabric: a deliberately quiet/still section the brief
     asked for is not a dead section, and code must not inject a chase the brief didn't want."""
-    from ..qa.rules import DURATION_CELLABLE
     if not section_is_rhythmic(section):
         return SectionWeave(cells=[])
     cells = [CellRecipe(effect_type=carrier, role="carrier", cell_beats=1,

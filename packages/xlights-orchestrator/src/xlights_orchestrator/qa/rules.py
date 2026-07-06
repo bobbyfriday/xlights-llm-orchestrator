@@ -10,35 +10,25 @@ Enforced here: #2 texture-on-linear affinity, #3 energy bands (±1), #4 one-feat
 from __future__ import annotations
 
 from ..refine import Finding
-
+# Per-effect metadata (energy bands, duration classes, the motion-fabric set) lives in the
+# consolidated table (pipeline/effect_meta.py); re-exported here so QA callers keep the old names.
 # Catalog §2 energy bands (min, max) — only effects we can place; absent = unconstrained.
-ENERGY_BAND: dict[str, tuple[int, int]] = {
-    "On": (1, 5), "Fill": (2, 3), "SingleStrand": (2, 4), "Bars": (2, 4), "Curtain": (2, 3),
-    "Wave": (2, 3), "Marquee": (2, 3), "Meteors": (2, 4), "Morph": (2, 4), "Garlands": (2, 2),
-    "Pinwheel": (2, 5), "Fan": (2, 4), "Galaxy": (2, 4), "Shockwave": (3, 5), "Spirals": (2, 5),
-    "Circles": (2, 3), "Kaleidoscope": (3, 4), "Butterfly": (2, 3), "Plasma": (1, 3),
-    "Fire": (2, 4), "Liquid": (2, 3), "Snowflakes": (1, 2), "Snowstorm": (2, 3),
-    "Twinkle": (1, 3), "Shimmer": (2, 4), "Strobe": (4, 5), "Lightning": (3, 5),
-    "Fireworks": (3, 5), "Ripple": (2, 3), "Shape": (1, 4), "Tendril": (2, 3), "Tree": (2, 2),
-    "VU Meter": (2, 5),
-}
-# Duration classes (catalog §2.1 v0.3): a HIT is ≤1-bar punctuation (smearing it over a section
-# reads as one slow weird gesture); a PHRASE is a bounded gesture (reveal/build); CELL-ABLE motion
-# effects default to 1–2 bar cells (community medians are 0.3–0.9s even for Spirals/Wave —
-# sustained-CAPABLE ≠ sustained-USED); explicit long beds (ColorWash/Plasma on bed groups) exempt.
-DURATION_HIT = {"Shockwave", "Strobe", "Lightning"}
-DURATION_PHRASE = {"Curtain", "Fill", "Morph", "Fan", "Fireworks", "Shimmer"}
-DURATION_CELLABLE = {"SingleStrand", "Spirals", "Pinwheel", "Ripple", "Wave", "Bars", "Butterfly",
-                     "Meteors", "Garlands"}
-PHRASE_BARS = 8
-CELL_BARS = 2
+# Duration classes (catalog §2.1 v0.3): a HIT is ≤1-bar punctuation; a PHRASE is a bounded gesture;
+# CELL-ABLE motion effects default to 1–2 bar cells; explicit long beds (ColorWash/Plasma on bed
+# groups) exempt. MOTION_EFFECTS is the woven continuous-motion set (~58% community vs ~16% ours).
+from ..pipeline.effect_meta import (  # re-export: tests + external callers (weave/beats historical paths)
+    DURATION_CELLABLE,  # noqa: F401 — re-export
+    DURATION_HIT,  # noqa: F401 — re-export
+    DURATION_PHRASE,  # noqa: F401 — re-export
+    ENERGY_BAND,
+    MOTION_EFFECTS,
+)
+# Bar-math + motion-share dials moved to the tuning module's refine-control / behavior sections.
+from ..pipeline.tuning import MOTION_SHARE_MIN  # re-export
+
 _BED_TARGET_PREFIXES = ("SEM_BAND_",)                  # band rows MAY hold long beds
 _BED_TARGETS = {"SEM_ALL", "SEM_YARD"}                 # exact — NOT SEM_ALL_LESS_* (those weave)
 
-# The community fabric is woven from continuous-motion effects (~58% there vs ~16% ours) —
-# surfaced per energetic section as an ADVISORY so the Judge sees fabric regressions.
-MOTION_EFFECTS = DURATION_CELLABLE | {"Fire", "Galaxy"}   # the rest are already cellable
-MOTION_SHARE_MIN = 0.30
 MOTION_SHARE_INTENSITY = 0.5
 
 TEXTURE = {"Plasma", "Fire", "Liquid", "Life"}                   # rule #2: never on linear props

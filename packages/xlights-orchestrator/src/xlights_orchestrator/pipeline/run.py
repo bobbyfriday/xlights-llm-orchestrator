@@ -9,33 +9,24 @@ from __future__ import annotations
 
 import json
 import math
-import os
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from pathlib import Path
 
 from xlights_core.audio import AudioAnalyzer, SongAnalysis
 
 import logging
 
-from .. import qa as qa_pkg
 from ..agents import director as director_mod
-from ..agents import generator as generator_mod
-from ..agents import judge as judge_mod
 from ..agents import panel as panel_mod
 from ..agents.catalog import placeable_effect_types
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
 from ..models.registry import model_snapshot
-from ..refine import Decision, floor_visual_revisions, replace_section
+from ..refine import Decision
 from ..revision_log import (
-    LogFinding,
-    LogRevision,
     NullRevisionLog,
     RevisionLog,
-    RevisionLogRecord,
-    source_of,
 )
 from ..show_plan import EffectInstruction, ShowPlan
 from ..creative_brief import render_creative_brief
@@ -50,24 +41,13 @@ from .media import prepare_media
 from .state import State
 from .visual import RealRender, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
-from .generate import finalize_effects, generate_instructions, realize_section
+from .generate import generate_instructions, realize_section
 from .finalize import finalize_sequence
+from .refine_loop import refine_loop as _refine_loop  # re-export: historical import path (tests)
+from .refine_loop import refine_skip_objective as _refine_skip_objective  # re-export (tests + wiring)
+from .tuning import REFINE_SKIP_OBJECTIVE  # noqa: F401 — re-export: test_refine imports it from here
 
 log = logging.getLogger(__name__)
-
-REGRESS_MARGIN = 1   # objective_score points; a drop beyond this reverts the revision
-STALL_LIMIT = 2      # consecutive no-objective-progress iterations → terminate
-# Revision-log analysis (42 runs): drafts whose first-pass objective is ≥ this gained ≈0 over the
-# whole loop while paying for every Judge + visual-critique + regen iteration. Skip the loop for them.
-REFINE_SKIP_OBJECTIVE = 88   # tune/disable via XLO_REFINE_SKIP_OBJECTIVE (101 = never skip)
-
-
-def _refine_skip_objective() -> int:
-    """The first-pass objective at/above which refinement is skipped (env-overridable)."""
-    try:
-        return int(os.environ.get("XLO_REFINE_SKIP_OBJECTIVE", REFINE_SKIP_OBJECTIVE))
-    except (TypeError, ValueError):
-        return REFINE_SKIP_OBJECTIVE
 
 
 async def _default_interpret(song_path: str, sa: SongAnalysis) -> MusicBrief:
@@ -131,178 +111,6 @@ async def regenerate_section(st: State, rev, *, gen_agent) -> list[EffectInstruc
     feature_prop_contrast(instrs, st.show_plan.sections[rev.section_index])
     return instrs
 
-
-async def _refine_loop(st: State, *, client, emitter, generator, duration_secs,
-                       max_iterations, judge, qa, regenerate, checkpoint,
-                       visual_critique=None, revlog=None, run_id="run", song_key="",
-                       models=None, clock=None, review_base=None,
-                       sampler=None, save_as=None, redesign=None, real_render=None,
-                       skip_objective=None) -> None:
-    qa_eval = qa or qa_pkg.evaluate
-    judge_agent = judge or judge_mod.judge_agent()
-    decide = checkpoint or _interactive_checkpoint
-    # Build the default generator only if we'll actually use it (no injected regenerate) —
-    # constructing a real Agent needs an API key, which hermetic tests don't have.
-    gen_agent = generator if regenerate is not None else (generator or generator_mod.generator_agent())
-
-    async def _regen(rev):
-        if regenerate is not None:
-            return await regenerate(rev)
-        return await regenerate_section(st, rev, gen_agent=gen_agent)
-
-    redesigned: set[int] = set()
-    _rd_agent = None
-
-    async def _redesign(rev, findings):
-        nonlocal _rd_agent
-        if redesign is not None:
-            return await redesign(rev, findings)
-        if _rd_agent is None:                          # lazy — real agent needs an API key
-            _rd_agent = director_mod.section_redesigner()
-        sec = st.show_plan.sections[rev.section_index]
-        return (await _rd_agent.run(director_mod.redesign_input(sec, st.show_plan, findings))).output
-
-    def _design_implicated(si, findings):
-        if not (st.show_plan and 0 <= si < len(st.show_plan.sections)):
-            return False
-        eff = set(st.show_plan.sections[si].effect_types or [])
-        return any(getattr(f, "section_index", None) == si and getattr(f, "metric", "") == "rules"
-                   and any(e and e in f.detail for e in eff) for f in findings)
-
-    async def _report(applied):
-        if sampler is not None and save_as:
-            try:                                  # flush the .fseq so coverage sees THIS render
-                await client.save_sequence(save_as)
-                if real_render is not None:       # export the REAL render for coverage + critic
-                    await real_render.refresh(client)
-            except Exception:  # noqa: BLE001 — sampling degrades to neutral
-                pass
-        if sampler is not None:                   # injected qa fakes keep the legacy signature
-            return qa_eval(st.instructions, st.song_analysis, st.show_plan, applied,
-                           st.available_groups, sampler=sampler)
-        return qa_eval(st.instructions, st.song_analysis, st.show_plan, applied,
-                       st.available_groups)
-
-    async def _obj(applied):
-        return (await _report(applied)).objective_score
-
-    best, best_applied, best_obj = list(st.instructions), st.applied, await _obj(st.applied)
-    open_is_best = True
-    ledger, stall = [], 0
-    revlog = revlog or NullRevisionLog()
-    clock = clock or (lambda: "")
-
-    def _bundle(i):
-        if review_base is None:
-            return None
-        p = Path(review_base) / f"iter{i}"
-        return str(p) if p.is_dir() else None             # guard: no dangling pointer
-
-    def _record(i, report, verdict, **kw):                # pure observability — wrapped, never raises into the loop
-        revlog.write(RevisionLogRecord(
-            run_id=run_id, iteration=i, song_key=song_key, ts=clock(),
-            objective_score=report.objective_score, advisory_score=report.advisory_score,
-            findings=[LogFinding(source=source_of(f.metric), severity=f.severity, scope=f.scope,
-                                 section_index=f.section_index, detail=f.detail)
-                      for f in report.findings],
-            judge=({"score": verdict.score, "verdict": verdict.verdict} if verdict else None),
-            models=models or {}, review_bundle=_bundle(i), **kw))
-
-    if skip_objective is not None and best_obj >= skip_objective:
-        # already good → accept the draft without spending judge/critic/regen iterations
-        log.info("refine skipped: first-pass objective %d ≥ %d (already good)", best_obj, skip_objective)
-        _record(0, await _report(st.applied), None, kind="finalize",
-                obj_after=best_obj, human_decision="skip-high-objective")
-        return
-
-    iters = 0
-    prev_sig = None       # plateau detector: scores + flagged sections unchanged → more spend, same answer
-    for i in range(max_iterations):                       # HARD cap — cannot be exceeded
-        iters = i + 1
-        obj_before = best_obj                             # snapshot BEFORE the keep/revert branch mutates it
-        report = await _report(st.applied)
-        if visual_critique is not None:        # advisory visual findings → Judge/human (NOT objective_score)
-            try:
-                report.findings.extend(await visual_critique(st))
-            except Exception as exc:  # noqa: BLE001 — visual critique is best-effort
-                log.warning("visual critique failed: %s", exc)
-        verdict = (await judge_agent.run(
-            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger))).output
-        decision = await decide(report, verdict, ledger)
-        if decision.action in ("accept", "stop"):
-            _record(i, report, verdict, human_decision=decision.action,   # log the accept/stop too
-                    obj_before=obj_before, obj_after=obj_before, obj_delta=0)
-            break
-        sig = (report.objective_score, report.advisory_score,
-               frozenset((r.section_index, (r.issue or "")[:64]) for r in verdict.revisions))
-        if sig == prev_sig:                   # plateau: the iteration would re-spend on the same answer
-            log.info("plateau: objective+advisory+revisions unchanged — stopping")
-            _record(i, report, verdict, human_decision="plateau",
-                    obj_before=obj_before, obj_after=obj_before, obj_delta=0)
-            break
-        prev_sig = sig
-        judge_revs = list(decision.revisions or verdict.revisions)
-        floored = floor_visual_revisions(report.findings, judge_revs)     # backstop: critic-confirmed visual errors
-        revisions = judge_revs + floored
-        prior = {r.section_index for r in ledger}     # sections already revised in earlier iterations
-        for rev in revisions:
-            si = rev.section_index
-            # design escalation: a brief-implicated violation OR a repeat offender → the Director
-            # re-plans the SECTION (once per run); generation then realizes the new design.
-            if si not in redesigned and (si in prior or _design_implicated(si, report.findings)):
-                try:
-                    sec_f = [f for f in report.findings if getattr(f, "section_index", None) == si]
-                    new_sec = await _redesign(rev, sec_f)
-                    if new_sec is not None:
-                        old = st.show_plan.sections[si]
-                        new_sec.start_ms, new_sec.end_ms = old.start_ms, old.end_ms  # structure pinned
-                        if not new_sec.target_groups:
-                            new_sec.target_groups = list(old.target_groups)
-                        st.show_plan.sections[si] = new_sec
-                        redesigned.add(si)
-                        log.info("design-escalated section %d (%d findings)", si, len(sec_f))
-                except Exception as exc:  # noqa: BLE001 — escalation is best-effort
-                    log.warning("section redesign failed for %d: %s", si, exc)
-            st.instructions = replace_section(st.instructions, si, await _regen(rev))
-            ledger.append(rev)
-        st.instructions, _ = clamp_layer_budget(st.instructions)      # rule #10 on regen too
-        # occlusion guard + sub-frame stretch + tail fade on the spliced list — a regenerated
-        # section must not reintroduce an opaque wash (the 2:15 bug) or sub-frame slivers
-        st.instructions = finalize_effects(st, st.instructions)
-        await client.close_sequence(force=True, quiet=True)
-        st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
-        obj = await _obj(st.applied)
-        reverted = obj < best_obj - REGRESS_MARGIN
-        if reverted:                                      # objective REGRESSION → revert it
-            st.instructions, st.applied = list(best), best_applied
-            # Re-emit the reverted best NOW: the open xLights sequence otherwise keeps
-            # the regressed effects, and the next iteration's report/sampler/critic
-            # would measure (and the Judge would see) the render we just discarded.
-            await client.close_sequence(force=True, quiet=True)
-            st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
-            best_applied, open_is_best = st.applied, True
-            stall += 1                                    # repeated regressions → stall stop
-        else:                                             # gain OR held-objective → keep the revision
-            gained = obj > best_obj + REGRESS_MARGIN      # (a creative change that holds sync/placement
-            best, best_applied = list(st.instructions), st.applied   #  is the Judge's call, not the score's)
-            best_obj, open_is_best = max(best_obj, obj), True
-            stall = 0 if gained else stall
-        _record(i, report, verdict, human_decision=decision.action,
-                revisions=([LogRevision(section_index=r.section_index, issue=r.issue, origin="judge")
-                            for r in judge_revs]
-                           + [LogRevision(section_index=r.section_index, issue=r.issue, origin="backstop")
-                              for r in floored]),
-                regenerated_sections=[r.section_index for r in revisions],
-                obj_before=obj_before, obj_after=obj, obj_delta=obj - obj_before, reverted=reverted)
-        if stall >= STALL_LIMIT:                          # objective keeps regressing → terminate
-            break
-
-    st.instructions, st.applied = list(best), best_applied
-    if not open_is_best:                                  # ensure the OPEN sequence == finalized best
-        await client.close_sequence(force=True, quiet=True)
-        st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
-    final = await _report(st.applied)
-    _record(iters, final, None, kind="finalize", obj_after=best_obj)
 
 def _emit_editable_brief(st, out_dir) -> None:
     """Write the schema-backed, hand-editable creative_brief.json (+ schema) — the run's vocabulary

@@ -33,12 +33,14 @@ from .semantic_groups import (
     RHYTHM_GROUPS,
     RHYTHM_POOL,
 )
+from .effect_meta import DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE
 from .tuning import (
     ACCENT_MS,
     BACKBEAT_MIN_DRUM_ONSETS,
     BASS_MAX_ONSETS,
     BED_BRIGHTNESS_FACTOR,
     BED_INTENSITY,
+    CELL_BARS,
     ESCALATION_BOOST,
     FEATURE_PROP_BRIGHTNESS,
     FLASH_BRIGHTNESS,
@@ -53,6 +55,7 @@ from .tuning import (
     PEAK_BAND,
     PEAK_BED_SPAN,
     PEAK_FLOOR,
+    PHRASE_BARS,
     RHYTHM_FLOOR,
     SPARKLE_TOP_N,
     WASH_MAX_B,
@@ -82,33 +85,12 @@ def effect_palette(section_palette: list[str], effect_type: str, index: int) -> 
     return rot[:2] if effect_type in SIMPLE_COLOR else rot
 
 
-# Each effect's REAL speed/cycles/movement parameter + corpus-observed range.
-# The old blanket `E_SLIDER_<Effect>_Speed` was a real key for only a few effects — the
-# intensity→speed feature silently no-op'd elsewhere AND xLights logged ApplySetting errors
-# on every UI selection. Effects with no speed concept emit nothing.
-# (key, lo, hi, fmt)  fmt: "int" slider | "f1" one-decimal textctrl
-SPEED_KEYS: dict[str, tuple[str, float, float, str]] = {
-    "Meteors":     ("E_SLIDER_Meteors_Speed", 10, 45, "int"),
-    "Pinwheel":    ("E_SLIDER_Pinwheel_Speed", 5, 20, "int"),
-    "Butterfly":   ("E_SLIDER_Butterfly_Speed", 8, 40, "int"),
-    "Marquee":     ("E_SLIDER_Marquee_Speed", 1, 8, "int"),
-    "Plasma":      ("E_SLIDER_Plasma_Speed", 70, 90, "int"),
-    "Snowflakes":  ("E_SLIDER_Snowflakes_Speed", 10, 25, "int"),
-    "Snowstorm":   ("E_SLIDER_Snowstorm_Speed", 10, 30, "int"),
-    "Circles":     ("E_SLIDER_Circles_Speed", 5, 25, "int"),
-    "Tree":        ("E_SLIDER_Tree_Speed", 5, 20, "int"),
-    "Warp":        ("E_SLIDER_Warp_Speed", 5, 30, "int"),
-    "Color Wash":  ("E_TEXTCTRL_ColorWash_Cycles", 1, 6, "f1"),
-    # "On" deliberately ABSENT: On_Cycles would make steady beds PULSE — pulses are the
-    # beat layer's job; beds stay flat.
-    "Bars":        ("E_TEXTCTRL_Bars_Cycles", 0.5, 4, "f1"),
-    "Garlands":    ("E_TEXTCTRL_Garlands_Cycles", 1, 4, "f1"),
-    "Ripple":      ("E_TEXTCTRL_Ripple_Cycles", 1, 8, "f1"),
-    "Shimmer":     ("E_TEXTCTRL_Shimmer_Cycles", 4, 12, "f1"),
-    "Wave":        ("E_TEXTCTRL_Wave_Speed", 5, 35, "f1"),
-    "Curtain":     ("E_TEXTCTRL_Curtain_Speed", 0.5, 4, "f1"),
-    "Spirals":     ("E_TEXTCTRL_Spirals_Movement", 0.5, 4, "f1"),
-}
+# Each effect's REAL speed/cycles/movement parameter + corpus-observed range now lives in the
+# consolidated per-effect metadata table (effect_meta.py) — the old blanket `E_SLIDER_<Effect>_Speed`
+# was a real key for only a few effects, so the intensity→speed feature silently no-op'd elsewhere
+# AND xLights logged ApplySetting errors on every UI selection. `effect_speed_setting` reads the table;
+# effects with no speed concept emit nothing.
+from .effect_meta import SPEED_KEYS  # noqa: E402 — re-export (tests + external callers), kept under the legend above
 
 
 def effect_speed_setting(effect_type: str, intensity: float) -> dict[str, str]:
@@ -580,8 +562,7 @@ def normalize_durations(instructions: list, rhythm: dict) -> list:
     PHRASE-class effect is clamped to ~8 bars; a CELL-ABLE motion effect left long is chopped
     into contiguous 2-bar cells (community medians: even Spirals/Wave run 0.3–0.9s) unless it
     sits on a bed row (SEM_BAND_*/SEM_ALL — the explicit long-bed exception)."""
-    from ..qa.rules import (CELL_BARS, DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE,
-                            PHRASE_BARS, _BED_TARGET_PREFIXES, _BED_TARGETS)
+    from ..qa.rules import _BED_TARGET_PREFIXES, _BED_TARGETS   # bed-target sets stay beside the QA rules
     bar = _bar_ms(rhythm)
     out: list = []
     for ins in instructions:

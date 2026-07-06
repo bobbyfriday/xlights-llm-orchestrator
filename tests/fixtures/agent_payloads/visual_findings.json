@@ -1,0 +1,11 @@
+{
+ "summary": "coverage good; the drop is under-lit",
+ "findings": [
+  {
+   "section_index": 1,
+   "severity": "warn",
+   "aspect": "energy",
+   "detail": "peak section dimmer than the build"
+  }
+ ]
+}

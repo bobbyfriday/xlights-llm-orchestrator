@@ -11,6 +11,7 @@ from .config import has_llm_key, load_env
 from .pipeline import format_sections, regen_section, run_pipeline
 from .pipeline.media import safe_name
 from .pipeline.run import _auto_checkpoint, _design_review, _interpret_review
+from .pipeline.state import require
 
 
 def _live_surfaces(args):
@@ -68,7 +69,7 @@ async def _run(args) -> None:
         if server is not None:
             server.stop()
     rep = st.applied or {}
-    print(f"\nShowPlan: {len(st.show_plan.sections)} sections")
+    print(f"\nShowPlan: {len(require(st.show_plan, 'show_plan').sections)} sections")
     print(f"placed: {len(rep.get('placed', []))}   skipped: {len(rep.get('skipped', []))}")
     for p in rep.get("placed", [])[:25]:
         print(f"  + {p['effect']:<14} → {p['target']}  ({p['start_ms']}-{p['end_ms']}ms, L{p['layer']})")

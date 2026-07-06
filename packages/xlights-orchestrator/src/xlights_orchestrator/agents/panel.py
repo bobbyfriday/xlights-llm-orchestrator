@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable, Protocol
 
 from xlights_core.audio import SongAnalysis
 
@@ -31,10 +31,20 @@ from ..music_brief import (
 log = logging.getLogger(__name__)
 
 
+class RunsAgent(Protocol):
+    """The one method the panel needs from a pydantic_ai.Agent — a `run` coroutine.
+
+    A Protocol (not the concrete `Agent`) keeps test fakes (`SimpleNamespace`s with
+    a `run` attribute) assignable to `AnalystSpec.agent`.
+    """
+
+    async def run(self, prompt: str) -> Any: ...
+
+
 @dataclass
 class AnalystSpec:
     key: str
-    agent: object                       # pydantic_ai.Agent (output_type set)
+    agent: RunsAgent                    # pydantic_ai.Agent (output_type set)
     render: Callable[[SongAnalysis, object], str]
 
 
@@ -144,12 +154,14 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
     results = await asyncio.gather(*[_run(s) for s in analysts], return_exceptions=True)
     outputs: dict[str, object] = {}
     for spec, r in zip(analysts, results):
-        if isinstance(r, Exception):
+        # gather(return_exceptions=True) yields a `... | BaseException` union; guarding on the
+        # BASE class (not `Exception`) lets mypy narrow the else-branch to the success tuple.
+        if isinstance(r, BaseException):
             log.warning("analyst %r failed its retry, dropping from the brief: %s", spec.key, r)
             note("refine:analyst-drop", r, stage="interpret")   # best-effort; no-op before I5's start_run
-            continue
-        key, out = r
-        outputs[key] = out
+        else:
+            key, out = r
+            outputs[key] = out
 
     if not outputs:
         # Without a single analyst output, single mode would StopIteration and full

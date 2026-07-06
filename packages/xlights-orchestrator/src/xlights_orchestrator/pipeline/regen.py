@@ -30,7 +30,7 @@ from .generate import finalize_effects
 from .groups import targetable_groups
 from .media import prepare_media
 from .run import regenerate_section
-from .state import State
+from .state import State, require
 
 log = logging.getLogger(__name__)
 
@@ -97,15 +97,16 @@ async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent
     """
     _validate_index(st, section_index)
     if redesign is not None:                              # re-plan the SECTION, then realize it
-        old = st.show_plan.sections[section_index]
+        plan = require(st.show_plan, "show_plan")
+        old = plan.sections[section_index]
         new_sec = (await redesign.run(
-            director_mod.redesign_input(old, st.show_plan, [note or "redesign this section"]))).output
+            director_mod.redesign_input(old, plan, [note or "redesign this section"]))).output
         if new_sec is not None:
             new_sec.start_ms, new_sec.end_ms = old.start_ms, old.end_ms   # structure pinned
             if not new_sec.target_groups:                                 # keep the old targets if none
                 new_sec.target_groups = list(old.target_groups)
-            st.show_plan.sections[section_index] = new_sec
-    section = st.show_plan.sections[section_index]
+            plan.sections[section_index] = new_sec
+    section = require(st.show_plan, "show_plan").sections[section_index]
     rev = RevisionBrief(section_index=section_index, groups=list(section.target_groups),
                         issue=note or "manual regenerate", suggested_fix=note or "")
     new = await regenerate_section(st, rev, gen_agent=gen_agent)
@@ -157,7 +158,8 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
         media = prepare_media(song, show_folder)
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder,
-                                duration_s=st.song_analysis.duration_s, timing_tracks=True)
+                                duration_s=require(st.song_analysis, "song_analysis").duration_s,
+                                timing_tracks=True)
     degradations.emit_summary(dl)
     if dl.summary():
         degradations.write_json(dl, cache_root() / key / "degradations.json")

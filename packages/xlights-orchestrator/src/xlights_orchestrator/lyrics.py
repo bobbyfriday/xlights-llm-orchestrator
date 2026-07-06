@@ -34,7 +34,7 @@ def _tags(song_path: str) -> tuple[str | None, str | None]:
     """(artist, title) from audio tags, else (None, filename-derived title)."""
     artist = title = None
     try:
-        from mutagen import File as MutagenFile  # type: ignore
+        from mutagen import File as MutagenFile
 
         m = MutagenFile(song_path, easy=True)
         if m:
@@ -61,7 +61,7 @@ def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:
         log.info("no title for %s; skipping lyrics", song_path)
         return None
     try:
-        import lyricsgenius  # type: ignore
+        import lyricsgenius
 
         genius = lyricsgenius.Genius(
             token, timeout=timeout, retries=1, remove_section_headers=False,

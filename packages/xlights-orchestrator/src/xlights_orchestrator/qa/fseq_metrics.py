@@ -201,7 +201,7 @@ def _rhyme_and_range(series, sections, repetition_map) -> tuple[dict, list[Findi
                     label_to_sections.setdefault(label, []).append(si)
         sims: list[float] = []
         for label, members in label_to_sections.items():
-            vecs = [sigs[m] for m in members if sigs.get(m) is not None]
+            vecs = [v for m in members if (v := sigs.get(m)) is not None]
             for a in range(len(vecs)):
                 for b in range(a + 1, len(vecs)):
                     va, vb = vecs[a], vecs[b]

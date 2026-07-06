@@ -60,7 +60,7 @@ def _signature_pair(sections, indices) -> list[str]:
         a, b = max(((x, y) for i, x in enumerate(chrom) for y in chrom[i + 1:]),
                    key=lambda p: _hue_dist(p[0][1], p[1][1]))
         # map the chosen hexes back to the original names where possible (stable, human-readable)
-        by_hex = {}
+        by_hex: dict[str, str] = {}
         for c in pool:
             hx = _resolve(c)
             if hx:
@@ -75,7 +75,7 @@ def _bridge_index(sections, repetition_map) -> int | None:
     n = len(sections)
     if n < 3:
         return None
-    recurrence = {}
+    recurrence: dict[int, int] = {}
     for indices in (repetition_map or {}).values():
         for si in indices:
             recurrence[si] = max(recurrence.get(si, 0), len(indices))

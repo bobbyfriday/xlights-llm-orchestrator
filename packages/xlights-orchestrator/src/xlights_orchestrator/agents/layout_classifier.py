@@ -11,7 +11,7 @@ LLM-free (this lives in the orchestrator).
 from __future__ import annotations
 
 import json
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, Field
 
@@ -26,7 +26,7 @@ Role = Literal[
 ]
 
 # Guard: the literal must stay in lockstep with the canonical roles.
-assert set(Role.__args__) == set(CANONICAL_ROLES), "Role literal drifted from CANONICAL_ROLES"
+assert set(get_args(Role)) == set(CANONICAL_ROLES), "Role literal drifted from CANONICAL_ROLES"
 
 
 class PropRoleGuess(BaseModel):

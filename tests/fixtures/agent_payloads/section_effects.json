@@ -1,0 +1,58 @@
+{
+ "instructions": [
+  {
+   "target": "SEM_ARCHES",
+   "effect_type": "On",
+   "look_id": "On#0",
+   "palette_id": null,
+   "palette_colors": [],
+   "knob_values": {},
+   "extra_settings": {},
+   "direct_settings": "",
+   "render_style": "",
+   "layer": 0,
+   "start_ms": 0,
+   "end_ms": 12000,
+   "section_index": null,
+   "on_top": false
+  }
+ ],
+ "weave": {
+  "cells": [
+   {
+    "effect_type": "On",
+    "look_id": "",
+    "render_style": "",
+    "role": "carrier",
+    "groups": [
+     "SEM_ARCHES",
+     "SEM_CANES"
+    ],
+    "cell_beats": 1,
+    "alternation": "chase",
+    "direction": "ltr",
+    "blend": "",
+    "motion_curve": "",
+    "transition": "",
+    "palette": []
+   },
+   {
+    "effect_type": "Twinkle",
+    "look_id": "",
+    "render_style": "",
+    "role": "texture",
+    "groups": [
+     "SEM_MINITREES"
+    ],
+    "cell_beats": 2,
+    "alternation": "all",
+    "direction": "",
+    "blend": "",
+    "motion_curve": "",
+    "transition": "",
+    "palette": []
+   }
+  ]
+ },
+ "composites": []
+}

@@ -6,12 +6,15 @@ Plugins are required: the analyzer checks them up front and fails clearly if mis
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from pathlib import Path
 
 from . import fusion
 from .extractors import vamp_host
 from .schema import ANALYZER_VERSION, SongAnalysis
+
+log = logging.getLogger(__name__)
 
 def default_cache_dir() -> Path:
     """Resolve XLO_CACHE_DIR at call time (not import time) so late env changes —
@@ -107,8 +110,8 @@ class AudioAnalyzer:
             self._refresh_section_instrumentation(analysis, key)
         try:
             (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())
-        except Exception:  # noqa: BLE001 — cache write is best-effort
-            pass
+        except Exception as exc:  # noqa: BLE001 — cache write is best-effort
+            log.debug("lyric-refined analysis cache write skipped for %s: %s", key, exc)
         return True
 
     def refine_instrumental(self, analysis: SongAnalysis, path: str) -> bool:
@@ -121,8 +124,8 @@ class AudioAnalyzer:
         self._refresh_section_instrumentation(analysis, key)
         try:
             (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())
-        except Exception:  # noqa: BLE001 — cache write is best-effort
-            pass
+        except Exception as exc:  # noqa: BLE001 — cache write is best-effort
+            log.debug("instrumental-refined analysis cache write skipped for %s: %s", key, exc)
         return True
 
     def _refresh_section_instrumentation(self, analysis: SongAnalysis, key: str) -> None:
@@ -139,8 +142,8 @@ class AudioAnalyzer:
             if separated:
                 analysis.section_instrumentation = stems_ext.section_instrumentation(
                     separated, analysis.sample_rate, analysis.segments)
-        except Exception:  # noqa: BLE001 — enrichment only; overlap-matching covers the gap
-            pass
+        except Exception as exc:  # noqa: BLE001 — enrichment only; overlap-matching covers the gap
+            log.debug("section-instrumentation refresh skipped: %s", exc)
 
     def _attach_stems(self, analysis: SongAnalysis, path: str, key: str) -> None:
         """Separate, persist inspectable stem wavs, attach features + per-section prevalence.
@@ -160,10 +163,8 @@ class AudioAnalyzer:
     def _persist_stems(self, separated: dict, sr: int, key: str) -> None:
         """Write each stem as an inspectable mp3 (ffmpeg) under the cache dir, wav fallback
         when ffmpeg is absent. Best-effort — never fails the analysis."""
-        import logging
         import shutil
 
-        log = logging.getLogger(__name__)
         stem_dir = self.cache_dir / key / "stems"
         try:
             stem_dir.mkdir(parents=True, exist_ok=True)

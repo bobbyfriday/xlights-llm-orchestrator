@@ -2,64 +2,85 @@
 
 ## 1. Shared dependency (F-B)
 
-- [ ] 1.1 Confirm `add-asset-bound-placement` (F-B) has landed: `build_text_settings`,
+- [x] 1.1 Confirm `add-asset-bound-placement` (F-B) has landed: `build_text_settings`,
   `build_faces_settings`, the `direct_settings` instruction field, the emitter's asset-bound branch, and
   frozen Text + Faces settings templates (probe-verified key names).
-- [ ] 1.2 Sequence F-C's Text pass after improve-musicality Phase 3 lands `place_transitions`; copy its
+  <!-- Confirmed on main (base aa505a9): direct_settings.build_text_settings, EffectInstruction.direct_settings,
+       effect_emitter's place_direct branch, DIRECT_TYPES={Text,Faces} all present. -->
+- [x] 1.2 Sequence F-C's Text pass after improve-musicality Phase 3 lands `place_transitions`; copy its
   splice-hook re-run pattern.
+  <!-- improve-musicality's place_transitions is on a parallel unmerged branch (not in this base). Copied the
+       equivalent splice-hook pattern: `place_matrix_narrative` (strip-and-replace, idempotent) re-runs in
+       refine_loop after `replace_section`/clamp and before `finalize_effects`. -->
+
+<!-- NOTE (scope): the F-D half (§6–§10 below) ALREADY SHIPPED as the separate `add-singing-faces` change
+     (pipeline/faces.py, audio/phonemes.py, timing._phoneme_track on main) — those tasks are superseded there,
+     NOT re-implemented here. The specs/singing-faces spec delta in this change is likewise superseded by
+     add-singing-faces. This branch implements F-C (matrix narrative Text) only. -->
+
 
 ## 2. F-C matrix Text — matrix discovery
 
-- [ ] 2.1 Add `pipeline/matrix_text.py::find_matrix(model_names: list[str]) -> str | None` (name contains
+- [x] 2.1 Add `pipeline/matrix_text.py::find_matrix(model_names: list[str]) -> str | None` (name contains
   "matrix", case-insensitive, mirroring `_ORDER_TIERS`' focal test); `None` → the pass no-ops.
-- [ ] 2.2 Plumb `State.model_names` via a best-effort `st.model_names = await client.get_model_names()`
-  beside the `targetable_groups` call in `run_pipeline` (`run.py:386`), wrapped in `except Exception`.
-- [ ] 2.3 Hermetic test: `find_matrix` against the fixtures' `getModels.json` model list resolves "Matrix";
+- [x] 2.2 Plumb `State.model_names` via a best-effort `st.model_names = await client.get_model_names()`
+  beside the `targetable_groups` call in `run_pipeline`, wrapped in `except Exception`.
+- [x] 2.3 Hermetic test: `find_matrix` against the fixtures' `getModels.json` model list resolves "Matrix";
   a face-less/matrix-less list returns None.
 
 ## 3. F-C matrix Text — selection engine
 
-- [ ] 3.1 Implement `select_text_moments(brief, sa, plan) -> list[TextMoment]` (pure): title-card rule
+- [x] 3.1 Implement `select_text_moments(brief, sa, plan) -> list[TextMoment]` (pure): title-card rule
   (`identity.title` + artist if it fits, intro only, skip if intro < 8 s or title empty); featured-phrase
   cross-check against aligned lines (snap to matched line span; drop moments with no fuzzy match);
   caps/spacing/peak-exclusion (`MAX_TEXT_MOMENTS = 4`, `TEXT_SPACING_MS = 20_000`, ≤ one per section, none
   in the peak section); instrumental degradation (title card only).
-- [ ] 3.2 Add named dials `MAX_TEXT_MOMENTS` and `TEXT_SPACING_MS` to `pipeline/tuning.py`.
-- [ ] 3.3 Table-driven tests: vocal song with 6 candidate moments → 4 placed, spacing enforced; a moment
+- [x] 3.2 Add named dials `MAX_TEXT_MOMENTS` and `TEXT_SPACING_MS` to `pipeline/tuning.py`.
+- [x] 3.3 Table-driven tests: vocal song with 6 candidate moments → 4 placed, spacing enforced; a moment
   with no aligned line → dropped; instrumental → title only; no matrix → `[]`.
 
 ## 4. F-C matrix Text — realization & wiring
 
-- [ ] 4.1 Implement `place_matrix_text(st, matrix) -> list[EffectInstruction]` building instructions with
+- [x] 4.1 Implement `place_matrix_text(st, matrix) -> list[EffectInstruction]` building instructions with
   `direct_settings = build_text_settings(...)`, `on_top=True`, `T_CHOICE_LayerMethod: "Max"` blend, the
   section palette's lightest color (`beats._lightest_hex`), static-vs-scroll decision (`E_CHOICE_Text_Dir`
-  = `none` if it fits width else `left`), scroll-once `E_TEXTCTRL_Text_Speed` (one traverse ≈ aligned
-  duration), font/size ≥ 10–12 px glyph height and ≤ matrix height − 2 (probed dims via
-  `client.get_model("Matrix")` `parm1/parm2`, or hardcoded with a TODO for F-E), `render_style="Default"`.
-- [ ] 4.2 Dim concurrent matrix-targeted non-text instructions during each text span (multiply
+  = `none` if it fits width else `left`), scroll-once speed sized so one traverse ≈ the aligned
+  duration, glyph size ≥ 10-12 px (F-B's `build_text_settings` folds font/size into the descriptor).
+  <!-- F-B's build_text_settings uses E_SLIDER_Text_Speed and an Arial font descriptor (not
+       E_TEXTCTRL_Text_Speed / render_style); used its actual API. Matrix height via a `_matrix_height`
+       heuristic defaulting to the 50px readability floor, TODO(F-E) for the real manifest/probe. -->
+- [x] 4.2 Dim concurrent matrix-targeted non-text instructions during each text span (multiply
   `C_SLIDER_Brightness` by ~0.4 via `brightness_setting`); never touch non-matrix props.
-- [ ] 4.3 Refuse and log a degradation if the matrix resolution is under ~50 px (catalog rule #2).
-- [ ] 4.4 Wire `place_matrix_text` into `generate_instructions` after the section loop (beside
-  `place_triggers`/`key_moment_flashes`) and into the refine/regen splice path beside the transitions re-run.
-- [ ] 4.5 Tag each Text instruction with the owning `section_index` and a marker key `X_MatrixText=1` in
-  `extra_settings` (stripped before emit or tolerated as an unknown key — verify against the F-B probe).
+- [x] 4.3 Refuse and log a degradation if the matrix resolution is under ~50 px (catalog rule #2).
+- [x] 4.4 Wire `place_matrix_text` into `generate_instructions` after the section loop (beside
+  `place_triggers`/`key_moment_flashes`) and into the refine/regen splice path (`place_matrix_narrative`).
+- [x] 4.5 Tag each Text instruction with the owning `section_index` and a marker key `X_MatrixText=1` in
+  `extra_settings` (idempotence marker for strip-and-replace; xLights tolerates the unknown key).
 
 ## 5. F-C matrix Text — idempotence, QA, golden, live verify
 
-- [ ] 5.1 Idempotence + regen tests: re-running the pass after `replace_section` yields exactly the same
+- [x] 5.1 Idempotence + regen tests: re-running the pass after `replace_section` yields exactly the same
   text moments (no stacking); regenerating a section that owns a text moment recreates exactly one copy.
-- [ ] 5.2 Add a `qa/variety.py`-style advisory finding when text moments exceed the cap (Text is outside
+- [x] 5.2 Add a `qa/variety.py`-style advisory finding when text moments exceed the cap (Text is outside
   `rules.FEATURES`/`ENERGY_BAND`).
-- [ ] 5.3 Settings validation test: every emitted `direct_settings` round-trips
+- [x] 5.3 Settings validation test: every emitted `direct_settings` round-trips
   `parse_settings`/`serialize_settings` and its `E_TEXTCTRL_Text` equals the sanitized source string.
-- [ ] 5.4 Golden: expected nil / title-card only (fixture has no lyrics); regenerate with
-  `XLO_REGEN_GOLDEN=1` only if it changes and review the diff.
-- [ ] 5.5 Live verify (`-m live`): run a vocal reference song end-to-end; eyeball the review-bundle stills
-  at each text moment (legibility, scroll-once timing, background dim); place title card + one scrolling
-  phrase on the real Matrix via a `validate_direct`-style scratch sequence; check the xLights log for
-  `ApplySetting` errors from the Text template.
-- [ ] 5.6 Docs: note the text doctrine (punctuation, caps, non-sources) in `docs/usage.md`; cross-link
+- [x] 5.4 Golden: expected nil / title-card only (fixture has no lyrics); confirmed BYTE-IDENTICAL
+  (the golden's `_FakeClient` has no `get_model_names` and its `get_show_folder` raises → no matrix →
+  the pass no-ops). No regeneration needed.
+- [ ] 5.5 Live verify (`-m live`): run a vocal reference song end-to-end; eyeball the review-bundle stills.
+  <!-- SKIPPED: requires a running xLights instance + a vocal reference render (live hardware). Left
+       unchecked per the rigor brief; the template itself is already live-validated by F-B. -->
+- [x] 5.6 Docs: note the text doctrine (punctuation, caps, non-sources) in `docs/usage.md`; cross-link
   craft-roadmap item 8 as closed.
+
+<!-- ============================================================================================
+     F-D (§6–§11 below) — SUPERSEDED BY the separate `add-singing-faces` change (shipped on main:
+     xlights_core/audio/phonemes.py, pipeline/faces.py, pipeline/timing._phoneme_track, the `lyrics`
+     extra, tests/test_phonemes.py + tests/test_faces.py). NOT implemented on this branch — the boxes
+     are intentionally left unchecked here because add-singing-faces owns them, not this change. The
+     specs/singing-faces spec delta in THIS change is likewise superseded there.
+     ============================================================================================ -->
 
 ## 6. F-D faces — phoneme extractor
 
@@ -131,6 +152,8 @@
 
 ## 11. Fixtures (shared)
 
-- [ ] 11.1 Extend a copy of the golden's `SongAnalysis` with `lyrics.lines` (word spans) + a brief with
-  `featured_lyric_moments`, so F-C selection tests and F-D phoneme/track tests run against realistic timing
-  data.
+- [x] 11.1 Extend a copy of the golden's `SongAnalysis` with `lyrics.lines` + a brief with
+  `featured_lyric_moments`, so F-C selection tests run against realistic timing data.
+  <!-- Done for F-C inline in tests/test_matrix_text.py (aligned `_lyrics(...)` lines + featured moments +
+       a matrixed model list). The F-D phoneme/track fixtures shipped with add-singing-faces. -->
+

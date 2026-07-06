@@ -12,10 +12,43 @@ import os
 from pathlib import Path
 from typing import Any
 
+import httpx
 import yaml
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import ModelHTTPError
+from xlights_core.retry import with_retry
 
 _CONFIG = Path(__file__).parent / "config.yaml"
+
+# Provider-overload / rate-limit / transient statuses worth a bounded retry. Deliberately NOT
+# "5xx ⇒ retry": a 400/401/403/404/413/422 schema/auth/bad-request failure repeats identically
+# at full input-token cost. 529 is Anthropic's overloaded_error; 408/429/500/502/503 cover the
+# general provider-transient surface.
+_TRANSIENT_HTTP = {408, 429, 500, 502, 503, 529}
+
+
+def llm_transient(exc: BaseException) -> bool:
+    """The LLM retry predicate — isolated in ONE function next to its taxonomy so a PydanticAI
+    rename fails this unit test, not a run. Retries provider overload/rate-limit/timeout classes
+    (HTTP 408/429/500/502/503/529 and escaping httpx transport/timeout errors); never retries
+    validation (``UnexpectedModelBehavior``/``pydantic.ValidationError``), auth/bad-request
+    (400/401/403/404/413/422), content-filter, or usage-limit errors.
+    """
+    if isinstance(exc, ModelHTTPError):
+        return exc.status_code in _TRANSIENT_HTTP
+    return isinstance(exc, (httpx.TimeoutException, httpx.TransportError))
+
+
+async def run_agent(agent: Any, prompt: Any, *, role: str = "", attempts: int = 3) -> Any:
+    """Run ``agent.run(prompt)`` under bounded transient-only retry (the single LLM seam).
+
+    Callable-wrapping keeps the retry visible and never wraps an injected fake invisibly: a
+    hermetic TestModel fake never raises a transient class, so it is called exactly once and the
+    golden snapshot / existing tests are byte-identical. PydanticAI's own output-validation
+    ``retries`` (schema re-prompting) is a different mechanism and is untouched here.
+    """
+    return await with_retry(lambda: agent.run(prompt),
+                            retryable=llm_transient, attempts=attempts, label=f"llm:{role}")
 
 
 @functools.lru_cache(maxsize=1)

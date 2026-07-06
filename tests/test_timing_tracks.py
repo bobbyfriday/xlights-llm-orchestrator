@@ -169,3 +169,33 @@ def test_single_layer_track_unchanged(tmp_path):
     T.patch_xsq_timing_tracks(f, [T.TimingTrack("Beats", [T.TimingMark("1", 0, 500)])])
     el = [e for e in ET.parse(f).getroot().find("ElementEffects") if e.get("name") == "Beats"][0]
     assert len(el.findall("EffectLayer")) == 1                      # back-compat: one layer
+
+
+def test_frame_safe_prevents_zero_width_marks():
+    # dense sub-frame marks (e.g. visemes / colliding onsets < one frame apart) must not survive
+    # as zero-width — xLights drops those on load. They collapse to frame-aligned, >=1-frame marks.
+    dense = [T.TimingMark("a", 9310, 9320), T.TimingMark("b", 9320, 9330),
+             T.TimingMark("c", 9330, 9500)]
+    out = T._frame_safe(dense)
+    assert out, "all marks dropped"
+    assert all(m.end_ms > m.start_ms for m in out)                        # no zero-width
+    assert all(m.start_ms % T.FRAME_MS == 0 and m.end_ms % T.FRAME_MS == 0 for m in out)
+    assert all((m.end_ms - m.start_ms) >= T.FRAME_MS for m in out)        # >=1 frame wide
+    # contiguous tiled marks (end == next start) are preserved, not merged
+    tiled = T._frame_safe([T.TimingMark("1", 1000, 1200), T.TimingMark("2", 1200, 1450)])
+    assert len(tiled) == 2 and tiled[0].end_ms == tiled[1].start_ms
+
+
+def test_patched_xsq_has_no_zero_width_marks(tmp_path):
+    f = tmp_path / "s.xsq"; f.write_text(_XSQ)
+    # a Faces-style 3-layer track whose phoneme layer has sub-frame marks
+    track = T.TimingTrack("Faces", layers=[
+        [T.TimingMark("phrase", 0, 2000)],
+        [T.TimingMark("word", 0, 400)],
+        [T.TimingMark("AI", 1650, 1660), T.TimingMark("E", 1660, 1670), T.TimingMark("rest", 1670, 2000)],
+    ])
+    T.patch_xsq_timing_tracks(f, [track])
+    faces = [e for e in ET.parse(f).getroot().find("ElementEffects") if e.get("name") == "Faces"][0]
+    marks = [(int(m.get("startTime")), int(m.get("endTime")))
+             for lyr in faces.findall("EffectLayer") for m in lyr.findall("Effect")]
+    assert marks and all(e > s for s, e in marks)                         # nothing zero-width in the file

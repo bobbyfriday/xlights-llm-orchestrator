@@ -73,8 +73,8 @@ def _torch_device() -> str:
 
         if torch.backends.mps.is_available():
             return "mps"
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001 — MPS probe failed → CPU fallback (cosmetic)
+        log.debug("torch device probe failed, using CPU: %s", exc)
     return "cpu"
 
 

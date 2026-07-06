@@ -49,7 +49,8 @@ def prepare_media(song_path: str | Path, show_folder: str | Path | None) -> Path
         shutil.copy2(src, dest)
         return dest
     except OSError as exc:
-        log.warning("media: could not stage %s → %s: %s", src, dest, exc)
+        from ..degradations import note
+        note("finalize:media", f"could not stage {src} → {dest}: {exc}", stage="finalize")
         return None
 
 
@@ -99,5 +100,6 @@ def patch_xsq_media(xsq_path: str | Path, media_path: str | Path, duration_s: fl
         os.replace(tmp, xsq_path)
         return True
     except Exception as exc:  # noqa: BLE001 — best-effort; leave the animation .xsq intact
-        log.warning("xsq patch failed for %s: %s", xsq_path, exc)
+        from ..degradations import note
+        note("finalize:media", f"xsq media patch failed for {xsq_path}: {exc}", stage="finalize")
         return False

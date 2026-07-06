@@ -199,7 +199,8 @@ def summarize_runs(jsonl_lines: list[str], run_ids: set[str] | None = None) -> d
         try:
             from ..revision_log import RevisionLogRecord
             records.append(RevisionLogRecord.model_validate_json(line))
-        except Exception:  # noqa: BLE001 — tolerant, like F-G's loader
+        except Exception as exc:  # noqa: BLE001 — tolerant, like F-G's loader
+            log.debug("skipping unparseable revision-log line: %s", exc)
             continue
     out: dict[str, ArmSummary] = {}
     for run_id, run_records in group_runs(records).items():

@@ -18,7 +18,7 @@ from typing import Callable
 from xlights_core.audio import SongAnalysis
 
 from .. import telemetry
-from ..models import build_agent
+from ..models import build_agent, run_agent
 from ..song_description import featured_lyric_moments, normalize_intensities
 from ..music_brief import (
     HarmonyOut,
@@ -129,19 +129,24 @@ def build_panel(*, lyrics_present: bool):
 # -- run ----------------------------------------------------------------------
 
 async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_concurrency: int = 3) -> MusicBrief:
+    from ..degradations import note
+
     sem = asyncio.Semaphore(max_concurrency)
 
     async def _run(spec: AnalystSpec):
-        async with sem:
-            res = await spec.agent.run(spec.render(sa, lyrics))
+        async with sem:                       # retry stays INSIDE the semaphore (concurrency ≤ cap)
+            res = await run_agent(spec.agent, spec.render(sa, lyrics),
+                                  role=f"analyst:{spec.key}", attempts=2)
             telemetry.record("analyst", res)
             return spec.key, res.output
 
+    # gather preserves input order → zip results back to their specs so the drop names the key.
     results = await asyncio.gather(*[_run(s) for s in analysts], return_exceptions=True)
     outputs: dict[str, object] = {}
-    for r in results:
+    for spec, r in zip(analysts, results):
         if isinstance(r, Exception):
-            log.warning("analyst failed, dropping: %s", r)
+            log.warning("analyst %r failed its retry, dropping from the brief: %s", spec.key, r)
+            note("refine:analyst-drop", r, stage="interpret")   # best-effort; no-op before I5's start_run
             continue
         key, out = r
         outputs[key] = out
@@ -157,7 +162,8 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
             raise RuntimeError("single-mode analyst did not return a MusicBrief")
     else:
         from .synthesizer import render_input as synth_render
-        res = await synthesizer.run(synth_render(outputs, sa))
+        res = await run_agent(synthesizer, synth_render(outputs, sa),
+                              role="synthesizer", attempts=3)
         telemetry.record("synthesizer", res)
         brief = res.output
 

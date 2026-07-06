@@ -18,6 +18,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import degradations
 from .. import qa as qa_pkg
 from .. import telemetry
 from ..agents import director as director_mod
@@ -25,6 +26,8 @@ from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
 from ..effect_emitter import clamp_layer_budget
 from ..models import registry
+from ..models.registry import run_agent
+from ..progress import NullProgressBus
 from ..refine import floor_visual_revisions, replace_section
 from ..revision_log import (
     LogFinding,
@@ -33,7 +36,7 @@ from ..revision_log import (
     RevisionLogRecord,
     source_of,
 )
-from .generate import finalize_effects
+from .generate import finalize_effects, place_matrix_narrative
 from .tuning import REGRESS_MARGIN, REFINE_SKIP_OBJECTIVE, STALL_LIMIT
 
 log = logging.getLogger(__name__)
@@ -169,8 +172,8 @@ class ReportBuilder:
                 await self.client.save_sequence(self.save_as)
                 if self.real_render is not None:  # export the REAL render for coverage + critic
                     await self.real_render.refresh(self.client)
-            except Exception:  # noqa: BLE001 — sampling degrades to neutral
-                pass
+            except Exception as exc:  # noqa: BLE001 — sampling degrades to neutral
+                degradations.note("qa:render-flush", exc, stage="refine")
         series = None
         if self.fseq_series_provider is not None:          # Tier 0 rendered-pixel metrics (post-flush)
             try:
@@ -191,13 +194,15 @@ class ReportBuilder:
 class IterationRecorder:
     """Wraps ``_record``/``_bundle``: assemble the ``RevisionLogRecord`` and guard the review
     bundle path. Pure observability — ``revlog.write`` is itself best-effort, so this never
-    raises into the loop.
+    raises into the loop. The F-I progress ``score``/``refine`` events are emitted HERE from the
+    same record fields so the SSE stream and the revision log can never disagree (one site).
 
     Each record carries ``usage`` = the tokens spent since the previous record (drained from the
     run-scoped ``UsageLog``); a ``kind="finalize"`` record additionally carries the whole-run
     ``usage_total`` and the derived ``cost_usd`` (None when any used model is unpriced)."""
 
-    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base, usage_log=None):
+    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base,
+                 usage_log=None, progress=None):
         self.revlog = revlog
         self.run_id = run_id
         self.song_key = song_key
@@ -205,6 +210,7 @@ class IterationRecorder:
         self.models = models
         self.review_base = review_base
         self.usage_log = usage_log
+        self.progress = progress or NullProgressBus()
 
     def _bundle(self, i):
         if self.review_base is None:
@@ -219,14 +225,26 @@ class IterationRecorder:
             total = self.usage_log.snapshot()
             extra["usage_total"] = total
             extra["cost_usd"] = registry.estimate_cost(self.models or {}, total)
-        self.revlog.write(RevisionLogRecord(
+        rec = RevisionLogRecord(
             run_id=self.run_id, iteration=i, song_key=self.song_key, ts=self.clock(), kind=kind,
             objective_score=report.objective_score, advisory_score=report.advisory_score,
             findings=[LogFinding(source=source_of(f.metric), severity=f.severity, scope=f.scope,
                                  section_index=f.section_index, detail=f.detail)
                       for f in report.findings],
             judge=({"score": verdict.score, "verdict": verdict.verdict} if verdict else None),
-            models=self.models or {}, review_bundle=self._bundle(i), **extra, **kw))
+            models=self.models or {}, review_bundle=self._bundle(i), **extra, **kw)
+        self.revlog.write(rec)
+        # progress from the SAME record — the sparkline feed + refine-decision tap.
+        self.progress.emit("score", stage="refine", payload={
+            "iteration": i, "objective": rec.objective_score, "advisory": rec.advisory_score,
+            "kind": rec.kind, "findings": len(rec.findings),
+            "top_findings": [f"{f.severity}:{f.scope}:{(f.detail or '')[:80]}"
+                             for f in rec.findings[:3]]})
+        self.progress.emit("refine", stage="refine", payload={
+            "iteration": i, "kind": rec.kind, "human_decision": rec.human_decision,
+            "judge": rec.judge, "obj_before": rec.obj_before, "obj_after": rec.obj_after,
+            "obj_delta": rec.obj_delta, "reverted": rec.reverted,
+            "regenerated_sections": rec.regenerated_sections})
 
 
 async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, log=log) -> None:
@@ -251,7 +269,7 @@ async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, l
                     ledger.mark_redesigned(si)
                     log.info("design-escalated section %d (%d findings)", si, len(sec_f))
             except Exception as exc:  # noqa: BLE001 — escalation is best-effort
-                log.warning("section redesign failed for %d: %s", si, exc)
+                degradations.note("refine:redesign", f"section {si}: {exc}", stage="refine")
         st.instructions = replace_section(st.instructions, si, await regen(rev))
         ledger.record(rev)
 
@@ -263,7 +281,8 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                       visual_critique=None, revlog=None, run_id="run", song_key="",
                       models=None, clock=None, review_base=None,
                       sampler=None, save_as=None, redesign=None, real_render=None,
-                      skip_objective=None, fseq_series_provider=None) -> None:
+                      skip_objective=None, fseq_series_provider=None, progress=None) -> None:
+    progress = progress or NullProgressBus()
     qa_eval = qa or qa_pkg.evaluate
     judge_agent = judge or judge_mod.judge_agent()
     if checkpoint is not None:
@@ -290,7 +309,8 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         if _rd_agent is None:                          # lazy — real agent needs an API key
             _rd_agent = director_mod.section_redesigner()
         sec = st.show_plan.sections[rev.section_index]
-        _rd_res = await _rd_agent.run(director_mod.redesign_input(sec, st.show_plan, findings))
+        _rd_res = await run_agent(_rd_agent, director_mod.redesign_input(sec, st.show_plan, findings),
+                                  role="redesigner", attempts=2)
         telemetry.record("director", _rd_res)          # redesigner routes as the director role
         return _rd_res.output
 
@@ -301,7 +321,7 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                              fseq_series_provider=fseq_series_provider)
     recorder = IterationRecorder(revlog, run_id=run_id, song_key=song_key, clock=clock,
                                  models=models, review_base=review_base,
-                                 usage_log=telemetry.current())
+                                 usage_log=telemetry.current(), progress=progress)
     ledger = EscalationLedger()
 
     first_obj = await reporter.objective(st.applied)
@@ -326,9 +346,11 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
             try:
                 report.findings.extend(await visual_critique(st))
             except Exception as exc:  # noqa: BLE001 — visual critique is best-effort
-                log.warning("visual critique failed: %s", exc)
-        _judge_res = await judge_agent.run(
-            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger))
+                degradations.note("visual:critique", exc, stage="refine")
+        _judge_res = await run_agent(
+            judge_agent,
+            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger),
+            role="judge", attempts=3)
         telemetry.record("judge", _judge_res)
         verdict = _judge_res.output
         decision = await decide(report, verdict, ledger.ledger)
@@ -353,6 +375,10 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         await apply_revisions(st, revisions, regen=_regen, redesign=_redesign,
                               ledger=ledger, findings=report.findings, log=log)
         st.instructions, _ = clamp_layer_budget(st.instructions)      # rule #10 on regen too
+        # re-run the matrix narrative-text pass after the splice: a regenerated section may own a
+        # text moment (recreate exactly one; strip-and-replace is idempotent) and the background
+        # dim must re-apply against the fresh section effects (D6, mirrors the transitions pass).
+        st.instructions = place_matrix_narrative(st, st.instructions)
         # occlusion guard + sub-frame stretch + tail fade on the spliced list — a regenerated
         # section must not reintroduce an opaque wash (the 2:15 bug) or sub-frame slivers
         st.instructions = finalize_effects(st, st.instructions)

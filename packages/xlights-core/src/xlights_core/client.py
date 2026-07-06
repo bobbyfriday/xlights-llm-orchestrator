@@ -26,13 +26,25 @@ from .exceptions import (
     XLightsResponseError,
     XLightsTargetMissing,
     XLightsTimeout,
+    XLightsTransportError,
     XLightsUnsavedChanges,
 )
 from .models import Controller, Model
+from .retry import with_retry, xlights_transient
 
 # render/check on a real (large) open sequence can take a while; the write path
 # uses a more generous timeout than reads.
 DEFAULT_WRITE_TIMEOUT = 300.0
+
+
+def _mutation_transient(exc: BaseException) -> bool:
+    """Mutation retry is connection-ONLY: only the provably-never-sent ``XLightsConnectionError``
+    is retryable, and the ``XLightsTransportError`` subclass (sent, response lost) and
+    ``XLightsTimeout`` are explicitly NOT — retrying either could double-apply a non-idempotent
+    ``addEffect``.
+    """
+    return (isinstance(exc, XLightsConnectionError)
+            and not isinstance(exc, XLightsTransportError))
 
 
 class XLightsClient:
@@ -45,6 +57,7 @@ class XLightsClient:
         *,
         timeout: float = DEFAULT_TIMEOUT,
         client: httpx.AsyncClient | None = None,
+        retry_attempts: int = 3,
     ) -> None:
         self.base_url = (base_url or get_base_url()).rstrip("/")
         # An injected client (e.g. with a MockTransport in tests) is not owned/closed by us.
@@ -57,6 +70,8 @@ class XLightsClient:
         # Serializes all mutating ops — xLights has one shared open sequence.
         self._write_lock = asyncio.Lock()
         self._write_timeout = max(timeout, DEFAULT_WRITE_TIMEOUT)
+        # Bounded transient-transport retry (0/1 disables — reproduces the pre-retry behavior).
+        self._retry_attempts = retry_attempts
 
     async def aclose(self) -> None:
         if self._owns_client:
@@ -90,13 +105,34 @@ class XLightsClient:
         except httpx.TimeoutException as exc:  # includes connect/read timeouts
             raise XLightsTimeout(f"Request to {cmd!r} timed out") from exc
         except httpx.ConnectError as exc:
+            # Provably never sent — safe to retry even a non-idempotent mutation.
             raise XLightsConnectionError(
                 f"Could not connect to xLights at {self.base_url}"
             ) from exc
-        except httpx.HTTPError as exc:  # any other transport-level failure
-            raise XLightsConnectionError(f"HTTP error talking to xLights: {exc}") from exc
+        except httpx.HTTPError as exc:  # sent, but the response was lost (transport-level)
+            raise XLightsTransportError(f"HTTP error talking to xLights: {exc}") from exc
 
         return self._handle(cmd, resp)
+
+    async def _request_with_retry(
+        self,
+        cmd: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        *,
+        retryable=xlights_transient,
+    ) -> Any:
+        """A ``_request`` wrapped in bounded transient-transport retry.
+
+        Reads pass the default ``xlights_transient`` (connection error OR timeout). Mutations
+        pass a connection-only predicate so a post-send timeout surfaces immediately (retrying
+        an ``addEffect`` that may already have landed could double-place). The terminal failure
+        keeps its original typed condition.
+        """
+        return await with_retry(
+            lambda: self._request(cmd, params=params, timeout=timeout),
+            retryable=retryable, attempts=self._retry_attempts, label=f"xlights:{cmd}",
+        )
 
     def _handle(self, cmd: str, resp: httpx.Response) -> Any:
         try:
@@ -138,11 +174,11 @@ class XLightsClient:
 
     async def get_version(self) -> str:
         """Return the running xLights version string."""
-        return str(self._unwrap(await self._request("getVersion"), "version") or "")
+        return str(self._unwrap(await self._request_with_retry("getVersion"), "version") or "")
 
     async def get_show_folder(self) -> str:
         """Return the path of the currently loaded show folder."""
-        return str(self._unwrap(await self._request("getShowFolder"), "folder") or "")
+        return str(self._unwrap(await self._request_with_retry("getShowFolder"), "folder") or "")
 
     async def get_models(
         self, *, include_models: bool = True, include_groups: bool = True
@@ -156,7 +192,7 @@ class XLightsClient:
             params["models"] = "false"
         if not include_groups:
             params["groups"] = "false"
-        names = self._unwrap(await self._request("getModels", params=params), "models")
+        names = self._unwrap(await self._request_with_retry("getModels", params=params), "models")
         return list(names or [])
 
     async def get_model_names(self) -> list[str]:
@@ -169,18 +205,33 @@ class XLightsClient:
 
     async def get_model(self, name: str) -> Model:
         """Return one model's full attributes. Unknown name -> ``XLightsResponseError``."""
-        raw = self._unwrap(await self._request("getModel", params={"model": name}), "model")
+        raw = self._unwrap(
+            await self._request_with_retry("getModel", params={"model": name}), "model")
         return Model.model_validate(raw or {})
 
     async def get_controllers(self) -> list[Controller]:
         """Return the configured controllers."""
-        raw = self._unwrap(await self._request("getControllers"), "controllers") or []
+        raw = self._unwrap(await self._request_with_retry("getControllers"), "controllers") or []
         return [Controller.model_validate(c) for c in raw]
 
     # -- mutations (serialized through the write-lock) ----------------------------
 
-    async def _mutate(self, cmd: str, params: dict[str, Any] | None = None) -> Any:
+    async def _mutate(self, cmd: str, params: dict[str, Any] | None = None,
+                      *, retry: bool = True) -> Any:
+        """Serialize a mutation on the write lock. Transient retry is **connection-only** and
+        happens INSIDE the lock (holding it across the backoff), so ordering and the single
+        open-sequence invariant are preserved — no other mutation can sneak a ``closeSequence``
+        between a failed ``addEffect`` attempt and its retry. A post-send timeout surfaces
+        immediately (retrying could double-apply). ``retry=False`` (renderAll/export) opts out:
+        a timeout there means "still rendering", so re-issuing piles work on the app.
+        """
         async with self._write_lock:
+            if retry:
+                # Connection-only: a plain XLightsConnectionError is "provably never sent";
+                # XLightsTransportError (sent, response lost) and XLightsTimeout are NOT retried.
+                return await self._request_with_retry(
+                    cmd, params=params, timeout=self._write_timeout,
+                    retryable=_mutation_transient)
             return await self._request(cmd, params=params, timeout=self._write_timeout)
 
     async def new_sequence(
@@ -246,7 +297,7 @@ class XLightsClient:
     async def get_open_sequence(self) -> dict:
         """Info about the open sequence ({seq, fullseq, media, ...}); {} if none open."""
         try:
-            data = await self._request("getOpenSequence")
+            data = await self._request_with_retry("getOpenSequence")
             return data if isinstance(data, dict) else {}
         except XLightsResponseError as exc:
             # Only the "no sequence open" reply means an empty result; any other
@@ -258,10 +309,13 @@ class XLightsClient:
     async def export_video_preview(self, filename: str) -> str | None:
         """Export the house-preview video (REQUIRES a media-attached sequence — exporting a
         media-less sequence crashes xLights with a bitrate-0 null-deref). Returns the output name."""
-        data = await self._mutate("exportVideoPreview", {"filename": filename})
+        # No retry: a long-running export that times out is likely still running; re-issuing
+        # would pile a second export on the app.
+        data = await self._mutate("exportVideoPreview", {"filename": filename}, retry=False)
         return data.get("output") if isinstance(data, dict) else None
 
     async def render_all(self, *, highdef: bool = False) -> None:
         """Render the open sequence (requires one open)."""
+        # No retry: a renderAll timeout means "still rendering", not a transport blip.
         params = {"highdef": "true"} if highdef else {}
-        await self._mutate("renderAll", params)
+        await self._mutate("renderAll", params, retry=False)

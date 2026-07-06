@@ -15,7 +15,7 @@ import math
 
 from xlights_core.audio import SongAnalysis
 
-from .. import telemetry
+from .. import degradations, telemetry
 from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..agents.catalog import placeable_effect_types
@@ -104,6 +104,7 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
                         save_as: str | None = None, generator=None, emitter=None) -> State:
     """Regenerate one section of a cached show in place and re-emit/re-save the sequence."""
     telemetry.start_run()          # measure manual regens too
+    dl = degradations.start_run()               # per-run degradations collector (best-effort)
     key, st = load_cached_state(song)
     _validate_index(st, section_index)
     st.available_groups = await targetable_groups(client, cache_root=cache_root())
@@ -127,10 +128,14 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
     if save_as:
         try:
             show_folder = await client.get_show_folder()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — no show folder → media/faces enrichment lost
+            degradations.note("finalize:media", exc, stage="finalize")
             show_folder = None
         media = prepare_media(song, show_folder)
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder,
                                 duration_s=st.song_analysis.duration_s, timing_tracks=True)
+    degradations.emit_summary(dl)
+    if dl.summary():
+        degradations.write_json(dl, cache_root() / key / "degradations.json")
     return st

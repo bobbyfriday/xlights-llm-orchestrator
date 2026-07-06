@@ -11,8 +11,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from .. import telemetry
+from .. import degradations, telemetry
 from ..agents import visual_critic as vc_mod
+from ..models.registry import run_agent
 from ..refine import Finding
 from .media import SANDBOX_DATA as _SANDBOX, resolve_artifact
 
@@ -42,8 +43,8 @@ def _persist_bundle(root: Path, media: list[tuple], vf, findings: list[Finding])
                 if f.section_index == i:
                     lines.append(f"- **[{f.severity}/{f.aspect}]** {f.detail}\n")
         (root / "review.md").write_text("".join(lines))
-    except Exception as exc:  # noqa: BLE001 — persistence is best-effort
-        log.warning("could not persist visual review bundle: %s", exc)
+    except Exception as exc:  # noqa: BLE001 — persistence is cosmetic (findings still returned)
+        log.debug("visual review bundle not persisted: %s", exc)
 
 
 def make_visual_critique(client, *, save_as: str | None, song_key: str, cache_root: Path,
@@ -63,8 +64,8 @@ def make_visual_critique(client, *, save_as: str | None, song_key: str, cache_ro
         try:
             await client.save_sequence(save_as)        # write the current .fseq
             show_folder = await client.get_show_folder()
-        except Exception as exc:  # noqa: BLE001
-            log.info("visual critique: save/show-folder unavailable: %s", exc)
+        except Exception as exc:  # noqa: BLE001 — no fresh .fseq → the critic can't run this iter
+            degradations.note("visual:critique", exc, stage="refine")
         fseq = _resolve_fseq(save_as, show_folder)
         rgb = Path(show_folder) / "xlights_rgbeffects.xml" if show_folder else None
         net = Path(show_folder) / "xlights_networks.xml" if show_folder else None
@@ -73,8 +74,8 @@ def make_visual_critique(client, *, save_as: str | None, song_key: str, cache_ro
             return []
         try:
             renderer = PreviewRenderer(fseq, rgb, net)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("visual critique: renderer init failed: %s", exc)
+        except Exception as exc:  # noqa: BLE001 — no offline renderer → the critic can't run
+            degradations.note("visual:critique", exc, stage="refine")
             return []
 
         use_real = real is not None and await real.refresh(client)   # judge the REAL render when possible
@@ -92,7 +93,8 @@ def make_visual_critique(client, *, save_as: str | None, song_key: str, cache_ro
             return []
 
         agent = critic or vc_mod.visual_critic_agent()
-        _vc_res = await agent.run(vc_mod.render_input(media, st.show_plan, st.music_brief))
+        _vc_res = await run_agent(agent, vc_mod.render_input(media, st.show_plan, st.music_brief),
+                                  role="visual-critic", attempts=2)
         telemetry.record("visual_critic", _vc_res)
         vf = _vc_res.output
         findings = vc_mod.to_findings(vf)
@@ -185,7 +187,8 @@ def _ffprobe_duration(path) -> float | None:
         out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                               "-of", "csv=p=0", str(path)], capture_output=True, text=True, timeout=30)
         return float(out.stdout.strip())
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — probe failure → caller uses the known duration
+        log.debug("ffprobe duration probe failed for %s: %s", path, exc)
         return None
 
 
@@ -222,8 +225,8 @@ class RealRender:
             self.path, self._stamp = out, stamp
             log.info("real render exported (%s, lead-in %dms)", name, self.offset_ms)
             return True
-        except Exception as exc:  # noqa: BLE001 — best-effort; consumers fall back
-            log.info("real render unavailable: %s", exc)
+        except Exception as exc:  # noqa: BLE001 — best-effort; consumers fall back to offline
+            degradations.note("visual:real-render", exc, stage="refine")
             return False
 
     def _ff(self, args, timeout=60) -> bytes | None:
@@ -232,7 +235,8 @@ class RealRender:
             out = subprocess.run(["ffmpeg", "-loglevel", "error"] + args + ["pipe:1"],
                                  capture_output=True, timeout=timeout)
             return out.stdout or None
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — frame/clip extraction → caller uses offline
+            log.debug("ffmpeg frame/clip extraction failed: %s", exc)
             return None
 
     def frame_png(self, t_ms: int) -> bytes | None:

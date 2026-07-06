@@ -173,7 +173,10 @@ def test_generate_matches_golden(tmp_path, monkeypatch):
         if os.environ.get("XLO_REGEN_GOLDEN"):
             return  # explicit regen run: don't also assert against what we just wrote
 
-    expected = json.loads(GOLDEN.read_text())
+    # Normalize the golden through the current schema so an additive, defaulted field (e.g. F-B's
+    # direct_settings="") doesn't spuriously fail the compare: the fixture stays byte-identical, and
+    # nothing here emits direct instructions. A real generation change still fails (values differ).
+    expected = [EffectInstruction(**d).model_dump() for d in json.loads(GOLDEN.read_text())]
     assert produced == expected, (
         f"generate output changed ({len(produced)} effects vs {len(expected)} golden). "
         "If intentional, regenerate: XLO_REGEN_GOLDEN=1 pytest tests/test_golden_pipeline.py"

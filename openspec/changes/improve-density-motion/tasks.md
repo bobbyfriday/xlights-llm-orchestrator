@@ -1,32 +1,32 @@
 ## 1. Measurement tool
 
-- [ ] 1.1 Add `scripts/measure_fabric.py` with `FabricStats` and `SectionStats` dataclasses per the
+- [x] 1.1 Add `scripts/measure_fabric.py` with `FabricStats` and `SectionStats` dataclasses per the
   design's field list (`effects_per_min`, `share_by_family` = motion/punctuation/bed/feature/other,
   `share_by_type` top-N, `duration_p50_by_type` ms, `blend_mode_share`, `transition_share`,
   `value_curve_kinds`, `layer_depth_hist`, `per_prop_expansion`, `per_section`).
-- [ ] 1.2 Implement `stats_from_instructions(instrs: list[dict], duration_s: float) -> FabricStats`
+- [x] 1.2 Implement `stats_from_instructions(instrs: list[dict], duration_s: float) -> FabricStats`
   over an `EffectInstruction`-dump list (the `instructions` cache or the golden fixture).
-- [ ] 1.3 Implement `stats_from_xsq(path: Path) -> FabricStats` parsing `<Effect>` elements
+- [x] 1.3 Implement `stats_from_xsq(path: Path) -> FabricStats` parsing `<Effect>` elements
   (ElementTree) so community shows AND our finalized output measure identically.
-- [ ] 1.4 Freeze the §2.1 community aggregates into the script as constants so the comparison runs
+- [x] 1.4 Freeze the §2.1 community aggregates into the script as constants so the comparison runs
   without the corpus.
-- [ ] 1.5 Compute `per_prop_expansion` from `rgbeffects.xml` modelGroups (reuse the parsing in
+- [x] 1.5 Compute `per_prop_expansion` from `rgbeffects.xml` modelGroups (reuse the parsing in
   `xlights_core/knowledge/layout_semantics.py`) and add the prop-row-equivalent effects/min column
   (`raw × expansion` for group-targeted rows).
-- [ ] 1.6 Report every stat per section, bucketed by intensity (and, post-Phase 2, `treatment`), via
+- [x] 1.6 Report every stat per section, bucketed by intensity (and, post-Phase 2, `treatment`), via
   `FabricStats.per_section`; keep the aggregation importable by `qa/musicality.py`.
-- [ ] 1.7 Unit tests for both parsers: `stats_from_instructions` against hand-built instruction lists
+- [x] 1.7 Unit tests for both parsers: `stats_from_instructions` against hand-built instruction lists
   (known shares/durations); `stats_from_xsq` against a ≤20-effect synthetic `.xsq` written by the
   test (ElementTree — no xLights needed).
 
 ## 2. Attribution (source tag)
 
-- [ ] 2.1 Add a transient per-layer `source` tag (`"weave" | "accents" | "bed" | "triggers" |
+- [x] 2.1 Add a transient per-layer `source` tag (`"weave" | "accents" | "bed" | "triggers" |
   "flash" | "generator" | "vu" | "composite"`) — either an excluded-from-`model_dump` field on
   `EffectInstruction` or a parallel counter returned by `realize_section` — surfaced only in the
   measurement report. Confirm the cache/golden formats stay byte-identical (I6 drift-guard does not
   trip); if the decision requires persistence, regenerate the golden once.
-- [ ] 2.2 Surface a per-type-per-source breakdown in the report so tuning can see whether an `On` row
+- [x] 2.2 Surface a per-type-per-source breakdown in the report so tuning can see whether an `On` row
   is a bed, an accent, or an LLM wash.
 
 ## 3. Baseline measurement + targets doc

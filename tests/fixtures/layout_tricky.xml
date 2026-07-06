@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored fixture for F-E edge cases (spec §8). Every model here is asserted on. -->
+<xrgb>
+  <models>
+    <!-- a SOLE tree with only 500 nodes → MEGA_TREE by the sole-largest rule (< 600 threshold) -->
+    <model name="Yard Tree" DisplayAs="Tree Flat" StringType="RGB Nodes"
+           parm1="10" parm2="50" WorldPosX="0" WorldPosY="0"/>
+    <!-- a parked model far off to the left (X=-900) → outlier/excluded/review -->
+    <model name="Parked Prop" DisplayAs="Single Line" StringType="RGB Nodes"
+           parm1="1" parm2="10" WorldPosX="-900" WorldPosY="0"/>
+    <!-- a dense whole-house Custom mesh → 2D_SURFACE by density (450 nodes; below the tree) -->
+    <model name="House Mesh" DisplayAs="Custom" StringType="RGB Nodes"
+           CustomModel="450" WorldPosX="10" WorldPosY="20"/>
+    <!-- a non-RGB (single color) string → POINT override regardless of role -->
+    <model name="Roof Mono" DisplayAs="Single Line" StringType="Single Color Red"
+           parm1="1" parm2="200" WorldPosX="-10" WorldPosY="40"/>
+    <!-- a model parked in a NON-Default layout group → excluded per §8 -->
+    <model name="Garage Preview" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           LayoutGroup="Garage" WorldPosX="5" WorldPosY="5"/>
+    <!-- an unnamed Custom whose only clue is its group "All Outline" → OUTLINE via group hint -->
+    <model name="Prop X7" DisplayAs="Custom" StringType="RGB Nodes"
+           CustomModel="1,2,3;4,5,6" WorldPosX="12" WorldPosY="42"/>
+  </models>
+  <modelGroups>
+    <modelGroup name="All Outline" models="Prop X7,Roof Mono"/>
+  </modelGroups>
+</xrgb>

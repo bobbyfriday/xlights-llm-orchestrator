@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored fixture for F-E classifier/spatial tests. NOT captured from memory:
+     every attribute here is exercised by an assertion in tests/test_layout_classify.py. -->
+<xrgb>
+  <models>
+    <!-- a mega tree: Tree 360, 1600 nodes (>= 600) -->
+    <model name="Mega Tree" DisplayAs="Tree 360" StringType="RGB Nodes"
+           parm1="16" parm2="100" WorldPosX="0" WorldPosY="0"/>
+    <!-- 6 mirrored arches, left-to-right; symmetric about x=0 -->
+    <model name="Arch L3" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           WorldPosX="-30" WorldPosY="1"/>
+    <model name="Arch L2" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           WorldPosX="-18" WorldPosY="1"/>
+    <model name="Arch L1" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           WorldPosX="-6" WorldPosY="1"/>
+    <model name="Arch R1" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           WorldPosX="6" WorldPosY="1"/>
+    <model name="Arch R2" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           WorldPosX="18" WorldPosY="1"/>
+    <model name="Arch R3" DisplayAs="Arches" StringType="RGB Nodes" parm1="1" parm2="25"
+           WorldPosX="30" WorldPosY="1"/>
+    <!-- 4 candy canes -->
+    <model name="Cane 1" DisplayAs="Candy Canes" StringType="RGB Nodes" parm1="1" parm2="30"
+           WorldPosX="-24" WorldPosY="0"/>
+    <model name="Cane 2" DisplayAs="Candy Canes" StringType="RGB Nodes" parm1="1" parm2="30"
+           WorldPosX="-8" WorldPosY="0"/>
+    <model name="Cane 3" DisplayAs="Candy Canes" StringType="RGB Nodes" parm1="1" parm2="30"
+           WorldPosX="8" WorldPosY="0"/>
+    <model name="Cane 4" DisplayAs="Candy Canes" StringType="RGB Nodes" parm1="1" parm2="30"
+           WorldPosX="24" WorldPosY="0"/>
+    <!-- outline via Single Line + name heuristic (roof/gutter) -->
+    <model name="Roof Left" DisplayAs="Single Line" StringType="RGB Nodes" parm1="1" parm2="150"
+           WorldPosX="-20" WorldPosY="40"/>
+    <model name="Gutter R" DisplayAs="Single Line" StringType="RGB Nodes" parm1="1" parm2="50"
+           WorldPosX="20" WorldPosY="38"/>
+    <!-- a window frame (DisplayAs map) -->
+    <model name="Front Window" DisplayAs="Window Frame" StringType="RGB Nodes" parm1="1" parm2="40"
+           WorldPosX="0" WorldPosY="25"/>
+    <!-- a Custom snowflake (name heuristic 'flake') -->
+    <model name="Snowflake 1" DisplayAs="Custom" StringType="RGB Nodes"
+           CustomModel="1,2,3;4,5,6;7,8,9" WorldPosX="-12" WorldPosY="30"/>
+  </models>
+  <modelGroups>
+    <modelGroup name="All Arches" models="Arch L3,Arch L2,Arch L1,Arch R1,Arch R2,Arch R3"/>
+  </modelGroups>
+</xrgb>

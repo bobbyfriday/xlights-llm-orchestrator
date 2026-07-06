@@ -258,4 +258,25 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     instrs += key_moment_flashes(st.show_plan, st.available_groups)   # white flash at climaxes
     for _i, _sec in enumerate(st.show_plan.sections):       # feature sparkle/snow props pop (white-on-bed)
         feature_prop_contrast([x for x in instrs if x.section_index == _i], _sec)
+    instrs = place_matrix_narrative(st, instrs)             # sparse narrative Text on the matrix (F-C)
     return finalize_effects(st, instrs)
+
+
+def place_matrix_narrative(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
+    """Append F-C narrative Text on the matrix model to `instrs` (idempotent: drops any prior
+    matrix-text before re-placing, so refine/regen splices reproduce exactly one copy per moment).
+
+    `place_matrix_text` reads/dims the existing matrix background in `st.instructions`, so point
+    that at the working list for the duration of the pass. No matrix / no grounded text → no-op."""
+    from .matrix_text import find_matrix, place_matrix_text, strip_matrix_text
+    instrs = strip_matrix_text(instrs)
+    matrix = find_matrix(getattr(st, "model_names", None))
+    if matrix is None:
+        return instrs
+    prior = st.instructions
+    st.instructions = instrs
+    try:
+        text = place_matrix_text(st, matrix)
+    finally:
+        st.instructions = prior
+    return instrs + text

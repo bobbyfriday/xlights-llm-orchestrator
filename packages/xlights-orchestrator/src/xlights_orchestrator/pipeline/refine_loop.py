@@ -31,7 +31,7 @@ from ..revision_log import (
     RevisionLogRecord,
     source_of,
 )
-from .generate import finalize_effects
+from .generate import finalize_effects, place_matrix_narrative
 from .tuning import REGRESS_MARGIN, REFINE_SKIP_OBJECTIVE, STALL_LIMIT
 
 log = logging.getLogger(__name__)
@@ -320,6 +320,10 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         await apply_revisions(st, revisions, regen=_regen, redesign=_redesign,
                               ledger=ledger, findings=report.findings, log=log)
         st.instructions, _ = clamp_layer_budget(st.instructions)      # rule #10 on regen too
+        # re-run the matrix narrative-text pass after the splice: a regenerated section may own a
+        # text moment (recreate exactly one; strip-and-replace is idempotent) and the background
+        # dim must re-apply against the fresh section effects (D6, mirrors the transitions pass).
+        st.instructions = place_matrix_narrative(st, st.instructions)
         # occlusion guard + sub-frame stretch + tail fade on the spliced list — a regenerated
         # section must not reintroduce an opaque wash (the 2:15 bug) or sub-frame slivers
         st.instructions = finalize_effects(st, st.instructions)

@@ -83,6 +83,26 @@ automatically:
 Install the optional `lyrics` extra for accurate phonemes (`uv sync --extra lyrics`); without it the
 faces still sing using the heuristic fallback. Instrumental songs (no timed lyrics) place no faces.
 
+## Matrix narrative text
+
+When your layout has a **matrix model** (any model whose name contains "matrix"), the pipeline places
+sparse narrative **Text** effects on it — the matrix is the show's storyteller, not just another wash
+canvas. Text is treated as **punctuation, not captioning** (a matrix that talks all night is a chyron):
+
+- a **title card** in the intro (the song's title, plus the artist if it fits), and
+- up to **4 featured lyric phrases** — the ones the panel curated as the song's signature lines,
+  each snapped to its aligned lyric line so it lands on the audio, at least 20 s apart, at most one
+  per section, and **never in the peak section** (the peak belongs to the composite payoff).
+
+**Grounded by construction:** only text already present in the brief (the song identity or a curated
+featured line) can ever appear — section labels ("CHORUS"), invented captions, and full lyric
+captioning never do. A featured line that doesn't fuzzy-match an aligned lyric line is dropped rather
+than shown at a guessed time. Text rides on top with a `Max` blend in the section's lightest color,
+and the matrix's own background is dimmed under each phrase so the glyphs stay legible; other props are
+never touched. Instrumental songs get the title card only; layouts with no matrix place no text. The
+caps live in `pipeline/tuning.py` (`MAX_TEXT_MOMENTS`, `TEXT_SPACING_MS`) and an advisory QA finding
+fires if a future author pushes past them.
+
 ## Run a show
 
 ```bash

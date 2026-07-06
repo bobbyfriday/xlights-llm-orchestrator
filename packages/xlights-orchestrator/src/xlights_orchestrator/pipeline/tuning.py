@@ -57,6 +57,13 @@ BACKBEAT_MIN_DRUM_ONSETS = 4   # need at least this many drum onsets in a sectio
 LEGATO_ACCENT_SPARSEN = 2      # a legato section keeps every Nth backbone accent (sparser, softer)
 LEGATO_ACCENT_MS = 600         # legato accents breathe longer than the crisp ACCENT_MS pop
 
+# -- matrix narrative text (F-C) --------------------------------------------
+# Text is PUNCTUATION, not captioning: a matrix that talks all night is a chyron. These dials cap
+# how much narrative Text the deterministic pass may place on the matrix model, so future "just one
+# more text source" additions can't creep the show into over-captioning.
+MAX_TEXT_MOMENTS = 4          # at most this many featured lyric phrases per show (title card is extra)
+TEXT_SPACING_MS = 20_000      # minimum gap between two placed text moments (sparse punctuation)
+
 # -- durations (ms) ---------------------------------------------------------
 ACCENT_MS = 250                        # a short beat-accent punctuation
 FLASH_MS = 150                         # a brief full-display white hit

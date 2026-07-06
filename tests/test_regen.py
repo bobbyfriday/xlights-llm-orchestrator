@@ -116,6 +116,37 @@ def test_regenerate_into_pins_section_structure():
     assert (sec.start_ms, sec.end_ms, sec.target_groups) == (2000, 4000, ["G1", "G2"])
 
 
+class _FakeRedesigner:
+    def __init__(self, new_section):
+        self._s, self.inputs = new_section, []
+
+    async def run(self, rendered):
+        self.inputs.append(rendered)
+        return SimpleNamespace(output=self._s)
+
+
+def test_regenerate_into_redesign_replans_section():
+    st = _state()
+    # a re-planned section with deliberately wrong structure (must be re-pinned) + new groups/treatment
+    new = SectionPlan(start_ms=999, end_ms=999, target_groups=["G3", "G4"], effect_family="Bars",
+                      intensity=0.9, look="fuller and driving", treatment="full")
+    rd = _FakeRedesigner(new)
+    run(regenerate_into(st, 1, "make it busier", gen_agent=_FakeGen(_section_effects()), redesign=rd))
+    sec = st.show_plan.sections[1]
+    assert sec.target_groups == ["G3", "G4"] and sec.treatment == "full"   # section re-PLANNED
+    assert (sec.start_ms, sec.end_ms) == (2000, 4000)                      # structure re-pinned
+    assert "make it busier" in rd.inputs[0]                                # note steered the redesign
+    assert st.show_plan.sections[0].target_groups == ["G1", "G2"]          # neighbors untouched
+
+
+def test_regenerate_into_redesign_keeps_old_targets_when_new_empty():
+    st = _state()
+    new = SectionPlan(start_ms=0, end_ms=0, target_groups=[], effect_family="On", intensity=0.5)
+    run(regenerate_into(st, 1, "", gen_agent=_FakeGen(_section_effects()),
+                        redesign=_FakeRedesigner(new)))
+    assert st.show_plan.sections[1].target_groups == ["G1", "G2"]          # defaulted to old targets
+
+
 def test_invalid_index_rejected():
     with pytest.raises(IndexError):
         run(regenerate_into(_state(), 9, "", gen_agent=_FakeGen(_section_effects())))

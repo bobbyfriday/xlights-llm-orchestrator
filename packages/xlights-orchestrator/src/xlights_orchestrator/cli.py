@@ -80,6 +80,7 @@ async def _regen(args) -> None:
     async with XLightsClient() as client:
         st = await regen_section(
             args.song, client=client, section_index=args.section, note=args.note or "",
+            redesign=args.redesign,
             save_as=None if args.no_save else (args.name or safe_name(args.song)),
         )
     n = sum(1 for i in st.instructions if i.section_index == args.section)
@@ -190,6 +191,9 @@ def main(argv: list[str] | None = None) -> None:
     g.add_argument("--section", type=int, default=None, help="section index to regenerate (see --list)")
     g.add_argument("--list", action="store_true", help="list the show's sections (index, time, look) and exit")
     g.add_argument("--note", default=None, help="free-text fix to steer the regen (e.g. 'too busy, calm it down')")
+    g.add_argument("--redesign", action="store_true",
+                   help="re-PLAN the section via the Director (change its groups/treatment/look), not just "
+                        "regenerate effects within the existing plan — use when the section itself is wrong")
     g.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
     g.add_argument("--no-save", action="store_true", help="don't save (re-emit only, leave unsaved/open)")
     rp = sub.add_parser("report", help="offline cost & quality dashboard over the revision logs")

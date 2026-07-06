@@ -38,6 +38,12 @@ class Prop:
     wx: float = 0.0
     wy: float = 0.0
     groups: list[str] = field(default_factory=list)
+    # F-E generalization: mirror partner (call-and-response), the raw StringType (RGB vs
+    # non-RGB drives the POINT capability override), and discovered <subModel> names (the
+    # seam F-F submodel targeting consumes). All defaulted → old callers/cached JSON unaffected.
+    mirror_of: str | None = None
+    string_type: str = ""
+    submodels: list[str] = field(default_factory=list)
 
 
 _ROLE_GROUP = {"OUTLINE": "SEM_OUTLINE", "WINDOW": "SEM_WINDOWS", "ARCH": "SEM_ARCHES",
@@ -48,8 +54,10 @@ _NON_ENSEMBLE = ("SINGING_FACE", "SIGN")          # excluded from ensemble group
 
 
 def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
-    """The SEM_ group plan (name -> member model names), spec §5."""
+    """The SEM_ group plan (name -> member model names), spec §5.
+    Null/placeholder models (name contains 'null') are excluded from every group."""
     from collections import defaultdict
+    props = [p for p in props if not is_null_model(p.name)]     # spec §5.6: no placeholder models
     byrole: dict[str, list[Prop]] = defaultdict(list)
     for p in props:
         byrole[p.role].append(p)
@@ -84,6 +92,111 @@ def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
 # larger (SEM_ARCHES 1144, SEM_FOCAL 1111...) and WARNs on every render. 1200 covers the largest
 # observed extent; the cost applies only to group-canvas effects — which are the buffer's point.
 SEM_GRID_SIZE = 1200
+
+
+# -- §5.7 group layout modes (F-E) --------------------------------------------------------------
+# xLights serializes the group dialog's "Preview/Buffer Layout" choice as the modelGroup `layout`
+# attribute (an internal token, NOT the UI label). Tokens: minimalGrid | grid | horizontal |
+# vertical | overlaid. A `_LTR` chase must traverse its members IN ORDER → the ordered token; an
+# ensemble reads the whole-yard spatial map → the "per preview" token.
+#
+# DECISION 7 / OPEN QUESTION 1: the design asks these strings be pinned by a live GUI round-trip
+# (task 3.1). That step needs xLights' UI and is DEFERRED (see tasks.md). Pending it, we pin the
+# tokens from xLights' known serialization AND record the current real layout's token in the
+# round-trip fixture; `layout_modes` still assigns ordered-vs-ensemble deterministically, so the
+# behavioral contract holds and only the exact string is subject to the live confirmation.
+LAYOUT_MODE_ORDERED = "horizontal"        # SEM_*_LTR — "Horizontal Per Model", chases in order
+LAYOUT_MODE_ENSEMBLE = "minimalGrid"      # ensembles — the group-canvas spatial map (per preview)
+
+
+def layout_modes(groups) -> dict[str, str]:
+    """Spec §5.7: group name → layout-mode token. `_LTR` → ordered mode; everything else →
+    ensemble mode. Accepts a plan dict or an iterable of names."""
+    names = groups.keys() if isinstance(groups, dict) else groups
+    return {n: (LAYOUT_MODE_ORDERED if n.endswith("_LTR") else LAYOUT_MODE_ENSEMBLE) for n in names}
+
+
+@dataclass
+class WriteReport:
+    created: list[str]              # SEM_ groups newly added
+    replaced: list[str]            # SEM_ groups that existed and were regenerated
+    kept_user_groups: list[str]    # non-SEM_ groups left exactly as they were
+    backup: str | None             # the timestamped backup path, or None on a no-op
+    changed: bool = True           # False → the file was already correct (no write, no backup)
+
+
+def _plan_signature(groups: dict[str, list[str]], modes: dict[str, str], grid_size: int) -> tuple:
+    """A comparable signature of what the SEM_ subtree WOULD serialize to (for no-op detection)."""
+    return tuple(sorted(
+        (name, ",".join(members), modes.get(name, LAYOUT_MODE_ENSEMBLE), str(grid_size))
+        for name, members in groups.items()))
+
+
+def _current_signature(existing_sem) -> tuple:
+    return tuple(sorted(
+        (el.get("name", ""), el.get("models", ""), el.get("layout", ""), el.get("GridSize", ""))
+        for el in existing_sem))
+
+
+def write_sem_groups(rgb_path, groups: dict[str, list[str]], *, modes: dict[str, str] | None = None,
+                     grid_size: int = SEM_GRID_SIZE, backup: bool = True) -> WriteReport:
+    """Idempotently (re)create the SEM_ modelGroups in rgbeffects.xml (spec §5/§5.6/§5.7).
+
+    (1) remove every existing ``^SEM_`` group (regenerable — spec §6); (2) append one <modelGroup>
+    per plan entry with members, LayoutGroup="Default", GridSize, and the §5.7 ``layout`` mode
+    attribute; (3) timestamped backup then atomic tmp + os.replace. NEVER touches non-SEM_ (user)
+    groups. A no-op (the serialized SEM_ subtree already matches) writes nothing and takes no backup.
+    xLights must be CLOSED (it rewrites the file from memory on exit — see ensure_xlights_closed)."""
+    import os
+    import shutil
+    from datetime import datetime
+    from pathlib import Path
+
+    modes = modes or layout_modes(groups)
+    p = Path(rgb_path)
+    tree = ET.parse(p)
+    root = tree.getroot()
+    mg = root.find("modelGroups")
+    if mg is None:
+        mg = ET.SubElement(root, "modelGroups")
+
+    existing = mg.findall("modelGroup")
+    existing_sem = [el for el in existing if el.get("name", "").startswith("SEM_")]
+    user_groups = [el.get("name", "") for el in existing if not el.get("name", "").startswith("SEM_")]
+
+    # no-op detection: the serialized SEM_ subtree already matches the plan (same contract as
+    # patch_sem_gridsize returning 0) → skip the write AND the backup.
+    if _current_signature(existing_sem) == _plan_signature(groups, modes, grid_size):
+        return WriteReport(created=[], replaced=[], kept_user_groups=user_groups,
+                           backup=None, changed=False)
+
+    existing_names = {el.get("name", "") for el in existing_sem}
+    for el in existing_sem:                          # remove ALL old SEM_ groups (stale ones too)
+        mg.remove(el)
+
+    created, replaced = [], []
+    for name, members in groups.items():
+        (replaced if name in existing_names else created).append(name)
+        ET.SubElement(mg, "modelGroup", {
+            "name": name,
+            "models": ",".join(members),
+            "LayoutGroup": "Default",
+            "GridSize": str(grid_size),
+            "layout": modes.get(name, LAYOUT_MODE_ENSEMBLE),
+            "selected": "0",
+        })
+
+    backup_path = None
+    if backup:
+        ts = datetime.now().strftime("%Y%m%d%H%M%S")
+        backup_path = str(p.with_name(p.name + f".{ts}.bak"))
+        shutil.copy2(p, backup_path)
+
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+    os.replace(tmp, p)
+    return WriteReport(created=sorted(created), replaced=sorted(replaced),
+                       kept_user_groups=user_groups, backup=backup_path, changed=True)
 
 
 def patch_sem_gridsize(rgb_path, size: int = SEM_GRID_SIZE) -> int:

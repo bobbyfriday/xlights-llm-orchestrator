@@ -132,6 +132,37 @@ def test_pipeline_flow_hermetic(tmp_path, monkeypatch):
     assert all(i.effect_type == "On" for i in body)
 
 
+def test_non_refine_run_writes_usage_json(tmp_path, monkeypatch):
+    """A non-refine run still emits a durable usage.json under the song's cache dir (I1)."""
+    import json as _json
+
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
+    song = tmp_path / "song.mp3"; song.write_bytes(b"fake-audio-bytes")
+    plan = ShowPlan(sections=[
+        {"start_ms": 0, "end_ms": 6000, "target_groups": ["G1"], "effect_family": "On", "intensity": 0.3}])
+    sect = SectionEffects(instructions=[EffectInstruction(
+        target="G1", effect_type="On", look_id="On#0", start_ms=0, end_ms=6000)])
+
+    async def emitter(client, instructions, *, duration_secs, **kw):
+        return {"placed": [], "skipped": [], "rendered": True}
+
+    run(run_pipeline(str(song), client=_FakeClient(["G1"]),
+                     director=_director_agent(plan), generator=_generator_agent(sect),
+                     analyze=lambda p: _stub_analysis(), interpret=_interpret_stub,
+                     emitter=emitter, use_cache=False))
+
+    from xlights_orchestrator.pipeline.cache import cache_root, song_key
+    usage = cache_root() / song_key(str(song)) / "usage.json"
+    assert usage.exists()
+    runs = _json.loads(usage.read_text())
+    assert isinstance(runs, list) and len(runs) == 1
+    row = runs[0]
+    # TestModel agents carry usage → generator/director recorded; provider + models truthful
+    assert row["provider"] == "anthropic"
+    assert row["models"]["director"] == "anthropic:claude-opus-4-8"
+    assert "cost_usd" in row and "usage_total" in row
+
+
 def test_pipeline_resume_from_cache(tmp_path, monkeypatch):
     monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
     song = tmp_path / "s.mp3"; song.write_bytes(b"abc")
@@ -582,3 +613,24 @@ def test_live_generate():
     st = run(go())
     assert st.show_plan.sections
     assert st.applied and len(st.applied["placed"]) >= 1
+
+
+@pytest.mark.live
+@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"),
+                    reason="needs ANTHROPIC_API_KEY for a real analyst call")
+def test_live_analyst_records_usage():
+    """One real analyst run must report nonzero input tokens into the run-scoped collector."""
+    import asyncio as _asyncio
+
+    from xlights_orchestrator import telemetry
+    from xlights_orchestrator.agents import panel as panel_mod
+
+    async def go():
+        telemetry.start_run()
+        sa = _stub_analysis()
+        analysts, synthesizer = panel_mod.build_panel(lyrics_present=False)
+        await panel_mod.run_panel(sa, None, analysts=analysts, synthesizer=synthesizer)
+        return telemetry.current().snapshot()
+
+    snap = _asyncio.run(go())
+    assert snap.get("analyst") and snap["analyst"].input_tokens > 0

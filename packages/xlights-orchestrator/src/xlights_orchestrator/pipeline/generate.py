@@ -9,6 +9,7 @@ reads as a stage skeleton; caching stays with the caller.
 
 from __future__ import annotations
 
+from .. import telemetry
 from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
 from ..models.registry import run_agent
@@ -43,7 +44,7 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
-from .semantic_groups import ACCENT_GROUPS, HERO_GROUP
+from .semantic_groups import ACCENT_GROUPS, DEFAULT_VOCAB, HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
@@ -271,9 +272,11 @@ async def realize_section(st: State, si: int, *, agent,
     bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
     motifs = {g: st.show_plan.group_motifs[g]
               for g in section.target_groups if g in st.show_plan.group_motifs}
-    out: SectionEffects = (await run_agent(agent, generator_mod.render_input(
+    _gen_res = await run_agent(agent, generator_mod.render_input(
         section, revision=revision, concept=st.show_plan.concept, motifs=motifs),
-        role="generator", attempts=3)).output
+        role="generator", attempts=3)
+    telemetry.record("generator", _gen_res)
+    out: SectionEffects = _gen_res.output
     _rm = st.music_brief.repetition_map if st.music_brief else None
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
     _label = section_identity(si, _rm)       # the section's musical identity (chorus/verse/…) or None
@@ -338,7 +341,8 @@ async def realize_section(st: State, si: int, *, agent,
     else:
         weave_obj = None
     woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
-                         based_targets={k.target for k in kept}) if weave_obj else []
+                         based_targets={k.target for k in kept},   # cells blend over washes
+                         bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference) if weave_obj else []
     for ins in woven:
         ins.section_index = si
         ins.source = "weave"
@@ -380,7 +384,8 @@ async def realize_section(st: State, si: int, *, agent,
         accents = place_beat_accents(
             section, rhythm, st.available_groups,
             carrier_covers=carrier_covers(weave_obj, section, st.available_groups),
-            stride_step=_ordinal if _accent_mode == "full" else -1)   # -1 sparsens a feature
+            stride_step=_ordinal if _accent_mode == "full" else -1,   # -1 sparsens a feature
+            vocab=st.vocab or DEFAULT_VOCAB)
     else:
         accents = []
     under = {k.target for k in kept}

@@ -22,16 +22,14 @@ from ..show_plan import EffectInstruction, SectionPlan
 from .phrasing import resolve_phrasing, soft_edge_settings
 from .semantic_groups import (
     ACCENT_GROUPS,
-    BACKBEAT_GROUP_PREFERENCE,
-    BASS_BAND_GROUP,
     BED_PREFERENCE,
+    DEFAULT_VOCAB,
     FULL_DISPLAY,
-    HERO_GROUP,
     MELODIC_STEMS,
-    METRIC_RING,
     PEAK_BROAD_GROUPS,
     RHYTHM_GROUPS,
     RHYTHM_POOL,
+    ChoreoVocabulary,
 )
 from .effect_meta import DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE
 from .tuning import (
@@ -316,27 +314,29 @@ class RhythmRoles(NamedTuple):
     backbeat: str | None          # the contrasting group that answers on 2 & 4
 
 
-def select_rhythm_groups(section: SectionPlan, available_groups: list[str]) -> RhythmRoles:
+def select_rhythm_groups(section: SectionPlan, available_groups: list[str],
+                         vocab: ChoreoVocabulary = DEFAULT_VOCAB) -> RhythmRoles:
     """Pick each rhythm sublayer's groups from the layout's classified groups (not a flat tuple).
     The brief's pulse_groups seed/override the metric ring; a missing category disables only its
-    own sublayer (graceful)."""
+    own sublayer (graceful). `vocab` is the manifest-derived choreography vocabulary (the
+    vocabulary proposes, the live probe disposes — every `if g in avail` guard stays)."""
     avail = list(available_groups or [])
     ring = [g for g in (section.pulse_groups or []) if g in avail]
     if len(ring) < 2:                          # a meter walk needs ≥2 prop families — extend a thin brief
-        for g in (METRIC_RING + RHYTHM_POOL + RHYTHM_GROUPS):
+        for g in (vocab.metric_ring + RHYTHM_POOL + RHYTHM_GROUPS):
             if g in avail and g not in ring:
                 ring.append(g)
             if len(ring) >= 4:                 # a full bar's worth of distinct families
                 break
     ring = ring or [g for g in (section.target_groups or []) if g in avail]
-    sparkle = [g for g in ACCENT_GROUPS if g in avail and g not in ring]
-    hero = HERO_GROUP if HERO_GROUP in avail else \
+    sparkle = [g for g in vocab.accent_groups if g in avail and g not in ring]
+    hero = vocab.hero_group if vocab.hero_group in avail else \
         (section.target_groups[0] if section.target_groups else None)
-    bass_band = BASS_BAND_GROUP if BASS_BAND_GROUP in avail else None
+    bass_band = vocab.bass_band_group if vocab.bass_band_group in avail else None
     # the backbeat answers on a contrasting group — prefer a non-ring, non-sparkle group; when
     # none is free (the ring consumed the side groups), fall back to a ring family OTHER than the
     # downbeat anchor (ring[0]) so the backbeat still reads on most drum sections.
-    backbeat = next((g for g in BACKBEAT_GROUP_PREFERENCE
+    backbeat = next((g for g in vocab.backbeat_preference
                      if g in avail and g not in ring and g not in sparkle), None)
     if backbeat is None and len(ring) >= 2:
         backbeat = ring[len(ring) // 2]        # a different prop family than the anchor ring[0]
@@ -353,8 +353,8 @@ def _backbeat_positions(bpb: int) -> set[int]:
 
 
 def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: list[str],
-                       *, carrier_covers: bool = False, stride_step: int = 0
-                       ) -> list[EffectInstruction]:
+                       *, carrier_covers: bool = False, stride_step: int = 0,
+                       vocab: ChoreoVocabulary = DEFAULT_VOCAB) -> list[EffectInstruction]:
     """The deterministic rhythm = a METER BACKBONE (each beat of the bar lights the next ring group,
     so the bar walks across prop families) + an instrument-mapped GROOVE OVERLAY (backbeat on 2&4,
     sparkle on the strongest drum hits, the melodic lead on the hero, bass on the ground band), all
@@ -366,7 +366,7 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     if not beats:
         return []
     bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR    # the song's meter, not always 4/4
-    roles = select_rhythm_groups(section, available_groups)
+    roles = select_rhythm_groups(section, available_groups, vocab)
     intensity = getattr(section, "intensity", None)
     intensity = 0.8 if intensity is None else intensity   # keep an explicit 0.0
     legato = resolve_phrasing(getattr(section, "phrasing", ""), intensity) == "legato"

@@ -1,0 +1,1757 @@
+{
+ "display": {
+  "focal_x": 0.2179,
+  "symmetric": true,
+  "width_units": 1337.022
+ },
+ "groups": {
+  "SEM_ACCENTS": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "GE Flake I 3",
+    "Ball Ornament",
+    "Cactus",
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Left",
+    "Peace Stakes - Right",
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Right Small Tree",
+    "Left Small Tree",
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Arch - Left - 2",
+    "Arch - Left - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A",
+    "Boscoyo ChromaStar 23 3 ring"
+   ]
+  },
+  "SEM_ALL": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Tune To Matrix",
+    "GE Flake I 3",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Left",
+    "Panel Matrix",
+    "Ball Ornament",
+    "Cactus",
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Left",
+    "Peace Stakes - Right",
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Right Small Tree",
+    "Left Small Tree",
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Arch - Left - 2",
+    "Arch - Left - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A",
+    "Gingerbread Man-2",
+    "Gingerbread Man-1",
+    "Boscoyo ChromaStar 23 3 ring",
+    "Tree"
+   ]
+  },
+  "SEM_ALL_LESS_FOCAL": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "GE Flake I 3",
+    "Ball Ornament",
+    "Cactus",
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Left",
+    "Peace Stakes - Right",
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Right Small Tree",
+    "Left Small Tree",
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Arch - Left - 2",
+    "Arch - Left - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A",
+    "Gingerbread Man-2",
+    "Gingerbread Man-1",
+    "Boscoyo ChromaStar 23 3 ring"
+   ]
+  },
+  "SEM_ALL_LESS_FOCAL_RHYTHM": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "GE Flake I 3",
+    "Ball Ornament",
+    "Cactus",
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Left",
+    "Peace Stakes - Right",
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A",
+    "Gingerbread Man-2",
+    "Gingerbread Man-1",
+    "Boscoyo ChromaStar 23 3 ring"
+   ]
+  },
+  "SEM_ARCHES": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Arch - Left - 2",
+    "Arch - Left - 1"
+   ]
+  },
+  "SEM_ARCHES_LTR": {
+   "layout_mode": "horizontal",
+   "members": [
+    "Arch - Left - 1",
+    "Arch - Left - 2",
+    "Arch - Right - 1",
+    "Arch - Right - 2",
+    "Arch - Right - 3",
+    "Arch - Right - 4"
+   ],
+   "ordered": true
+  },
+  "SEM_BAND_GROUND": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Tune To Matrix",
+    "GE Flake I 3",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Panel Matrix",
+    "Ball Ornament",
+    "Cactus",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Left",
+    "Peace Stakes - Right",
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Right Small Tree",
+    "Left Small Tree",
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Arch - Left - 2",
+    "Arch - Left - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A",
+    "Boscoyo ChromaStar 23 3 ring",
+    "Tree"
+   ]
+  },
+  "SEM_BAND_MID": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Seed Matrix - 2nd Floor - Right Window - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Left",
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Gingerbread Man-2",
+    "Gingerbread Man-1"
+   ]
+  },
+  "SEM_CANES": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1"
+   ]
+  },
+  "SEM_CANES_LTR": {
+   "layout_mode": "horizontal",
+   "members": [
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 1",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3"
+   ],
+   "ordered": true
+  },
+  "SEM_FOCAL": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Tune To Matrix",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Left",
+    "Panel Matrix",
+    "Tree"
+   ]
+  },
+  "SEM_HOUSE": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Seed Matrix - 1 car - window",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Gingerbread Man-2",
+    "Gingerbread Man-1"
+   ]
+  },
+  "SEM_MINITREES": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Right Small Tree",
+    "Left Small Tree"
+   ]
+  },
+  "SEM_MINITREES_LTR": {
+   "layout_mode": "horizontal",
+   "members": [
+    "Left Small Tree",
+    "Right Small Tree"
+   ],
+   "ordered": true
+  },
+  "SEM_OUTLINE": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Gingerbread Man-2",
+    "Gingerbread Man-1"
+   ]
+  },
+  "SEM_SIDE_CENTER": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Seed Matrix - 2nd Floor - Right Window - Left",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Spinner 23 inch Right-5",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Door - 2 Car Garage - Right",
+    "Spinner 23 inch Right-4",
+    "Gingerbread Man-2"
+   ]
+  },
+  "SEM_SIDE_LEFT": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Seed Matrix - 2nd Floor - Left Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Left",
+    "Cactus",
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Peace Stakes - Left",
+    "Spinner 23 inch Right",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Arch - Left - 2",
+    "Arch - Left - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "Gingerbread Man-1",
+    "Boscoyo ChromaStar 23 3 ring",
+    "Tree"
+   ]
+  },
+  "SEM_SIDE_RIGHT": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Tune To Matrix",
+    "GE Flake I 3",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Right",
+    "Panel Matrix",
+    "Ball Ornament",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Right Small Tree",
+    "Left Small Tree",
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A"
+   ]
+  },
+  "SEM_SNOWFLAKES": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "GE Flake I 3",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A"
+   ]
+  },
+  "SEM_SPINNERS": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4"
+   ]
+  },
+  "SEM_WINDOWS": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Window - 2nd Floor Left - Bottom 1",
+    "Window - 2nd Floor Left - Bottom 2",
+    "Window - 2nd Floor Right - Bottom 1",
+    "Window - 2nd Floor Right - Bottom 2",
+    "Seed Matrix - 1 car - window",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Window - 2nd Floor Right - RIght",
+    "Window - 2nd Floor Right - Left",
+    "Window - 2nd Floor Right - Top",
+    "Window - 2nd Floor Left - Right",
+    "Window - 2nd Floor Left - Left",
+    "Window - 2nd Floor Left - Top",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left"
+   ]
+  },
+  "SEM_YARD": {
+   "layout_mode": "minimalGrid",
+   "members": [
+    "Tune To Matrix",
+    "GE Flake I 3",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Panel Matrix",
+    "Ball Ornament",
+    "Cactus",
+    "Seed Matrix - 1 car - window",
+    "Peace Stakes - Left",
+    "Peace Stakes - Right",
+    "Spinner 23 inch Right-5",
+    "Spinner 23 inch Right",
+    "Window - 1 Car Gagage - Bottom",
+    "Window - 1 Car Gagage - Top",
+    "Window - 1 Car Gagage - Right",
+    "Window - 1 Car Gagage - Left",
+    "Door - 1 Car Garage - Top",
+    "Door - 1 Car Garage - Right",
+    "Door - 1 Car Garage - Left",
+    "Door - Front Door - Top",
+    "Door - Front Door - Right",
+    "Door - Front Door - Left",
+    "Door - 2 Car Garage - Top",
+    "Door - 2 Car Garage - Right",
+    "Door - 2 Car Garage - Left",
+    "Spinner 23 inch Right-2",
+    "Spinner 23 inch Right-3",
+    "Spinner 23 inch Right-4",
+    "Deer - Buck",
+    "Deer - Doe",
+    "Right Small Star",
+    "Left Small Star",
+    "Right Small Tree",
+    "Left Small Tree",
+    "Arch - Right - 4",
+    "Arch - Right - 3",
+    "Arch - Right - 2",
+    "Arch - Right - 1",
+    "Arch - Left - 2",
+    "Arch - Left - 1",
+    "Candy Cane - Right - 4",
+    "Candy Cane - Right - 3",
+    "Candy Cane - Right - 2",
+    "Candy Cane - Right - 1",
+    "Candy Cane - Left - 4",
+    "Candy Cane - Left - 3",
+    "Candy Cane - Left - 2",
+    "Candy Cane - Left - 1",
+    "Present - Large",
+    "Present - Small",
+    "Present - Medium",
+    "GE Flake I 2",
+    "GE Flake H-2",
+    "GE Flake H-157",
+    "GE Flake A 2",
+    "GE Flake A 1",
+    "GE Practical 50 A-2",
+    "GE Practical 50 A",
+    "Boscoyo ChromaStar 23 3 ring",
+    "Tree"
+   ]
+  }
+ },
+ "props": [
+  {
+   "focal": true,
+   "id": "Tune To Matrix",
+   "nodes": 8192,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.9761,
+    "y": 0.0354
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Flake I 3",
+   "nodes": 96,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.9234,
+    "y": 0.239
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 7
+  },
+  {
+   "focal": true,
+   "id": "Pixel Matrix - 1 car - Right",
+   "nodes": 576,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 1.0,
+    "y": 0.1587
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "focal": true,
+   "id": "Pixel Matrix - 1 car - Left",
+   "nodes": 576,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.671,
+    "y": 0.1587
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "focal": true,
+   "id": "Seed Matrix - 2nd Floor - Right Window - Left",
+   "nodes": 248,
+   "pos": {
+    "x": 0.4928,
+    "y": 0.4071
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "focal": true,
+   "id": "Seed Matrix - 2nd Floor - Right Window - Right",
+   "mirror_of": "Seed Matrix - 2nd Floor - Left Window - Right",
+   "nodes": 248,
+   "pos": {
+    "side": "RIGHT",
+    "x": 0.6049,
+    "y": 0.407
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "focal": true,
+   "id": "Seed Matrix - 2nd Floor - Left Window - Right",
+   "mirror_of": "Seed Matrix - 2nd Floor - Right Window - Right",
+   "nodes": 248,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.3922,
+    "y": 0.407
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "focal": true,
+   "id": "Seed Matrix - 2nd Floor - Left Window - Left",
+   "nodes": 248,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.2795,
+    "y": 0.407
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "focal": true,
+   "id": "Panel Matrix",
+   "nodes": 49152,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7385,
+    "y": 0.142
+   },
+   "res": "2D_SURFACE",
+   "role": "MATRIX"
+  },
+  {
+   "confidence": 0.5,
+   "id": "Ball Ornament",
+   "nodes": 315,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8399,
+    "y": 0.2551
+   }
+  },
+  {
+   "confidence": 0.5,
+   "id": "Cactus",
+   "nodes": 311,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.1596,
+    "y": 0.1041
+   }
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Left - Bottom 1",
+   "nodes": 8,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.2997,
+    "y": 0.3522
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 3
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Left - Bottom 2",
+   "nodes": 8,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.3353,
+    "y": 0.3522
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 4
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Right - Bottom 1",
+   "mirror_of": "Window - 2nd Floor Right - Left",
+   "nodes": 8,
+   "pos": {
+    "x": 0.5104,
+    "y": 0.3522
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 8
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Right - Bottom 2",
+   "nodes": 8,
+   "pos": {
+    "x": 0.5469,
+    "y": 0.3522
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 9
+  },
+  {
+   "confidence": 0.9,
+   "id": "Seed Matrix - 1 car - window",
+   "nodes": 1110,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8385,
+    "y": 0.1541
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 17
+  },
+  {
+   "confidence": 0.5,
+   "id": "Peace Stakes - Left",
+   "mirror_of": "Deer - Buck",
+   "nodes": 100,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.207,
+    "y": 0.0486
+   }
+  },
+  {
+   "confidence": 0.5,
+   "id": "Peace Stakes - Right",
+   "mirror_of": "Present - Small",
+   "nodes": 250,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8125,
+    "y": 0.0486
+   }
+  },
+  {
+   "confidence": 0.9,
+   "id": "Spinner 23 inch Right-5",
+   "mirror_of": "Spinner 23 inch Right-4",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "x": 0.5314,
+    "y": 0.2216
+   },
+   "res": "2D_RADIAL",
+   "role": "SPINNER",
+   "sweep_order": 5
+  },
+  {
+   "confidence": 0.9,
+   "id": "Spinner 23 inch Right",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2862,
+    "y": 0.2216
+   },
+   "res": "2D_RADIAL",
+   "role": "SPINNER",
+   "sweep_order": 1
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 1 Car Gagage - Bottom",
+   "nodes": 20,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7958,
+    "y": 0.0904
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 16
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 1 Car Gagage - Top",
+   "nodes": 20,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7955,
+    "y": 0.2093
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 15
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 1 Car Gagage - Right",
+   "nodes": 26,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8788,
+    "y": 0.0908
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 18
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 1 Car Gagage - Left",
+   "nodes": 26,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7948,
+    "y": 0.0907
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 14
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Right - RIght",
+   "mirror_of": "Window - 2nd Floor Left - Right",
+   "nodes": 20,
+   "pos": {
+    "side": "RIGHT",
+    "x": 0.5822,
+    "y": 0.3532
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 10
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Right - Left",
+   "mirror_of": "Window - 2nd Floor Right - Bottom 1",
+   "nodes": 20,
+   "pos": {
+    "x": 0.509,
+    "y": 0.3513
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 6
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Right - Top",
+   "nodes": 16,
+   "pos": {
+    "x": 0.51,
+    "y": 0.4594
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 7
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Left - Right",
+   "mirror_of": "Window - 2nd Floor Right - RIght",
+   "nodes": 20,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.3721,
+    "y": 0.3532
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 5
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Left - Left",
+   "nodes": 20,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.2989,
+    "y": 0.3513
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 2
+  },
+  {
+   "confidence": 0.9,
+   "id": "Window - 2nd Floor Left - Top",
+   "nodes": 16,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.2984,
+    "y": 0.4594
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 1
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - 1 Car Garage - Top",
+   "nodes": 31,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6621,
+    "y": 0.2075
+   },
+   "res": "LINEAR_LOW",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - 1 Car Garage - Right",
+   "nodes": 31,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6598,
+    "y": 0.0509
+   },
+   "res": "LINEAR_LOW",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - 1 Car Garage - Left",
+   "nodes": 31,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6581,
+    "y": 0.0464
+   },
+   "res": "LINEAR_LOW",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - Front Door - Top",
+   "nodes": 13,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6106,
+    "y": 0.2087
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 11
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - Front Door - Right",
+   "nodes": 35,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6428,
+    "y": 0.0558
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 13
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - Front Door - Left",
+   "nodes": 35,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6147,
+    "y": 0.0437
+   },
+   "res": "LINEAR_LOW",
+   "role": "WINDOW",
+   "sweep_order": 12
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - 2 Car Garage - Top",
+   "nodes": 63,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2752,
+    "y": 0.1991
+   },
+   "res": "LINEAR_LOW",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - 2 Car Garage - Right",
+   "nodes": 31,
+   "pos": {
+    "band": "GROUND",
+    "x": 0.5398,
+    "y": 0.1997
+   },
+   "res": "LINEAR_LOW",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "Door - 2 Car Garage - Left",
+   "nodes": 31,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2723,
+    "y": 0.1997
+   },
+   "res": "LINEAR_LOW",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "Spinner 23 inch Right-2",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.3475,
+    "y": 0.2216
+   },
+   "res": "2D_RADIAL",
+   "role": "SPINNER",
+   "sweep_order": 2
+  },
+  {
+   "confidence": 0.9,
+   "id": "Spinner 23 inch Right-3",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.4088,
+    "y": 0.2216
+   },
+   "res": "2D_RADIAL",
+   "role": "SPINNER",
+   "sweep_order": 3
+  },
+  {
+   "confidence": 0.9,
+   "id": "Spinner 23 inch Right-4",
+   "mirror_of": "Spinner 23 inch Right-5",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "x": 0.4701,
+    "y": 0.2216
+   },
+   "res": "2D_RADIAL",
+   "role": "SPINNER",
+   "sweep_order": 4
+  },
+  {
+   "confidence": 0.5,
+   "id": "Null 7",
+   "nodes": 7,
+   "pos": {
+    "band": "ROOF",
+    "side": "RIGHT",
+    "x": 0.7628,
+    "y": 1.0
+   }
+  },
+  {
+   "confidence": 0.5,
+   "id": "Deer - Buck",
+   "mirror_of": "Present - Medium",
+   "nodes": 77,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7531,
+    "y": 0.0296
+   }
+  },
+  {
+   "confidence": 0.5,
+   "id": "Deer - Doe",
+   "mirror_of": "Present - Large",
+   "nodes": 75,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8616,
+    "y": 0.0412
+   }
+  },
+  {
+   "id": "Right Small Star",
+   "nodes": 20,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6315,
+    "y": 0.131
+   },
+   "res": "2D_RADIAL",
+   "role": "STAR"
+  },
+  {
+   "id": "Left Small Star",
+   "nodes": 20,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.5665,
+    "y": 0.1309
+   },
+   "res": "2D_RADIAL",
+   "role": "STAR"
+  },
+  {
+   "id": "Right Small Tree",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.632,
+    "y": 0.0838
+   },
+   "res": "LINEAR_LOW",
+   "role": "MINI_TREE",
+   "sweep_order": 2
+  },
+  {
+   "id": "Left Small Tree",
+   "nodes": 85,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.5669,
+    "y": 0.0838
+   },
+   "res": "LINEAR_LOW",
+   "role": "MINI_TREE",
+   "sweep_order": 1
+  },
+  {
+   "id": "Arch - Right - 4",
+   "mirror_of": "Arch - Left - 2",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8599
+   },
+   "res": "LINEAR_LOW",
+   "role": "ARCH",
+   "sweep_order": 6
+  },
+  {
+   "id": "Arch - Right - 3",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7732
+   },
+   "res": "LINEAR_LOW",
+   "role": "ARCH",
+   "sweep_order": 5
+  },
+  {
+   "id": "Arch - Right - 2",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6864
+   },
+   "res": "LINEAR_LOW",
+   "role": "ARCH",
+   "sweep_order": 4
+  },
+  {
+   "id": "Arch - Right - 1",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.6014
+   },
+   "res": "LINEAR_LOW",
+   "role": "ARCH",
+   "sweep_order": 3
+  },
+  {
+   "id": "Arch - Left - 2",
+   "mirror_of": "Arch - Right - 4",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.1752
+   },
+   "res": "LINEAR_LOW",
+   "role": "ARCH",
+   "sweep_order": 2
+  },
+  {
+   "id": "Arch - Left - 1",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.0874
+   },
+   "res": "LINEAR_LOW",
+   "role": "ARCH",
+   "sweep_order": 1
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Right - 4",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.5597,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 7
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Right - 3",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.5602,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 8
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Right - 2",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.5583,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 5
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Right - 1",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.5585,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 6
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Left - 4",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2751,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 1
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Left - 3",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2756,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 2
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Left - 2",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.276,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 4
+  },
+  {
+   "confidence": 0.9,
+   "id": "Candy Cane - Left - 1",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2757,
+    "y": 0.058
+   },
+   "res": "LINEAR_LOW",
+   "role": "CANE",
+   "sweep_order": 3
+  },
+  {
+   "confidence": 0.5,
+   "id": "Present - Large",
+   "mirror_of": "Deer - Doe",
+   "nodes": 69,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.1796,
+    "y": 0.0556
+   }
+  },
+  {
+   "confidence": 0.5,
+   "id": "Present - Small",
+   "mirror_of": "Deer - Buck",
+   "nodes": 41,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2227,
+    "y": 0.0448
+   }
+  },
+  {
+   "confidence": 0.5,
+   "id": "Present - Medium",
+   "mirror_of": "Deer - Buck",
+   "nodes": 57,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2556,
+    "y": 0.0488
+   }
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Flake I 2",
+   "nodes": 96,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7516,
+    "y": 0.239
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 4
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Flake H-2",
+   "nodes": 157,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.9527,
+    "y": 0.2323
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 8
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Flake H-157",
+   "nodes": 157,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7214,
+    "y": 0.2323
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 3
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Flake A 2",
+   "nodes": 139,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.4484,
+    "y": 0.2939
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 2
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Flake A 1",
+   "nodes": 139,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.3679,
+    "y": 0.2897
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 1
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Hanging Bulb Singing-3",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.9304,
+    "y": 0.1517
+   },
+   "res": "SPECIAL",
+   "role": "SINGING_FACE"
+  },
+  {
+   "id": "GE Practical 50 A-2",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8931,
+    "y": 0.2264
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 6
+  },
+  {
+   "id": "GE Practical 50 A",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.7817,
+    "y": 0.2262
+   },
+   "res": "LINEAR_LOW",
+   "role": "SNOWFLAKE",
+   "sweep_order": 5
+  },
+  {
+   "id": "Gingerbread Man-2",
+   "nodes": 150,
+   "pos": {
+    "x": 0.5461,
+    "y": 0.4026
+   },
+   "res": "LINEAR_HIGH",
+   "role": "OUTLINE"
+  },
+  {
+   "id": "Gingerbread Man-1",
+   "nodes": 150,
+   "pos": {
+    "side": "LEFT",
+    "x": 0.3378,
+    "y": 0.4026
+   },
+   "res": "LINEAR_HIGH",
+   "role": "OUTLINE"
+  },
+  {
+   "confidence": 0.5,
+   "id": "Boscoyo ChromaStar 23 3 ring",
+   "nodes": 90,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2196,
+    "y": 0.2145
+   }
+  },
+  {
+   "focal": true,
+   "id": "Tree",
+   "nodes": 900,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "x": 0.2179,
+    "y": 0.1125
+   },
+   "res": "2D_RADIAL",
+   "role": "MEGA_TREE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Hanging Bulb Singing-2",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.8991,
+    "y": 0.1517
+   },
+   "res": "SPECIAL",
+   "role": "SINGING_FACE"
+  },
+  {
+   "confidence": 0.9,
+   "id": "GE Hanging Bulb Singing-4",
+   "nodes": 150,
+   "pos": {
+    "band": "GROUND",
+    "side": "RIGHT",
+    "x": 0.9605,
+    "y": 0.1517
+   },
+   "res": "SPECIAL",
+   "role": "SINGING_FACE"
+  },
+  {
+   "confidence": 0.5,
+   "id": "7 null pixels",
+   "nodes": 50,
+   "pos": {
+    "band": "GROUND",
+    "side": "LEFT",
+    "y": 0.2866
+   }
+  }
+ ],
+ "review": [
+  "7 null pixels",
+  "Ball Ornament",
+  "Boscoyo ChromaStar 23 3 ring",
+  "Cactus",
+  "Deer - Buck",
+  "Deer - Doe",
+  "Null 7",
+  "Peace Stakes - Left",
+  "Peace Stakes - Right",
+  "Present - Large",
+  "Present - Medium",
+  "Present - Small"
+ ],
+ "version": 1
+}

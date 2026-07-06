@@ -17,6 +17,7 @@ from typing import Callable
 
 from xlights_core.audio import SongAnalysis
 
+from .. import telemetry
 from ..models import build_agent, run_agent
 from ..song_description import featured_lyric_moments, normalize_intensities
 from ..music_brief import (
@@ -136,6 +137,7 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
         async with sem:                       # retry stays INSIDE the semaphore (concurrency ≤ cap)
             res = await run_agent(spec.agent, spec.render(sa, lyrics),
                                   role=f"analyst:{spec.key}", attempts=2)
+            telemetry.record("analyst", res)
             return spec.key, res.output
 
     # gather preserves input order → zip results back to their specs so the drop names the key.
@@ -160,8 +162,10 @@ async def run_panel(sa: SongAnalysis, lyrics, *, analysts, synthesizer, max_conc
             raise RuntimeError("single-mode analyst did not return a MusicBrief")
     else:
         from .synthesizer import render_input as synth_render
-        brief = (await run_agent(synthesizer, synth_render(outputs, sa),
-                                 role="synthesizer", attempts=3)).output
+        res = await run_agent(synthesizer, synth_render(outputs, sa),
+                              role="synthesizer", attempts=3)
+        telemetry.record("synthesizer", res)
+        brief = res.output
 
     merge_dominant_instruments(brief, sa)
     normalize_intensities(brief, sa)                       # code-owned dynamics (overwrites the model)

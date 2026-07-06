@@ -15,7 +15,7 @@ import math
 
 from xlights_core.audio import SongAnalysis
 
-from .. import degradations
+from .. import degradations, telemetry
 from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..agents.catalog import placeable_effect_types
@@ -44,7 +44,7 @@ def _section_label(section) -> str:
 
 def list_sections(song: str) -> list[tuple[int, str, int, int]]:
     """`(index, label, start_ms, end_ms)` per section from the cached plan (for `--list`)."""
-    sp_path = cache_path(song_key(song), "creative_brief")
+    sp_path = cache_path(song_key(song), "creative_brief", models=True)
     if not sp_path.exists():
         raise FileNotFoundError("no cached show for this song — run `xlo run` first")
     plan = ShowPlan.model_validate_json(sp_path.read_text())
@@ -59,17 +59,17 @@ def format_sections(song: str) -> str:
 def load_cached_state(song: str) -> tuple[str, State]:
     """Rehydrate a `State` from the per-song stage cache. Raises if the show was never generated."""
     key = song_key(song)
-    ins_path = cache_path(key, "instructions")
-    sp_path = cache_path(key, "creative_brief")
+    ins_path = cache_path(key, "instructions", models=True)
+    sp_path = cache_path(key, "creative_brief", models=True)
     if not ins_path.exists() or not sp_path.exists():
         raise FileNotFoundError("no cached show for this song — run `xlo run` first")
     st = State(song_path=song)
     st.instructions = [EffectInstruction.model_validate(x)
                        for x in json.loads(ins_path.read_text())]
     st.show_plan = ShowPlan.model_validate_json(sp_path.read_text())
-    mb_path = cache_path(key, "song_description")
+    mb_path = cache_path(key, "song_description", models=True)
     st.music_brief = MusicBrief.model_validate_json(mb_path.read_text()) if mb_path.exists() else None
-    sa_path = cache_path(key, "song_analysis")
+    sa_path = cache_path(key, "song_analysis")           # shared: deterministic audio analysis
     if sa_path.exists():
         st.song_analysis = SongAnalysis.model_validate_json(sa_path.read_text())
     else:                                           # older cache: re-analyze the audio (needs deps)
@@ -103,6 +103,7 @@ async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent
 async def regen_section(song: str, *, client, section_index: int, note: str = "",
                         save_as: str | None = None, generator=None, emitter=None) -> State:
     """Regenerate one section of a cached show in place and re-emit/re-save the sequence."""
+    telemetry.start_run()          # measure manual regens too
     dl = degradations.start_run()               # per-run degradations collector (best-effort)
     key, st = load_cached_state(song)
     _validate_index(st, section_index)
@@ -121,7 +122,7 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
     emit = emitter or apply_instructions
     dur = max(1, math.ceil(getattr(st.song_analysis, "duration_s", 0) or 1))
     st.applied = await emit(client, st.instructions, duration_secs=dur)
-    cache_path(key, "instructions").write_text(
+    cache_path(key, "instructions", models=True).write_text(
         json.dumps([i.model_dump() for i in st.instructions], indent=1))
 
     if save_as:

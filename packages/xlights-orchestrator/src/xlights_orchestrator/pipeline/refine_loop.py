@@ -20,10 +20,12 @@ from pathlib import Path
 
 from .. import degradations
 from .. import qa as qa_pkg
+from .. import telemetry
 from ..agents import director as director_mod
 from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
 from ..effect_emitter import clamp_layer_budget
+from ..models import registry
 from ..models.registry import run_agent
 from ..progress import NullProgressBus
 from ..refine import floor_visual_revisions, replace_section
@@ -155,13 +157,14 @@ class ReportBuilder:
     samples THIS render, then evaluate QA. The save/refresh is best-effort (sampling degrades to
     neutral). Injected qa fakes keep the legacy 5-arg signature (no ``sampler`` kwarg)."""
 
-    def __init__(self, st, *, client, qa_eval, sampler, save_as, real_render):
+    def __init__(self, st, *, client, qa_eval, sampler, save_as, real_render, fseq_series_provider=None):
         self.st = st
         self.client = client
         self.qa_eval = qa_eval
         self.sampler = sampler
         self.save_as = save_as
         self.real_render = real_render
+        self.fseq_series_provider = fseq_series_provider   # optional: build a FseqSeries post-flush
 
     async def report(self, applied):
         if self.sampler is not None and self.save_as:
@@ -171,13 +174,21 @@ class ReportBuilder:
                     await self.real_render.refresh(self.client)
             except Exception as exc:  # noqa: BLE001 — sampling degrades to neutral
                 degradations.note("qa:render-flush", exc, stage="refine")
-        if self.sampler is not None:              # injected qa fakes keep the legacy signature
+        series = None
+        if self.fseq_series_provider is not None:          # Tier 0 rendered-pixel metrics (post-flush)
+            try:
+                series = self.fseq_series_provider()
+            except Exception as exc:  # noqa: BLE001 — never gate blind on a metrics build error
+                log.debug("fseq series unavailable: %s", exc)
+        # manifest → the default evaluator only (injected qa fakes keep the legacy signature)
+        kw = {"manifest": getattr(self.st, "manifest", None)} if self.qa_eval is qa_pkg.evaluate else {}
+        if self.sampler is not None or series is not None:   # rendered eyes → new-signature call
             rm = self.st.music_brief.repetition_map if self.st.music_brief else None
             return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
                                 applied, self.st.available_groups, sampler=self.sampler,
-                                repetition_map=rm)
+                                repetition_map=rm, fseq_series=series, **kw)
         return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
-                            applied, self.st.available_groups)
+                            applied, self.st.available_groups, **kw)
 
     async def objective(self, applied):
         return (await self.report(applied)).objective_score
@@ -187,15 +198,21 @@ class IterationRecorder:
     """Wraps ``_record``/``_bundle``: assemble the ``RevisionLogRecord`` and guard the review
     bundle path. Pure observability — ``revlog.write`` is itself best-effort, so this never
     raises into the loop. The F-I progress ``score``/``refine`` events are emitted HERE from the
-    same record fields so the SSE stream and the revision log can never disagree (one site)."""
+    same record fields so the SSE stream and the revision log can never disagree (one site).
 
-    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base, progress=None):
+    Each record carries ``usage`` = the tokens spent since the previous record (drained from the
+    run-scoped ``UsageLog``); a ``kind="finalize"`` record additionally carries the whole-run
+    ``usage_total`` and the derived ``cost_usd`` (None when any used model is unpriced)."""
+
+    def __init__(self, revlog, *, run_id, song_key, clock, models, review_base,
+                 usage_log=None, progress=None):
         self.revlog = revlog
         self.run_id = run_id
         self.song_key = song_key
         self.clock = clock
         self.models = models
         self.review_base = review_base
+        self.usage_log = usage_log
         self.progress = progress or NullProgressBus()
 
     def _bundle(self, i):
@@ -204,15 +221,21 @@ class IterationRecorder:
         p = Path(self.review_base) / f"iter{i}"
         return str(p) if p.is_dir() else None              # guard: no dangling pointer
 
-    def record(self, i, report, verdict, **kw) -> None:
+    def record(self, i, report, verdict, *, kind="iteration", **kw) -> None:
+        usage = self.usage_log.drain_delta() if self.usage_log is not None else {}
+        extra: dict = {"usage": usage}
+        if kind == "finalize" and self.usage_log is not None:
+            total = self.usage_log.snapshot()
+            extra["usage_total"] = total
+            extra["cost_usd"] = registry.estimate_cost(self.models or {}, total)
         rec = RevisionLogRecord(
-            run_id=self.run_id, iteration=i, song_key=self.song_key, ts=self.clock(),
+            run_id=self.run_id, iteration=i, song_key=self.song_key, ts=self.clock(), kind=kind,
             objective_score=report.objective_score, advisory_score=report.advisory_score,
             findings=[LogFinding(source=source_of(f.metric), severity=f.severity, scope=f.scope,
                                  section_index=f.section_index, detail=f.detail)
                       for f in report.findings],
             judge=({"score": verdict.score, "verdict": verdict.verdict} if verdict else None),
-            models=self.models or {}, review_bundle=self._bundle(i), **kw)
+            models=self.models or {}, review_bundle=self._bundle(i), **extra, **kw)
         self.revlog.write(rec)
         # progress from the SAME record — the sparkline feed + refine-decision tap.
         self.progress.emit("score", stage="refine", payload={
@@ -266,7 +289,7 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                       visual_critique=None, revlog=None, run_id="run", song_key="",
                       models=None, clock=None, review_base=None,
                       sampler=None, save_as=None, redesign=None, real_render=None,
-                      skip_objective=None, progress=None) -> None:
+                      skip_objective=None, fseq_series_provider=None, progress=None) -> None:
     progress = progress or NullProgressBus()
     qa_eval = qa or qa_pkg.evaluate
     judge_agent = judge or judge_mod.judge_agent()
@@ -294,15 +317,19 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         if _rd_agent is None:                          # lazy — real agent needs an API key
             _rd_agent = director_mod.section_redesigner()
         sec = st.show_plan.sections[rev.section_index]
-        return (await run_agent(_rd_agent, director_mod.redesign_input(sec, st.show_plan, findings),
-                                role="redesigner", attempts=2)).output
+        _rd_res = await run_agent(_rd_agent, director_mod.redesign_input(sec, st.show_plan, findings),
+                                  role="redesigner", attempts=2)
+        telemetry.record("director", _rd_res)          # redesigner routes as the director role
+        return _rd_res.output
 
     revlog = revlog or NullRevisionLog()
     clock = clock or (lambda: "")
     reporter = ReportBuilder(st, client=client, qa_eval=qa_eval, sampler=sampler,
-                             save_as=save_as, real_render=real_render)
+                             save_as=save_as, real_render=real_render,
+                             fseq_series_provider=fseq_series_provider)
     recorder = IterationRecorder(revlog, run_id=run_id, song_key=song_key, clock=clock,
-                                 models=models, review_base=review_base, progress=progress)
+                                 models=models, review_base=review_base,
+                                 usage_log=telemetry.current(), progress=progress)
     ledger = EscalationLedger()
 
     first_obj = await reporter.objective(st.applied)
@@ -312,10 +339,12 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         # already good → accept the draft without spending judge/critic/regen iterations
         log.info("refine skipped: first-pass objective %d ≥ %d (already good)", first_obj, skip_objective)
         recorder.record(0, await reporter.report(st.applied), None, kind="finalize",
-                        obj_after=first_obj, human_decision="skip-high-objective")
+                        obj_after=first_obj, human_decision="skip-high-objective",
+                        stop_reason="skip-gate")
         return
 
     iters = 0
+    stop_reason = "cap"   # terminal-state attribution: the loop ran out of iterations unless a guard fired
     prev_sig = None       # plateau detector: scores + flagged sections unchanged → more spend, same answer
     for i in range(max_iterations):                       # HARD cap — cannot be exceeded
         iters = i + 1
@@ -326,20 +355,26 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                 report.findings.extend(await visual_critique(st))
             except Exception as exc:  # noqa: BLE001 — visual critique is best-effort
                 degradations.note("visual:critique", exc, stage="refine")
-        verdict = (await run_agent(
+        _judge_res = await run_agent(
             judge_agent,
             judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger),
-            role="judge", attempts=3)).output
+            role="judge", attempts=3)
+        telemetry.record("judge", _judge_res)
+        verdict = _judge_res.output
         decision = await decide(report, verdict, ledger.ledger)
         if decision.action in ("accept", "stop"):
+            stop_reason = decision.action
             recorder.record(i, report, verdict, human_decision=decision.action,   # log the accept/stop too
-                            obj_before=obj_before, obj_after=obj_before, obj_delta=0)
+                            obj_before=obj_before, obj_after=obj_before, obj_delta=0,
+                            stop_reason=stop_reason)
             break
         sig = plateau_signature(report, verdict)
         if sig == prev_sig:                   # plateau: the iteration would re-spend on the same answer
             log.info("plateau: objective+advisory+revisions unchanged — stopping")
+            stop_reason = "plateau"
             recorder.record(i, report, verdict, human_decision="plateau",
-                            obj_before=obj_before, obj_after=obj_before, obj_delta=0)
+                            obj_before=obj_before, obj_after=obj_before, obj_delta=0,
+                            stop_reason=stop_reason)
             break
         prev_sig = sig
         judge_revs = list(decision.revisions or verdict.revisions)
@@ -378,6 +413,7 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
                         obj_before=obj_before, obj_after=obj, obj_delta=obj - obj_before,
                         reverted=outcome.reverted)
         if tracker.stalled:                               # objective keeps regressing → terminate
+            stop_reason = "stall"
             break
 
     st.instructions, st.applied = list(tracker.best), tracker.best_applied
@@ -385,4 +421,5 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         await client.close_sequence(force=True, quiet=True)
         st.applied = await emitter(client, st.instructions, duration_secs=duration_secs)
     final = await reporter.report(st.applied)
-    recorder.record(iters, final, None, kind="finalize", obj_after=tracker.best_obj)
+    recorder.record(iters, final, None, kind="finalize", obj_after=tracker.best_obj,
+                    stop_reason=stop_reason, redesigned_sections=sorted(ledger.redesigned))

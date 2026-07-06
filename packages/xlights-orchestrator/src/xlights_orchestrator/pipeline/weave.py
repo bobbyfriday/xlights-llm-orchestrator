@@ -360,13 +360,15 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
 
 def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
                  intensity: float, available_groups: list[str],
-                 based_targets: set[str] | None = None) -> list[EffectInstruction]:
+                 based_targets: set[str] | None = None,
+                 bed_preference: tuple[str, ...] = BED_PREFERENCE) -> list[EffectInstruction]:
     """Expand the section's recipes into beat-snapped cells: slot boundaries on the real beat
     grid (`cell_beats` beats per slot; the trailing partial slot merges into the last), targets
     rotating per the alternation pattern, density bounded by `cell_budget`.
 
     `based_targets` = targets that already carry a base layer this section (the LLM's washes/
-    scene rows) — cells over them blend instead of occluding."""
+    scene rows) — cells over them blend instead of occluding.
+    `bed_preference` = the manifest-derived bed order (defaults to today's constant → unchanged)."""
     if weave is None:
         return []
     bpb = rhythm.get("beats_per_bar") or _BEATS_PER_BAR    # the song's meter, threaded into cells
@@ -379,7 +381,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
     based: set[str] = set(based_targets or ())   # targets with a base layer this section
     if bed is not None:
         groups = [g for g in bed.groups if g in available_groups] or \
-                 [g for g in BED_PREFERENCE if g in available_groups][:1]
+                 [g for g in bed_preference if g in available_groups][:1]
         for g in groups[:1]:                  # ONE spanning bed (the long-bed exception)
             ins = _cell(bed, section, g, 0, section.start_ms, section.end_ms,
                         intensity, blended=False)

@@ -260,5 +260,6 @@ def patch_xsq_timing_tracks(xsq_path: str | Path, tracks: list[TimingTrack]) -> 
         log.info("timing tracks: wrote %d tracks to %s", len(tracks), xsq_path.name)
         return True
     except Exception as exc:  # noqa: BLE001 — best-effort; leave the .xsq intact
-        log.warning("timing-track patch failed for %s: %s", xsq_path, exc)
+        from ..degradations import note
+        note("finalize:timing-tracks", exc, stage="finalize")
         return False

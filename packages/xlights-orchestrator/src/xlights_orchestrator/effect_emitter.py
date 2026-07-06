@@ -85,7 +85,9 @@ async def apply_instructions(
         try:    # canonical render order when the SEM Master view is loaded (post-restart)
             await client.new_sequence(duration_secs=duration_secs, frame_ms=50, force=True,
                                       view="SEM Master")
-        except Exception:  # noqa: BLE001 — view not loaded yet → default view
+        except Exception as exc:  # noqa: BLE001 — view not loaded yet → default view
+            from .degradations import note
+            note("emit:view", exc, stage="apply")
             await client.new_sequence(duration_secs=duration_secs, frame_ms=50, force=True)
     except XLightsResponseError as exc:
         if "already open" in (exc.message or "").lower():

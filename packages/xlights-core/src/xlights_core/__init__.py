@@ -11,9 +11,11 @@ from .exceptions import (
     XLightsResponseError,
     XLightsTargetMissing,
     XLightsTimeout,
+    XLightsTransportError,
     XLightsUnsavedChanges,
 )
 from .models import Controller, Model
+from .retry import with_retry, xlights_transient
 
 __all__ = [
     "XLightsClient",
@@ -21,6 +23,7 @@ __all__ = [
     "get_base_url",
     "XLightsError",
     "XLightsConnectionError",
+    "XLightsTransportError",
     "XLightsTimeout",
     "XLightsNotImplemented",
     "XLightsResponseError",
@@ -28,4 +31,6 @@ __all__ = [
     "XLightsUnsavedChanges",
     "Model",
     "Controller",
+    "with_retry",
+    "xlights_transient",
 ]

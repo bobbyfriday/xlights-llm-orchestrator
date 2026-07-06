@@ -1,88 +1,88 @@
 ## 1. I2 — retry/backoff for transient failures
 
-- [ ] 1.1 Add `packages/xlights-core/src/xlights_core/retry.py` with async `with_retry(fn, *,
+- [x] 1.1 Add `packages/xlights-core/src/xlights_core/retry.py` with async `with_retry(fn, *,
   retryable, attempts=3, base_delay=1.0, factor=2.0, max_delay=20.0, jitter=0.5, label="")`
   (exponential backoff, full ±jitter band, WARNING per retry with label/attempt/cause, original
   exception type propagates on exhaustion) and `xlights_transient(exc) = isinstance(exc,
   (XLightsConnectionError, XLightsTimeout))`; export both from `xlights_core/__init__.py`.
-- [ ] 1.2 Split the catch-all transport mapping in `client.py:96`: introduce
+- [x] 1.2 Split the catch-all transport mapping in `client.py:96`: introduce
   `XLightsTransportError(XLightsConnectionError)` in `exceptions.py` for the sent-but-failed case so
   existing `except XLightsConnectionError` callers still catch both.
-- [ ] 1.3 Add `XLightsClient._request_with_retry(...)`; route read commands (`get_models`,
+- [x] 1.3 Add `XLightsClient._request_with_retry(...)`; route read commands (`get_models`,
   `get_model`, `get_show_folder`, `get_open_sequence`, ...) through it with `xlights_transient`; change
   `_mutate` to retry on `XLightsConnectionError` only, **inside the write lock**; exempt `render_all`
   and `export_video_preview` from mutation retry. Add constructor knob `retry_attempts: int = 3`
   (0/1 disables).
-- [ ] 1.4 Add `llm_transient(exc)` (`_TRANSIENT_HTTP = {408,429,500,502,503,529}`; `ModelHTTPError`
+- [x] 1.4 Add `llm_transient(exc)` (`_TRANSIENT_HTTP = {408,429,500,502,503,529}`; `ModelHTTPError`
   status test, else `httpx.TimeoutException`/`TransportError`) and `run_agent(agent, prompt, *, role,
   attempts=3)` in `models/registry.py`.
-- [ ] 1.5 Route the LLM call sites through `run_agent` with the per-site attempts: director
+- [x] 1.5 Route the LLM call sites through `run_agent` with the per-site attempts: director
   (`run.py:415`), synthesizer (`panel.py:158`), generator (`generate.py:158`), judge (`run.py:229`)
   = 3; panel analysts (`panel.py:135`), visual critic (`visual.py:94`), section redesigner
   (`run.py:163`) = 2.
-- [ ] 1.6 Panel change (`agents/panel.py`): retry each analyst once inside the semaphore; `zip(
+- [x] 1.6 Panel change (`agents/panel.py`): retry each analyst once inside the semaphore; `zip(
   analysts, results)` so the drop log names the analyst `key` at WARNING; the terminal loss reports
   `degradations.note("refine:analyst-drop", ...)` (once I5 lands).
-- [ ] 1.7 Tests — new `tests/test_retry.py`: success-first (one call, no sleep); transient×2 then
+- [x] 1.7 Tests — new `tests/test_retry.py`: success-first (one call, no sleep); transient×2 then
   success (three calls, value returned); non-retryable first try (one call, original type propagates);
   exhaustion (`attempts` calls, last exception unchanged); backoff monotone + capped (patch
   `random.uniform`, capture `asyncio.sleep` args); predicate tests (`llm_transient(ModelHTTPError(429))`
   true, 400 false, `UnexpectedModelBehavior` false; `xlights_transient` over the whole taxonomy).
-- [ ] 1.8 Tests — extend `tests/test_client.py` with `MockTransport` handlers: read `getModels`
+- [x] 1.8 Tests — extend `tests/test_client.py` with `MockTransport` handlers: read `getModels`
   `ConnectError`×2 then 200 (3 transport calls, result returned); mutation `addEffect` `ConnectError`
   then 200 (placed exactly once); mutation `ReadTimeout` (no retry — `XLightsTimeout` after one
   attempt); 503 "Unknown model." (no retry — `XLightsResponseError` immediately); lock-hold ordering
   test (a retrying mutation + a concurrent second mutation → the second's transport call happens only
   after the first completes).
-- [ ] 1.9 Tests — panel/refine: analyst raising `ModelHTTPError(529)` once then succeeding (brief has
+- [x] 1.9 Tests — panel/refine: analyst raising `ModelHTTPError(529)` once then succeeding (brief has
   its output, no drop warning); always-failing analyst dropped after exactly 2 calls with a WARNING
   naming its key (`caplog`); all-analysts-fail still `RuntimeError`; judge raising 529-once completes
   the iteration; visual critique raising twice skips findings and the loop continues.
-- [ ] 1.10 Docs — note retry behavior + any env knob in `docs/usage.md`; add the double-retry-avoidance
+- [x] 1.10 Docs — note retry behavior + any env knob in `docs/usage.md`; add the double-retry-avoidance
   note in `lyrics.py`'s docstring; confirm the full hermetic suite passes with no fixture changes and
   no measurable slowdown (retry tests use `base_delay=0`).
 
 ## 2. I5 — diagnosable best-effort failures / degradation logging
 
-- [ ] 2.1 Add `packages/xlights-orchestrator/src/xlights_orchestrator/degradations.py`: `Degradation`
+- [x] 2.1 Add `packages/xlights-orchestrator/src/xlights_orchestrator/degradations.py`: `Degradation`
   model, `DegradationLog` (capability-keyed dedup, `note`, `summary`), ContextVar `_current`,
   `start_run()`/`current()`, module-level best-effort `note(capability, exc_or_detail, *, stage=None,
   level=WARNING)`, `render_summary()` (pure list→text), and the closed capability-key taxonomy in the
   module docstring.
-- [ ] 2.2 Install per run: `degradations.start_run()` at the top of `run_pipeline()` and
+- [x] 2.2 Install per run: `degradations.start_run()` at the top of `run_pipeline()` and
   `regen_section()`; summary emission (WARNING when non-empty, INFO "no degradations" otherwise) +
   best-effort `cache_root()/<song_key>/degradations.json` write at both exits, including the
   early-return checkpoints at `run.py:405,423`.
-- [ ] 2.3 Sweep `pipeline/run.py` (9 blocks) to the §2.2 targets (see design `## Notes`), including the
+- [x] 2.3 Sweep `pipeline/run.py` (9 blocks) to the §2.2 targets (see design `## Notes`), including the
   `audio:stems` seam check (`if stems and not st.song_analysis.stems: note("audio:stems", ..., stage=
   "interpret")`).
-- [ ] 2.4 Sweep `pipeline/visual.py` (6) and `pipeline/groups.py` (5), including making `groups.py:43`
+- [x] 2.4 Sweep `pipeline/visual.py` (6) and `pipeline/groups.py` (5), including making `groups.py:43`
   (failed group *listing*) **re-raise** `XLightsConnectionError` instead of returning `[]`; update its
   docstring and the "returns []" caller contract.
-- [ ] 2.5 Sweep the remaining orchestrator files to the convention: `effect_emitter.py:84`
+- [x] 2.5 Sweep the remaining orchestrator files to the convention: `effect_emitter.py:84`
   (`emit:view`), `qa/coverage.py:31` (`qa:coverage-blind`, once-per-run flag on the closure),
   `weave.py:316`, `media.py`, `timing.py`, `finalize.py`, `triggers.py`, `lyrics.py`, `regen.py`,
   `revision_log.py` (level check only — do not report to the collector).
-- [ ] 2.6 Sweep `xlights-core` (convention only, no collector import): `audio/analyzer.py` ×4,
+- [x] 2.6 Sweep `xlights-core` (convention only, no collector import): `audio/analyzer.py` ×4,
   `audio/extractors/stems.py` ×2, `audio/lyrics_align.py`, `knowledge/layout_semantics.py` ×2.
-- [ ] 2.7 Wire the core/orchestrator seam observations: `audio:stems` from `st.song_analysis.stems`
+- [x] 2.7 Wire the core/orchestrator seam observations: `audio:stems` from `st.song_analysis.stems`
   emptiness; render-order from the discarded `bool` returns of `patch_view`/`patch_xsq_render_order`.
-- [ ] 2.8 Optional finalize-record field: add `degradations: list[str] = []` to `RevisionLogRecord`
+- [x] 2.8 Optional finalize-record field: add `degradations: list[str] = []` to `RevisionLogRecord`
   and populate at both finalize call sites (skip-gate and end-of-loop); keep old JSONL lines valid.
-- [ ] 2.9 Tests — new `tests/test_degradations.py`: `note()` with no active log is a no-op that still
+- [x] 2.9 Tests — new `tests/test_degradations.py`: `note()` with no active log is a no-op that still
   logs and never raises (raising fake detail); dedup (two `note("visual:critique", ...)` → one item,
   `count==2`, first detail kept); `render_summary()` empty vs non-empty; ContextVar isolation across
   two sequential `start_run()`s.
-- [ ] 2.10 Tests — pipeline integration (extend `test_orchestrator.py`): injected `visual_critique`
+- [x] 2.10 Tests — pipeline integration (extend `test_orchestrator.py`): injected `visual_critique`
   fake that raises → finalize summary contains `visual:critique`×N and the run still completes; all
   fakes healthy → empty summary, `degradations.json` absent/empty. Per-block caplog tests for
   `qa/coverage` (blind warning exactly once across many `evaluate` calls) and `effect_emitter`
   (`emit:view` + fallback).
-- [ ] 2.11 Tests — `groups.py:43` re-raise: update `tests/test_targetable_groups.py` so a client whose
+- [x] 2.11 Tests — `groups.py:43` re-raise: update `tests/test_targetable_groups.py` so a client whose
   `get_group_names` raises now propagates `XLightsConnectionError` (was `[]`); keep the probe-failure
   fallback tests unchanged. Add the structural log-audit test (AST walk: ban any `except Exception`
   whose body has no `log.`, no `note(`, no `raise`; auto-skip `server.py`/`brief_editor.py`).
-- [ ] 2.12 Back-compat + docs: golden pipeline snapshot byte-identical (logging-only edits);
+- [x] 2.12 Back-compat + docs: golden pipeline snapshot byte-identical (logging-only edits);
   `ruff check` clean; document the taxonomy table + "reading a degradations summary" in `docs/usage.md`
   and add the project-convention note that new best-effort blocks must log.
 

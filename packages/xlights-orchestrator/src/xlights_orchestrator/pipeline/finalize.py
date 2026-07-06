@@ -28,8 +28,10 @@ async def finalize_sequence(st: State, *, client, save_as: str, media, show_fold
         xsq = resolve_xsq(save_as, show_folder)
         if xsq and media is not None and patch_xsq_media(xsq, media, duration_s):
             log.info("audio attached to %s — open '%s' in xLights to play with sound", xsq, save_as)
-        if xsq:
-            patch_xsq_render_order(xsq)       # beds under, features/accents over
+        if xsq and not patch_xsq_render_order(xsq):   # beds under, features/accents over
+            from ..degradations import note            # observe the discarded bool at the seam
+            note("finalize:xsq-patch", f"render-order patch reported no change for {xsq}",
+                 stage="finalize", level=logging.DEBUG)
         if xsq and timing_tracks:             # reference grid for hand-editing (best-effort)
             tracks = build_timing_tracks(
                 st.song_analysis, st.music_brief,
@@ -37,4 +39,5 @@ async def finalize_sequence(st: State, *, client, save_as: str, media, show_fold
             if patch_xsq_timing_tracks(xsq, tracks):
                 log.info("added %d reference timing tracks to %s", len(tracks), xsq)
     except Exception as exc:  # noqa: BLE001 — patch is best-effort, never fails the run
-        log.warning("offline .xsq patch step failed: %s", exc)
+        from ..degradations import note
+        note("finalize:xsq-patch", exc, stage="finalize")

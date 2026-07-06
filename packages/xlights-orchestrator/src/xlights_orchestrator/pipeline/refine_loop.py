@@ -18,11 +18,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import degradations
 from .. import qa as qa_pkg
 from ..agents import director as director_mod
 from ..agents import generator as generator_mod
 from ..agents import judge as judge_mod
 from ..effect_emitter import clamp_layer_budget
+from ..models.registry import run_agent
 from ..refine import floor_visual_revisions, replace_section
 from ..revision_log import (
     LogFinding,
@@ -166,8 +168,8 @@ class ReportBuilder:
                 await self.client.save_sequence(self.save_as)
                 if self.real_render is not None:  # export the REAL render for coverage + critic
                     await self.real_render.refresh(self.client)
-            except Exception:  # noqa: BLE001 — sampling degrades to neutral
-                pass
+            except Exception as exc:  # noqa: BLE001 — sampling degrades to neutral
+                degradations.note("qa:render-flush", exc, stage="refine")
         if self.sampler is not None:              # injected qa fakes keep the legacy signature
             return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
                                 applied, self.st.available_groups, sampler=self.sampler)
@@ -230,7 +232,7 @@ async def apply_revisions(st, revisions, *, regen, redesign, ledger, findings, l
                     ledger.mark_redesigned(si)
                     log.info("design-escalated section %d (%d findings)", si, len(sec_f))
             except Exception as exc:  # noqa: BLE001 — escalation is best-effort
-                log.warning("section redesign failed for %d: %s", si, exc)
+                degradations.note("refine:redesign", f"section {si}: {exc}", stage="refine")
         st.instructions = replace_section(st.instructions, si, await regen(rev))
         ledger.record(rev)
 
@@ -269,7 +271,8 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
         if _rd_agent is None:                          # lazy — real agent needs an API key
             _rd_agent = director_mod.section_redesigner()
         sec = st.show_plan.sections[rev.section_index]
-        return (await _rd_agent.run(director_mod.redesign_input(sec, st.show_plan, findings))).output
+        return (await run_agent(_rd_agent, director_mod.redesign_input(sec, st.show_plan, findings),
+                                role="redesigner", attempts=2)).output
 
     revlog = revlog or NullRevisionLog()
     clock = clock or (lambda: "")
@@ -299,9 +302,11 @@ async def refine_loop(st, *, client, emitter, generator, duration_secs,
             try:
                 report.findings.extend(await visual_critique(st))
             except Exception as exc:  # noqa: BLE001 — visual critique is best-effort
-                log.warning("visual critique failed: %s", exc)
-        verdict = (await judge_agent.run(
-            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger))).output
+                degradations.note("visual:critique", exc, stage="refine")
+        verdict = (await run_agent(
+            judge_agent,
+            judge_mod.render_input(report, st.show_plan, st.music_brief, ledger.ledger),
+            role="judge", attempts=3)).output
         decision = await decide(report, verdict, ledger.ledger)
         if decision.action in ("accept", "stop"):
             recorder.record(i, report, verdict, human_decision=decision.action,   # log the accept/stop too

@@ -121,6 +121,61 @@ async def _noninteractive(report, verdict, ledger):
     return Decision(action="approve", revisions=verdict.revisions)
 
 
+# -- I2: judge / visual-critique retry inside the loop ------------------------
+
+def test_judge_529_once_completes_iteration(monkeypatch):
+    monkeypatch.setattr("xlights_core.retry.asyncio.sleep", lambda d: _aiodone())
+    from pydantic_ai.exceptions import ModelHTTPError
+    st = _state()
+    client = _FakeClient()
+
+    class _FlakyJudge:
+        def __init__(self):
+            self.calls = 0
+        async def run(self, prompt):
+            self.calls += 1
+            if self.calls == 1:
+                raise ModelHTTPError(529, "m")         # first run overloaded → retried
+            return SimpleNamespace(output=JudgeVerdict(score=90, verdict="accept"))
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+    async def regen(rev):
+        return [_ins("G1", 0, 500, sec=rev.section_index)]
+
+    jf = _FlakyJudge()
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=2, judge=jf, qa=None, regenerate=regen,
+                     checkpoint=_noninteractive))
+    assert jf.calls == 2                               # retried once, then produced its verdict
+
+
+def test_visual_critique_failing_twice_skips_findings_loop_continues(monkeypatch):
+    monkeypatch.setattr("xlights_core.retry.asyncio.sleep", lambda d: _aiodone())
+    st = _state()
+    client = _FakeClient()
+    vc_calls = {"n": 0}
+
+    async def failing_critique(state):
+        vc_calls["n"] += 1
+        raise RuntimeError("critic boom")              # best-effort → swallowed, loop continues
+
+    async def emitter(c, instr, *, duration_secs):
+        return {"placed": [{"section_index": i.section_index} for i in instr], "skipped": []}
+    async def regen(rev):
+        return [_ins("G1", 0, 500, sec=rev.section_index)]
+    judge = _Judge([JudgeVerdict(score=90, verdict="accept")])
+
+    run(_refine_loop(st, client=client, emitter=emitter, generator=None, duration_secs=4,
+                     max_iterations=2, judge=judge, qa=None, regenerate=regen,
+                     checkpoint=_noninteractive, visual_critique=failing_critique))
+    assert vc_calls["n"] >= 1                           # attempted; failure didn't sink the loop
+
+
+async def _aiodone():
+    return None
+
+
 def test_loop_iterates_then_accepts_and_rebuilds():
     st = _state()
     client = _FakeClient()

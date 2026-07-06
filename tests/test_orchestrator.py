@@ -248,6 +248,76 @@ def test_panel_drops_failed_analyst():
     assert isinstance(brief, MusicBrief)  # one analyst raised → dropped, panel survived
 
 
+# -- I2: panel analyst retry + named drop -------------------------------------
+
+from pydantic_ai.exceptions import ModelHTTPError
+
+
+class _FlakyAgent:
+    """Raises a transient ModelHTTPError on the first N runs, then returns ``output``."""
+    def __init__(self, output, *, fail=1, status=529):
+        self._o = output
+        self._fail = fail
+        self._status = status
+        self.calls = 0
+
+    async def run(self, prompt):
+        self.calls += 1
+        if self.calls <= self._fail:
+            raise ModelHTTPError(self._status, "m")
+        return SimpleNamespace(output=self._o)
+
+
+class _AlwaysFlakyAgent:
+    def __init__(self, status=529):
+        self._status = status
+        self.calls = 0
+
+    async def run(self, prompt):
+        self.calls += 1
+        raise ModelHTTPError(self._status, "m")
+
+
+def test_panel_analyst_retries_transient_then_succeeds(monkeypatch):
+    monkeypatch.setattr("xlights_core.retry.asyncio.sleep", lambda d: _aiodone())
+    flaky = _FlakyAgent(StructureOut(sections=[LabeledSection(start_ms=0, end_ms=6000, label="i")],
+                                     candidate_themes=["x"]), fail=1)
+    specs = [_spec("structure", flaky),
+             _spec("rhythm", _StubAgent(RhythmOut(groove="g", climax_ms=1))),
+             _spec("harmony", _StubAgent(HarmonyOut(key_mood="m")))]
+    brief = run(panel_mod.run_panel(_stub_analysis(), None,
+                                    analysts=specs, synthesizer=_StubAgent(_brief())))
+    assert isinstance(brief, MusicBrief) and flaky.calls == 2   # retried once, in the brief
+
+
+def test_panel_analyst_dropped_after_two_calls_names_key(monkeypatch, caplog):
+    monkeypatch.setattr("xlights_core.retry.asyncio.sleep", lambda d: _aiodone())
+    always = _AlwaysFlakyAgent()
+    specs = [_spec("structure", _StubAgent(StructureOut(
+                sections=[LabeledSection(start_ms=0, end_ms=6000, label="i")], candidate_themes=["x"]))),
+             _spec("rhythm", _StubAgent(RhythmOut(groove="g", climax_ms=1))),
+             _spec("harmony", always)]
+    with caplog.at_level("WARNING"):
+        brief = run(panel_mod.run_panel(_stub_analysis(), None,
+                                        analysts=specs, synthesizer=_StubAgent(_brief())))
+    assert isinstance(brief, MusicBrief)
+    assert always.calls == 2                                      # exactly 2 attempts (retry once)
+    assert any("harmony" in r.message for r in caplog.records)    # drop names the analyst key
+
+
+def test_panel_all_fail_still_raises(monkeypatch):
+    monkeypatch.setattr("xlights_core.retry.asyncio.sleep", lambda d: _aiodone())
+    specs = [_spec("structure", _AlwaysFlakyAgent()),
+             _spec("rhythm", _AlwaysFlakyAgent())]
+    with pytest.raises(RuntimeError):
+        run(panel_mod.run_panel(_stub_analysis(), None,
+                                analysts=specs, synthesizer=_StubAgent(_brief())))
+
+
+async def _aiodone():
+    return None
+
+
 def test_panel_deterministic_stem_merge():
     sa = _stub_analysis()
     sa.section_instrumentation = [
@@ -277,6 +347,129 @@ def test_build_panel_includes_lyric_only_when_present(monkeypatch):
     assert [s.key for s in with_lyrics] == ["structure", "rhythm", "harmony", "lyric"]
     assert [s.key for s in without] == ["structure", "rhythm", "harmony"]
     assert synth is not None
+
+
+# -- I5: degradations integration ---------------------------------------------
+
+def test_pipeline_clean_run_no_degradations(tmp_path, monkeypatch):
+    """All fakes healthy → no degradations.json written."""
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
+    from xlights_orchestrator.pipeline import groups as G
+    song = tmp_path / "song.mp3"; song.write_bytes(b"clean-bytes")
+
+    plan = ShowPlan(sections=[
+        {"start_ms": 0, "end_ms": 6000, "target_groups": ["G1"], "effect_family": "On", "intensity": 0.3}])
+    sect = SectionEffects(instructions=[EffectInstruction(
+        target="G1", effect_type="On", look_id="On#0", start_ms=0, end_ms=6000)])
+
+    async def emitter(client, instructions, *, duration_secs, **kw):
+        return {"placed": [], "skipped": [], "rendered": True}
+
+    # make the targetability probe succeed cleanly (no groups:probe degradation)
+    async def _ok_place(client, target, effect_type, look_id, **kw):
+        return "settings"
+    monkeypatch.setattr(G, "place_preset", _ok_place)
+    monkeypatch.setattr(G, "candidate_look_ids", lambda t: ["On#0"])
+    monkeypatch.setattr(G, "_SETTLE_SECS", 0)
+
+    class _CleanClient:
+        async def get_group_names(self):
+            return ["G1"]
+        async def get_model_names(self):
+            return ["M1"]
+        async def close_sequence(self, *, force=False, quiet=False):
+            pass
+        async def new_sequence(self, **kw):
+            pass
+        async def get_show_folder(self):
+            return ""                                  # empty (no folder) is not a failure here
+
+    run(run_pipeline(str(song), client=_CleanClient(),
+                     director=_director_agent(plan), generator=_generator_agent(sect),
+                     analyze=lambda p: _stub_analysis(), interpret=_interpret_stub,
+                     emitter=emitter, use_cache=False, stems=False))
+    # (the collector is run-scoped inside asyncio.run's context) — a clean run writes NO artifact
+    assert not list(tmp_path.rglob("degradations.json"))
+
+
+def test_pipeline_reports_failed_show_folder(tmp_path, monkeypatch):
+    """A get_show_folder failure is recorded as finalize:media and the run still completes; the
+    machine-readable degradations.json is written beside the cache."""
+    import json
+    monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
+    song = tmp_path / "song.mp3"; song.write_bytes(b"deg-bytes")
+
+    plan = ShowPlan(sections=[
+        {"start_ms": 0, "end_ms": 6000, "target_groups": ["G1"], "effect_family": "On", "intensity": 0.3}])
+    sect = SectionEffects(instructions=[EffectInstruction(
+        target="G1", effect_type="On", look_id="On#0", start_ms=0, end_ms=6000)])
+
+    async def emitter(client, instructions, *, duration_secs, **kw):
+        return {"placed": [], "skipped": [], "rendered": True}
+
+    class _NoFolderClient:
+        async def get_group_names(self):
+            return ["G1"]
+        async def get_show_folder(self):
+            raise XLightsResponseError(status_code=503, message="No show folder")
+
+    st = run(run_pipeline(str(song), client=_NoFolderClient(),
+                          director=_director_agent(plan), generator=_generator_agent(sect),
+                          analyze=lambda p: _stub_analysis(), interpret=_interpret_stub,
+                          emitter=emitter, use_cache=False, stems=False))
+    assert st.show_plan.sections                          # run completed despite the loss
+    # a degraded run wrote the machine-readable artifact beside the cache
+    artifacts = list(tmp_path.rglob("degradations.json"))
+    assert artifacts
+    keys = {d["capability"] for d in json.loads(artifacts[0].read_text())}
+    assert "finalize:media" in keys
+
+
+def test_coverage_blind_warns_once(caplog):
+    """The coverage sampler failing many times warns exactly once (note_once)."""
+    from xlights_orchestrator import degradations
+    from xlights_orchestrator.qa import coverage
+    from xlights_orchestrator.music_brief import LabeledSection
+
+    dl = degradations.start_run()
+    plan = SimpleNamespace(sections=[LabeledSection(start_ms=0, end_ms=1000, label="x", intensity=0.8)])
+
+    def bad_sampler(t_ms):
+        raise FileNotFoundError("no .fseq")
+
+    with caplog.at_level("WARNING"):
+        for _ in range(5):
+            score, findings = coverage.evaluate(plan, bad_sampler)
+            assert score == 100 and findings == []        # neutral, never gates blind
+    warnings = [r for r in caplog.records if "qa:coverage-blind" in r.message
+                and r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert dl.items["qa:coverage-blind"].count == 5
+
+
+def test_emit_view_fallback_records(monkeypatch, caplog):
+    """A missing SEM Master view records emit:view and falls back to the default view."""
+    from xlights_orchestrator import degradations
+    dl = degradations.start_run()          # asyncio.run inherits the ContextVar's DegradationLog ref
+
+    class _ViewFailClient:
+        def __init__(self):
+            self.new_calls = []
+            self.rendered = False
+        async def close_sequence(self, *, force=False, quiet=False):
+            pass
+        async def new_sequence(self, *, duration_secs, frame_ms=50, force=False, view=None,
+                               media_file=None):
+            self.new_calls.append(view)
+            if view is not None:                          # the SEM Master view isn't loaded
+                raise XLightsResponseError(status_code=503, message="unknown view")
+        async def render_all(self):
+            self.rendered = True
+
+    c = _ViewFailClient()
+    run(apply_instructions(c, [], duration_secs=10, settle_secs=0))
+    assert c.new_calls == ["SEM Master", None]            # tried the view, fell back to default
+    assert "emit:view" in {d.capability for d in dl.summary()}   # recorded on the shared collector
 
 
 # -- lyrics (hermetic; no network) --------------------------------------------

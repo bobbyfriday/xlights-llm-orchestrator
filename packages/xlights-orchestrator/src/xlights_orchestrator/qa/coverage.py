@@ -28,7 +28,9 @@ def evaluate(plan, sampler) -> tuple[int, list[Finding]]:
         for i, sec in enumerate(sections):
             span = sec.end_ms - sec.start_ms
             lit[i] = max(int(sampler(int(sec.start_ms + span * f))) for f in _SAMPLES)
-    except Exception:  # noqa: BLE001 — can't see (missing fseq/deps) → neutral, never gate blind
+    except Exception as exc:  # noqa: BLE001 — can't see (missing fseq/deps) → neutral, never gate blind
+        from ..degradations import note_once
+        note_once("qa:coverage-blind", exc, stage="refine")   # once per run (called many times)
         return 100, []
     peak = max(lit.values())
     if peak <= 0:

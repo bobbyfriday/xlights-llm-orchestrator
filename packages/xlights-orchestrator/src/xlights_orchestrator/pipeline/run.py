@@ -17,13 +17,14 @@ from xlights_core.audio import AudioAnalyzer, SongAnalysis
 
 import logging
 
+from .. import degradations
 from ..agents import director as director_mod
 from ..agents import panel as panel_mod
 from ..agents.catalog import placeable_effect_types
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
-from ..models.registry import model_snapshot
+from ..models.registry import model_snapshot, run_agent
 from ..refine import Decision
 from ..revision_log import (
     NullRevisionLog,
@@ -153,6 +154,15 @@ async def run_pipeline(
 ) -> State:
     st = State(song_path=song_path)
     key = _song_key(song_path)
+    dl = degradations.start_run()               # per-run degradations collector (best-effort)
+
+    def _finish(state: State) -> State:
+        """End-of-run: emit the degradations summary + best-effort degradations.json (beside the
+        revision log). Called at EVERY exit, including the early-return checkpoints."""
+        degradations.emit_summary(dl)
+        if dl.summary():
+            degradations.write_json(dl, _cache_root() / key / "degradations.json")
+        return state
 
     # 1. analyze. The default analyzer requests stems (per-section instrument signal);
     #    an injected analyze callable keeps the simple (path)->SongAnalysis shape.
@@ -174,7 +184,7 @@ async def run_pipeline(
                     log.info("timed lyrics attached (%d lines)",
                              len(st.song_analysis.lyrics.get("lines", [])))
         except Exception as exc:  # noqa: BLE001 — lyrics are enrichment
-            log.info("lyric attach skipped: %s", exc)
+            degradations.note("audio:lyrics", exc, stage="analyze")
     # Instrumental complement: still no timed lines → subdivide long audio sections at
     # musical seams so no single look runs past ~32s (best-effort; never blocks the run).
     if not (getattr(st.song_analysis, "lyrics", None) or {}).get("lines"):
@@ -183,14 +193,20 @@ async def run_pipeline(
                 log.info("instrumental sections refined (%d segments)",
                          len(st.song_analysis.segments))
         except Exception as exc:  # noqa: BLE001 — refinement is enrichment
-            log.info("instrumental refine skipped: %s", exc)
+            degradations.note("audio:instrumental-refine", exc, stage="analyze")
+
+    # Core-owned outcome observed at the seam: stems requested but the analysis has none →
+    # all separation backends failed (core logs per-backend; the run reports the terminal loss).
+    if stems and not (getattr(st.song_analysis, "stems", None) or []):
+        degradations.note("audio:stems", "all separation backends failed (no per-section instruments)",
+                          stage="analyze")
 
     try:    # persist the analysis so `xlo regen` can rehydrate without re-analyzing the audio
         sa_cache = _cache_path(key, "song_analysis")
         sa_cache.parent.mkdir(parents=True, exist_ok=True)
         sa_cache.write_text(st.song_analysis.model_dump_json())
-    except Exception as exc:  # noqa: BLE001 — caching is best-effort
-        log.info("song_analysis cache skipped: %s", exc)
+    except Exception as exc:  # noqa: BLE001 — caching is best-effort (cosmetic)
+        log.debug("song_analysis cache write skipped: %s", exc)
 
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
     st.placeable_types = placeable_effect_types()
@@ -201,7 +217,8 @@ async def run_pipeline(
     if use_cache and mb_cache.exists():
         try:
             st.music_brief = MusicBrief.model_validate_json(mb_cache.read_text())
-        except Exception:  # noqa: BLE001 — stale/invalid cache shape → recompute
+        except Exception as exc:  # noqa: BLE001 — stale/invalid cache shape → recompute
+            log.debug("stale song_description cache, recomputing: %s", exc)
             st.music_brief = None
     if st.music_brief is None:
         st.music_brief = await (interpret or _default_interpret)(song_path, st.song_analysis)
@@ -211,7 +228,7 @@ async def run_pipeline(
     (mb_cache.parent / "description.md").write_text(desc_md)
     if interpret_checkpoint is not None:                    # hard review gate (attended); --auto passes None
         if not await interpret_checkpoint(desc_md, st.music_brief):
-            return st                                        # human declined → stop before downstream
+            return _finish(st)                               # human declined → stop before downstream
 
     # 3. design -> creative brief (ShowPlan; cached). Key bumped from "show_plan" so old thin
     #    plans don't shadow the rich brief.
@@ -221,7 +238,7 @@ async def run_pipeline(
     else:
         agent = director or director_mod.director_agent()
         prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
-        st.show_plan = (await agent.run(prompt)).output
+        st.show_plan = (await run_agent(agent, prompt, role="director", attempts=3)).output
     _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)
@@ -229,7 +246,7 @@ async def run_pipeline(
         log.info("creative brief is editable (schema-backed dropdowns) at %s — edit + re-run to apply",
                  sp_cache)
         if not await design_checkpoint(brief_md, st.show_plan):
-            return st
+            return _finish(st)
 
     # 3. generate -> EffectInstruction[] (cached) — each section FOLLOWS the brief
     ins_cache = _cache_path(key, "instructions")
@@ -246,7 +263,8 @@ async def run_pipeline(
     dur = duration_secs or max(1, math.ceil(st.song_analysis.duration_s))
     try:
         show_folder = await client.get_show_folder()
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — no show folder → media/faces enrichment lost
+        degradations.note("finalize:media", exc, stage="apply")
         show_folder = None
     media = prepare_media(song_path, show_folder)
     if show_folder:                          # singing faces lip-sync to the vocals (deterministic)
@@ -287,14 +305,14 @@ async def run_pipeline(
             (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
             _cache_path(key, "instructions").write_text(
                 json.dumps([i.model_dump() for i in st.instructions], indent=1))
-        except Exception as exc:  # noqa: BLE001
-            log.warning("could not persist revised design: %s", exc)
+        except Exception as exc:  # noqa: BLE001 — persisting the refined design is best-effort
+            degradations.note("cache:post-refine", exc, stage="refine")
 
     # 6. finalize (with a final human approval when attended)
     if save_as:
         if checkpoint is None and refine and not await _final_approval(st):
-            return st
+            return _finish(st)
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder, duration_s=st.song_analysis.duration_s,
                                 timing_tracks=timing_tracks)
-    return st
+    return _finish(st)

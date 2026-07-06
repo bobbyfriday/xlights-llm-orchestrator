@@ -38,7 +38,7 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
-from .semantic_groups import HERO_GROUP
+from .semantic_groups import DEFAULT_VOCAB, HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
@@ -186,7 +186,8 @@ async def realize_section(st: State, si: int, *, agent,
                                                               carrier=carrier)
     diversify_carrier(weave_obj, carrier)        # vary an LLM weave's default carrier too
     woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
-                         based_targets={k.target for k in kept})  # cells blend over washes
+                         based_targets={k.target for k in kept},   # cells blend over washes
+                         bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference)
     for ins in woven:
         ins.section_index = si
     kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
@@ -208,7 +209,8 @@ async def realize_section(st: State, si: int, *, agent,
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
     accents = place_beat_accents(            # beat layer over the wash; the weave's carrier
         section, rhythm, st.available_groups,  # owns the chase. Only when the brief is rhythmic —
-        carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
+        carrier_covers=carrier_covers(weave_obj, section, st.available_groups),
+        vocab=st.vocab or DEFAULT_VOCAB) \
         if section_is_rhythmic(section) else []   # a still section stays still
     under = {k.target for k in kept}
     for ins in accents:

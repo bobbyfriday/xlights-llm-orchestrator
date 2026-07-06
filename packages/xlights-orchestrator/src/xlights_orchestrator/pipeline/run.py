@@ -195,6 +195,18 @@ async def run_pipeline(
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
     st.placeable_types = placeable_effect_types()
 
+    # F-E: load the layout manifest (show dir, else cache copy) and derive the choreography
+    # vocabulary. Absent a manifest → None → DEFAULT_VOCAB → byte-identical output (the golden
+    # asserts this). The manifest also grounds the Director prompt and manifest-derived QA gating.
+    from xlights_core.knowledge.layout_manifest import load_manifest
+    from .semantic_groups import derive_vocabulary
+    try:
+        _show = await client.get_show_folder()
+    except Exception:  # noqa: BLE001 — no running xLights / no show folder
+        _show = None
+    st.manifest = load_manifest(_show, cache_root=_cache_root())
+    st.vocab = derive_vocabulary(st.manifest)
+
     # 2. interpret -> rich SongDescription (panel of analysts + synthesizer; cached).
     #    Cache key bumped from "music_brief" so old flat briefs don't shadow the richer one.
     mb_cache = _cache_path(key, "song_description")
@@ -220,7 +232,8 @@ async def run_pipeline(
         st.show_plan = ShowPlan.model_validate_json(sp_cache.read_text())
     else:
         agent = director or director_mod.director_agent()
-        prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types)
+        prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types,
+                                           manifest=st.manifest)
         st.show_plan = (await agent.run(prompt)).output
     _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief

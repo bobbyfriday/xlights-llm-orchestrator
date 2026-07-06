@@ -168,11 +168,14 @@ class ReportBuilder:
                     await self.real_render.refresh(self.client)
             except Exception:  # noqa: BLE001 — sampling degrades to neutral
                 pass
+        # The default evaluator takes the loaded manifest (manifest-derived capability gating);
+        # injected qa fakes keep the legacy signature, so only the default path forwards it.
+        kw = {"manifest": getattr(self.st, "manifest", None)} if self.qa_eval is qa_pkg.evaluate else {}
         if self.sampler is not None:              # injected qa fakes keep the legacy signature
             return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
-                                applied, self.st.available_groups, sampler=self.sampler)
+                                applied, self.st.available_groups, sampler=self.sampler, **kw)
         return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
-                            applied, self.st.available_groups)
+                            applied, self.st.available_groups, **kw)
 
     async def objective(self, applied):
         return (await self.report(applied)).objective_score

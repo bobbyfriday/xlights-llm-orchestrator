@@ -20,13 +20,51 @@ def director_agent():
                        system_prompt=with_guides(_PROMPT, "sequencing", "effects", "scenes"))
 
 
-def render_input(brief: MusicBrief, groups: list[str], placeable_types: list[str]) -> str:
+def render_layout_block(manifest, groups: list[str]) -> str:
+    """A compact (~1 KB) layout traits block for the targetable SEM_ groups: per group its role,
+    member count, ~nodes, band, and symmetry/order, plus one display line. Grounds the Director in
+    the layout's scale/geometry/symmetry (F-E gap #2) — appended only when a manifest exists."""
+    if manifest is None:
+        return ""
+    props = {p.id: p for p in getattr(manifest, "props", None) or []}
+    grec = getattr(manifest, "groups", None) or {}
+    lines: list[str] = []
+    for name in groups:
+        gr = grec.get(name)
+        if gr is None or not gr.members:
+            continue
+        members = [props[m] for m in gr.members if m in props]
+        if not members:
+            continue
+        roles = {m.role for m in members}
+        role = next(iter(roles)) if len(roles) == 1 else "mixed"
+        nodes = sum(m.nodes for m in members)
+        bands = {m.pos.band for m in members}
+        band = next(iter(bands)) if len(bands) == 1 else "spanning"
+        sym = "ordered" if gr.ordered else ("symmetric" if any(m.mirror_of for m in members) else "")
+        tag = f" {sym}" if sym else ""
+        lines.append(f"- {name}: {role.lower()} ×{len(members)}, ~{nodes} nodes, {band}{tag}")
+    d = getattr(manifest, "display", None)
+    disp = ""
+    if d is not None:
+        s = "symmetric" if getattr(d, "symmetric", False) else "asymmetric"
+        disp = (f"display: ~{getattr(d, 'width_units', 0):.0f} units wide, focal center "
+                f"x={getattr(d, 'focal_x', 0.5):.2f}, {s}\n")
+    if not lines:
+        return ""
+    return ("\n\nLAYOUT TRAITS (scale/geometry/symmetry of each targetable group — plan to them):\n"
+            + disp + "\n".join(lines))
+
+
+def render_input(brief: MusicBrief, groups: list[str], placeable_types: list[str],
+                 manifest=None) -> str:
     instrumental = not brief.featured_lyric_moments and not brief.narrative_summary
     return (
         "SONG DESCRIPTION (interpreted — design the show ENTIRELY from this):\n"
         + brief.model_dump_json(indent=1)
         + f"\n\nINSTRUMENTAL: {json.dumps(instrumental)}"
         + "\n\nAVAILABLE GROUPS (choose targets only from these):\n" + json.dumps(groups)
+        + render_layout_block(manifest, groups)          # appended only when a manifest exists
         + "\n\nPLACEABLE EFFECT TYPES (effect_family/effect_types only from these):\n"
         + json.dumps(placeable_types)
         + "\n\nProduce a rich CREATIVE BRIEF as a ShowPlan:\n"

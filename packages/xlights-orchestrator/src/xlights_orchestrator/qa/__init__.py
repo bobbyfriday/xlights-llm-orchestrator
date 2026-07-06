@@ -13,11 +13,11 @@ from ..refine import QAReport
 from . import coverage, placement, rules, sync, variety
 
 
-def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None) -> QAReport:
+def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None, manifest=None) -> QAReport:
     s_sync, f_sync = sync.evaluate(instructions, analysis)
     s_place, f_place = placement.evaluate(plan, applied)
     s_var, f_var = variety.evaluate(instructions, groups)
-    s_rules, f_rules = rules.evaluate(instructions, plan)
+    s_rules, f_rules = rules.evaluate(instructions, plan, manifest)
     subscores = {"sync": s_sync, "placement": s_place, "rules": s_rules, "variety": s_var}
     findings = f_sync + f_place + f_rules + f_var
     parts = [s_sync, s_place, s_rules]

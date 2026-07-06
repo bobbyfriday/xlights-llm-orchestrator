@@ -225,6 +225,11 @@ async def run_pipeline(
 
     progress.emit("stage", stage="groups", payload={"phase": "start"})
     st.available_groups = await targetable_groups(client, cache_root=_cache_root())  # only addEffect-able
+    try:    # real MODEL names (not groups) for F-C matrix-text discovery; best-effort, never blocks
+        st.model_names = list(await client.get_model_names())
+    except Exception as exc:  # noqa: BLE001 — no model list → matrix-text no-ops
+        log.info("model-name fetch skipped (matrix text disabled): %s", exc)
+        st.model_names = []
     st.placeable_types = placeable_effect_types()
     progress.emit("stage", stage="groups", payload={"phase": "end",
                                                     "groups": len(st.available_groups or [])})

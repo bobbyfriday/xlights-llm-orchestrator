@@ -17,14 +17,14 @@ from xlights_core.audio import AudioAnalyzer, SongAnalysis
 
 import logging
 
-from .. import degradations
+from .. import degradations, telemetry
 from ..agents import director as director_mod
 from ..agents import panel as panel_mod
 from ..agents.catalog import placeable_effect_types
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
-from ..models.registry import model_snapshot, run_agent
+from ..models.registry import active_provider, estimate_cost, model_snapshot, run_agent
 from ..progress import NullProgressBus
 from ..refine import Decision
 from ..revision_log import (
@@ -42,7 +42,7 @@ from .beats import feature_prop_contrast
 from .groups import targetable_groups
 from .media import prepare_media
 from .state import State
-from .visual import RealRender, make_lit_sampler, make_visual_critique
+from .visual import RealRender, make_fseq_series_provider, make_lit_sampler, make_visual_critique
 from .cache import cache_path as _cache_path, cache_root as _cache_root, song_key as _song_key
 from .generate import generate_instructions, realize_section
 from .finalize import finalize_sequence
@@ -155,8 +155,10 @@ async def run_pipeline(
     progress=None,
     final_checkpoint=None,
 ) -> State:
+    telemetry.start_run()          # install the run-scoped usage collector (reaches every await below)
     st = State(song_path=song_path)
     key = _song_key(song_path)
+    run_id = None                  # set when the refine loop runs with logging (reused in usage.json)
     dl = degradations.start_run()               # per-run degradations collector (best-effort)
     progress = progress or NullProgressBus()    # F-I: default is inert (--auto/tests unchanged)
 
@@ -250,7 +252,7 @@ async def run_pipeline(
     # 2. interpret -> rich SongDescription (panel of analysts + synthesizer; cached).
     #    Cache key bumped from "music_brief" so old flat briefs don't shadow the richer one.
     progress.emit("stage", stage="interpret", payload={"phase": "start"})
-    mb_cache = _cache_path(key, "song_description")
+    mb_cache = _cache_path(key, "song_description", models=True)
     if use_cache and mb_cache.exists():
         try:
             st.music_brief = MusicBrief.model_validate_json(mb_cache.read_text())
@@ -273,14 +275,16 @@ async def run_pipeline(
     # 3. design -> creative brief (ShowPlan; cached). Key bumped from "show_plan" so old thin
     #    plans don't shadow the rich brief.
     progress.emit("stage", stage="design", payload={"phase": "start"})
-    sp_cache = _cache_path(key, "creative_brief")
+    sp_cache = _cache_path(key, "creative_brief", models=True)
     if use_cache and sp_cache.exists():
         st.show_plan = ShowPlan.model_validate_json(sp_cache.read_text())
     else:
         agent = director or director_mod.director_agent()
         prompt = director_mod.render_input(st.music_brief, st.available_groups, st.placeable_types,
                                            manifest=st.manifest)
-        st.show_plan = (await run_agent(agent, prompt, role="director", attempts=3)).output
+        _dir_res = await run_agent(agent, prompt, role="director", attempts=3)
+        telemetry.record("director", _dir_res)
+        st.show_plan = _dir_res.output
     _emit_editable_brief(st, sp_cache.parent)             # schema-backed, hand-editable brief (+ schema)
     brief_md = render_creative_brief(st.show_plan)         # human-readable creative brief
     (sp_cache.parent / "creative_brief.md").write_text(brief_md)
@@ -301,7 +305,7 @@ async def run_pipeline(
     # 3. generate -> EffectInstruction[] (cached) — each section FOLLOWS the brief
     progress.emit("stage", stage="generate", payload={"phase": "start",
                                                       "sections": len(st.show_plan.sections)})
-    ins_cache = _cache_path(key, "instructions")
+    ins_cache = _cache_path(key, "instructions", models=True)
     if use_cache and ins_cache.exists():
         st.instructions = [EffectInstruction.model_validate(x)
                            for x in json.loads(ins_cache.read_text())]
@@ -337,18 +341,23 @@ async def run_pipeline(
 
     # 5. refine (opt-in): test -> decide -> regenerate flagged sections -> rebuild
     if refine:
+        mdir = ins_cache.parent                     # the model-namespaced LLM-stage dir for this routing
         real = RealRender(save_as, st.song_analysis.duration_s) if save_as else None
         vc = visual_critique
         if vc is None:
-            vc = make_visual_critique(client, save_as=save_as, song_key=key,
-                                      cache_root=_cache_root(), real=real)
+            # visual_review bundles are LLM-stage artifacts → namespace them under the routing
+            vc = make_visual_critique(client, save_as=save_as, song_key=str(mdir.name),
+                                      cache_root=mdir.parent, real=real)
         revlog, run_id = NullRevisionLog(), "run"
-        if log_revisions:
+        if log_revisions:                           # the revision log stays SHARED (all arms in one file)
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             base = _cache_root() / key
             revlog = RevisionLog(base / "revision_log.jsonl", base / "revision_log.md")
         sampler = None if qa is not None else make_lit_sampler(save_as=save_as,
                                                                 show_folder=show_folder, real=real)
+        # Tier 0 rendered-pixel metrics (advisory-first): a per-group series over the current .fseq
+        fseq_provider = None if qa is not None else make_fseq_series_provider(
+            save_as=save_as, show_folder=show_folder, groups=st.available_groups)
         progress.emit("stage", stage="refine", payload={"phase": "start",
                                                         "max_iterations": max_iterations})
         await _refine_loop(st, client=client, emitter=emitter, generator=generator,
@@ -357,14 +366,15 @@ async def run_pipeline(
                            visual_critique=vc, revlog=revlog, run_id=run_id, song_key=key,
                            models=model_snapshot(),
                            clock=lambda: datetime.now(timezone.utc).isoformat(),
-                           review_base=_cache_root() / key / "visual_review",
+                           review_base=mdir / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real,
-                           skip_objective=_refine_skip_objective(), progress=progress)
+                           skip_objective=_refine_skip_objective(),
+                           fseq_series_provider=fseq_provider, progress=progress)
         progress.emit("stage", stage="refine", payload={"phase": "end"})
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
-            _emit_editable_brief(st, _cache_root() / key)   # keep the brief schema-backed after refine
-            (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
-            _cache_path(key, "instructions").write_text(
+            _emit_editable_brief(st, mdir)          # keep the brief schema-backed after refine
+            (mdir / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
+            _cache_path(key, "instructions", models=True).write_text(
                 json.dumps([i.model_dump() for i in st.instructions], indent=1))
         except Exception as exc:  # noqa: BLE001 — persisting the refined design is best-effort
             degradations.note("cache:post-refine", exc, stage="refine")
@@ -372,12 +382,60 @@ async def run_pipeline(
     # 6. finalize (with a final human approval when attended). `final_checkpoint` defaults to the
     #    terminal `_final_approval`; the CLI injects a browser-backed one when live.
     final_gate = final_checkpoint or _final_approval
+    _usage_run_id = run_id if refine and log_revisions else None
     if save_as:
         if checkpoint is None and refine and not await final_gate(st):
+            _emit_usage_summary(key, _usage_run_id)      # cost telemetry runs at EVERY exit
             return _finish(st)
         progress.emit("stage", stage="finalize", payload={"phase": "start"})
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder, duration_s=st.song_analysis.duration_s,
                                 timing_tracks=timing_tracks)
         progress.emit("stage", stage="finalize", payload={"phase": "end", "save_as": save_as})
+
+    # per-run cost telemetry — a log line + a durable usage.json, so NON-refine and unlogged
+    # runs are measured too (the revision log only exists during refine).
+    _emit_usage_summary(key, _usage_run_id)
     return _finish(st)
+
+
+def _emit_usage_summary(song_key: str, run_id: str | None) -> None:
+    """Best-effort per-run cost summary: a `log.info` line + a `usage.json` artifact under
+    `cache_root()/<song_key>/` (a list-of-runs keyed by run_id). Convention: cost None ⇒
+    unknown ($unknown); 0.0 ⇒ genuinely zero (fully cached, zero-LLM)."""
+    try:
+        ul = telemetry.current()
+        if ul is None:
+            return
+        totals = ul.snapshot()
+        models = model_snapshot()
+        cost = estimate_cost(models, totals)
+        tin = sum(u.input_tokens + u.cache_read_tokens + u.cache_write_tokens for u in totals.values())
+        tout = sum(u.output_tokens for u in totals.values())
+        reqs = sum(u.requests for u in totals.values())
+        cost_str = f"${cost:.2f}" if cost is not None else "$unknown"
+        log.info("run usage: %s tokens in / %s out across %d requests — est. %s",
+                 tin, tout, reqs, cost_str)
+        base = _cache_root() / song_key
+        base.mkdir(parents=True, exist_ok=True)
+        path = base / "usage.json"
+        runs = []
+        if path.exists():
+            try:
+                runs = json.loads(path.read_text())
+                if not isinstance(runs, list):
+                    runs = []
+            except Exception as exc:  # noqa: BLE001 — a corrupt artifact must not lose this run
+                log.debug("usage.json unreadable, starting a fresh list: %s", exc)
+                runs = []
+        runs.append({
+            "run_id": run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "provider": active_provider(),
+            "models": models,
+            "usage_total": {r: u.model_dump() for r, u in totals.items()},
+            "cost_usd": cost,
+        })
+        path.write_text(json.dumps(runs, indent=1))
+    except Exception as exc:  # noqa: BLE001 — telemetry never breaks a run
+        log.debug("usage summary skipped: %s", exc)

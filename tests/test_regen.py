@@ -88,9 +88,10 @@ def _state():
 
 def _write_cache(tmp_path, song):
     key = song_key(str(song))
-    cache_path(key, "creative_brief").parent.mkdir(parents=True, exist_ok=True)
-    cache_path(key, "creative_brief").write_text(_plan(3).model_dump_json())
-    cache_path(key, "instructions").write_text(
+    # LLM-stage artifacts are model-namespaced (F-H); song_analysis stays shared.
+    cache_path(key, "creative_brief", models=True).parent.mkdir(parents=True, exist_ok=True)
+    cache_path(key, "creative_brief", models=True).write_text(_plan(3).model_dump_json())
+    cache_path(key, "instructions", models=True).write_text(
         json.dumps([i.model_dump() for i in _faded_orig()]))   # as a real run leaves them
     cache_path(key, "song_analysis").write_text(_analysis().model_dump_json())
     return key
@@ -180,7 +181,7 @@ def test_regen_section_end_to_end(tmp_path, monkeypatch):
     assert [i.model_dump() for i in st.instructions if i.section_index == 0] == [faded[0].model_dump()]
     assert [i.model_dump() for i in st.instructions if i.section_index == 2] == [faded[2].model_dump()]
     assert emitted["instructions"] and emitted["duration"] == 6           # re-emitted the spliced list
-    persisted = json.loads(cache_path(key, "instructions").read_text())
+    persisted = json.loads(cache_path(key, "instructions", models=True).read_text())
     assert any(x["section_index"] == 1 for x in persisted)                # cache updated in place
     assert {x["section_index"] for x in persisted} == {0, 1, 2}           # other sections preserved
 

@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from .telemetry import RoleUsage
+
 log = logging.getLogger(__name__)
 
 
@@ -49,6 +51,13 @@ class RevisionLogRecord(BaseModel):
     human_decision: str | None = None
     models: dict[str, str] = {}
     review_bundle: str | None = None
+    # -- telemetry (additive, defaulted; records predating I1 validate unchanged) --
+    usage: dict[str, RoleUsage] = {}          # tokens spent producing THIS record (a delta window)
+    usage_total: dict[str, RoleUsage] = {}    # whole-run per-role totals (finalize only)
+    cost_usd: float | None = None             # est. run cost (finalize only; None ⇒ any price unknown)
+    # -- terminal-state attribution (additive; absence ⇒ unspecified stop) --
+    stop_reason: str | None = None            # skip-gate|accept|stop|plateau|stall|cap
+    redesigned_sections: list[int] = []
 
 
 def source_of(metric: str) -> str:
@@ -56,12 +65,23 @@ def source_of(metric: str) -> str:
     return metric.split(":", 1)[0] if ":" in metric else metric
 
 
+def _fmt_tokens(n: int) -> str:
+    """Compact token count: 142000 -> '142k', 900 -> '900'."""
+    return f"{n / 1000:.0f}k" if n >= 1000 else str(n)
+
+
 def _render_md(r: RevisionLogRecord) -> str:
     """Pure record -> Markdown (human view). Mirrors the JSONL record exactly."""
     if r.kind == "finalize":
-        return (f"\n### Run {r.run_id} · finalize\n"
-                f"**Final:** objective {r.objective_score} · advisory {r.advisory_score} "
-                f"after {r.iteration} iteration(s).\n")
+        out = (f"\n### Run {r.run_id} · finalize\n"
+               f"**Final:** objective {r.objective_score} · advisory {r.advisory_score} "
+               f"after {r.iteration} iteration(s).\n")
+        if r.usage_total:                          # finalize-only tokens/cost tail (iterations stay uncluttered)
+            per = " · ".join(f"{role} {_fmt_tokens(u.input_tokens)}→{_fmt_tokens(u.output_tokens)}"
+                             for role, u in sorted(r.usage_total.items()))
+            cost = f"**${r.cost_usd:.2f}**" if r.cost_usd is not None else "**$unknown**"
+            out += f"**Tokens:** {per} · {cost}\n"
+        return out
     lines = [f"\n## Run {r.run_id} · iteration {r.iteration} · {r.ts}\n"]
     delta = f" ({r.obj_delta:+d})" if r.obj_delta is not None else ""
     kept = "reverted" if r.reverted else "kept"

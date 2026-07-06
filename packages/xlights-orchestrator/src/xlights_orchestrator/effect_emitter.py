@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 from xlights_core import XLightsClient, XLightsResponseError, XLightsTargetMissing
-from xlights_core.editing import CleanSlateRequired, PresetPlacementError, place_preset
+from xlights_core.editing import CleanSlateRequired, PresetPlacementError, place_direct, place_preset
 from xlights_core.knowledge.validators import KnobValueError
 
 from .pipeline.render_style import resolve_buffer_style
@@ -113,13 +113,23 @@ async def apply_instructions(
         extra = dict(ins.extra_settings)
         extra["B_CHOICE_BufferStyle"] = resolve_buffer_style(ins.render_style, ins.effect_type)
         try:
-            await place_preset(
-                client, ins.target, ins.effect_type, ins.look_id,
-                knob_values=ins.knob_values or None, palette_id=ins.palette_id,
-                palette_colors=ins.palette_colors or None,
-                extra_settings=extra,
-                layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms,
-            )
+            if getattr(ins, "direct_settings", ""):
+                # F-B asset-bound path: settings built in code (Text/Faces), catalog bypassed.
+                # Same layer accounting + skip-on-failure; still carries the buffer-style key.
+                await place_direct(
+                    client, ins.target, ins.effect_type, ins.direct_settings,
+                    palette_colors=ins.palette_colors or None,
+                    extra_settings=extra,
+                    layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms,
+                )
+            else:
+                await place_preset(
+                    client, ins.target, ins.effect_type, ins.look_id,
+                    knob_values=ins.knob_values or None, palette_id=ins.palette_id,
+                    palette_colors=ins.palette_colors or None,
+                    extra_settings=extra,
+                    layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms,
+                )
             occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
             placed.append({"target": ins.target, "effect": ins.effect_type,
                            "look": ins.look_id, "layer": layer,

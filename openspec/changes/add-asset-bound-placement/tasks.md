@@ -3,70 +3,70 @@
 - [ ] 1.1 Hand-author one static and one scrolling Text effect in the **pinned** xLights version;
   extract both settings strings from the saved `.xsq`'s `EffectDB` via `parse_settings` (a five-line
   script); commit them as the frozen template + a fixture under `tests/fixtures/`.
-- [ ] 1.2 Reconcile the §3.2 Text key table against the observed probe strings; document any
+- [x] 1.2 Reconcile the §3.2 Text key table against the observed probe strings; document any
   version-gated keys and add them to the `DROP_KEYS`-style strip list (`editing.py:22` is the
   precedent). Confirm whether xLights escapes commas in `E_TEXTCTRL_Text` on save, and whether
   `addEffect` accepts multi-line text (v1 may restrict to single-line).
 
 ## 2. F-B — `knowledge/direct_settings.py`
 
-- [ ] 2.1 Create `knowledge/direct_settings.py` with `DIRECT_TYPES = frozenset({"Text","Faces"})`.
-- [ ] 2.2 Implement `build_text_settings(text, *, movement="none", font_size=12, bold=True, speed=10,
+- [x] 2.1 Create `knowledge/direct_settings.py` with `DIRECT_TYPES = frozenset({"Text","Faces"})`.
+- [x] 2.2 Implement `build_text_settings(text, *, movement="none", font_size=12, bold=True, speed=10,
   center=True) -> str` emitting the frozen Text key set; validate `movement` against `_TEXT_DIRS`;
   sanitize glyph text (documented comma/equals substitution). Its output SHALL pass ring-1 validation.
-- [ ] 2.3 Add a `build_faces_settings(*, timing_track, face_definition, eyes="Auto", outline=True) ->
+- [x] 2.3 Add a `build_faces_settings(*, timing_track, face_definition, eyes="Auto", outline=True) ->
   str` **skeleton that raises** until F-D lands its probe; it requires both reference arguments and
   performs no defaulting.
-- [ ] 2.4 Unit tests per builder: round-trip (`serialize_settings(parse_settings(s)) == s`), key-kind
+- [x] 2.4 Unit tests per builder: round-trip (`serialize_settings(parse_settings(s)) == s`), key-kind
   audit (every key classifies via `classify_kind`; no `"other"` except the audited font-picker key),
   clamped/invalid inputs (negative font size, unknown movement → `ValueError`).
 - [ ] 2.5 Fixture-parity test: `build_text_settings` output differs from the frozen probe only in the
   deliberately variable keys (text, dir, speed, size) — the "corpus of one" invariant.
-- [ ] 2.6 Parser property tests: `parse_settings(build_text_settings(...))` yields unique keys, values
+- [x] 2.6 Parser property tests: `parse_settings(build_text_settings(...))` yields unique keys, values
   contain no commas, and glyph text with commas/equals is rejected or escaped explicitly (pin the
   chosen decision).
 
 ## 3. F-B — refactor `editing.py` + `place_direct`
 
-- [ ] 3.1 Extract `_merge_extra_settings(settings, extra)` (first-occurrence-wins override + append)
+- [x] 3.1 Extract `_merge_extra_settings(settings, extra)` (first-occurrence-wins override + append)
   and `_check_timing_and_target(...)` from `place_preset`; `place_preset` calls them — behavior-
   preserving, `tests/test_editing.py` and the golden must pass untouched.
-- [ ] 3.2 Add `place_direct(client, target, effect_type, settings, *, palette_colors=None,
+- [x] 3.2 Add `place_direct(client, target, effect_type, settings, *, palette_colors=None,
   extra_settings=None, layer=0, start_ms, end_ms) -> str`: validate the settings string
   syntactically, merge `extra_settings` via the shared helper, resolve palette via
   `palette_from_colors`, `add_effect`; raise `PresetPlacementError` on `worked=false`, `ValueError` on
   bad timing/target.
-- [ ] 3.3 Parity test: for identical `extra_settings`, `place_direct` and `place_preset` produce
+- [x] 3.3 Parity test: for identical `extra_settings`, `place_direct` and `place_preset` produce
   identical merged strings and identical palette handling.
 
 ## 4. F-B — schema + emitter branch
 
-- [ ] 4.1 Add `EffectInstruction.direct_settings: str = ""` (`show_plan.py:63–80`); `look_id=""` allowed
+- [x] 4.1 Add `EffectInstruction.direct_settings: str = ""` (`show_plan.py:63–80`); `look_id=""` allowed
   when `direct_settings` is set; the field is NOT surfaced in any generator prompt.
-- [ ] 4.2 Branch `effect_emitter.apply_instructions` (around line 116): `if ins.direct_settings ->
+- [x] 4.2 Branch `effect_emitter.apply_instructions` (around line 116): `if ins.direct_settings ->
   place_direct(... extra_settings=extra ...)` (still carrying `B_CHOICE_BufferStyle`) else the exact
   `place_preset` call today; identical layer accounting (`_free_layer`/`_top_layer`/occupancy) and
   `_SKIPPABLE` skip-on-failure for both branches.
-- [ ] 4.3 Back-compat tests: a pre-change cached `instructions` JSON (no `direct_settings` key) and the
+- [x] 4.3 Back-compat tests: a pre-change cached `instructions` JSON (no `direct_settings` key) and the
   golden fixture load and compare unchanged — this change must NOT perturb the golden (nothing emits
   direct instructions yet).
-- [ ] 4.4 Emitter fake-client test (pattern of `tests/test_orchestrator.py` / `test_client.py` fakes):
+- [x] 4.4 Emitter fake-client test (pattern of `tests/test_orchestrator.py` / `test_client.py` fakes):
   a direct instruction reaches `add_effect` with the exact settings string, correct layer accounting,
   and skip-on-failure parity.
 
 ## 5. F-B — guard rails, validation, docs
 
-- [ ] 5.1 Guard test: `DIRECT_TYPES ∩ placeable_effect_types() == ∅` so the LLM menu never grows these
+- [x] 5.1 Guard test: `DIRECT_TYPES ∩ placeable_effect_types() == ∅` so the LLM menu never grows these
   types silently if the catalog is re-mined with different filters. Add a placement-rules note that
   direct types bypass `candidate_look_ids`-based guards (`weave._valid_recipes`, `beats._accent_look`)
   by never entering recipes.
-- [ ] 5.2 Add `validate_direct(client, effect_type, settings)` (marked `live`) mirroring
+- [x] 5.2 Add `validate_direct(client, effect_type, settings)` (marked `live`) mirroring
   `validate_preset`'s scratch-sequence protocol (clean slate → place the frozen Text template on the
   Matrix model → `render_all` → assert `worked` → discard); wire into the live-verify checklist.
 - [ ] 5.3 Docs: a short section in `docs/architecture/README.md` (or the knowledge package docstring)
   describing the two placement routes and the rule for choosing (mined look when one exists; direct
   only for `DIRECT_TYPES`, authored only by deterministic passes).
-- [ ] 5.4 Hermetic suite green (`pytest -m "not live"`); golden untouched.
+- [x] 5.4 Hermetic suite green (`pytest -m "not live"`); golden untouched.
 
 ## 6. F-F — phase 0: fixture + parser (hermetic today)
 

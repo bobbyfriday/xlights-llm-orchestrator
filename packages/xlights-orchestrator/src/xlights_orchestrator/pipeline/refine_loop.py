@@ -169,8 +169,10 @@ class ReportBuilder:
             except Exception:  # noqa: BLE001 — sampling degrades to neutral
                 pass
         if self.sampler is not None:              # injected qa fakes keep the legacy signature
+            rm = self.st.music_brief.repetition_map if self.st.music_brief else None
             return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
-                                applied, self.st.available_groups, sampler=self.sampler)
+                                applied, self.st.available_groups, sampler=self.sampler,
+                                repetition_map=rm)
         return self.qa_eval(self.st.instructions, self.st.song_analysis, self.st.show_plan,
                             applied, self.st.available_groups)
 

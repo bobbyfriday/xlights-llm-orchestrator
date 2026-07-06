@@ -166,9 +166,24 @@ CARRIER_ROTATION = ("SingleStrand", "Bars", "Garlands", "Wave")
 _ROTATABLE_CARRIERS = set(_CHASE_FAMILY) | {"On"}
 
 
-def section_carrier(seed: int) -> str:
-    """The rotated carrier effect for a section index (deterministic; cycles CARRIER_ROTATION)."""
-    return CARRIER_ROTATION[seed % len(CARRIER_ROTATION)]
+def label_seed(label: str) -> int:
+    """A STABLE non-negative hash of a repetition label (md5-derived; process-independent).
+
+    Python's builtin ``hash`` is salted per process (PYTHONHASHSEED), which would make the
+    carrier/composite/palette choice differ run-to-run and churn the golden. This is the fixed
+    seed a recurring label rotates on, so every occurrence — and every run — picks the same one."""
+    import hashlib
+    return int.from_bytes(hashlib.md5(label.encode("utf-8")).digest()[:4], "big")
+
+
+def section_carrier(seed: int, label: str | None = None) -> str:
+    """The rotated carrier effect for a section (deterministic; cycles CARRIER_ROTATION).
+
+    Keyed on the repetition `label` when the section has a recurring identity (so every chorus gets
+    the SAME carrier and repeated music visually rhymes), else on the section `seed` (index) as
+    before — one-off sections keep position-keyed variety."""
+    key = label_seed(label) if label else seed
+    return CARRIER_ROTATION[key % len(CARRIER_ROTATION)]
 
 
 def diversify_carrier(weave: SectionWeave | None, carrier: str) -> None:

@@ -1,23 +1,27 @@
 ## 1. Phase 1 — repetition identity
 
-- [ ] 1.1 Add `section_identity(si, repetition_map) -> str | None` (beats.py, near
+- [x] 1.1 Add `section_identity(si, repetition_map) -> str | None` (beats.py, near
   `escalation_level`; a label counts only when it recurs). Unit tests: recurring label found,
   one-off → None, empty map → None.
-- [ ] 1.2 Key `section_carrier` on the identity label when present (`hash(label) % len(CARRIER_ROTATION)`),
+- [x] 1.2 Key `section_carrier` on the identity label when present (`hash(label) % len(CARRIER_ROTATION)`),
   index otherwise; thread the label from `realize_section`. Test: two sections sharing a label get
-  the SAME carrier; adjacent one-offs still differ.
-- [ ] 1.3 Key the peak-composite pick (`_PEAK_COMPOSITES`) and the expanded-palette rotation offset
+  the SAME carrier; adjacent one-offs still differ. (Used a STABLE md5-derived label hash, not
+  builtin `hash`, so the choice is process-independent and never churns the golden.)
+- [x] 1.3 Key the peak-composite pick (`_PEAK_COMPOSITES`) and the expanded-palette rotation offset
   on the same label. Test: repeated choruses share composite + palette order.
-- [ ] 1.4 Spend escalation structurally in `realize_section`: occurrence ordinal raises
+- [x] 1.4 Spend escalation structurally in `realize_section`: occurrence ordinal raises
   `coverage_cap` (+1 group/step), tightens accent stride one step, final occurrence adds the
   sparkle-contrast layer when accent props exist. Existing hard caps bound it. Tests: occurrence 1
   vs final differ in coverage/density/layer count; caps never exceeded.
-- [ ] 1.5 New `qa/musicality.py` with the **repetition-rhyme** advisory metric (Jaccard of
+- [x] 1.5 New `qa/musicality.py` with the **repetition-rhyme** advisory metric (Jaccard of
   `(target, effect_type)` per label + carrier equality); wire into `qa/__init__.evaluate` as
   advisory. Tests: rhyming show scores high; index-rotated (pre-change) fixture scores low; no
   recurring labels → neutral.
-- [ ] 1.6 Regenerate the golden (`XLO_REGEN_GOLDEN=1`), review the diff (carriers now stable per
-  label), full suite green.
+- [x] 1.6 Regenerate the golden (`XLO_REGEN_GOLDEN=1`), review the diff (carriers now stable per
+  label), full suite green. NOTE: the golden fixture is a ONE-OFF show (no recurring labels), so
+  Phase 1's re-keying is a deliberate no-op for it and the snapshot stays byte-identical (verified
+  `git diff --stat`) — exactly the intended behavior (one-offs keep index-keyed variety). The
+  recurring-label re-keying is proven by `tests/test_realize_identity.py`.
 
 ## 2. Phase 2 — section treatments
 

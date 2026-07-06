@@ -24,11 +24,14 @@ from .beats import (
     ensemble_bed,
     feature_prop_contrast,
     key_moment_flashes,
+    label_palette_offset,
     normalize_durations,
+    occurrence_ordinal,
     peak_fill,
     peak_sections,
     place_beat_accents,
     place_vu_meter,
+    section_identity,
     section_is_rhythmic,
     section_rhythm,
     trim_coverage,
@@ -38,7 +41,7 @@ from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 from .state import State
 from .triggers import place_triggers
-from .semantic_groups import HERO_GROUP
+from .semantic_groups import ACCENT_GROUPS, HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
@@ -47,12 +50,39 @@ from .weave import (
     expand_composite,
     expand_weave,
     fallback_weave,
+    label_seed,
     section_carrier,
 )
 
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
 _PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
+_FINAL_SPARKLE_EFFECT = "Twinkle"    # the extra contrast layer the LAST chorus gains (accent-prop pop)
+
+
+def _final_occurrence_layer(section, intensity: float, available_groups: list[str]):
+    """The one EXTRA layer the FINAL occurrence of a recurring label gains (Phase 1 escalation):
+    a bright sparkle pop on a dedicated accent prop group, in the section's lightest color, so the
+    last chorus reads as the biggest. None when the layout has no accent prop group — the design's
+    'when the layout has accent props' guard, keeping non-accent layouts unchanged."""
+    from ..agents.catalog import candidate_look_ids
+    from .beats import _lightest_hex
+    from xlights_core.knowledge.value_curves import brightness_setting
+    from .tuning import FEATURE_PROP_BRIGHTNESS
+    target = next((g for g in ACCENT_GROUPS if g in (available_groups or [])), None)
+    if target is None:
+        return None
+    looks = candidate_look_ids(_FINAL_SPARKLE_EFFECT)
+    if not looks:
+        return None
+    light = _lightest_hex(getattr(section, "palette", None) or []) or "#FFFFFF"
+    ins = EffectInstruction(
+        target=target, effect_type=_FINAL_SPARKLE_EFFECT, look_id=looks[0],
+        render_style="Per Model Default", palette_colors=[light],
+        start_ms=section.start_ms, end_ms=section.end_ms)
+    ins.extra_settings.update(brightness_setting(FEATURE_PROP_BRIGHTNESS))
+    ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")   # pops over the bed, never occludes
+    return ins
 _MIN_EFFECT_MS = 50          # one render frame (seqStepTime); shorter effects snap away and drop
 _OPAQUE_WASH = {"On", "Color Wash", "Fill"}   # solid fills that occlude unless they sit at the bottom
 _WASH_SPAN_MS = 3000         # only a sustained wash counts as a "bed" for occlusion ordering
@@ -159,16 +189,22 @@ async def realize_section(st: State, si: int, *, agent,
         section, revision=revision, concept=st.show_plan.concept, motifs=motifs))).output
     _rm = st.music_brief.repetition_map if st.music_brief else None
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
+    _label = section_identity(si, _rm)       # the section's musical identity (chorus/verse/…) or None
+    _ordinal, _count = occurrence_ordinal(si, _rm)   # which occurrence this is (0-based) + how many
+    _is_final = _count > 1 and _ordinal == _count - 1  # the last chorus is the biggest
+    _pal_offset = label_palette_offset(_label)   # a chorus rhymes its palette ORDER across occurrences
     wash_b = wash_brightness(_si)            # energy → wash brightness
     rhythm = section_rhythm(st.song_analysis, section, bpb)
-    kept = trim_coverage(list(out.instructions), _si)   # energy-gated coverage (quiet = fewer lit props)
+    # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
+    # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
+    kept = trim_coverage(list(out.instructions), _si, _ordinal)   # energy-gated + occurrence bonus
     for ins in kept:
         ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
     kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
     for j, ins in enumerate(kept):
         ins.section_index = si              # tag for scoped regen / per-section QA
         if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
-            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j)
+            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
         if _si >= 0.7 and ins.end_ms - ins.start_ms > 15000:   # long energetic wash BUILDS
             ins.extra_settings.update(brightness_ramp(0.7 * wash_b, wash_b))
         else:
@@ -181,7 +217,9 @@ async def realize_section(st: State, si: int, *, agent,
     if bed is not None:
         bed.section_index = si
         kept.append(bed)                 # occlusion order/blend handled by finalize_effects
-    carrier = section_carrier(si)                # rotate the carrier so the show isn't all one effect
+    # rotate the carrier so the show isn't all one effect — keyed to the section's repetition
+    # identity when it has one (choruses share a carrier and rhyme), else to the index.
+    carrier = section_carrier(si, _label)
     weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
                                                               carrier=carrier)
     diversify_carrier(weave_obj, carrier)        # vary an LLM weave's default carrier too
@@ -194,7 +232,10 @@ async def realize_section(st: State, si: int, *, agent,
     # hero at the peak — effects COMBINED on layers (e.g. counter-Morphs + Max) for a rich look.
     comp_recipes = list(getattr(out, "composites", None) or [])
     if si in _peaks and HERO_GROUP in st.available_groups:
-        cc = curated_composite(_PEAK_COMPOSITES[si % len(_PEAK_COMPOSITES)], [HERO_GROUP])
+        # the peak composite is keyed to the section's identity when it recurs (every chorus-peak
+        # gets the SAME curated stack), else to the index — same rhyme rule as the carrier.
+        comp_seed = label_seed(_label) if _label else si
+        cc = curated_composite(_PEAK_COMPOSITES[comp_seed % len(_PEAK_COMPOSITES)], [HERO_GROUP])
         if cc is not None:
             comp_recipes.append(cc)
     for comp in comp_recipes:
@@ -205,10 +246,18 @@ async def realize_section(st: State, si: int, *, agent,
     if vu is not None:
         vu.section_index = si
         kept.append(vu)
+    # the FINAL occurrence of a recurring label gains one extra layer: a sparkle-contrast pop on
+    # an accent prop group (when the layout has one), so the last chorus reads as the biggest.
+    if _is_final:
+        final_layer = _final_occurrence_layer(section, _si, st.available_groups)
+        if final_layer is not None:
+            final_layer.section_index = si
+            kept.append(final_layer)
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
     accents = place_beat_accents(            # beat layer over the wash; the weave's carrier
         section, rhythm, st.available_groups,  # owns the chase. Only when the brief is rhythmic —
-        carrier_covers=carrier_covers(weave_obj, section, st.available_groups)) \
+        carrier_covers=carrier_covers(weave_obj, section, st.available_groups),
+        stride_step=_ordinal) \
         if section_is_rhythmic(section) else []   # a still section stays still
     under = {k.target for k in kept}
     for ins in accents:

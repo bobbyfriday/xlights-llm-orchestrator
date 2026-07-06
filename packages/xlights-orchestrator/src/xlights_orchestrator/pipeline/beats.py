@@ -226,9 +226,9 @@ def section_rhythm(sa, section: SectionPlan, beats_per_bar: int = BEATS_PER_BAR)
             onsets_by_stem[f.stem] = [t for t, _ in pairs]
             onset_mag_by_stem[f.stem] = [m for _, m in pairs]
     cand = {k: len(v) for k, v in onsets_by_stem.items() if k != "other"}
-    prominent = max(cand, key=cand.get) if cand else None
+    prominent = max(cand, key=lambda k: cand[k]) if cand else None
     mel = {k: len(v) for k, v in onsets_by_stem.items() if k in MELODIC_STEMS}
-    melodic = max(mel, key=mel.get) if mel else None      # the lead the hero prop follows
+    melodic = max(mel, key=lambda k: mel[k]) if mel else None      # the lead the hero prop follows
     chords = sorted((int(c.time * 1000), c.label) for c in (getattr(sa, "chords", None) or [])
                     if s <= c.time * 1000 < e)
     return {"beats_ms": sorted(beats), "prominent_stem": prominent, "melodic_stem": melodic,
@@ -674,7 +674,7 @@ def normalize_durations(instructions: list, rhythm: dict) -> list:
     for ins in instructions:
         dur = ins.end_ms - ins.start_ms
         if ins.effect_type in DURATION_HIT and dur > 1.5 * bar:
-            cell = int(min(HIT_CELL_MS, bar * 0.75))
+            cell: float = int(min(HIT_CELL_MS, bar * 0.75))
             t = float(ins.start_ms)
             while t < ins.end_ms:
                 c = ins.model_copy(deep=True)

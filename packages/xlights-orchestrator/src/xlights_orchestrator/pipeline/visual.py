@@ -202,7 +202,7 @@ class RealRender:
         self.duration_s = duration_s
         self.path: Path | None = None
         self.offset_ms = 0
-        self._stamp = None
+        self._stamp: float | None = None
 
     async def refresh(self, client) -> bool:
         if not self.save_as:

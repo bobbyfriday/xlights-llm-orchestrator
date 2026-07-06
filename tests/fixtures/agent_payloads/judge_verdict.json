@@ -1,0 +1,15 @@
+{
+ "score": 78,
+ "verdict": "iterate",
+ "revisions": [
+  {
+   "section_index": 1,
+   "groups": [
+    "SEM_ALL"
+   ],
+   "issue": "drop reads flat",
+   "suggested_fix": "add a hero sweep",
+   "do_not_repeat": ""
+  }
+ ]
+}

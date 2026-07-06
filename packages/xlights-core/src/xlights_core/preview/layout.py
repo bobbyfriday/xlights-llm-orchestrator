@@ -149,7 +149,7 @@ def parse_models(rgbeffects_path: str | Path,
             n_pix, grid, gw, gh = p1 * p2, [], 0, 0
 
         try:
-            f = lambda k, d=0: float(m.attrib.get(k, d))  # noqa: E731
+            f = lambda k, d=0.0: float(m.attrib.get(k) or d)  # noqa: E731
             out.append(Model(
                 name=m.attrib.get("name", "?"), display_as=display_as,
                 start_channel=sc, n_pixels=n_pix, parm1=p1, parm2=p2, parm3=p3,
@@ -274,17 +274,17 @@ def model_world_pixels(model: Model) -> np.ndarray:
             for i in range(n):
                 string, in_string = i // per_string, i % per_string
                 strand, in_strand = in_string // per_strand, in_string % per_strand
-                col = string * strands + strand
-                row = in_strand if strand % 2 == 0 else (per_strand - 1 - in_strand)
-                local[i] = (col, rows - 1 - row, 0)
+                x = string * strands + strand
+                y = in_strand if strand % 2 == 0 else (per_strand - 1 - in_strand)
+                local[i] = (x, rows - 1 - y, 0)
         else:
             cols, rows = per_strand, strings * strands
             for i in range(n):
                 string, in_string = i // per_string, i % per_string
                 strand, in_strand = in_string // per_strand, in_string % per_strand
-                row = string * strands + strand
-                col = in_strand if strand % 2 == 0 else (per_strand - 1 - in_strand)
-                local[i] = (col, rows - 1 - row, 0)
+                y = string * strands + strand
+                x = in_strand if strand % 2 == 0 else (per_strand - 1 - in_strand)
+                local[i] = (x, rows - 1 - y, 0)
         return _parm_world(model, local, (cols, rows, 1))
     if da == "Cube":
         w, h, d = max(model.parm1, 1), max(model.parm2, 1), max(model.parm3, 1)

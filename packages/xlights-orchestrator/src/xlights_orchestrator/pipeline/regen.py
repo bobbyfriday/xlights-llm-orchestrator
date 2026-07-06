@@ -29,7 +29,7 @@ from .generate import finalize_effects
 from .groups import targetable_groups
 from .media import prepare_media
 from .run import regenerate_section
-from .state import State
+from .state import State, require
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ async def regenerate_into(st: State, section_index: int, note: str, *, gen_agent
     same RevisionBrief path the refine loop uses. Returns (and sets) the new full instruction list.
     """
     _validate_index(st, section_index)
-    section = st.show_plan.sections[section_index]
+    section = require(st.show_plan, "show_plan").sections[section_index]
     rev = RevisionBrief(section_index=section_index, groups=list(section.target_groups),
                         issue=note or "manual regenerate", suggested_fix=note or "")
     new = await regenerate_section(st, rev, gen_agent=gen_agent)
@@ -134,7 +134,8 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
         media = prepare_media(song, show_folder)
         await finalize_sequence(st, client=client, save_as=save_as, media=media,
                                 show_folder=show_folder,
-                                duration_s=st.song_analysis.duration_s, timing_tracks=True)
+                                duration_s=require(st.song_analysis, "song_analysis").duration_s,
+                                timing_tracks=True)
     degradations.emit_summary(dl)
     if dl.summary():
         degradations.write_json(dl, cache_root() / key / "degradations.json")

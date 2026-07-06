@@ -3,12 +3,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 
 from xlights_core.audio import SongAnalysis
 
 from ..music_brief import MusicBrief
 from ..show_plan import EffectInstruction, ShowPlan
+
+T = TypeVar("T")
+
+
+def require(value: T | None, name: str) -> T:
+    """Narrow an Optional state field to its value, or fail loudly.
+
+    Pipeline stages fill the blackboard in order (analysis -> brief -> plan ->
+    instructions); a stage that reads a field its predecessor should have set is
+    a programming error, not a user-facing condition. `require` turns the silent
+    `None` (which mypy flags as `union-attr`) into a `RuntimeError` naming the
+    missing field, so both the type checker and a mis-ordered call are satisfied.
+    """
+    if value is None:
+        raise RuntimeError(f"pipeline state field {name!r} is not set yet")
+    return value
 
 
 @dataclass

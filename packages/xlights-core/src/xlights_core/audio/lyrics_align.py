@@ -109,13 +109,16 @@ def align_lyrics(vocal_path: str, text: str) -> dict | None:
         gaps = sorted(b - a for a, b in zip(starts, starts[1:]) if b - a > 0.2)
         cadence = gaps[len(gaps) // 2] if gaps else 4.0
         idxs = sorted(markers)
-        sections = []
+        sections: list[dict] = []
         for k, i in enumerate(idxs):
             j = idxs[k + 1] if k + 1 < len(idxs) else len(spans)
             lead = next((r for r, s in enumerate(spans[i:j]) if s), None)
             if lead is None:
                 continue
-            est = max(0.0, spans[i + lead]["start"] - lead * cadence)
+            lead_span = spans[i + lead]
+            if lead_span is None:                          # unreachable (lead is the first truthy span)
+                continue
+            est = max(0.0, lead_span["start"] - lead * cadence)
             if sections:
                 est = max(est, sections[-1]["start"] + 1.0)    # keep markers monotonic
             sections.append({"label": markers[i], "start": round(est, 2)})

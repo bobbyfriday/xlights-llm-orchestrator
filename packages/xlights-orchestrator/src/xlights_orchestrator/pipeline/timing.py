@@ -207,7 +207,9 @@ def _viseme_marks(words: list[tuple[str, int, int]]) -> list[TimingMark]:
 def _phoneme_track(sa, end_ms, name: str = "Faces") -> TimingTrack | None:
     """A 3-layer lyric timing track (phrases / words / phonemes) the xLights Faces effect reads."""
     lyrics = getattr(sa, "lyrics", None)
-    words = _timed_words(lyrics) if lyrics else []
+    if not lyrics:
+        return None
+    words = _timed_words(lyrics)
     if not words:
         return None
     phrases = [TimingMark(t, s, e) for (t, s, e) in _timed_lines(lyrics) if e > s]

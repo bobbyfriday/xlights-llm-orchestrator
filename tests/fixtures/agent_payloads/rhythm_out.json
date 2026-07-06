@@ -1,0 +1,20 @@
+{
+ "groove": "driving four-on-the-floor",
+ "energy_arc": [
+  0.3,
+  0.5,
+  0.9
+ ],
+ "climax_ms": 12000,
+ "accents_ms": [
+  4000,
+  12000
+ ],
+ "builds_ms": [
+  10000
+ ],
+ "drops_ms": [
+  12000
+ ],
+ "range_note": "wide build into the drop"
+}

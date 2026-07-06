@@ -9,6 +9,8 @@ Enforced here: #2 texture-on-linear affinity, #3 energy bands (±1), #4 one-feat
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..refine import Finding
 # Per-effect metadata (energy bands, duration classes, the motion-fabric set) lives in the
 # consolidated table (pipeline/effect_meta.py); re-exported here so QA callers keep the old names.
@@ -104,7 +106,7 @@ def evaluate(instructions, plan, manifest=None) -> tuple[int, list[Finding]]:
             features.append(ins)
     # #4 — one high-attention feature MOMENT at a time. The same effect on many groups in the
     # same window is ONE gesture, so merge same-type overlapping spans into events first.
-    events = []                                       # (start, end, effect_type, representative ins)
+    events: list[tuple[int, int, str, Any]] = []      # (start, end, effect_type, representative ins)
     for etype in {x.effect_type for x in features}:
         spans = sorted(((x.start_ms, x.end_ms, x) for x in features if x.effect_type == etype),
                        key=lambda t: (t[0], t[1]))

@@ -1,7 +1,8 @@
 """Tests for the catalog §11 placement-rules QA + hard caps."""
 from types import SimpleNamespace
 
-from xlights_orchestrator.qa.rules import clamp_hard_caps, evaluate
+from xlights_orchestrator.pipeline.tuning import MOTION_SHARE_MIN
+from xlights_orchestrator.qa.rules import MOTION_SHARE_INTENSITY, clamp_hard_caps, evaluate
 from xlights_orchestrator.show_plan import EffectInstruction
 
 
@@ -10,8 +11,10 @@ def _ins(effect, target, si=0, start=0, end=2000):
                              start_ms=start, end_ms=end, section_index=si)
 
 
-def _plan(intensities):
-    return SimpleNamespace(sections=[SimpleNamespace(intensity=x) for x in intensities])
+def _plan(intensities, treatments=None):
+    treatments = treatments or [""] * len(intensities)
+    return SimpleNamespace(sections=[SimpleNamespace(intensity=x, treatment=t)
+                                     for x, t in zip(intensities, treatments)])
 
 
 def test_texture_on_linear_flagged():
@@ -56,3 +59,45 @@ def test_hard_caps_clamp():
     n = clamp_hard_caps([strobe, shimmer, keep], tempo_bpm=120)   # bar=2000ms → shimmer cap 4000
     assert n == 2
     assert strobe.end_ms == 1000 and shimmer.end_ms == 4000 and keep.end_ms == 20000
+
+
+# -- motion-share advisory floor (2026-07 re-measurement: 0.30 → 0.40) --------------------------
+def _motion_findings(motion_n, static_n, *, intensity=0.9, treatment=""):
+    instrs = ([_ins("SingleStrand", "SEM_FOCAL") for _ in range(motion_n)]
+              + [_ins("On", "SEM_YARD") for _ in range(static_n)])
+    _, findings = evaluate(instrs, _plan([intensity], [treatment]))
+    return [f for f in findings if "motion-effect share" in f.detail]
+
+
+def test_motion_share_floor_is_the_remeasured_value():
+    assert MOTION_SHARE_MIN == 0.40                              # cites the 2026-07 re-measurement
+
+
+def test_advisory_fires_below_and_is_silent_above_the_floor():
+    # 3 motion / 10 total = 30% < 40% → advisory fires (this is what the raised floor now catches)
+    fired = _motion_findings(3, 7)
+    assert fired and not fired[0].objective                     # advisory, never gating
+    # 6 motion / 10 total = 60% ≥ 40% → silent
+    assert _motion_findings(6, 4) == []
+    # exactly at the floor (4/10 = 40%) is not below → silent
+    assert _motion_findings(4, 6) == []
+
+
+def test_advisory_gated_by_intensity():
+    # a 30%-motion section BELOW the intensity gate is not flagged (deliberate quiet)
+    assert _motion_findings(3, 7, intensity=MOTION_SHARE_INTENSITY - 0.1) == []
+    # at/above the gate, the same fabric IS flagged
+    assert _motion_findings(3, 7, intensity=MOTION_SHARE_INTENSITY) != []
+
+
+def test_advisory_exempts_rest_and_gesture_treatments():
+    # a loud (i=0.9) but rest/gesture-treated section is deliberately still → not a regression
+    assert _motion_findings(3, 7, treatment="rest") == []
+    assert _motion_findings(3, 7, treatment="gesture") == []
+    # a full-treatment loud section with the same fabric IS flagged
+    assert _motion_findings(3, 7, treatment="full") != []
+
+
+def test_advisory_detail_cites_the_remeasurement():
+    fired = _motion_findings(3, 7)
+    assert fired and "2026-07 re-measurement" in fired[0].detail

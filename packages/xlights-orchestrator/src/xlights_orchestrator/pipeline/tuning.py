@@ -45,13 +45,22 @@ MAX_ACCENTS_PER_SECTION = 80           # hard upper bound on beat accents per se
 HERO_MAX_ONSETS = 40                   # hero hits scale with intensity, up to this (tasteful)
 MIN_LIT_GROUPS = 2                     # the coverage rule never fully blacks out a section
 PALETTE_DEPTH = 5                      # expanded section-palette size
-# Weave cell budget: cells/min = BUDGET_BASE + intensity * BUDGET_SCALE. Peak ≈ 600/min — the
-# community's ~1,300/min was per-prop rows; ours weaves group rows (~15 targets), so scaled.
+# Weave cell budget: cells/min = BUDGET_BASE + intensity * BUDGET_SCALE. Peak ≈ 600 GROUP-rows/min.
+# The community's ~1,300/min was per-prop rows; ours weaves group rows, so the budget is on the
+# group scale and normalized by mean group membership (~23.8 props/group) for the comparison.
+# Fabric re-measurement (docs/effects-layering-analysis-2026-07.md): held at 480. Real generated
+# shows already measure 68–97% motion at 187–2,528/min prop-rows — within the "≤ 2× community
+# typical" peak-density band — so a BUDGET_SCALE raise is NOT warranted (denser reads as noise, the
+# item's headline risk). The budget raise is the last lever; the measurement withheld permission.
 BUDGET_BASE = 120.0
 BUDGET_SCALE = 480.0
 
 # -- metric rhythm + instrument overlay -------------------------------------
-SPARKLE_TOP_N = 12             # sparkle rides only the N strongest drum hits per section (not every bar)
+# Fabric re-measurement (docs/effects-layering-analysis-2026-07.md): the golden fixture's 40 `On`
+# rows are 36 beat-accents (source attribution) — the accent layer IS the punctuation source. 12 → 8
+# so sparkle rides fewer drum hits, rebalancing On+Twinkle down in energetic sections (shares before
+# totals; carrier_covers already suppresses the every-beat chase when a carrier owns the pool).
+SPARKLE_TOP_N = 8              # sparkle rides only the N strongest drum hits per section (not every bar)
 BASS_MAX_ONSETS = 16           # bass-foundation pulses per section (low + sparse)
 BACKBEAT_MIN_DRUM_ONSETS = 4   # need at least this many drum onsets in a section to add a backbeat
 LEGATO_ACCENT_SPARSEN = 2      # a legato section keeps every Nth backbone accent (sparser, softer)
@@ -72,7 +81,11 @@ HIT_CELL_MS = 1200                     # a hit-class effect cell is at most this
 # -- duration-class bar math + motion-share (behavior dials) ----------------
 PHRASE_BARS = 8                # a PHRASE-class effect is clamped to ~this many bars (reveal/build)
 CELL_BARS = 2                 # a CELL-ABLE motion effect left long is chopped into this-bar cells
-MOTION_SHARE_MIN = 0.30        # energetic sections below this motion-effect share advise a fabric regression (I7 lever)
+# Fabric re-measurement (docs/effects-layering-analysis-2026-07.md) energetic-section target: motion
+# ≥ 0.45. Raised 0.30 → 0.40 (just under target) NOW that real shows clear it (68–97% motion), so
+# the Judge defends the new fabric without being spammed on legitimately mixed sections. Energetic
+# sections only (MOTION_SHARE_INTENSITY gate); quiet/rest/gesture exempt.
+MOTION_SHARE_MIN = 0.40        # energetic sections below this motion-effect share advise a fabric regression (I7 lever)
 
 # -- refine loop control ----------------------------------------------------
 REGRESS_MARGIN = 1   # objective_score points; a drop beyond this reverts the revision

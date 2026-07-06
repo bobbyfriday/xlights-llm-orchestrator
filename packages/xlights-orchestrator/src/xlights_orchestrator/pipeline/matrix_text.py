@@ -80,6 +80,17 @@ def _sanitizable(text: str) -> bool:
     return bool(t) and "," not in t and "=" not in t
 
 
+# A trailing "(start-end)" numeric time-range that can ride along on an aligned lyric line
+# (e.g. "Who you gon' call? (32.96-34.36)"). Purely numeric so real lyric parentheticals like
+# "(Ghostbusters!)" are left untouched.
+_TIME_RANGE_RE = re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*\)\s*$")
+
+
+def _clean_display_text(text: str) -> str:
+    """Strip a trailing numeric time-range artifact so it never scrolls across the matrix."""
+    return _TIME_RANGE_RE.sub("", text or "").strip()
+
+
 def _section_at(sections, at_ms: int) -> int | None:
     for i, s in enumerate(sections):
         if s.start_ms <= at_ms < s.end_ms:
@@ -218,15 +229,18 @@ def _text_instruction(moment: TextMoment, matrix: str, section) -> EffectInstruc
     Static when the phrase fits the probed width, else scroll-left exactly once across its span
     (speed sized so one traverse ≈ the moment duration — text that loops reads as a glitch).
     """
-    scroll = len(moment.text) > _FIT_CHARS
+    text = _clean_display_text(moment.text)
+    if not text:                                      # nothing left after stripping the artifact
+        return None
+    scroll = len(text) > _FIT_CHARS
     movement = "left" if scroll else "none"
     dur_ms = max(1, moment.end_ms - moment.start_ms)
     # scroll-once: xLights Text speed is chars/frame-ish; scale so a full traverse ≈ the duration.
-    speed = max(1, round((len(moment.text) + _FIT_CHARS) / (dur_ms / 1000.0))) if scroll else 10
+    speed = max(1, round((len(text) + _FIT_CHARS) / (dur_ms / 1000.0))) if scroll else 10
     try:
-        settings = build_text_settings(moment.text, movement=movement, speed=speed)
+        settings = build_text_settings(text, movement=movement, speed=speed)
     except ValueError as exc:                         # unsanitizable phrase → drop, never mangle
-        log.info("matrix text: dropping unsanitizable phrase %r: %s", moment.text, exc)
+        log.info("matrix text: dropping unsanitizable phrase %r: %s", text, exc)
         return None
     light = _lightest_hex(getattr(section, "palette", None) or [])
     ins = EffectInstruction(

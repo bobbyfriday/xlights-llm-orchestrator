@@ -236,3 +236,12 @@ def test_generate_pass_no_ops_without_model_names():
                               start_ms=0, end_ms=1000, section_index=0)]
     out = place_matrix_narrative(st, list(base))
     assert out == base                                     # unchanged, no Text added
+
+
+def test_clean_display_text_strips_time_range_keeps_parentheticals():
+    from xlights_orchestrator.pipeline.matrix_text import _clean_display_text as c
+    assert c("Who you gon' call? (32.96-34.36)") == "Who you gon' call?"
+    assert c("Bustin' makes me feel good (168.12-170.2)") == "Bustin' makes me feel good"
+    # a real lyric parenthetical (letters) is NOT a time range → left intact
+    assert c("Who you gon' call? (Ghostbusters!)") == "Who you gon' call? (Ghostbusters!)"
+    assert c("GHOSTBUSTERS") == "GHOSTBUSTERS"

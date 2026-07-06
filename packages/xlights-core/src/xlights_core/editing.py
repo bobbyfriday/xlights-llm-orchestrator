@@ -14,6 +14,7 @@ from .client import XLightsClient
 from .exceptions import XLightsError, XLightsResponseError, XLightsTargetMissing
 from .knowledge.colors import palette_from_colors
 from .knowledge.preset_library import PresetLibrary, get_library
+from .knowledge.settings import parse_settings, serialize_settings
 
 
 # Settings keys REMOVED from current xLights but still carried by mined looks (authored in
@@ -30,6 +31,33 @@ class PresetPlacementError(Exception):
 
 class CleanSlateRequired(Exception):
     """A user sequence is open; validation refuses to discard it."""
+
+
+def _merge_extra_settings(settings: str, extra: dict[str, str] | None) -> str:
+    """Merge ``extra`` into a settings string: OVERRIDE keys the string already carries (xLights
+    honors the FIRST occurrence of a duplicate key, so a blind append loses to the frozen base),
+    then append the rest. Values may contain '|' (value curves) but never ',', so splitting on
+    ',' is safe. Shared by the preset and direct placement paths."""
+    if not extra:
+        return settings
+    pairs = [p for p in settings.split(",") if p]
+    remaining = dict(extra)
+    for i, p in enumerate(pairs):
+        k = p.split("=", 1)[0]
+        if k in remaining:
+            pairs[i] = f"{k}={remaining.pop(k)}"
+    pairs += [f"{k}={v}" for k, v in remaining.items()]
+    return ",".join(pairs)
+
+
+async def _check_timing_and_target(
+    client: XLightsClient, target: str, start_ms: int, end_ms: int
+) -> None:
+    """Shared placement guards: a valid window and a target that exists in the layout."""
+    if start_ms < 0 or end_ms <= start_ms:
+        raise ValueError(f"bad timing: start={start_ms} end={end_ms}")
+    if target not in await client.get_models():
+        raise ValueError(f"target {target!r} not in layout")
 
 
 async def place_preset(
@@ -64,23 +92,9 @@ async def place_preset(
     if DROP_KEYS:                               # stale keys current xLights no longer has
         settings = ",".join(p for p in settings.split(",")
                             if p and p.split("=", 1)[0] not in DROP_KEYS)
-    if extra_settings:
-        # OVERRIDE keys the look already carries (xLights honors the FIRST occurrence of a
-        # duplicate key, so blind-append loses to the frozen base); append the rest.
-        # Values may contain '|' (value curves) but never ',' — splitting on ',' is safe.
-        pairs = [p for p in settings.split(",") if p]
-        remaining = dict(extra_settings)
-        for i, p in enumerate(pairs):
-            k = p.split("=", 1)[0]
-            if k in remaining:
-                pairs[i] = f"{k}={remaining.pop(k)}"
-        pairs += [f"{k}={v}" for k, v in remaining.items()]
-        settings = ",".join(pairs)
+    settings = _merge_extra_settings(settings, extra_settings)
 
-    if start_ms < 0 or end_ms <= start_ms:
-        raise ValueError(f"bad timing: start={start_ms} end={end_ms}")
-    if target not in await client.get_models():
-        raise ValueError(f"target {target!r} not in layout")
+    await _check_timing_and_target(client, target, start_ms, end_ms)
 
     worked = await client.add_effect(
         target, effect_type, settings, palette, layer=layer,
@@ -92,6 +106,114 @@ async def place_preset(
             f"({start_ms}-{end_ms}ms, layer {layer}) — overlap or unusable effect/layer"
         )
     return settings
+
+
+async def place_direct(
+    client: XLightsClient,
+    target: str,
+    effect_type: str,
+    settings: str,
+    *,
+    palette_colors: list[str] | None = None,
+    extra_settings: dict[str, str] | None = None,
+    layer: int = 0,
+    start_ms: int,
+    end_ms: int,
+) -> str:
+    """Place an **asset-bound** (code-templated) effect whose settings are built from scratch
+    rather than assembled from the mined catalog — the sibling of :func:`place_preset` for the
+    F-B `DIRECT_TYPES`. It skips catalog assembly but keeps every guard: syntactic round-trip
+    validation of the settings string, the shared `extra_settings` first-occurrence-wins merge,
+    `palette_from_colors`, the timing/target checks, and `PresetPlacementError` on `worked=false`.
+
+    Returns the merged settings string actually sent to xLights. Raises ``ValueError`` on a
+    non-round-tripping settings string or bad timing/target, ``PresetPlacementError`` if xLights
+    did not add the effect.
+    """
+    # syntactic validation: a code-built template must survive a parse/serialize round-trip
+    # (a stray comma/equals would have xLights mis-parse the string).
+    if serialize_settings(parse_settings(settings)) != settings:
+        raise ValueError(f"direct settings do not round-trip (unparseable): {settings!r}")
+    merged = _merge_extra_settings(settings, extra_settings)
+    palette = palette_from_colors(palette_colors) if palette_colors else ""
+
+    await _check_timing_and_target(client, target, start_ms, end_ms)
+
+    worked = await client.add_effect(
+        target, effect_type, merged, palette, layer=layer,
+        start_ms=start_ms, end_ms=end_ms,
+    )
+    if not worked:
+        raise PresetPlacementError(
+            f"xLights did not add direct {effect_type} on {target!r} "
+            f"({start_ms}-{end_ms}ms, layer {layer}) — overlap or unusable effect/layer"
+        )
+    return merged
+
+
+async def validate_direct(
+    client: XLightsClient,
+    effect_type: str,
+    settings: str,
+    *,
+    target: str | None = None,
+    duration_secs: int = 10,
+    window_ms: int = 2000,
+    settle_secs: float = 0.5,
+    max_target_tries: int = 12,
+) -> dict[str, Any]:
+    """Live-validate a code-templated direct settings string on a disposable scratch sequence —
+    the runtime half of "valid by construction" for `DIRECT_TYPES`. Mirrors :func:`validate_preset`
+    (clean slate → place the template → render → assert `worked` → discard). Marked ``live``;
+    run once per template per xLights upgrade. Returns ``{accepted, worked, rendered, target,
+    reason}`` and never touches user work (refuses if a sequence is open)."""
+    try:
+        await client.new_sequence(duration_secs=duration_secs, frame_ms=50)
+    except XLightsResponseError as exc:
+        if "already open" in (exc.message or "").lower():
+            raise CleanSlateRequired(
+                "a sequence is open in xLights; close it before validating direct settings"
+            ) from exc
+        raise
+
+    result: dict[str, Any] = {
+        "accepted": False, "worked": False, "rendered": False,
+        "target": target, "reason": None,
+    }
+    try:
+        await asyncio.sleep(settle_secs)  # let sequence elements populate
+        candidates = [target] if target is not None else (await client.get_model_names())[:max_target_tries]
+        if not candidates:
+            result["reason"] = "no usable target model in layout"
+            return result
+
+        last_missing: str | None = None
+        for tgt in candidates:
+            try:
+                await place_direct(client, tgt, effect_type, settings, start_ms=0, end_ms=window_ms)
+                result["worked"] = True
+                result["target"] = tgt
+                break
+            except XLightsTargetMissing as exc:
+                last_missing = exc.message  # not an element of this scratch seq; try next
+                continue
+            except PresetPlacementError as exc:
+                result["target"] = tgt
+                result["reason"] = str(exc)
+                return result
+        else:
+            result["reason"] = f"no target was an element of the scratch sequence ({last_missing})"
+            return result
+
+        await client.render_all()
+        result["rendered"] = True
+        result["accepted"] = True
+        return result
+    finally:
+        try:
+            await client.close_sequence(force=True, quiet=True)
+        except XLightsError as exc:
+            log.warning("could not close scratch sequence: %s", exc)
 
 
 async def validate_preset(

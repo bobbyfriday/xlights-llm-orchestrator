@@ -70,6 +70,9 @@ class EffectInstruction(BaseModel):
     palette_colors: list[str] = []     # the brief's section colors (code-applied; override palette_id)
     knob_values: dict[str, str] = {}
     extra_settings: dict[str, str] = {}  # appended settings the look lacks (e.g. synthesized value curves)
+    direct_settings: str = ""            # F-B asset-bound path: a code-built settings string (Text/Faces).
+                                         #   When set, the emitter bypasses the preset catalog entirely and
+                                         #   look_id may be ""; NEVER surfaced to a generator prompt.
     render_style: str = ""               # LLM-chosen buffer style (group-canvas vs per-model); "" → fallback
     layer: int = 0
     start_ms: int

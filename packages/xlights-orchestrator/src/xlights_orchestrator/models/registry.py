@@ -65,29 +65,38 @@ def estimate_cost(models: dict[str, str], usage: dict) -> float | None:
 
 
 def active_provider() -> str:
-    """Provider in effect: XLO_PROVIDER env override, else config default."""
+    """Global provider in effect: XLO_PROVIDER env override, else config default."""
     return os.environ.get("XLO_PROVIDER") or _cfg().get("default_provider", "anthropic")
+
+
+def provider_for(role: str) -> str:
+    """The provider for ONE role: `XLO_PROVIDER_<ROLE>` > `XLO_PROVIDER` > config default.
+
+    Per-role overrides let a mixed A/B arm route individual roles to different providers
+    (`XLO_PROVIDER_JUDGE=gemini xlo run …`) with no code change, and make the logged model
+    snapshot truthful for that mix."""
+    return os.environ.get(f"XLO_PROVIDER_{role.upper()}") or active_provider()
 
 
 def model_string(role: str, *, provider: str | None = None) -> str:
     cfg = _cfg()
-    prov = provider or active_provider()
+    prov = provider or provider_for(role)
     spec = cfg["roles"][role][prov]
     return f"{cfg['providers'][prov]}{spec['model']}"
 
 
 def model_snapshot() -> dict[str, str]:
-    """role -> 'provider:model' for every configured role (for the revision log)."""
-    prov = active_provider()
+    """role -> 'provider:model' for every configured role, resolved PER ROLE (for the revision
+    log — so a mixed arm's snapshot reflects the true per-role provider mix)."""
     out: dict[str, str] = {}
     for role, spec in _cfg().get("roles", {}).items():
-        if prov in spec:
+        if provider_for(role) in spec:
             out[role] = model_string(role)
     return out
 
 
 def _settings(role: str, *, provider: str | None = None):
-    prov = provider or active_provider()
+    prov = provider or provider_for(role)
     if prov != "anthropic":
         return None  # Gemini etc. use provider defaults for the skeleton
     from pydantic_ai.models.anthropic import AnthropicModelSettings

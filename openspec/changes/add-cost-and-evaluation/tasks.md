@@ -149,15 +149,15 @@
 
 ## 4. F-H — provider A/B eval harness
 
-- [ ] 4.1 Registry per-role overrides: add `provider_for(role)` (`XLO_PROVIDER_<ROLE>` > `XLO_PROVIDER`
+- [x] 4.1 Registry per-role overrides: add `provider_for(role)` (`XLO_PROVIDER_<ROLE>` > `XLO_PROVIDER`
   > config default) to `models/registry.py`; switch `model_string` (line 33), `_settings` (line 49),
   and `model_snapshot` (line 40) from `active_provider()` to `provider_for(role)` per role;
   `build_agent` needs no signature change; `active_provider()` stays as the fallback base.
-- [ ] 4.2 Test the registry (mirroring `test_registry_reroute_via_env`, via `monkeypatch.setenv`):
+- [x] 4.2 Test the registry (mirroring `test_registry_reroute_via_env`, via `monkeypatch.setenv`):
   `XLO_PROVIDER_JUDGE=gemini` + `XLO_PROVIDER=anthropic` ⇒ `model_string("judge").startswith("google:")`
   while `model_string("director").startswith("anthropic:")`; `model_snapshot()` reflects the mix;
   unknown role/provider raises.
-- [ ] 4.3 Cache namespacing (ship even if nothing else in F-H lands — it fixes `XLO_PROVIDER=gemini xlo
+- [x] 4.3 Cache namespacing (ship even if nothing else in F-H lands — it fixes `XLO_PROVIDER=gemini xlo
   run`): add `models_fingerprint()` (stable 8-hex sha1 of the sorted per-role `model_snapshot()`) and a
   `models: bool = False` parameter to `cache_path` in `pipeline/cache.py`; flip call sites per the
   design table — namespace `song_description` (`run.py:391`, `regen.py:69`), `creative_brief`
@@ -165,13 +165,13 @@
   and `visual_review/` (`visual.py`, `run.py:468`); leave `song_analysis` (`run.py:380`,
   `regen.py:71`), `targetable_groups_*` (`groups.py:53`), and `revision_log.jsonl/.md`
   (`run.py:458-459`) un-namespaced. No legacy-path read fallback.
-- [ ] 4.4 Cache-isolation regression test (the most important test in the change): with `XLO_CACHE_DIR`
+- [x] 4.4 Cache-isolation regression test (the most important test in the change): with `XLO_CACHE_DIR`
   at `tmp_path`, run the fake-agent pipeline under provider A, flip to provider B, assert the B run does
   **not** read A's `creative_brief`/`instructions` (distinct `m-*` dirs on disk) while `song_analysis`
   and `targetable_groups_*` paths are shared. Regen compatibility: `regen.load_cached_state` finds the
   namespaced artifacts under the same routing and raises the existing `FileNotFoundError` under a
   different routing.
-- [ ] 4.5 Create `packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/ab.py`: `ArmSpec`
+- [x] 4.5 Create `packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/ab.py`: `ArmSpec`
   (label, provider, `role_overrides`), `parse_arm(spec)` (`base_provider *("+" role "=" provider)`,
   validating roles/providers against `_cfg()` so typos die at parse time), `arm_env(arm)` (context
   manager setting `XLO_PROVIDER` + `XLO_PROVIDER_<ROLE>`, restoring prior values on exit even on
@@ -179,26 +179,25 @@
   …)`. Analyze-once + inject the same `SongAnalysis`; warm the `targetable_groups` probe once before arm
   1; interleaved repeats (A,B,A,B); per-arm `save_as` names (`{name_prefix}_{arm_i}_{repeat_j}` via
   `safe_name`); write `ab_runs.json` incrementally after each run.
-- [ ] 4.6 Summary extraction: a pure `summarize_runs(jsonl_lines, run_ids) -> ArmSummary` (first/final
+- [x] 4.6 Summary extraction: a pure `summarize_runs(jsonl_lines, run_ids) -> ArmSummary` (first/final
   scores, iterations, reverts, subscores, per-iteration deltas) — implement it as / reuse F-G's
   `summarize_run` in `reporting.py` and import it here rather than duplicating the arithmetic.
-- [ ] 4.7 CLI: add the `ab` subparser to `cli.py` following the `run` parser's shape (repeatable
+- [x] 4.7 CLI: add the `ab` subparser to `cli.py` following the `run` parser's shape (repeatable
   `--arm`, `--repeat`, `--max-iterations`, `--name-prefix`, `--keep-sequences`); hard-wire
   `refine=True`, `checkpoint=_auto_checkpoint`, `interpret_checkpoint=None`, `design_checkpoint=None`,
   `log_revisions=True`; strict multi-key preflight (every provider named by any arm has its key, refuse
   otherwise); print the terminal summary (per-arm median + min–max range, per-metric deltas,
   "indistinguishable when ranges overlap"). Arms run sequentially (do not attempt concurrency).
-- [ ] 4.8 Test the harness (hermetic, over the golden-test fakes — `TestModel` agents, `_FakeClient`,
+- [x] 4.8 Test the harness (hermetic, over the golden-test fakes — `TestModel` agents, `_FakeClient`,
   fake emitter, injected analysis): arm-spec parsing round-trips + validation failures + env
   set/restore including on exception inside `arm_env`; `run_ab` 2 arms × 2 repeats ⇒ 4 runs, interleaved
   order, distinct `run_id`s, one shared `revision_log.jsonl`, correct `ab_runs.json`, truthful per-arm
   `models`; `summarize_runs` medians/ranges/revert-counts and the "indistinguishable" rule; a mixed arm
   (`gemini+judge=anthropic`) is labeled truthfully everywhere.
-- [ ] 4.9 Post-I1 columns: no harness change — cost/point + per-arm price rows appear in
-  `summarize_runs` once records carry usage; add an estimated-spend warning from historical per-run
-  cost. Opt-in `-m live` (manual): one short two-arm one-repeat run against real providers + xLights as
-  the archive verify. Replace the `config.yaml` "live A/B'd" comment convention with a pointer to the
-  harness.
+- [~] 4.9 Post-I1 columns: `summarize_runs` surfaces cost via the reused `summarize_run` once records
+  carry usage (no harness change). `config.yaml` "live A/B'd" comment replaced with a pointer to
+  `xlo ab`. DEFERRED (needs real keys + xLights): the estimated-spend warning and the `-m live`
+  two-arm smoke — not runnable hermetically here.
 
 ## 5. Land
 

@@ -200,7 +200,7 @@ async def run_pipeline(
 
     # 2. interpret -> rich SongDescription (panel of analysts + synthesizer; cached).
     #    Cache key bumped from "music_brief" so old flat briefs don't shadow the richer one.
-    mb_cache = _cache_path(key, "song_description")
+    mb_cache = _cache_path(key, "song_description", models=True)
     if use_cache and mb_cache.exists():
         try:
             st.music_brief = MusicBrief.model_validate_json(mb_cache.read_text())
@@ -218,7 +218,7 @@ async def run_pipeline(
 
     # 3. design -> creative brief (ShowPlan; cached). Key bumped from "show_plan" so old thin
     #    plans don't shadow the rich brief.
-    sp_cache = _cache_path(key, "creative_brief")
+    sp_cache = _cache_path(key, "creative_brief", models=True)
     if use_cache and sp_cache.exists():
         st.show_plan = ShowPlan.model_validate_json(sp_cache.read_text())
     else:
@@ -237,7 +237,7 @@ async def run_pipeline(
             return st
 
     # 3. generate -> EffectInstruction[] (cached) — each section FOLLOWS the brief
-    ins_cache = _cache_path(key, "instructions")
+    ins_cache = _cache_path(key, "instructions", models=True)
     if use_cache and ins_cache.exists():
         st.instructions = [EffectInstruction.model_validate(x)
                            for x in json.loads(ins_cache.read_text())]
@@ -266,13 +266,15 @@ async def run_pipeline(
 
     # 5. refine (opt-in): test -> decide -> regenerate flagged sections -> rebuild
     if refine:
+        mdir = ins_cache.parent                     # the model-namespaced LLM-stage dir for this routing
         real = RealRender(save_as, st.song_analysis.duration_s) if save_as else None
         vc = visual_critique
         if vc is None:
-            vc = make_visual_critique(client, save_as=save_as, song_key=key,
-                                      cache_root=_cache_root(), real=real)
+            # visual_review bundles are LLM-stage artifacts → namespace them under the routing
+            vc = make_visual_critique(client, save_as=save_as, song_key=str(mdir.name),
+                                      cache_root=mdir.parent, real=real)
         revlog, run_id = NullRevisionLog(), "run"
-        if log_revisions:
+        if log_revisions:                           # the revision log stays SHARED (all arms in one file)
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             base = _cache_root() / key
             revlog = RevisionLog(base / "revision_log.jsonl", base / "revision_log.md")
@@ -284,13 +286,13 @@ async def run_pipeline(
                            visual_critique=vc, revlog=revlog, run_id=run_id, song_key=key,
                            models=model_snapshot(),
                            clock=lambda: datetime.now(timezone.utc).isoformat(),
-                           review_base=_cache_root() / key / "visual_review",
+                           review_base=mdir / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real,
                            skip_objective=_refine_skip_objective())
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
-            _emit_editable_brief(st, _cache_root() / key)   # keep the brief schema-backed after refine
-            (_cache_root() / key / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
-            _cache_path(key, "instructions").write_text(
+            _emit_editable_brief(st, mdir)          # keep the brief schema-backed after refine
+            (mdir / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
+            _cache_path(key, "instructions", models=True).write_text(
                 json.dumps([i.model_dump() for i in st.instructions], indent=1))
         except Exception as exc:  # noqa: BLE001
             log.warning("could not persist revised design: %s", exc)

@@ -2,10 +2,10 @@
 
 ### Requirement: Repeated music visually rhymes and escalates
 
-When the music brief's repetition map marks sections as occurrences of the same musical material
-(e.g. the choruses), the generation pipeline SHALL realize those sections with a shared visual
-identity: the same weave carrier effect, the same peak-composite choice, and the same palette
-rotation, keyed to the repetition label rather than the section's position in the song. Sections
+The generation pipeline SHALL realize sections the music brief's repetition map marks as occurrences
+of the same musical material (e.g. the choruses) with a shared visual identity: the same weave
+carrier effect, the same peak-composite choice, and the same palette rotation, keyed to the
+repetition label rather than the section's position in the song. Sections
 that do not recur SHALL keep position-keyed variety. Escalation across occurrences SHALL be
 structural — later occurrences gain prop coverage and accent density, and the final occurrence gains
 an additional layer — bounded by the existing layer and hard-cap budgets, in addition to the

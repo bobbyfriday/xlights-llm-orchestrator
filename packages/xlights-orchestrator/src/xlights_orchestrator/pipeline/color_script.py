@@ -1,7 +1,7 @@
 """Show-level color script (Phase 3): a deterministic plan post-pass giving the whole show one
 palette thread instead of independent per-section color choices.
 
-Three deterministic moves, no LLM call, run right after the Director produces the plan and after any
+Four deterministic moves, no LLM call, run right after the Director produces the plan and after any
 section redesign:
 - ANCHOR: the most frequent resolvable color across section palettes becomes a persistent thread —
   injected into any section missing it.
@@ -9,8 +9,11 @@ section redesign:
   colors), reused VERBATIM across every occurrence so the choruses rhyme in color too.
 - BRIDGE CONTRAST: the lowest-recurrence mid-song section (the bridge heuristic) leads with the
   complement of the anchor, so the bridge reads as a deliberate departure.
+- PALETTE FLOOR: every section palette is contrast-floored for LED legibility — when chromatic hues
+  cluster within 60°, a complementary anchor is injected (snapped to the nearest named color when
+  hue-close). All-achromatic palettes (white-dominant) pass through unchanged.
 
-Idempotent: re-running injects nothing new once the anchor/signature are already present.
+Idempotent: re-running injects nothing new once the anchor/signature/floor are already present.
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ from __future__ import annotations
 from collections import Counter
 
 from xlights_core.knowledge.colors import (
+    MIN_HUE_SPREAD,
+    NAMED_COLORS,
     _chromatic_hues,
     _hue_dist,
     _resolve,
@@ -89,6 +94,50 @@ def _prepend(colors, color) -> list[str]:
     return [color] + out
 
 
+def _snap_to_named(injected_hex: str, existing_palette: list[str]) -> str:
+    """Snap an injected complement hex to the nearest chromatic NAMED_COLORS entry by hue.
+
+    Skips candidates within MIN_HUE_SPREAD° of the existing cluster (they'd fail the floor check).
+    Falls back to the raw hex when nothing named is within ~25°.
+    """
+    chrom_inj = _chromatic_hues([injected_hex])
+    if not chrom_inj:
+        return injected_hex
+    inj_hue = chrom_inj[0][1]
+    existing_hues = [h for _, h in _chromatic_hues(_resolvable(existing_palette))]
+    best_name: str | None = None
+    best_dist = float("inf")
+    for name, nhex in NAMED_COLORS.items():
+        nc = _chromatic_hues([nhex])
+        if not nc:
+            continue
+        named_hue = nc[0][1]
+        if any(_hue_dist(named_hue, eh) < MIN_HUE_SPREAD for eh in existing_hues):
+            continue    # too close to the existing cluster — would fail the floor check
+        d = _hue_dist(inj_hue, named_hue)
+        if d < best_dist:
+            best_dist = d
+            best_name = name
+    if best_name is not None and best_dist <= 25.0:
+        return best_name
+    return injected_hex
+
+
+def _floor_section_palette(palette: list[str]) -> list[str]:
+    """Floor one section palette for LED legibility; snap any injected complement to a named color.
+
+    All-achromatic palettes (no chromatic color) pass through unchanged — white-dominant sections
+    keep their aesthetic; the achromatic value-contrast fix lives in contrast_anchors.
+    """
+    pal = list(palette or [])
+    floored = ensure_contrast(pal)
+    if len(floored) <= len(pal):
+        return pal          # already contrasting or all-achromatic
+    injected_hex = floored[-1]
+    snapped = _snap_to_named(injected_hex, pal)
+    return pal + [snapped]
+
+
 def apply_color_script(plan, repetition_map=None):
     """Rewrite section palettes in place per the color script; returns the plan. No-op-safe on an
     empty plan or when no color resolves."""
@@ -122,4 +171,9 @@ def apply_color_script(plan, repetition_map=None):
         complement = next((c for c in floored if _resolve(c) != _resolve(anchor)), None)
         if complement is not None:
             sections[bi].palette = _prepend(sections[bi].palette, complement)
+
+    # floor every section palette for LED legibility (complement injected when chromatic hues
+    # cluster within 60°; all-achromatic palettes pass through unchanged)
+    for sec in sections:
+        sec.palette = _floor_section_palette(sec.palette)
     return plan

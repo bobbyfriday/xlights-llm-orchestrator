@@ -3,11 +3,14 @@
 How this orchestrator should choose colors for a holiday light show — the principles, the
 LED constraints, the holiday/occasion palettes, and the open question of **per-section vs.
 per-song** palettes. Written to match the project split: **the LLM owns color judgment**
-(which palette, which mood), **code owns realization** (palette → settings string) and a
-**narrow contrast floor on the rhythm layer only** (see §1.3 for the real scope).
+(which palette, which mood), **code owns realization** (palette → settings string), a
+**narrow contrast floor on the rhythm layer only** (see §1.3 for the real scope), and — since
+Phase 3 — a deterministic **show-level color script** that threads coherence through the
+section palettes after the Director (§1.4).
 
 > Scope: this is a design/technique doc. §1 describes current behavior with code references;
-> §2–§4 are principles and recommendations; §5 + the appendix are an unbuilt backlog. Sections
+> §2–§4 are principles and recommendations; §5 + the appendix are backlog, with per-item
+> status notes (one item has since partially shipped as the color script, §1.4). Sections
 > that describe things we *don't have yet* are banner-marked **PROPOSED**.
 
 ---
@@ -26,9 +29,12 @@ per-song** palettes. Written to match the project split: **the LLM owns color ju
   small, LED-safe **occasion palette library** and select from it.
 - **Color varies on three axes — song, section, and prop-group — and the fix for clashing is
   to constrain all three to one harmonized show palette with explicit roles** (a dominant +
-  its *designated* accent per section), not free per-section choice. Today the song-level
-  palette exists in the data model but is **never realized**, and each section picks colors
-  quasi-independently — which is exactly why neighbors clash.
+  its *designated* accent per section), not free per-section choice. Since Phase 3 a
+  deterministic **color script** (§1.4) threads an anchor color and a chorus signature pair
+  through the section palettes, which buys real coherence — but it is coherence-only (an
+  all-warm show stays all-warm), the song-level `ShowPalette` is still **never realized**
+  (the anchor is mined from the section palettes, not from it), and the role structure of §4
+  remains unbuilt.
 
 ---
 
@@ -40,9 +46,9 @@ per-song** palettes. Written to match the project split: **the LLM owns color ju
 
 | Scope | Field | Status today |
 | --- | --- | --- |
-| **Song** | `ShowPlan.palette: ShowPalette` (`name`, `colors`, `mapping`) | **Informational only** — shown in the human-readable brief; *never applied to effects* |
-| **Prop group** | `GroupMotif.color` (in `ShowPlan.group_motifs`) | Passed to the Generator as *context* (`generate.py:153`, `run.py:143`) and printed in the brief; **not code-realized** |
-| **Section** | `SectionPlan.palette: list[str]` | **The operative lever** — what actually gets realized |
+| **Song** | `ShowPlan.palette: ShowPalette` (`name`, `colors`, `mapping`) | **Informational only** — shown in the human-readable brief; *never applied to effects* (even the color script's anchor is mined from section palettes, not from here) |
+| **Prop group** | `GroupMotif.color` (in `ShowPlan.group_motifs`) | Passed to the Generator as *context* (`generate.py`, `run.py`) and printed in the brief; **not code-realized** |
+| **Section** | `SectionPlan.palette: list[str]` | **The operative lever** — what actually gets realized (and what the color script rewrites in place, §1.4) |
 | **Cell / layer** | `CellRecipe.palette`, `CompositeLayer.palette` | Default to the section palette when empty |
 | **Effect** | `EffectInstruction.palette_colors` | Code copies the section palette here (expanded); a Generator-pinned value wins (feature props) |
 
@@ -54,8 +60,8 @@ palette and the show palette, the group motifs, or the neighbouring sections.
 
 `agents/director.py` → `render_input()` is the entire color brain. In a single call per song
 the Director LLM authors the `ShowPalette`, the `group_motifs` colors, *and* every
-`SectionPlan.palette`. The current prompt guidance (director.py lines 53–72) already says the
-right things:
+`SectionPlan.palette`. The current prompt guidance (the color block of the prompt in
+`agents/director.py`) already says the right things:
 
 - *"per-section palette: 3-5 colors INCLUDING a contrast/accent color (not one warm family)"*
 - *"LED COLOR REALITY: pixels render hue CONTRAST well and subtle tints terribly — gold +
@@ -69,7 +75,7 @@ right things:
 
 Color names must come from a fixed vocabulary (`NAMED_COLORS` in `xlights-core`). Note this is
 all *prompt* guidance — the Director is asked to span hues, but nothing downstream checks that
-it did (see §1.5).
+it did (see §1.6).
 
 ### 1.3 Realization, and the (narrow) contrast floor — `xlights-core/.../knowledge/colors.py`
 
@@ -77,40 +83,66 @@ How a section's color names become xLights settings, and where contrast is (and 
 enforced:
 
 - **Section → effect colors:** `effect_palette(section.palette, effect_type, j)`
-  (`pipeline/beats.py:74`) runs `expand_palette` to grow the 3–5 names to up to
+  (`pipeline/beats.py`) runs `expand_palette` to grow the 3–5 names to up to
   `PALETTE_DEPTH = 5` hexes (light/dark/hue-shift variants so Plasma/Spirals/Bars have enough
-  to render), then **rotates** by the effect index `j` so concurrent effects aren't identical.
-  Simple effects (On/Off/Strobe/Lightning/Fill) get the first 2 colors; others get the full set.
-- **→ settings string:** at placement, `palette_from_colors()` (`editing.py:57`) emits the
+  to render), then **rotates** by the effect index `j` plus a repetition-keyed `offset` (every
+  occurrence of a chorus lands on the same rotation, so repeats rhyme) so concurrent effects
+  aren't identical. Simple effects (On/Off/Strobe/Lightning/Fill) get the first 2 colors of
+  the rotation; others get the full set.
+- **→ settings string:** at placement (`editing.py`), `palette_from_colors()` emits the
   `C_BUTTON_Palette1..8` + `C_CHECKBOX_PaletteN=1` string; if it can't realize, it falls back
   to a mined `palette_id`.
 - **The contrast floor is rhythm-only.** `MIN_HUE_SPREAD = 60.0` and `ensure_contrast()`
   (inject the complement of the dominant hue when chromatic colors cluster within 60°) are
-  used in exactly one place: inside **`contrast_anchors()`**, which returns the two most
-  hue-distant colors. That pair drives the **beat** alternation (`beats.py:316`), the **weave**
-  carrier (`weave.py:412`), and **anchor-alternate triggers** (`triggers.py:306`).
-  **`effect_palette` / the section wash do NOT call it** — the wash renders whatever the
+  used in two places: inside **`contrast_anchors()`**, which returns the two most hue-distant
+  colors — that pair drives the **beat** alternation (`beats.py`, `place_beat_accents`), the
+  **weave** carrier (`weave.py`, `expand_weave`), and **anchor-alternate triggers**
+  (`triggers.py`, `realize_triggers`) — and in the color script's bridge move (§1.4), which
+  uses it as a complement *generator*, not a floor.
+  **`effect_palette` / the section wash still do NOT call it** — the wash renders whatever the
   Director picked, expanded, with no floor.
 - Achromatic colors (saturation < 0.25, e.g. whites/grays) **don't count** toward hue spread —
-  correctly, two whites don't contrast. (Consequence: see the degenerate hole in §1.5.)
-- **Trigger colors are richer than "the anchor pair."** `triggers.py:326–331`: a trigger's
+  correctly, two whites don't contrast. (Consequence: see the degenerate hole in §1.6.)
+- **Trigger colors are richer than "the anchor pair."** In `triggers.py`, a trigger's
   `spec.color` may be `lyric` (use the lyric's own color word), `fixed:<color>`, or
-  `anchor_alternate` (only this one uses `contrast_anchors`).
+  `anchor_alternate` (only this one uses `contrast_anchors`); anything else falls back to the
+  section palette via `effect_palette`.
 
 Plus `feature_prop_contrast()` (`pipeline/beats.py`): a featured snow/sparkle group is recolored
 to the section's **lightest** color at `FEATURE_PROP_BRIGHTNESS = 150` so it pops over the bed.
 
-> `split_palette()` (a base/accent split) exists in `colors.py` but currently has **no call
-> sites** — it is not part of the live path. Don't rely on it as if it shapes the show.
+### 1.4 The show-level color script — `pipeline/color_script.py`
 
-### 1.4 The mined palette corpus — `presets/palettes.json`
+**Shipped 2026-07-06** (Phase 3 musicality), after this doc was first written — the first
+installment of §4's "coherence over independent sections" direction, in a simpler shape than
+the role-based spine proposed there. `apply_color_script(plan, repetition_map)` is a
+deterministic post-pass (no LLM call) that rewrites `SectionPlan.palette` in place. It runs
+right after the Director produces the plan (`pipeline/run.py`) and again after any section
+redesign in the refine loop (`pipeline/refine_loop.py`); it is idempotent. Three moves:
+
+- **Anchor thread:** the most frequent resolvable color across the section palettes is
+  appended to every section missing it — one color persists through the whole show.
+- **Chorus signature:** the chorus label's sections (or, failing that, the most-recurring
+  label's) share one signature pair — the two most hue-distant colors across their palettes —
+  prepended verbatim to every occurrence, so the choruses rhyme in color.
+- **Bridge contrast:** the lowest-recurrence mid-song section leads with the anchor's
+  complement (obtained via `ensure_contrast([anchor])`), making the bridge read as a
+  deliberate hue departure.
+
+What it does **not** do: it adds *coherence*, not *contrast*. The anchor is whatever color
+the Director used most — if the Director authored all-warm sections everywhere, the anchor is
+warm and the show stays a warm smear (§1.6 #1 applies in full). And the anchor is mined from
+the section palettes, not taken from `ShowPlan.palette` — the song-level palette field
+remains unrealized (§1.6 #4).
+
+### 1.5 The mined palette corpus — `presets/palettes.json`
 
 ~hundreds of real palettes mined from `.xsq` files, tagged only **`warm`** / **`cool`** plus
 a `count:N`. Used as a *fallback* `palette_id` when the brief's named colors can't be
 realized. Many are de-facto Christmas (red/green/white/gold), but **nothing is tagged by
 occasion**, so we can't select "a Halloween palette" or "a patriotic palette" from the corpus.
 
-### 1.5 What's missing today
+### 1.6 What's missing today
 
 1. **No contrast floor on the wash.** The 60° floor protects only the beat/weave alternation
    pair; the section wash and the multi-color effect palettes use the Director's raw colors. A
@@ -126,8 +158,10 @@ occasion**, so we can't select "a Halloween palette" or "a patriotic palette" fr
 4. **The song-level palette and group motifs are never realized.** `ShowPalette` and
    `GroupMotif.color` are decoration / LLM context. There is no "use the show palette as the
    default for sections that don't set one," and no per-group color consistency in code.
-5. **No cross-section coherence.** Nothing checks that adjacent sections' palettes relate, or
-   that a section's palette is drawn from the show's spine. This is the clashing.
+5. **Cross-section coherence is partial.** The color script (§1.4) now threads an anchor and
+   a chorus signature through the sections, which removes the worst "sequence of unrelated
+   looks" failure. Still missing: the role structure of §4 (dominant + designated accent),
+   any QA advisory that *checks* coherence (§5 #5), and any tie to the show palette.
 6. **Corpus palettes have no occasion tags**, so the fallback can't be occasion-aware.
 
 ---
@@ -206,7 +240,7 @@ archived `add-intentional-darkness` change and the `WASH_MIN_B/MAX_B` brightness
 ## 3. Principle: holiday music wears holiday colors
 
 > **PROPOSED.** The occasion library below does not exist yet — today only a Christmas prompt
-> nudge does (§1.2). This section is the design for §5 #2.
+> nudge does (§1.2). This section is the design for §5 #3.
 
 This is a holiday-show tool; the occasion is the strongest prior we have on color, and it's
 almost free contrast because the traditional holiday palettes are *already* hue-distant
@@ -258,12 +292,14 @@ The whole reason sections exist is dynamics and variety. A single fixed palette 
 song goes flat — verse and chorus and bridge should *feel* different, and color is a primary
 lever for that.
 
-### Why not per-section-only (today's behavior)
+### Why not per-section-only (the behavior before the color script)
 Each `SectionPlan.palette` is authored quasi-independently. Even with a shared `concept`
 string, nothing constrains section 3's colors to relate to section 2's or to a global anchor.
 Result: neighbors clash (a warm gold verse slamming into a magenta/cyan chorus), and the show
 reads as a sequence of unrelated looks rather than one designed piece. **This is the clashing
-the request is about.**
+the request is about.** The color script (§1.4) now blunts the worst of it — an anchor
+threads every section and choruses share a signature — but sections still author freely and
+get patched after the fact; the role structure below is the full fix.
 
 ### Why "draw from the spine" is not enough on its own
 A naive version of the fix — "pick 4–6 hue-distant colors as the spine, let each section grab
@@ -294,53 +330,67 @@ budget (and the per-song occasion reseed) is for. The default should be coherenc
 flips should be *chosen*, not the accidental by-product of independent per-section authoring.
 
 This is also a cheap change to the architecture: `ShowPalette` and `GroupMotif.color` already
-exist; we mostly have to *realize* them as constraints/defaults instead of decoration.
+exist; we mostly have to *realize* them as constraints/defaults instead of decoration. The
+color script (§1.4) is the first installment — it delivers the anchor thread, the chorus
+rhyme, and a bridge departure; the role-structured spine, group identity, and show-palette
+realization remain.
 
 ---
 
 ## 5. Proposed changes
 
-Prioritized; each maps to existing code. (Backlog — argue/spec these as OpenSpec changes.)
+Prioritized; each maps to existing code. (Backlog — argue/spec these as OpenSpec changes.
+Statuses checked against the code on 2026-07-07.)
 
-1. **Floor the section palette, not just the beats.** Run an `ensure_contrast`-style pass on
-   `SectionPlan.palette` (or inside `effect_palette`) so the **wash** is hue-spanned too, and
-   close the achromatic-fallback hole in `contrast_anchors` (§1.5 #1–2). This is the
-   highest-leverage fix — it makes the doc's "every section spans hues" actually true at render.
+1. **Floor the section palette, not just the beats.** *(Status: not built.)* Run an
+   `ensure_contrast`-style pass on `SectionPlan.palette` (or inside `effect_palette`) so the
+   **wash** is hue-spanned too, and close the achromatic-fallback hole in `contrast_anchors`
+   (§1.6 #1–2). Run it *after* `apply_color_script` so the floor sees the final palettes.
+   This is still the highest-leverage fix — the color script adds coherence but no contrast,
+   so this is what makes "every section spans hues" actually true at render.
 
-2. **Realize the show palette + group motifs as defaults + soft constraint.**
+2. **Realize the show palette + group motifs as defaults + soft constraint.** *(Status: not
+   built — note the color script currently mines its anchor from the section palettes;
+   realizing `ShowPalette` would let the anchor come from the designed palette instead.)*
    - In `pipeline/run.py`/`generate.py`, where the section palette is copied to instructions:
      if `section.palette` is empty, fall back to `plan.palette.colors`.
    - Snap each section palette toward the show palette (keep colors in/near it by hue; treat
      anything else as the section's one allowed accent), and apply `GroupMotif.color` per
      group so prop identity is consistent. Reuse the hue helpers in `colors.py`.
 
-3. **Ship the occasion palette library** (`xlights-core/.../knowledge/`), each entry a
+3. **Ship the occasion palette library** *(Status: not built.)* (`xlights-core/.../knowledge/`), each entry a
    harmonized, LED-safe spine with explicit dominant/accent/pop **roles** (the §3 / appendix
    shape — not just a flat color list). The Director selects an occasion and gets the spine as
    a strong default; corpus palettes (`palettes.json`) gain an `occasion:` tag so the
    `palette_id` fallback is occasion-aware too.
 
-4. **Occasion signal — let the user say it, don't guess from the title.** The "title is not
+4. **Occasion signal — let the user say it, don't guess from the title.** *(Status: not
+   built.)* The "title is not
    evidence" rule is right for *lyrics/story*, but the occasion is a legitimate top-level
    input. Add an explicit `--occasion christmas|halloween|patriotic|…|auto` flag (and a brief
    field) that seeds the show palette. `auto` keeps today's behavior (Director infers from
    mood). This avoids silently theming a non-holiday song.
 
-5. **Cross-section coherence QA advisory** (`qa/rules.py`): flag adjacent sections whose
-   *dominant* hues clash (large jump with no shared anchor) or whose palette isn't drawn from
-   the show palette. Advisory-only at first (like the motion-share check) so the Judge sees it
-   without hard-gating; promote to a regen trigger once tuned.
+5. **Cross-section coherence QA advisory** (`qa/rules.py`). *(Status: the enforcement half
+   shipped as the color script, §1.4; the check half — an advisory the Judge sees — is still
+   unbuilt.)* Flag adjacent sections whose *dominant* hues clash (large jump with no shared
+   anchor) or whose palette isn't drawn from the show palette. Advisory-only at first (like
+   the motion-share check) so the Judge sees it without hard-gating; promote to a regen
+   trigger once tuned.
 
-6. **Tighten the authoring prompt** (`director.py`): replace "Christmas bias" with
+6. **Tighten the authoring prompt** (`director.py`). *(Status: not built — the prompt still
+   carries the Christmas-only bias.)* Replace "Christmas bias" with
    "occasion-seeded show palette + per-section dominant/accent **roles**," state the §2.2
    muddy-color blacklist explicitly, and instruct the Director to express section variety
    through emphasis/brightness/motion rather than swapping hue families.
 
-7. **Prune/tag the color vocabulary** (`NAMED_COLORS`): drop or mark the §2.2 muddy colors as
+7. **Prune/tag the color vocabulary** (`NAMED_COLORS`). *(Status: not built — all §2.2 muddy
+   colors are still freely nameable.)* Drop or mark the §2.2 muddy colors as
    "depth-only" so they can't be a section's load-bearing color. The vocabulary is the cheapest
    place to enforce the LED-safe set, since the Director may only name colors from it.
 
-8. **Raise contrast as an advisory target (not just the legibility floor).** 60° guarantees
+8. **Raise contrast as an advisory target (not just the legibility floor).** *(Status: not
+   built.)* 60° guarantees
    *legibility*; design wants ≥90–120° between the two dominant hues. Add a second, higher
    threshold the Judge nudges toward, distinct from the hard floor added in #1.
 
@@ -350,7 +400,8 @@ Prioritized; each maps to existing code. (Backlog — argue/spec these as OpenSp
 
 > **PROPOSED — not yet implemented.** This is the design target for the occasion library
 > (§5 #3), not a description of current behavior. Today there is no primary/accent/pop
-> structure in code — a section is a flat list of 3–5 names (§1.1).
+> structure in code — a section is a flat list of 3–5 names (§1.1); the color script orders
+> that list (signature pair first, anchor threaded) but assigns no roles.
 
 Harmonized spines using the existing `NAMED_COLORS` vocabulary. **Dominant** colors lead the
 look; **accent/pop** is the contrast anchor that keeps it legible; **bed** is how the

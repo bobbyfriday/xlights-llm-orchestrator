@@ -160,14 +160,31 @@ def ensure_contrast(colors: list[str], min_spread: float = MIN_HUE_SPREAD) -> li
     return list(colors or []) + [comp]
 
 
+def _dim_hex(hex_color: str, target_value: float = 0.35) -> str:
+    """Darken a color to ~target_value brightness (same hue/sat) for value-contrast anchoring."""
+    import colorsys
+    h, s, v = _hsv(hex_color)
+    r, g, b = colorsys.hsv_to_rgb(h, s, min(v, target_value))
+    return f"#{round(r * 255):02X}{round(g * 255):02X}{round(b * 255):02X}"
+
+
 def contrast_anchors(colors: list[str]) -> tuple[str, str]:
     """The two most hue-distant colors of the contrast-floored palette — the beat-to-beat
-    alternation pair rhythm cells use. Falls back to (first resolvable, white)."""
+    alternation pair rhythm cells use. For all-achromatic palettes, falls back to value contrast
+    (brightest vs a dimmed variant) rather than the degenerate white-on-white pair."""
     floored = ensure_contrast(colors)
     chrom = _chromatic_hues(floored)
     if len(chrom) >= 2:
         best = max(((a, b) for i, a in enumerate(chrom) for b in chrom[i + 1:]),
                    key=lambda p: _hue_dist(p[0][1], p[1][1]))
         return best[0][0], best[1][0]
-    first = next((h for h in (_resolve(c) for c in floored) if h), "#FFFFFF")
-    return first, "#FFFFFF"
+    # All-achromatic: contrast by value, not hue
+    resolved = [h for h in (_resolve(c) for c in (floored or [])) if h]
+    if not resolved:
+        return "#FFFFFF", "#595959"
+    brightest = max(resolved, key=lambda h: _hsv(h)[2])
+    if len(resolved) >= 2:
+        dimmest = min(resolved, key=lambda h: _hsv(h)[2])
+        if _hsv(brightest)[2] - _hsv(dimmest)[2] >= 0.35:
+            return brightest, dimmest
+    return brightest, _dim_hex(brightest)

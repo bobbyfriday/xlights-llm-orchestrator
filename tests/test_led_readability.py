@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from xlights_core.knowledge.colors import contrast_anchors, ensure_contrast, hue_spread
+from xlights_core.knowledge.colors import _hsv, contrast_anchors, ensure_contrast, hue_spread
 
 from xlights_orchestrator.pipeline.beats import effect_speed_setting, place_beat_accents
 from xlights_orchestrator.pipeline.weave import expand_weave
@@ -45,6 +45,27 @@ def test_achromatics_do_not_fake_contrast():
     # gold + white is still ONE hue — must trigger injection
     assert hue_spread(["gold", "white", "warm white"]) < 10
     assert len(ensure_contrast(["gold", "white"])) == 3
+
+
+def test_all_achromatic_anchors_contrast_by_value():
+    # white-dominant palettes must NOT return white-on-white from contrast_anchors
+    a, b = contrast_anchors(["white", "warm white", "cool white"])
+    va, vb = _hsv(a)[2], _hsv(b)[2]
+    assert abs(va - vb) >= 0.30, f"value separation too small: {a} vs {b}"
+
+
+def test_single_achromatic_gets_dimmed_variant():
+    a, b = contrast_anchors(["white"])
+    va, vb = _hsv(a)[2], _hsv(b)[2]
+    assert abs(va - vb) >= 0.30, f"single white not dimmed: {a} vs {b}"
+
+
+def test_achromatic_anchor_is_not_white_on_white():
+    # the old fallback was (first, #FFFFFF) — that's white-on-white for a warm-white palette
+    a, b = contrast_anchors(["warm white"])
+    assert a != b, "both anchors are the same color"
+    va, vb = _hsv(a)[2], _hsv(b)[2]
+    assert abs(va - vb) >= 0.30, f"warm-white anchor pair too similar: {a} vs {b}"
 
 
 # -- sweeps render visibly -----------------------------------------------------

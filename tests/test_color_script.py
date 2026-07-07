@@ -1,9 +1,10 @@
 """Phase 3 — the show-level color script: one anchor color threads every section, chorus
-occurrences share a signature pair verbatim, and the bridge leads with the anchor's complement."""
+occurrences share a signature pair verbatim, the bridge leads with the anchor's complement,
+and every section palette is contrast-floored for LED legibility."""
 from __future__ import annotations
 
-from xlights_orchestrator.pipeline.color_script import apply_color_script
-from xlights_core.knowledge.colors import _resolve
+from xlights_orchestrator.pipeline.color_script import _floor_section_palette, apply_color_script
+from xlights_core.knowledge.colors import NAMED_COLORS, _resolve, hue_spread
 from xlights_orchestrator.show_plan import SectionPlan, ShowPlan
 
 
@@ -56,3 +57,71 @@ def test_idempotent():
 
 def test_empty_plan_safe():
     assert apply_color_script(ShowPlan(concept="c", sections=[]), {}) is not None
+
+
+# -- palette floor (move 4) ----------------------------------------------------
+
+def test_floor_all_warm_gains_cool_anchor():
+    # gold + amber are both near-yellow — hue spread < 60°; floor must inject a complement
+    plan = _plan([["gold", "amber"]])
+    apply_color_script(plan, {})
+    pal = plan.sections[0].palette
+    assert hue_spread(pal) >= 60.0, f"all-warm section not floored: {pal}"
+
+
+def test_floor_injected_color_is_named():
+    # the injected complement should be snapped to a NAMED_COLORS entry when close enough
+    plan = _plan([["gold", "amber"]])
+    apply_color_script(plan, {})
+    pal = plan.sections[0].palette
+    injected = [c for c in pal if c not in ["gold", "amber"]]
+    assert injected, "no color was injected"
+    # the injected entry should be a known named color (not a raw hex like #00BFFF)
+    named_keys = set(NAMED_COLORS.keys())
+    assert any(c.lower() in named_keys for c in injected), \
+        f"injected color not a named color: {injected}"
+
+
+def test_floor_white_dominant_unchanged():
+    # all-achromatic section: no hue injected
+    plan = _plan([["white", "warm white", "cool white"]])
+    apply_color_script(plan, {})
+    pal = plan.sections[0].palette
+    achromatic_names = {"white", "warm white", "cool white"}
+    non_achromatic = [c for c in pal if c not in achromatic_names]
+    assert not non_achromatic, f"hue injected into white-dominant section: {pal}"
+
+
+def test_floor_already_contrasting_unchanged():
+    plan = _plan([["deep blue", "gold"]])
+    original = list(plan.sections[0].palette)
+    apply_color_script(plan, {})
+    pal = plan.sections[0].palette
+    # deep blue + gold span ~180° — no injection needed; only anchor may be added
+    assert hue_spread(pal) >= 60.0
+    # original colors still present
+    assert all(c in pal for c in original)
+
+
+def test_floor_is_idempotent():
+    # idempotent: run floor twice, same result
+    pal = ["gold", "amber"]
+    once = _floor_section_palette(pal)
+    twice = _floor_section_palette(once)
+    assert once == twice, f"floor not idempotent: {once} → {twice}"
+
+
+def test_floor_helper_all_warm_gains_complement():
+    pal = _floor_section_palette(["gold", "amber"])
+    assert len(pal) == 3
+    assert hue_spread(pal) >= 60.0
+
+
+def test_floor_helper_white_dominant_unchanged():
+    pal = _floor_section_palette(["white", "warm white"])
+    assert pal == ["white", "warm white"]
+
+
+def test_floor_helper_already_contrasting_unchanged():
+    pal = _floor_section_palette(["deep blue", "gold"])
+    assert pal == ["deep blue", "gold"]

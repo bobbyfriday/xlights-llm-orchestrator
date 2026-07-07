@@ -92,17 +92,20 @@ enforced:
 - **→ settings string:** at placement (`editing.py`), `palette_from_colors()` emits the
   `C_BUTTON_Palette1..8` + `C_CHECKBOX_PaletteN=1` string; if it can't realize, it falls back
   to a mined `palette_id`.
-- **The contrast floor is rhythm-only.** `MIN_HUE_SPREAD = 60.0` and `ensure_contrast()`
-  (inject the complement of the dominant hue when chromatic colors cluster within 60°) are
-  used in two places: inside **`contrast_anchors()`**, which returns the two most hue-distant
-  colors — that pair drives the **beat** alternation (`beats.py`, `place_beat_accents`), the
-  **weave** carrier (`weave.py`, `expand_weave`), and **anchor-alternate triggers**
-  (`triggers.py`, `realize_triggers`) — and in the color script's bridge move (§1.4), which
-  uses it as a complement *generator*, not a floor.
-  **`effect_palette` / the section wash still do NOT call it** — the wash renders whatever the
-  Director picked, expanded, with no floor.
+- **The contrast floor now covers the section palette (and therefore the wash).** `MIN_HUE_SPREAD = 60.0`
+  and `ensure_contrast()` (inject the complement of the dominant hue when chromatic colors cluster
+  within 60°) are used in three places: inside **`contrast_anchors()`**, which returns the two
+  most hue-distant colors — that pair drives the **beat** alternation (`beats.py`,
+  `place_beat_accents`), the **weave** carrier (`weave.py`, `expand_weave`), and
+  **anchor-alternate triggers** (`triggers.py`, `realize_triggers`); the color script's **bridge
+  move** (§1.4), which uses it as a complement *generator*; and the color script's **palette
+  floor** (§1.4 move 4), which floors each `SectionPlan.palette` directly after the other three
+  moves, so `effect_palette` and the wash see a hue-spanning palette. The injected complement is
+  snapped to the nearest chromatic `NAMED_COLORS` entry (within ~25°) so briefs stay readable;
+  all-achromatic palettes pass through unchanged (see below).
 - Achromatic colors (saturation < 0.25, e.g. whites/grays) **don't count** toward hue spread —
-  correctly, two whites don't contrast. (Consequence: see the degenerate hole in §1.6.)
+  correctly, two whites don't contrast. **All-achromatic palettes are exempt from complement
+  injection** — a deliberate warm-white section keeps its aesthetic.
 - **Trigger colors are richer than "the anchor pair."** In `triggers.py`, a trigger's
   `spec.color` may be `lyric` (use the lyric's own color word), `fixed:<color>`, or
   `anchor_alternate` (only this one uses `contrast_anchors`); anything else falls back to the
@@ -113,12 +116,11 @@ to the section's **lightest** color at `FEATURE_PROP_BRIGHTNESS = 150` so it pop
 
 ### 1.4 The show-level color script — `pipeline/color_script.py`
 
-**Shipped 2026-07-06** (Phase 3 musicality), after this doc was first written — the first
-installment of §4's "coherence over independent sections" direction, in a simpler shape than
-the role-based spine proposed there. `apply_color_script(plan, repetition_map)` is a
-deterministic post-pass (no LLM call) that rewrites `SectionPlan.palette` in place. It runs
-right after the Director produces the plan (`pipeline/run.py`) and again after any section
-redesign in the refine loop (`pipeline/refine_loop.py`); it is idempotent. Three moves:
+**Initially shipped 2026-07-06** (Phase 3 musicality); the palette floor (move 4) added
+2026-07-07. `apply_color_script(plan, repetition_map)` is a deterministic post-pass (no LLM
+call) that rewrites `SectionPlan.palette` in place. It runs right after the Director produces the
+plan (`pipeline/run.py`) and again after any section redesign in the refine loop
+(`pipeline/refine_loop.py`); it is idempotent. Four moves in order:
 
 - **Anchor thread:** the most frequent resolvable color across the section palettes is
   appended to every section missing it — one color persists through the whole show.
@@ -126,14 +128,17 @@ redesign in the refine loop (`pipeline/refine_loop.py`); it is idempotent. Three
   label's) share one signature pair — the two most hue-distant colors across their palettes —
   prepended verbatim to every occurrence, so the choruses rhyme in color.
 - **Bridge contrast:** the lowest-recurrence mid-song section leads with the anchor's
-  complement (obtained via `ensure_contrast([anchor])`), making the bridge read as a
+  complement (raw hex via `ensure_contrast([anchor])`), making the bridge read as a
   deliberate hue departure.
+- **Palette floor:** every section palette is contrast-floored — when its chromatic hues
+  cluster within `MIN_HUE_SPREAD` (60°), a complement is injected and snapped to the nearest
+  chromatic `NAMED_COLORS` entry when hue-close (≤25°), else kept as a raw hex. All-achromatic
+  palettes pass through unchanged. This move runs last so it sees the anchor and signature — and
+  since a complement of an already-contrasting palette is already contrasting, idempotence is
+  preserved.
 
-What it does **not** do: it adds *coherence*, not *contrast*. The anchor is whatever color
-the Director used most — if the Director authored all-warm sections everywhere, the anchor is
-warm and the show stays a warm smear (§1.6 #1 applies in full). And the anchor is mined from
-the section palettes, not taken from `ShowPlan.palette` — the song-level palette field
-remains unrealized (§1.6 #4).
+The anchor is mined from the section palettes, not taken from `ShowPlan.palette` — the
+song-level palette field remains unrealized (§1.6 #3).
 
 ### 1.5 The mined palette corpus — `presets/palettes.json`
 
@@ -144,14 +149,13 @@ occasion**, so we can't select "a Halloween palette" or "a patriotic palette" fr
 
 ### 1.6 What's missing today
 
-1. **No contrast floor on the wash.** The 60° floor protects only the beat/weave alternation
-   pair; the section wash and the multi-color effect palettes use the Director's raw colors. A
-   model that picks an all-warm section palette gets an all-warm wash — the floor can't save it.
-2. **A degenerate hole even on the beats.** `contrast_anchors` only guarantees contrast when
-   the palette has ≥1 *chromatic* color. An all-achromatic section palette (only whites/grays/
-   black) has no hue to complement, so it falls back to `(first color, white)` — e.g.
-   `(warm white, white)`, which barely contrasts. Rare (the prompt asks for a chromatic
-   anchor), but unguarded.
+1. **Wash floor: shipped.** The color script's palette floor (§1.4 move 4) now floors every
+   `SectionPlan.palette` before effects are generated — washes and multi-color effects see a
+   hue-spanning palette. All-achromatic sections are exempt (white-dominant aesthetic preserved).
+2. **Achromatic anchor hole: closed.** `contrast_anchors()` no longer falls back to
+   `(first color, white)` on all-achromatic palettes. It now returns the two most value-separated
+   resolvable colors, synthesizing a dimmed variant when all colors are near-white, so beat
+   accents always read against the wash even on a white section.
 3. **Holiday awareness is Christmas-only and prompt-only.** No detection, no other occasions
    (Halloween, July 4th, Valentine's, Hanukkah, New Year's…), no code enforcement, and the
    "title is not evidence" rule means even an obvious filename is ignored.
@@ -342,12 +346,12 @@ realization remain.
 Prioritized; each maps to existing code. (Backlog — argue/spec these as OpenSpec changes.
 Statuses checked against the code on 2026-07-07.)
 
-1. **Floor the section palette, not just the beats.** *(Status: not built.)* Run an
-   `ensure_contrast`-style pass on `SectionPlan.palette` (or inside `effect_palette`) so the
-   **wash** is hue-spanned too, and close the achromatic-fallback hole in `contrast_anchors`
-   (§1.6 #1–2). Run it *after* `apply_color_script` so the floor sees the final palettes.
-   This is still the highest-leverage fix — the color script adds coherence but no contrast,
-   so this is what makes "every section spans hues" actually true at render.
+1. **Floor the section palette, not just the beats.** *(Status: **shipped** 2026-07-07 —
+   §1.4 move 4 + `contrast_anchors` achromatic fallback. §1.6 #1–2 closed.)* The color
+   script's palette floor (the fourth move of `apply_color_script`) injects a complement into
+   any section palette whose chromatic hues cluster within 60°, snapped to the nearest named
+   color; and `contrast_anchors` now falls back to value contrast on all-achromatic palettes.
+   "Every section spans hues" is now true at render, not just in the prompt.
 
 2. **Realize the show palette + group motifs as defaults + soft constraint.** *(Status: not
    built — note the color script currently mines its anchor from the section palettes;

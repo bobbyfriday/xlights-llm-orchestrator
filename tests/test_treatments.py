@@ -117,9 +117,20 @@ def test_gesture_is_one_carrier_recipe_no_bed_no_accents():
 def test_pulse_withholds_weave_keeps_accents():
     pulse = run(realize_section(_state_one("pulse"), 0, agent=_gen()))
     assert not _has_carrier(pulse)                       # weave fabric withheld
-    assert not any(i.effect_type == "VU Meter" for i in pulse)   # composites/VU withheld
+    # composites stay extras-only (no composite on pulse); VU now fires on pulse (see D5)
+    assert not any(getattr(i, "source", None) == "composite" for i in pulse)
     # a bed + beat accents are present (On effects across rhythm groups)
     assert any(i.effect_type == "On" for i in pulse)
+
+
+def test_pulse_receives_vu_meter():
+    """Pulse-treatment energetic sections get VU Meter (community uses it as an ordinary texture);
+    feature sections do not (extras/VU are withheld to spotlight the hero feature)."""
+    pulse = run(realize_section(_state_one("pulse", intensity=0.9), 0, agent=_gen()))
+    assert any(i.effect_type == "VU Meter" for i in pulse), \
+        "pulse should carry VU Meter when intensity > VU_MIN_INTENSITY"
+    feature = run(realize_section(_state_one("feature"), 0, agent=_gen()))
+    assert not any(i.effect_type == "VU Meter" for i in feature)
 
 
 def test_rest_is_dim_and_bounded():

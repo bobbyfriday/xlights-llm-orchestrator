@@ -82,7 +82,7 @@ BED_FAMILY: frozenset[str] = frozenset({"Color Wash", "Plasma", "Fill", "Liquid"
 # The `source` tag vocabulary (Decision 8) — the transient per-layer provenance the measurement
 # report reads. Kept here so both the report and the (report-only) tagging agree on the names.
 SOURCE_TAGS: tuple[str, ...] = (
-    "weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite")
+    "weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite", "phrase")
 
 
 def effect_family(effect_type: str) -> str:

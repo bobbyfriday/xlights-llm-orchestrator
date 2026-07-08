@@ -866,6 +866,30 @@
  },
  {
   "direct_settings": "",
+  "effect_type": "Morph",
+  "end_ms": 22000,
+  "extra_settings": {
+   "T_TEXTCTRL_Fadeout": "2"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Morph#1",
+  "on_top": false,
+  "palette_colors": [
+   "#0000FF",
+   "#FF0000",
+   "#7070FF",
+   "#FF7070",
+   "#0000A3"
+  ],
+  "palette_id": null,
+  "render_style": "Per Model Default",
+  "section_index": 1,
+  "start_ms": 14000,
+  "target": "SEM_FOCAL"
+ },
+ {
+  "direct_settings": "",
   "effect_type": "Shockwave",
   "end_ms": 15000,
   "extra_settings": {

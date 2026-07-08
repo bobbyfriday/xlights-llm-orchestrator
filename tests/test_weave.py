@@ -194,6 +194,21 @@ def test_fallback_weave_carries_the_pool():
     assert any(c.role == "texture" and c.effect_type == "Spirals" for c in w.cells)
 
 
+def test_fallback_weave_ripple_when_no_cellable_in_section():
+    # "On" is not cellable — fallback should use Ripple rather than omitting the texture layer.
+    sec = _sec(effect_types=["On"])
+    w = fallback_weave(sec, GROUPS)
+    tex = [c for c in w.cells if c.role == "texture"]
+    assert len(tex) == 1 and tex[0].effect_type == "Ripple"
+
+
+def test_fallback_weave_no_texture_when_no_tex_groups():
+    # Only ACCENT_GROUPS in target_groups → tex_groups empty → carrier only, no texture recipe.
+    sec = _sec(target_groups=["SEM_SNOWFLAKES", "SEM_SPINNERS"])
+    w = fallback_weave(sec, GROUPS + ["SEM_SNOWFLAKES", "SEM_SPINNERS"])
+    assert all(c.role == "carrier" for c in w.cells)
+
+
 def test_carrier_covers_requires_pool_intersection():
     sec = _sec()
     on_pool = SectionWeave(cells=[_carrier()])
@@ -262,7 +277,13 @@ def test_section_carrier_rotates_across_sections():
     seen = [section_carrier(i) for i in range(len(CARRIER_ROTATION))]
     assert seen == list(CARRIER_ROTATION)            # cycles the full set
     assert section_carrier(len(CARRIER_ROTATION)) == CARRIER_ROTATION[0]   # wraps
-    assert len(set(seen)) >= 4                        # genuinely varied carriers
+
+
+def test_carrier_rotation_no_garlands_singlestrand_double_weighted():
+    # Garlands removed from deterministic rotation (was 4× community share)
+    assert "Garlands" not in CARRIER_ROTATION
+    # SingleStrand appears twice (community 28.5% workhorse) out of the 4-slot tuple
+    assert CARRIER_ROTATION.count("SingleStrand") == 2
 
 
 def test_fallback_weave_uses_rotated_carrier():

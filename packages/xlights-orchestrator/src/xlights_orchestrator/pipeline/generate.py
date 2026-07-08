@@ -31,6 +31,7 @@ from .beats import (
     peak_fill,
     peak_sections,
     place_beat_accents,
+    place_phrase_gesture,
     place_vu_meter,
     resolve_treatment,
     section_energy_shape,
@@ -84,11 +85,11 @@ def _phrase_brightness(ins, shape: str, wash_b: float, bar_ms: float) -> dict[st
 # Treatment → which realization LAYERS are included (withheld, not merely dimmed). See design table.
 #   bed: "full" (energy bed / peak fill) | "dim" (a low ≤2-group bed) | "" (none)
 _TREATMENT_LAYERS: dict[str, dict] = {
-    "full":    {"bed": "full", "weave": True,  "accents": "full",   "extras": True,  "feature": True},
-    "pulse":   {"bed": "full", "weave": False, "accents": "full",   "extras": False, "feature": True},
-    "feature": {"bed": "dim",  "weave": False, "accents": "sparse", "extras": False, "feature": True},
-    "gesture": {"bed": "",     "weave": "solo", "accents": "none",  "extras": False, "feature": False},
-    "rest":    {"bed": "dim",  "weave": False, "accents": "none",   "extras": False, "feature": False},
+    "full":    {"bed": "full", "weave": True,  "accents": "full",   "extras": True,  "feature": True,  "phrase": True},
+    "pulse":   {"bed": "full", "weave": False, "accents": "full",   "extras": False, "feature": True,  "phrase": True},
+    "feature": {"bed": "dim",  "weave": False, "accents": "sparse", "extras": False, "feature": True,  "phrase": False},
+    "gesture": {"bed": "",     "weave": "solo", "accents": "none",  "extras": False, "feature": False, "phrase": False},
+    "rest":    {"bed": "dim",  "weave": False, "accents": "none",   "extras": False, "feature": False, "phrase": False},
 }
 _SPARSE_TREATMENTS = ("feature", "gesture", "rest")   # not full/pulse → no reliable base bed
 _GESTURE_MAX_GROUPS = 2       # gesture/rest touch at most this many groups
@@ -349,8 +350,23 @@ async def realize_section(st: State, si: int, *, agent,
         ins.section_index = si
         ins.source = "weave"
     kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
-    # composite stacks + VU are "extras" (full only): LLM-designed multi-effect blended layers plus
-    # the curated hero stack at the peak, and the music-reactive VU feature texture.
+    # PHRASE GESTURE (full/pulse): one bounded Morph/Curtain/Fill that enters at the 2nd bar and
+    # spans 4 bars — phrase-class effects that the weave cannot cell, rhymed across recurring labels.
+    if _layers.get("phrase"):
+        _phrase_seed = label_seed(_label) if _label else si
+        pg = place_phrase_gesture(section, rhythm, _si, st.available_groups,
+                                  seed=_phrase_seed, vocab=st.vocab or DEFAULT_VOCAB)
+        if pg is not None:
+            pg.section_index = si
+            pg.source = "phrase"
+            _based = {k.target for k in kept}
+            if pg.target in _based:
+                pg.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
+            kept.append(pg)
+    # composite stacks + VU: LLM-designed multi-effect blended layers, the curated hero stack at
+    # the peak, and the music-reactive VU feature texture. Composites are extras-only (full); VU
+    # also fires for pulse sections (community uses it as an ordinary energetic texture, not a peak
+    # garnish — 6.2% pooled in the corpus).
     if _layers["extras"]:
         comp_recipes = list(getattr(out, "composites", None) or [])
         if si in _peaks and HERO_GROUP in st.available_groups:
@@ -365,6 +381,7 @@ async def realize_section(st: State, si: int, *, agent,
                 ins.section_index = si
                 ins.source = "composite"      # provenance (report-only)
                 kept.append(ins)
+    if _layers["extras"] or _treatment == "pulse":
         vu = place_vu_meter(section, st.available_groups, _si, seed=si)   # music-reactive feature
         if vu is not None:
             vu.section_index = si

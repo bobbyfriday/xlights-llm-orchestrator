@@ -182,6 +182,11 @@ async def run_pipeline(
     if analyze is not None:
         st.song_analysis = analyze(song_path)
     else:
+        # The audio cache is intentionally NOT gated on the run's --no-cache: re-analysis is
+        # expensive AND lyric alignment is not always reproducible (optional aligner). A cached
+        # analysis whose segmentation predates a structure.py fix self-heals on load
+        # (AudioAnalyzer migrates it in place from cached lyrics/beats), so a stale analysis never
+        # forces the choice between wrong boundaries and discarding good lyric data.
         st.song_analysis = AudioAnalyzer().analyze(song_path, stems=stems)
     # timed lyrics as part of the INITIAL analysis: fetch text, align on the vocal stem (cached).
     # This also flips the synthesizer's `instrumental` flag (it reads sa.lyrics) for vocal songs.

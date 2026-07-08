@@ -9,7 +9,17 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+# Bump when the RAW analysis output (VAMP/librosa features, stems) changes so content-keyed caches
+# recompute. NOT for segmentation-logic changes — those re-derive cheaply from cached lyrics/beats
+# via STRUCTURE_VERSION (see structure.ensure_structure); bumping this would needlessly discard
+# expensive stems and non-reproducible lyric alignment.
 ANALYZER_VERSION = 2
+
+# Bump when the deterministic SEGMENTATION logic (structure.py) changes. A cached analysis with an
+# older stamp re-runs refinement in place from its already-cached lyrics + beats — no re-analysis,
+# no lyric re-alignment. v1: downbeat-aligned section boundaries (`_snap_downbeat`); pre-v1 caches
+# beat-snapped section starts, landing them ~1 beat before the bar line.
+STRUCTURE_VERSION = 1
 
 
 class TempoPoint(BaseModel):
@@ -96,3 +106,4 @@ class SongAnalysis(BaseModel):
     lyrics: dict | None = None
 
     analyzer_version: int = ANALYZER_VERSION
+    structure_version: int = 0   # 0 = pre-migration; current-logic segments are stamped STRUCTURE_VERSION

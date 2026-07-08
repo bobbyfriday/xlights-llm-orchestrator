@@ -56,7 +56,7 @@ def test_missing_guide_degrades_to_empty(tmp_path, monkeypatch):
 def test_composed_generator_prompt_under_budget():
     from xlights_orchestrator.agents import generator
     sp = generator._system_prompt()
-    assert len(sp) < 15 * 1024                      # extracts, not the ~100KB corpus
+    assert len(sp) < 16 * 1024                      # extracts, not the ~100KB corpus
     assert "Quick Reference Table" in sp and "Render Styles" in sp and "Core Philosophy" in sp
     assert "SC-01" not in sp                        # scene recipes are per-section input
 

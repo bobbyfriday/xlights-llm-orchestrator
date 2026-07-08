@@ -121,17 +121,33 @@ def test_blend_only_over_a_base():
     assert out2.index(carriers[0]) < out2.index(spirals[0])
 
 
-def test_cells_over_washes_default_to_max():
-    """A top-layer cell's black background occludes the wash below it under Normal blend (the
-    live 'mostly dark' failure) — cells over based targets default to Max."""
+def test_blend_role_aware_defaults():
+    """Role-aware blend defaults (add-blend-vocabulary D1):
+      - texture cells over a based target → Brightness (traveling brightness gate)
+      - carrier cells over a based target → Max (additive pop, unchanged)
+      - explicit recipe.blend always wins over the role default
+      - cells over an UNbased target → no LayerMethod at all"""
     w = SectionWeave(cells=[_carrier(groups=["SEM_YARD"]),
                             CellRecipe(effect_type="Spirals", role="texture", groups=["SEM_YARD"])])
     out = expand_weave(_sec(), w, _rhythm(8), 0.8, GROUPS, based_targets={"SEM_YARD"})
-    assert out and all(c.extra_settings.get("T_CHOICE_LayerMethod") == "Max" for c in out)
-    # ...but stay Normal where there is genuinely nothing underneath
-    out2 = expand_weave(_sec(), w, _rhythm(8), 0.8, GROUPS)
-    carriers = [c for c in out2 if c.effect_type == "SingleStrand"]
-    assert all("T_CHOICE_LayerMethod" not in c.extra_settings for c in carriers)
+    carriers = [c for c in out if c.effect_type == "SingleStrand"]
+    spirals = [c for c in out if c.effect_type == "Spirals"]
+    assert carriers and all(c.extra_settings.get("T_CHOICE_LayerMethod") == "Max" for c in carriers)
+    assert spirals and all(c.extra_settings.get("T_CHOICE_LayerMethod") == "Brightness" for c in spirals)
+    # explicit blend on the recipe wins over the role default
+    w_explicit = SectionWeave(cells=[
+        _carrier(groups=["SEM_YARD"]),
+        CellRecipe(effect_type="Spirals", role="texture", groups=["SEM_YARD"], blend="Max"),
+    ])
+    out_explicit = expand_weave(_sec(), w_explicit, _rhythm(8), 0.8, GROUPS, based_targets={"SEM_YARD"})
+    sp_explicit = [c for c in out_explicit if c.effect_type == "Spirals"]
+    assert sp_explicit and all(c.extra_settings.get("T_CHOICE_LayerMethod") == "Max"
+                               for c in sp_explicit)
+    # texture-only weave (no carrier beneath) → not blended → no LayerMethod at all
+    w_solo = SectionWeave(cells=[CellRecipe(effect_type="Spirals", role="texture",
+                                            groups=["SEM_YARD"])])
+    out_solo = expand_weave(_sec(), w_solo, _rhythm(8), 0.8, GROUPS)
+    assert out_solo and all("T_CHOICE_LayerMethod" not in c.extra_settings for c in out_solo)
 
 
 def test_motion_curve_and_transition_settings():
@@ -322,6 +338,28 @@ def test_bloom_composite_all_layers_have_direction():
                 f"bloom layer {i} ({lyr.effect_type}/{lyr.direction}) returned empty "
                 "direction_setting — check DIRECTION_KNOBS mapping"
             )
+
+
+def test_reveal_composite_has_mask_blend_on_upper_layer():
+    """The reveal composite: Spirals base (no blend) + Shape upper with a mask-family blend.
+    Both render Per Model Default; layers are ascending."""
+    from xlights_orchestrator.pipeline.weave import curated_composite, expand_composite
+    rec = curated_composite("reveal", ["SEM_FOCAL"])
+    assert rec is not None
+    ins = expand_composite(rec, _sec(intensity=0.9), 0.9, ["SEM_FOCAL"])
+    assert len(ins) == 2, f"expected 2 layers, got {len(ins)}"
+    assert [i.layer for i in ins] == [0, 1]
+    assert all(i.target == "SEM_FOCAL" for i in ins)
+    assert ins[0].effect_type == "Spirals"       # texture base
+    assert ins[1].effect_type == "Shape"         # mask upper
+    base_blend = ins[0].extra_settings.get("T_CHOICE_LayerMethod")
+    upper_blend = ins[1].extra_settings.get("T_CHOICE_LayerMethod")
+    assert base_blend is None, f"base layer must not carry a blend (got {base_blend!r})"
+    assert upper_blend is not None, "upper Shape layer must carry a LayerMethod"
+    bv = upper_blend.lower()
+    assert "mask" in bv or "unmask" in bv, (
+        f"upper blend must be in the mask family, got {upper_blend!r}")
+    assert all(i.render_style == "Per Model Default" for i in ins)
 
 
 def test_expand_composite_needs_two_layers_and_valid_groups():

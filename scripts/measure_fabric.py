@@ -119,6 +119,10 @@ class CommunityAggregates:
     blend_brightness_share: float = 0.36  # §3: Brightness blend
     blend_layered_share: float = 0.23     # §3: Layered blend
     blend_mask_share: float = 0.16        # §3: masks/unmasks
+    # blend VALUE shares among blended rows (add-blend-vocabulary, 2026-07-07 corpus drill-down):
+    # community Brightness 36%, mask/unmask/reveals family ~27% (mask 20.7% + reveals 6.2%); Max ≈ 0%
+    blend_value_brightness_share: float = 0.36   # share of Brightness among blended community rows
+    blend_value_mask_share: float = 0.27         # share of mask/unmask/reveals family among blended rows
     max_layer_depth: int = 19             # §5: hero rows stack to 19
     multi_layer_row_share: float = 0.22   # §5: 22% of rows multi-layer
 
@@ -164,6 +168,7 @@ class FabricStats:
     share_by_type: dict[str, float]           # top-N by count (see `top` arg)
     duration_p50_by_type: dict[str, float]    # median ms per type
     blend_mode_share: float
+    blend_value_share: dict[str, float]   # among blended rows: Max / Brightness / mask / other
     transition_share: float
     value_curve_kinds: dict[str, float]       # {"brightness": .., "motion": .., "other": ..}
     layer_depth_hist: dict[int, int]
@@ -214,7 +219,7 @@ class _Row:
     target: str
     layer: int
     section_index: int | None
-    blend: bool                          # carries a T_CHOICE_LayerMethod
+    blend_value: str                      # T_CHOICE_LayerMethod value; empty = no blend
     transition: bool                     # carries an in/out transition type
     vc_kinds: list[str]                  # active value-curve kinds on this row
     source: str | None = None           # transient provenance (Decision 8); report-only
@@ -235,7 +240,7 @@ def _row_from_instruction(d: dict) -> _Row:
         start_ms=int(d.get("start_ms", 0)), end_ms=int(d.get("end_ms", 0)),
         target=d.get("target", ""), layer=int(d.get("layer", 0) or 0),
         section_index=d.get("section_index"),
-        blend=bool(extra.get("T_CHOICE_LayerMethod")),
+        blend_value=extra.get("T_CHOICE_LayerMethod") or "",
         transition=bool(extra.get("T_CHOICE_In_Transition_Type")
                         or extra.get("T_CHOICE_Out_Transition_Type")),
         vc_kinds=vc_kinds,
@@ -261,7 +266,21 @@ def _stats(rows: list[_Row], duration_s: float, *, top: int,
     share_by_type = {t: c / n for t, c in type_counts.most_common(top)} if n else {}
     p50_by_type = {t: float(statistics.median(ds)) for t, ds in dur_by_type.items()}
 
-    blend_share = (sum(1 for r in rows if r.blend) / n) if n else 0.0
+    blend_share = (sum(1 for r in rows if r.blend_value) / n) if n else 0.0
+    _blended = [r for r in rows if r.blend_value]
+    _nb = len(_blended)
+    def _bv_bucket(v: str) -> str:
+        if v == "Brightness":
+            return "Brightness"
+        vl = v.lower()
+        if "mask" in vl or "unmask" in vl or "reveal" in vl:
+            return "mask"
+        if v == "Max":
+            return "Max"
+        return "other"
+    bv_counts: Counter = Counter(_bv_bucket(r.blend_value) for r in _blended)
+    blend_value_share = {k: bv_counts.get(k, 0) / _nb
+                         for k in ("Max", "Brightness", "mask", "other")} if _nb else {}
     trans_share = (sum(1 for r in rows if r.transition) / n) if n else 0.0
     vc_counter: Counter = Counter(k for r in rows for k in r.vc_kinds)
     vc_total = sum(vc_counter.values())
@@ -290,6 +309,7 @@ def _stats(rows: list[_Row], duration_s: float, *, top: int,
         prop_row_effects_per_min=prop_epm, per_prop_expansion=per_prop_expansion,
         share_by_family=share_by_family, share_by_type=share_by_type,
         duration_p50_by_type=p50_by_type, blend_mode_share=blend_share,
+        blend_value_share=blend_value_share,
         transition_share=trans_share, value_curve_kinds=vc_kinds,
         layer_depth_hist=layer_hist, per_section=per_section, source_by_type=source_by_type)
 
@@ -377,7 +397,7 @@ def _row_from_xsq_effect(name: str, start_ms: int, end_ms: int, target: str, lay
     return _Row(
         effect_type=canon_name(name), start_ms=start_ms, end_ms=end_ms, target=target, layer=layer,
         section_index=None,
-        blend=bool(d.get("T_CHOICE_LayerMethod")),
+        blend_value=d.get("T_CHOICE_LayerMethod") or "",
         transition=bool(d.get("T_CHOICE_In_Transition_Type")
                         or d.get("T_CHOICE_Out_Transition_Type")),
         vc_kinds=vc_kinds)
@@ -482,6 +502,16 @@ def render_report(stats: FabricStats, *, title: str = "fabric") -> str:
     lines.append(f"blend-mode share: {stats.blend_mode_share:.0%} "
                  f"(community brightness {COMMUNITY.blend_brightness_share:.0%})"
                  f"  transition share: {stats.transition_share:.0%}")
+    if stats.blend_value_share:
+        bvs = stats.blend_value_share
+        lines.append(
+            f"blend values (among blended rows): "
+            f"Max {bvs.get('Max', 0):.0%}  "
+            f"Brightness {bvs.get('Brightness', 0):.0%} "
+            f"(community {COMMUNITY.blend_value_brightness_share:.0%})  "
+            f"mask {bvs.get('mask', 0):.0%} "
+            f"(community {COMMUNITY.blend_value_mask_share:.0%})  "
+            f"other {bvs.get('other', 0):.0%}")
     if stats.value_curve_kinds:
         vc = "  ".join(f"{k} {v:.0%}" for k, v in stats.value_curve_kinds.items())
         lines.append(f"value curves: {vc}  (community shapes MOTION, we over-shape brightness)")

@@ -101,3 +101,83 @@ def test_advisory_exempts_rest_and_gesture_treatments():
 def test_advisory_detail_cites_the_remeasurement():
     fired = _motion_findings(3, 7)
     assert fired and "2026-07 re-measurement" in fired[0].detail
+
+
+# -- demote_offpeak_hits -----------------------------------------------------------------
+def test_demote_strobe_to_shockwave_off_peak():
+    from xlights_orchestrator.qa.rules import demote_offpeak_hits
+    from xlights_orchestrator.pipeline.effect_meta import SHOCKWAVE_SETTINGS
+    strobe = _ins("Strobe", "SEM_ALL", start=0, end=500)
+    spiral = _ins("Spirals", "SEM_FOCAL", start=0, end=2000)
+    instrs = [strobe, spiral]
+    n = demote_offpeak_hits(instrs, is_peak=False)
+    assert n == 1
+    assert instrs[0].effect_type == "Shockwave"
+    assert instrs[1].effect_type == "Spirals"    # untouched
+    for k in SHOCKWAVE_SETTINGS:
+        assert instrs[0].extra_settings.get(k) == SHOCKWAVE_SETTINGS[k]
+
+
+def test_demote_strobe_is_noop_at_peak():
+    from xlights_orchestrator.qa.rules import demote_offpeak_hits
+    strobe = _ins("Strobe", "SEM_ALL", start=0, end=500)
+    instrs = [strobe]
+    n = demote_offpeak_hits(instrs, is_peak=True)
+    assert n == 0
+    assert instrs[0].effect_type == "Strobe"
+
+
+def test_shimmer_capped_per_section():
+    from xlights_orchestrator.qa.rules import demote_offpeak_hits
+    from xlights_orchestrator.pipeline.tuning import SHIMMER_MAX_PER_SECTION
+    shimmers = [_ins("Shimmer", "SEM_FOCAL", si=0, start=i * 1000, end=i * 1000 + 800)
+                for i in range(SHIMMER_MAX_PER_SECTION + 2)]
+    spiral = _ins("Spirals", "SEM_FOCAL", si=0, start=0, end=3000)
+    instrs = shimmers + [spiral]
+    n = demote_offpeak_hits(instrs, is_peak=False)
+    remaining_shimmers = [x for x in instrs if x.effect_type == "Shimmer"]
+    assert len(remaining_shimmers) == SHIMMER_MAX_PER_SECTION
+    assert n == 2                                              # the 2 excess Shimmers removed
+    assert any(x.effect_type == "Spirals" for x in instrs)   # non-Shimmer untouched
+
+
+def test_shimmer_excess_keeps_earliest():
+    from xlights_orchestrator.qa.rules import demote_offpeak_hits
+    from xlights_orchestrator.pipeline.tuning import SHIMMER_MAX_PER_SECTION
+    # earliest starts must survive
+    shimmers = [_ins("Shimmer", "SEM_FOCAL", si=0, start=i * 1000, end=i * 1000 + 500)
+                for i in range(SHIMMER_MAX_PER_SECTION + 1)]
+    instrs = list(shimmers)
+    demote_offpeak_hits(instrs, is_peak=False)
+    surviving_starts = sorted(x.start_ms for x in instrs if x.effect_type == "Shimmer")
+    expected = sorted(x.start_ms for x in shimmers[:SHIMMER_MAX_PER_SECTION])
+    assert surviving_starts == expected
+
+
+def test_accent_shockwave_excluded_from_feature_rule():
+    """Accent-sourced Shockwaves must NOT trip rule #4 even when overlapping a feature Shockwave."""
+    sw_accent = _ins("Shockwave", "SEM_SPINNERS", start=0, end=600)
+    sw_accent.source = "accents"
+    sw_feature = _ins("Shockwave", "SEM_FOCAL", start=200, end=2000)
+    sw_feature.source = "generator"
+    score, findings = evaluate([sw_accent, sw_feature], _plan([0.9]))
+    assert not any("high-attention" in f.detail for f in findings), (
+        "accent Shockwaves must not fire rule #4 — they are short punctuation, not features")
+
+
+def test_flat_flash_advisory_fires():
+    """An energetic section dominated by On/Strobe/Shimmer/Twinkle/Lightning triggers advisory."""
+    flat_flashes = [_ins(eff, "SEM_ALL") for eff in ("On", "Strobe", "Twinkle", "Shimmer", "On")]
+    motion = [_ins("Spirals", "SEM_FOCAL")]       # 1 motion / 6 total ≈ 17% < 30%
+    _, findings = evaluate(flat_flashes + motion, _plan([0.9]))
+    ff = [f for f in findings if "flat-flash" in f.detail]
+    assert ff and not ff[0].objective
+
+
+def test_flat_flash_advisory_silent_below_threshold():
+    """Sections with low flat-flash share don't trigger the advisory."""
+    from xlights_orchestrator.pipeline.tuning import FLAT_FLASH_SHARE_MAX
+    motion = [_ins("Spirals", "SEM_FOCAL") for _ in range(8)]
+    flash = [_ins("On", "SEM_ALL")]               # 1/9 ≈ 11% < FLAT_FLASH_SHARE_MAX
+    _, findings = evaluate(motion + flash, _plan([0.9]))
+    assert not any("flat-flash" in f.detail for f in findings)

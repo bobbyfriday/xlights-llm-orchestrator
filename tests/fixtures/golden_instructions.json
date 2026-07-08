@@ -66,15 +66,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -87,15 +98,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 1600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -131,15 +153,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 10600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -152,15 +185,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 11600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -196,15 +240,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 2600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -263,15 +318,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 7600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -329,15 +395,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 8600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -350,15 +427,26 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
+  "effect_type": "Shockwave",
   "end_ms": 9600,
   "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
    "T_TEXTCTRL_Fadein": "0.21",
    "T_TEXTCTRL_Fadeout": "0.21"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -392,12 +480,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 12250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 12600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -553,12 +653,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 12750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 13000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -571,12 +683,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 13250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 13600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -635,12 +759,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 13750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 14000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -653,12 +789,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 14250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 14600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -718,12 +866,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 14750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 15000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -736,12 +896,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 15250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 15600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -800,12 +972,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 15750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 16000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -818,12 +1002,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 16250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 16600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -883,12 +1079,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 16750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 17000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -901,12 +1109,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 17250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 17600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -965,12 +1185,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 17750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 18000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -983,12 +1215,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 18250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 18600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1048,12 +1292,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 18750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 19000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1066,12 +1322,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 19250,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 19600,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1130,12 +1398,24 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 19750,
-  "extra_settings": {},
+  "effect_type": "Shockwave",
+  "end_ms": 20000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5"
+  },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1197,14 +1477,25 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 20750,
+  "effect_type": "Shockwave",
+  "end_ms": 21000,
   "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
+   "T_TEXTCTRL_Fadeout": "0.5"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1265,14 +1556,25 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 21750,
+  "effect_type": "Shockwave",
+  "end_ms": 22000,
   "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
+   "T_TEXTCTRL_Fadeout": "0.5"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1334,14 +1636,25 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 22750,
+  "effect_type": "Shockwave",
+  "end_ms": 23000,
   "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
+   "T_TEXTCTRL_Fadeout": "0.5"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1402,14 +1715,25 @@
  },
  {
   "direct_settings": "",
-  "effect_type": "On",
-  "end_ms": 23750,
+  "effect_type": "Shockwave",
+  "end_ms": 24000,
   "extra_settings": {
-   "T_TEXTCTRL_Fadeout": "0.25"
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "76",
+   "E_SLIDER_Shockwave_End_Width": "43",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "5",
+   "T_TEXTCTRL_Fadeout": "0.5"
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "Shockwave#0",
   "on_top": false,
   "palette_colors": [
    "#FF0000"

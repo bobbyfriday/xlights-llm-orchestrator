@@ -31,9 +31,10 @@ from .semantic_groups import (
     RHYTHM_POOL,
     ChoreoVocabulary,
 )
-from .effect_meta import DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE
+from .effect_meta import DURATION_CELLABLE, DURATION_HIT, DURATION_PHRASE, SHOCKWAVE_SETTINGS
 from .tuning import (
     ACCENT_MS,
+    SHOCKWAVE_ACCENT_MS,
     BACKBEAT_MIN_DRUM_ONSETS,
     BASS_MAX_ONSETS,
     BED_BRIGHTNESS_FACTOR,
@@ -378,23 +379,33 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
     cycle = [b, a]
     chords_ms = rhythm.get("chords_ms") or []
 
+    _sw_looks = candidate_look_ids("Shockwave")
+    _sw_override: tuple[str, str] | None = ("Shockwave", _sw_looks[0]) if _sw_looks else None
+
     def _color_at(t: int) -> list[str]:
         c = _chord_color(t, chords_ms, cycle)
         return [c] if c else [cycle[0]]
 
-    def _mk(target: str, t: int, end: int, *, boost: float | None = None) -> EffectInstruction:
+    def _mk(target: str, t: int, end: int, *, boost: float | None = None,
+            eff_override: tuple[str, str] | None = None,
+            extra_override: dict | None = None) -> EffectInstruction:
+        _eff = eff_override[0] if eff_override else eff
+        _look = eff_override[1] if eff_override else look
         extra: dict[str, str] = {}
         if legato:                                       # legato accents breathe + soft-fade
-            extra.update(soft_edge_settings(eff, end - t, "legato"))
+            extra.update(soft_edge_settings(_eff, end - t, "legato"))
         if boost is not None:
             extra.update(brightness_setting(boost))      # the downbeat anchor reads bigger
-        return EffectInstruction(target=target, effect_type=eff, look_id=look,
+        if extra_override:
+            extra.update(extra_override)
+        return EffectInstruction(target=target, effect_type=_eff, look_id=_look,
                                  render_style="Per Model Default", palette_colors=_color_at(t),
                                  extra_settings=extra, start_ms=int(t), end_ms=int(end))
 
-    def _end_at(t: int, nxt: int | None) -> int:
+    def _end_at(t: int, nxt: int | None, dur_ms: int | None = None) -> int:
         cap = nxt if nxt is not None else section.end_ms
-        return min(cap, t + accent_ms, section.end_ms)
+        ms = dur_ms if dur_ms is not None else accent_ms
+        return min(cap, t + ms, section.end_ms)
 
     out: list[EffectInstruction] = []
 
@@ -428,9 +439,12 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
             # skip when a ring-fallback backbeat would double the backbone's own group this beat
             if not carrier_covers and n and roles.ring[i % n] == roles.backbeat:
                 continue
-            end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None)
+            end = _end_at(t, beats[i + 1] if i + 1 < len(beats) else None,
+                          dur_ms=SHOCKWAVE_ACCENT_MS)
             if end > t:
-                out.append(_mk(roles.backbeat, t, end))
+                out.append(_mk(roles.backbeat, t, end,
+                               eff_override=_sw_override,
+                               extra_override=SHOCKWAVE_SETTINGS if _sw_override else None))
 
     # -- SPARKLE: the strongest drum hits (not every bar) ----------------------------------------
     if roles.sparkle and drum_onsets:
@@ -438,9 +452,13 @@ def place_beat_accents(section: SectionPlan, rhythm: dict, available_groups: lis
         ranked = sorted(zip(drum_onsets, mags or [0.0] * len(drum_onsets)),
                         key=lambda tm: -tm[1])[:SPARKLE_TOP_N]
         for t, _m in sorted(ranked):
-            end = min(t + accent_ms, section.end_ms)
+            end = min(t + SHOCKWAVE_ACCENT_MS, section.end_ms)
             if end > t:
-                out.extend(_mk(g, t, end) for g in roles.sparkle)
+                out.extend(
+                    _mk(g, t, end, eff_override=_sw_override,
+                        extra_override=SHOCKWAVE_SETTINGS if _sw_override else None)
+                    for g in roles.sparkle
+                )
 
     # -- HERO: the melodic lead (guitar/piano/vocals) on the focal prop, on its real onsets -------
     mel_stem = section.follow_stem or rhythm.get("melodic_stem")

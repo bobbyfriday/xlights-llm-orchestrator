@@ -22,7 +22,7 @@ Rules:
     - warm / intense: Fire, Plasma, Meteors
     - drama / falling / winter: Meteors, Snowflakes, Snowstorm (whole-canvas groups)
     - peak / celebration: Fireworks, Spirals, Pinwheel, Fan, full-display washes
-    - impact accents (short): Shockwave, Strobe, Lightning
+    - impact accents (short): Shockwave (community default hit — median 600ms, radiating ring), Strobe (peak-payoff only, rare outside the climax), Lightning
     - music-reactive bars/levels: VU Meter (reacts to the audio at render — great on a band/matrix
       in energetic sections; code already adds one on the loud sections, so name it only when you
       want it somewhere specific)

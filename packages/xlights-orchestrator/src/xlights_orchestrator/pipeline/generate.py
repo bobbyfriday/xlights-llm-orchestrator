@@ -13,7 +13,7 @@ from .. import telemetry
 from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
 from ..models.registry import run_agent
-from ..qa.rules import clamp_hard_caps
+from ..qa.rules import clamp_hard_caps, demote_offpeak_hits
 from ..show_plan import EffectInstruction, KeyMoment, SectionEffects
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
@@ -380,6 +380,7 @@ async def realize_section(st: State, si: int, *, agent,
             kept.append(final_layer)
     counter_rotate_stacks(kept)   # same-type rotational stacks on one target → alternating spin
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
+    demote_offpeak_hits(kept, is_peak=(si in _peaks))  # off-peak: Strobe→Shockwave, cap Shimmer
     # ACCENTS, per treatment: full/pulse get the full beat layer, feature a sparse one, gesture/rest
     # none (the held breath stays still). A still (non-rhythmic) section never gets accents either.
     _accent_mode = _layers["accents"]

@@ -149,3 +149,76 @@ def test_sparkle_rides_the_strongest_drum_hits():
     # no drums → no sparkle
     assert not [a for a in place_beat_accents(sec, _rhythm([0, 500]), av)
                 if a.target == "SEM_SPINNERS"]
+
+
+def test_sparkle_uses_shockwave():
+    """Sparkle role emits Shockwave when a Shockwave look is available."""
+    from xlights_orchestrator.pipeline.effect_meta import SHOCKWAVE_SETTINGS
+    sec = SectionPlan(start_ms=0, end_ms=8000, target_groups=["G"], effect_family="On", intensity=0.9,
+                      pulse_groups=["G"])
+    av = ["G", "SEM_SPINNERS", "SEM_SIDE_CENTER"]
+    drums = [100, 600, 2000]
+    mags = [1.0, 0.9, 0.8]
+    acc = place_beat_accents(sec, _rhythm([0, 500], onsets=drums, drum_mags=mags), av)
+    sparkle = [a for a in acc if a.target == "SEM_SPINNERS"]
+    assert sparkle, "sparkle layer must fire"
+    for a in sparkle:
+        assert a.effect_type == "Shockwave", f"expected Shockwave, got {a.effect_type}"
+        assert a.end_ms - a.start_ms <= 600, "sparkle Shockwave must not exceed SHOCKWAVE_ACCENT_MS"
+        for k in SHOCKWAVE_SETTINGS:
+            assert a.extra_settings.get(k) == SHOCKWAVE_SETTINGS[k], f"missing SHOCKWAVE_SETTINGS key {k}"
+
+
+def test_backbeat_uses_shockwave():
+    """Backbeat role emits Shockwave on 2&4; the ring backbone stays On on the same group.
+
+    The backbeat falls back to a ring member (no pure-backbeat group survives ring extension), so
+    SEM_SNOWFLAKES appears twice per bar: On from the ring walk, Shockwave from the backbeat. The
+    test checks that the Shockwave accents exist, carry SHOCKWAVE_SETTINGS, and respect the
+    SHOCKWAVE_ACCENT_MS cap AND the beat interval."""
+    from xlights_orchestrator.pipeline.effect_meta import SHOCKWAVE_SETTINGS
+    from xlights_orchestrator.pipeline.tuning import SHOCKWAVE_ACCENT_MS, BACKBEAT_MIN_DRUM_ONSETS
+    drums = list(range(0, 4000, 250))                           # enough onsets to clear BACKBEAT_MIN
+    assert len(drums) >= BACKBEAT_MIN_DRUM_ONSETS
+    sec = SectionPlan(start_ms=0, end_ms=4000, target_groups=["G"], effect_family="On", intensity=0.9,
+                      pulse_groups=["G"])
+    beats = [0, 500, 1000, 1500, 2000, 2500, 3000, 3500]       # 120 BPM, 4/4
+    av = ["G", "SEM_SNOWFLAKES", "SEM_SIDE_CENTER"]
+    acc = place_beat_accents(sec, _rhythm(beats, onsets=drums), av)
+    sw_beats = [a for a in acc if a.target == "SEM_SNOWFLAKES" and a.effect_type == "Shockwave"]
+    on_beats = [a for a in acc if a.target == "SEM_SNOWFLAKES" and a.effect_type != "Shockwave"]
+    assert sw_beats, "backbeat Shockwave accents must be placed"
+    assert on_beats, "backbone ring must still place On accents on the same group"
+    for a in sw_beats:
+        dur = a.end_ms - a.start_ms
+        assert dur <= SHOCKWAVE_ACCENT_MS, "Shockwave must not exceed SHOCKWAVE_ACCENT_MS"
+        assert dur <= 500 + 1, "Shockwave must not exceed the beat interval (120 BPM = 500ms)"
+        for k in SHOCKWAVE_SETTINGS:
+            assert a.extra_settings.get(k) == SHOCKWAVE_SETTINGS[k], f"missing key {k}"
+
+
+def test_backbone_stays_on_effect():
+    """The ring (backbone) role stays On/accented — it's NOT switched to Shockwave."""
+    sec = SectionPlan(start_ms=0, end_ms=4000, target_groups=["G"], effect_family="On", intensity=0.9,
+                      pulse_groups=["G"])
+    beats = [0, 500, 1000, 1500]
+    av = ["G"]
+    acc = place_beat_accents(sec, _rhythm(beats), av)
+    ring = [a for a in acc if a.target == "G"]
+    assert ring, "backbone must produce accents"
+    assert all(a.effect_type != "Shockwave" for a in ring), "backbone ring must NOT use Shockwave"
+
+
+def test_legato_backbeat_skipped():
+    """Legato sections suppress the backbeat layer entirely (soft energy; no 2&4 punch)."""
+    from xlights_orchestrator.pipeline.tuning import BACKBEAT_MIN_DRUM_ONSETS
+    drums = list(range(0, 8000, 250))
+    assert len(drums) >= BACKBEAT_MIN_DRUM_ONSETS
+    sec = SectionPlan(start_ms=0, end_ms=8000, target_groups=["G"], effect_family="On",
+                      intensity=0.2,                            # below PHRASING_INTENSITY_THRESHOLD → legato
+                      pulse_groups=["G"], phrasing="legato")
+    beats = [i * 500 for i in range(16)]
+    av = ["G", "SEM_SNOWFLAKES"]
+    acc = place_beat_accents(sec, _rhythm(beats, onsets=drums), av)
+    backbeat = [a for a in acc if a.target == "SEM_SNOWFLAKES"]
+    assert not backbeat, "legato must suppress the backbeat"

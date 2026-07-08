@@ -30,16 +30,7 @@ SPARSE_MAX_INTENSITY = 0.5   # 'sparse_beat' = a strong beat with little else (l
 EVENT_MS = 220               # a point trigger's pop/flash duration (short — a drum hit)
 POP_BRIGHTNESS = 320         # 0–400 scale (100=normal): a pop is a bright FLASH, not a tint
 
-# A radiating Shockwave that reads on an accent prop — the user's hand-authored settings
-# (snowflakes/spinners, 0:30–0:44): a modest ring expanding from center. Overrides the look base.
-SHOCKWAVE_SETTINGS = {
-    "E_NOTEBOOK_Shockwave": "Position", "E_CHECKBOX_Shockwave_Blend_Edges": "1",
-    "E_CHECKBOX_Shockwave_Scale": "1", "E_SLIDER_Shockwave_Accel": "0",
-    "E_SLIDER_Shockwave_CenterX": "50", "E_SLIDER_Shockwave_CenterY": "50",
-    "E_SLIDER_Shockwave_Cycles": "1", "E_SLIDER_Shockwave_Start_Radius": "1",
-    "E_SLIDER_Shockwave_End_Radius": "76", "E_SLIDER_Shockwave_Start_Width": "5",
-    "E_SLIDER_Shockwave_End_Width": "43",
-}
+from .effect_meta import SHOCKWAVE_SETTINGS  # hand-authored radiating accent settings; defined there to break the beats→triggers cycle
 GROUP_POOLS = {"rhythm": RHYTHM_POOL, "accents": ACCENT_GROUPS, "focal": (HERO_GROUP,)}
 
 

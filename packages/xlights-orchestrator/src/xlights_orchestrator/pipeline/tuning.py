@@ -75,6 +75,8 @@ TEXT_SPACING_MS = 20_000      # minimum gap between two placed text moments (spa
 
 # -- durations (ms) ---------------------------------------------------------
 ACCENT_MS = 250                        # a short beat-accent punctuation
+SHOCKWAVE_ACCENT_MS = 600              # Shockwave sparkle/backbeat duration — community median (2026-07-07 corpus)
+SHIMMER_MAX_PER_SECTION = 2            # Shimmer is scarce in community shows; cap before it floods a section
 FLASH_MS = 150                         # a brief full-display white hit
 HIT_CELL_MS = 1200                     # a hit-class effect cell is at most this long
 
@@ -86,6 +88,8 @@ CELL_BARS = 2                 # a CELL-ABLE motion effect left long is chopped i
 # the Judge defends the new fabric without being spammed on legitimately mixed sections. Energetic
 # sections only (MOTION_SHARE_INTENSITY gate); quiet/rest/gesture exempt.
 MOTION_SHARE_MIN = 0.40        # energetic sections below this motion-effect share advise a fabric regression (I7 lever)
+# community ≈ 7.5% flat-flash, ours ≈ 42% (2026-07-07); 0.30 is deliberately loose to avoid Judge spam
+FLAT_FLASH_SHARE_MAX = 0.30    # energetic sections above this flat-flash share (On/Twinkle/Strobe/Shimmer/Lightning) get an advisory
 
 # -- refine loop control ----------------------------------------------------
 REGRESS_MARGIN = 1   # objective_score points; a drop beyond this reverts the revision

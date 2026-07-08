@@ -503,6 +503,7 @@
   "effect_type": "Butterfly",
   "end_ms": 24000,
   "extra_settings": {
+   "E_CHOICE_Butterfly_Direction": "Normal",
    "E_SLIDER_Butterfly_Speed": "37",
    "T_CHOICE_LayerMethod": "Max",
    "T_TEXTCTRL_Fadeout": "4"

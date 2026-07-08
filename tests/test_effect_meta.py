@@ -8,6 +8,7 @@ diverges a derived view fails here (locally) rather than only as a golden-snapsh
 from __future__ import annotations
 
 from xlights_orchestrator.pipeline.effect_meta import (
+    DIRECTION_KNOBS,
     DURATION_CELLABLE,
     DURATION_HIT,
     DURATION_PHRASE,
@@ -56,3 +57,15 @@ def test_energy_band_anchor_values():
 
 def test_derived_views_non_empty():
     assert SPEED_KEYS and ENERGY_BAND and DURATION_CELLABLE and MOTION_EFFECTS
+
+
+def test_spirals_direction_knobs():
+    # Corpus-observed: 84 looks carry E_SLIDER_Spirals_Rotation, 16 negative → ltr=+20, rtl=-20
+    assert DIRECTION_KNOBS["Spirals"]["ltr"] == ("E_SLIDER_Spirals_Rotation", "20")
+    assert DIRECTION_KNOBS["Spirals"]["rtl"] == ("E_SLIDER_Spirals_Rotation", "-20")
+
+
+def test_ripple_direction_knobs():
+    # Corpus-observed: 22 looks carry E_SLIDER_Ripple_Rotation (13 more via value-curve)
+    assert DIRECTION_KNOBS["Ripple"]["ltr"] == ("E_SLIDER_Ripple_Rotation", "20")
+    assert DIRECTION_KNOBS["Ripple"]["rtl"] == ("E_SLIDER_Ripple_Rotation", "-20")

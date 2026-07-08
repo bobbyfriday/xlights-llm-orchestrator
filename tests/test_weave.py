@@ -10,6 +10,7 @@ from xlights_orchestrator.pipeline.weave import (
     CARRIER_ROTATION,
     carrier_covers,
     cell_budget,
+    counter_rotate_stacks,
     diversify_carrier,
     expand_weave,
     fallback_weave,
@@ -296,12 +297,31 @@ def test_expand_composite_stacks_layers_with_blend():
     ins = expand_composite(rec, _sec(intensity=0.9), 0.9, ["SEM_FOCAL"])
     assert [i.layer for i in ins] == [0, 1]                       # two stacked layers
     assert all(i.target == "SEM_FOCAL" for i in ins)              # same group
-    assert all(i.effect_type == "Morph" for i in ins)            # the kaleidoscope = two Morphs
+    assert all(i.effect_type == "Spirals" for i in ins)           # kaleidoscope = two counter-rotating Spirals
     assert ins[0].extra_settings.get("T_CHOICE_LayerMethod") is None      # base = Normal
     assert ins[1].extra_settings.get("T_CHOICE_LayerMethod") == "Max"      # upper blends Max
+    # counter-rotation: opposite E_SLIDER_Spirals_Rotation signs
+    rot0 = ins[0].extra_settings.get("E_SLIDER_Spirals_Rotation")
+    rot1 = ins[1].extra_settings.get("E_SLIDER_Spirals_Rotation")
+    assert rot0 and rot1 and int(rot0) * int(rot1) < 0   # opposite signs — real motion contrast
     # layers differ by palette rotation so they COMBINE distinctly (not one hiding the other)
     assert ins[0].palette_colors != ins[1].palette_colors
     assert ins[0].start_ms == ins[1].start_ms                     # share the section span
+
+
+def test_bloom_composite_all_layers_have_direction():
+    """Every bloom layer's direction resolves to a non-empty xLights setting (no silent no-ops)."""
+    from xlights_orchestrator.pipeline.weave import (
+        CURATED_COMPOSITES, direction_setting,
+    )
+    layers = CURATED_COMPOSITES["bloom"]
+    for i, lyr in enumerate(layers):
+        if lyr.direction:
+            ds = direction_setting(lyr.effect_type, lyr.direction, i)
+            assert ds, (
+                f"bloom layer {i} ({lyr.effect_type}/{lyr.direction}) returned empty "
+                "direction_setting — check DIRECTION_KNOBS mapping"
+            )
 
 
 def test_expand_composite_needs_two_layers_and_valid_groups():
@@ -329,6 +349,73 @@ def test_canon_transition_maps_known_drops_unknown():
     assert _canon_transition("dissolve") == "Dissolve"
     assert _canon_transition("fade") == ""          # a fade-time, not a transition type → dropped
     assert _canon_transition("") == "" and _canon_transition(None) == ""
+
+
+# -- counter-rotation ---------------------------------------------------------
+
+def test_two_spirals_recipes_on_same_groups_get_ltr_rtl():
+    """_valid_recipes assigns ltr/rtl to same-type rotational pairs with no explicit direction."""
+    w = SectionWeave(cells=[
+        CellRecipe(effect_type="Spirals", role="texture", groups=["SEM_YARD"], cell_beats=4),
+        CellRecipe(effect_type="Spirals", role="texture", groups=["SEM_YARD"], cell_beats=4),
+    ])
+    out = expand_weave(_sec(), w, _rhythm(8), 0.8, GROUPS)
+    spirals = [c for c in out if c.effect_type == "Spirals"]
+    assert spirals
+    rotations = {c.extra_settings.get("E_SLIDER_Spirals_Rotation") for c in spirals}
+    assert "20" in rotations and "-20" in rotations   # both directions present
+
+
+def test_counter_rotate_stacks_flips_upper_overlapping():
+    """counter_rotate_stacks sets rtl on the 2nd overlapping Spirals on the same target."""
+    from xlights_orchestrator.show_plan import EffectInstruction
+    a = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=8000)
+    b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=8000, layer=1)
+    counter_rotate_stacks([a, b])
+    assert a.extra_settings.get("E_SLIDER_Spirals_Rotation") == "20"
+    assert b.extra_settings.get("E_SLIDER_Spirals_Rotation") == "-20"
+
+
+def test_counter_rotate_stacks_is_idempotent():
+    """Calling counter_rotate_stacks twice leaves directions unchanged."""
+    from xlights_orchestrator.show_plan import EffectInstruction
+    a = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=8000)
+    b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=8000, layer=1)
+    counter_rotate_stacks([a, b])
+    rot_a = a.extra_settings["E_SLIDER_Spirals_Rotation"]
+    rot_b = b.extra_settings["E_SLIDER_Spirals_Rotation"]
+    counter_rotate_stacks([a, b])   # second call — should be no-op
+    assert a.extra_settings["E_SLIDER_Spirals_Rotation"] == rot_a
+    assert b.extra_settings["E_SLIDER_Spirals_Rotation"] == rot_b
+
+
+def test_counter_rotate_stacks_explicit_direction_survives():
+    """An instruction already carrying the direction key is not overwritten."""
+    from xlights_orchestrator.show_plan import EffectInstruction
+    a = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=8000,
+                          extra_settings={"E_SLIDER_Spirals_Rotation": "80"})
+    b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=8000, layer=1)
+    counter_rotate_stacks([a, b])
+    assert a.extra_settings["E_SLIDER_Spirals_Rotation"] == "80"   # explicit wins
+    assert b.extra_settings["E_SLIDER_Spirals_Rotation"] == "-20"  # other gets rtl
+
+
+def test_counter_rotate_stacks_non_overlapping_untouched():
+    """Non-overlapping same-type instructions (sequential) each reset to ltr."""
+    from xlights_orchestrator.show_plan import EffectInstruction
+    a = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=0, end_ms=4000)
+    b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
+                          start_ms=4000, end_ms=8000)
+    counter_rotate_stacks([a, b])
+    assert a.extra_settings.get("E_SLIDER_Spirals_Rotation") == "20"  # ltr (first)
+    assert b.extra_settings.get("E_SLIDER_Spirals_Rotation") == "20"  # ltr (non-overlapping reset)
 
 
 def test_cell_drops_invalid_transition_keeps_valid():

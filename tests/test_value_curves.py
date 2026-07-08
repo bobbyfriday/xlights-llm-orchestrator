@@ -11,7 +11,7 @@ from xlights_core.knowledge.settings import (
     parse_value_curve,
     value_curve_is_active,
 )
-from xlights_core.knowledge.value_curves import brightness_ramp, value_curve_setting
+from xlights_core.knowledge.value_curves import brightness_ramp, motion_curve_setting, value_curve_setting
 
 
 def run(c):
@@ -57,6 +57,24 @@ def test_extra_settings_appended_to_placement():
     assert c.settings.count("C_VALUECURVE_Brightness=") == 1
     # value-curve value has no comma → still a clean key=value list
     assert parse_value_curve(c.settings.split("C_VALUECURVE_Brightness=")[1].split(",")[0])["Type"] == "Ramp"
+
+
+def test_motion_curve_sign_flips_spin_ramp():
+    """sign=-1 makes the spin ramp's P2 endpoint negative (counter-clockwise)."""
+    pos = motion_curve_setting("Spirals", "rotation", 0.5)
+    neg = motion_curve_setting("Spirals", "rotation", 0.5, sign=-1)
+    p2_pos = float(parse_value_curve(pos["E_VALUECURVE_Spirals_Rotation"])["P2"])
+    p2_neg = float(parse_value_curve(neg["E_VALUECURVE_Spirals_Rotation"])["P2"])
+    assert p2_pos > 0, "positive sign should produce a positive ramp endpoint"
+    assert p2_neg < 0, "sign=-1 should produce a negative ramp endpoint"
+    assert abs(p2_pos) == abs(p2_neg)   # same magnitude, opposite sign
+
+
+def test_motion_curve_sign_ignored_by_sweep():
+    """sweep-kind curves ignore sign — their range is unsigned (position/radius)."""
+    default = motion_curve_setting("Fill", "position", 0.5)
+    signed = motion_curve_setting("Fill", "position", 0.5, sign=-1)
+    assert default == signed                                   # sweep: sign has no effect
 
 
 def test_no_extra_settings_unchanged():

@@ -6,7 +6,9 @@ from types import SimpleNamespace
 
 from xlights_orchestrator.pipeline.beats import (
     MAX_ACCENTS_PER_SECTION,
+    PHRASE_MIN_BARS,
     place_beat_accents,
+    place_phrase_gesture,
     section_rhythm,
 )
 from xlights_orchestrator.show_plan import SectionPlan
@@ -222,3 +224,65 @@ def test_legato_backbeat_skipped():
     acc = place_beat_accents(sec, _rhythm(beats, onsets=drums), av)
     backbeat = [a for a in acc if a.target == "SEM_SNOWFLAKES"]
     assert not backbeat, "legato must suppress the backbeat"
+
+
+# -- place_phrase_gesture -----------------------------------------------------
+
+_PHRASE_GROUPS = ["SEM_FOCAL", "SEM_ALL", "SEM_ARCHES"]
+_PHRASE_RHYTHM = {"beats_ms": [], "beats_per_bar": 4, "tempo": 120,
+                  "prominent_stem": None, "melodic_stem": None,
+                  "onsets_by_stem": {}, "onset_mag_by_stem": {}, "chords_ms": []}
+
+
+def _phrase_sec(bars: int, intensity: float = 0.8) -> SectionPlan:
+    # 120bpm 4/4 → bar = 2000ms
+    end = bars * 2000
+    return SectionPlan(start_ms=0, end_ms=end, target_groups=_PHRASE_GROUPS,
+                       effect_family="On", intensity=intensity, palette=["Gold", "Blue"])
+
+
+def test_phrase_gesture_emits_one_instruction_four_bars():
+    """Full-treatment 8-bar section → exactly one phrase instruction spanning ~4 bars, starting
+    at the 2nd bar boundary (bar_ms=2000ms at 120bpm)."""
+    pg = place_phrase_gesture(_phrase_sec(8), _PHRASE_RHYTHM, 0.8, _PHRASE_GROUPS, seed=0)
+    assert pg is not None
+    assert not pg.source                 # source is tagged by the caller (realize_section)
+    bar_ms = 2000.0
+    assert pg.start_ms == int(bar_ms)    # enters at the 2nd bar
+    span = pg.end_ms - pg.start_ms
+    assert abs(span - 4 * bar_ms) < 100  # ~4 bars (within rounding)
+    assert pg.effect_type in ("Morph", "Curtain", "Fill")
+
+
+def test_phrase_gesture_same_label_same_effect():
+    """Two sections with the same label (same seed + intensity) produce the same effect type."""
+    from xlights_orchestrator.pipeline.weave import label_seed
+    seed = label_seed("chorus")
+    pg1 = place_phrase_gesture(_phrase_sec(8, intensity=0.8), _PHRASE_RHYTHM, 0.8, _PHRASE_GROUPS, seed=seed)
+    pg2 = place_phrase_gesture(_phrase_sec(12, intensity=0.8), _PHRASE_RHYTHM, 0.8, _PHRASE_GROUPS, seed=seed)
+    assert pg1 is not None and pg2 is not None
+    assert pg1.effect_type == pg2.effect_type
+
+
+def test_phrase_gesture_skips_quiet_section():
+    """A section below PHRASE_MIN_INTENSITY (0.4) gets no gesture."""
+    pg = place_phrase_gesture(_phrase_sec(8), _PHRASE_RHYTHM, 0.3, _PHRASE_GROUPS, seed=0)
+    assert pg is None
+
+
+def test_phrase_gesture_skips_short_section():
+    """Sections shorter than PHRASE_MIN_BARS (6) get no gesture (4 bars is too short)."""
+    pg = place_phrase_gesture(_phrase_sec(4), _PHRASE_RHYTHM, 0.8, _PHRASE_GROUPS, seed=0)
+    assert pg is None
+    pg6 = place_phrase_gesture(_phrase_sec(PHRASE_MIN_BARS), _PHRASE_RHYTHM, 0.8, _PHRASE_GROUPS, seed=0)
+    assert pg6 is not None
+
+
+def test_phrase_gesture_high_energy_steps_over_curtain_to_morph():
+    """At peak intensity (sec_band=5), Curtain and Fill (band 2-3) are ≥2 away; Morph (2-4) passes.
+
+    seed=1 starts the rotation at Curtain; the step-over logic must skip Curtain→Fill→Morph."""
+    pg = place_phrase_gesture(_phrase_sec(8, intensity=1.0), _PHRASE_RHYTHM, 1.0,
+                              _PHRASE_GROUPS, seed=1)
+    assert pg is not None
+    assert pg.effect_type == "Morph", f"expected Morph (step-over from Curtain), got {pg.effect_type}"

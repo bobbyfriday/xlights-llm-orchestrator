@@ -667,6 +667,71 @@ def place_vu_meter(section: SectionPlan, available_groups: list[str], intensity:
         start_ms=section.start_ms, end_ms=section.end_ms)
 
 
+# -- Phrase gesture: a single traveling phrase-class effect that enters at the section's 2nd bar --
+PHRASE_ROTATION = ("Morph", "Curtain", "Fill")   # community staples the weave cannot cell
+PHRASE_MIN_BARS = 6      # skip when the section is too short to accommodate a 4-bar gesture
+PHRASE_GESTURE_BARS = 4  # the span of the gesture (community-style: enters, then exits by section end)
+PHRASE_MIN_INTENSITY = 0.4
+
+
+def _section_energy_band(intensity: float) -> int:
+    return 1 + round(4 * max(0.0, min(1.0, intensity or 0.0)))
+
+
+def place_phrase_gesture(section: SectionPlan, rhythm: dict, intensity: float,
+                         available_groups: list[str], *,
+                         seed: int = 0,
+                         vocab: "ChoreoVocabulary | None" = None) -> "EffectInstruction | None":
+    """One bounded phrase gesture (Morph/Curtain/Fill) per qualifying full/pulse section.
+
+    Enters at the section's 2nd bar boundary so the section can establish first, spans 4 bars,
+    and is clipped to section end. Seed-keyed so recurring labels always pick the same rotation
+    member (every chorus Morphs). Steps over rotation members whose energy band is ≥2 from the
+    section's band. Returns None when the section is too short, quiet, or has no valid target."""
+    if (intensity or 0.0) < PHRASE_MIN_INTENSITY:
+        return None
+    bar = _bar_ms(rhythm)
+    section_bars = (section.end_ms - section.start_ms) / bar if bar > 0 else 0
+    if section_bars < PHRASE_MIN_BARS:
+        return None
+    sec_band = _section_energy_band(intensity)
+    # Rotate through PHRASE_ROTATION; step over members whose energy band is ≥2 away.
+    from .effect_meta import ENERGY_BAND as _EB
+    effect = None
+    for offset in range(len(PHRASE_ROTATION)):
+        candidate = PHRASE_ROTATION[(seed + offset) % len(PHRASE_ROTATION)]
+        eb = _EB.get(candidate)
+        if eb and (sec_band < eb[0] - 1 or sec_band > eb[1] + 1):
+            continue
+        effect = candidate
+        break
+    if effect is None:
+        return None
+    looks = candidate_look_ids(effect)
+    if not looks:
+        return None
+    v = vocab or DEFAULT_VOCAB
+    target = (v.hero_group if v.hero_group in available_groups
+              else next((g for g in v.peak_broad if g in available_groups), None))
+    if target is None:
+        return None
+    # 2nd bar boundary: the gesture enters AFTER the first bar so the section establishes.
+    start = int(section.start_ms + bar)
+    end = int(min(start + PHRASE_GESTURE_BARS * bar, section.end_ms))
+    if end <= start:
+        return None
+    render_style = "Per Model Default" if effect == "Morph" else "Per Preview"
+    extra: dict[str, str] = {}
+    extra.update(effect_speed_setting(effect, intensity))
+    palette = effect_palette(section.palette or [], effect, 0)
+    return EffectInstruction(
+        target=target, effect_type=effect, look_id=looks[seed % len(looks)],
+        render_style=render_style,
+        palette_colors=palette or list(section.palette or []),
+        extra_settings=extra,
+        start_ms=start, end_ms=end)
+
+
 def _bar_ms(rhythm: dict) -> float:
     bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR
     tempo = rhythm.get("tempo")

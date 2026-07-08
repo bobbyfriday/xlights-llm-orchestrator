@@ -173,7 +173,9 @@ def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
 
 # Rotate the cell-fabric carrier across sections so a show isn't wall-to-wall SingleStrand.
 # All are cell-able AND chase-family AND direction-supporting, with looks in the catalog.
-CARRIER_ROTATION = ("SingleStrand", "Bars", "Garlands", "Wave")
+# Garlands dropped (4× its community share from deterministic rotation alone); SingleStrand
+# double-weighted (community's 28.5% workhorse). Garlands remains LLM-choosable.
+CARRIER_ROTATION = ("SingleStrand", "Bars", "SingleStrand", "Wave")
 # "plain" carriers we rotate; a deliberately distinctive carrier the LLM chose (Spirals,
 # Pinwheel, Ripple, Butterfly, Meteors) is preserved — only the default chase/On gets varied.
 _ROTATABLE_CARRIERS = set(_CHASE_FAMILY) | {"On"}
@@ -226,8 +228,10 @@ def fallback_weave(section: SectionPlan, available_groups: list[str],
                     if t in DURATION_CELLABLE and t != carrier), None)
     tex_groups = [g for g in section.target_groups
                   if g in available_groups and g not in ACCENT_GROUPS]
-    if texture and tex_groups:
-        cells.append(CellRecipe(effect_type=texture, role="texture", cell_beats=4,
+    if tex_groups:
+        # Ripple: community 3.1% (55 mined looks), cellable — the fallback when the section's
+        # own effect_types yield nothing cellable, rather than omitting the texture layer.
+        cells.append(CellRecipe(effect_type=texture or "Ripple", role="texture", cell_beats=4,
                                 alternation="sparse", groups=tex_groups))
     return SectionWeave(cells=cells)
 

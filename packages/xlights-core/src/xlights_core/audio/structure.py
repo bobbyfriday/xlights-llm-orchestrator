@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-from .schema import Segment, SongAnalysis
+from .schema import STRUCTURE_VERSION, Segment, SongAnalysis
 
 log = logging.getLogger(__name__)
 
@@ -224,3 +224,25 @@ def refine_segments_for_instrumental(analysis: SongAnalysis,
     if lyr.get("lines"):
         return False                                    # lyric refiner's territory
     return cap_long_segments(analysis, max_section_s, min_piece_s)
+
+
+def ensure_structure(analysis: SongAnalysis) -> bool:
+    """Migrate a cached analysis whose segmentation predates the current STRUCTURE_VERSION,
+    re-deriving segment boundaries IN PLACE from its already-cached lyrics + beats — no
+    re-analysis, no lyric re-alignment (which may be unreproducible). This is what lets a
+    segmentation-logic fix (e.g. downbeat alignment) reach shows built before it WITHOUT the
+    blunt instrument of an ANALYZER_VERSION bump (which would discard stems and lyric alignment).
+
+    Returns True when the analysis was migrated (caller should re-persist), False when already
+    current. Idempotent: a second call is a no-op once stamped. Marker-less lyric text still
+    routes through the instrumental cap, matching the fresh-analysis path.
+    """
+    if (getattr(analysis, "structure_version", 0) or 0) >= STRUCTURE_VERSION:
+        return False
+    lyr = getattr(analysis, "lyrics", None) or {}
+    if lyr.get("sections"):
+        refine_segments_with_lyrics(analysis)   # re-snap marker cuts to downbeats + re-cap
+    else:
+        cap_long_segments(analysis)             # instrumental / marker-less: re-cap at seams
+    analysis.structure_version = STRUCTURE_VERSION
+    return True

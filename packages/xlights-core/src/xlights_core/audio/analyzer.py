@@ -71,8 +71,17 @@ class AudioAnalyzer:
             # Augment-and-resave: re-run ONLY the (expensive) separation step when the cached
             # stems are missing OR don't match the configured model (e.g. a 4-stem cache under
             # the 6-stem model), then rewrite — auto-upgrades without recomputing the analysis.
+            changed = False
             if stems and _stems_need_refresh(analysis):
                 self._attach_stems(analysis, path, key)
+                changed = True
+            # Migrate-and-resave: re-derive segment boundaries in place when the cached
+            # segmentation predates the current STRUCTURE_VERSION (e.g. pre-downbeat-alignment) —
+            # cheap, from cached lyrics/beats, no re-analysis or lyric re-alignment.
+            from .structure import ensure_structure
+            if ensure_structure(analysis):
+                changed = True
+            if changed:
                 cache_file.write_text(analysis.model_dump_json())
             return analysis
 
@@ -80,6 +89,10 @@ class AudioAnalyzer:
         analysis = fusion.build(str(path), y, sr)
         if stems:
             self._attach_stems(analysis, path, key)
+        # A freshly built analysis is current-logic by construction — stamp it so a bare
+        # analyze()/reload is stable (no spurious migration) and only genuinely older caches migrate.
+        from .schema import STRUCTURE_VERSION
+        analysis.structure_version = STRUCTURE_VERSION
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         cache_file.write_text(analysis.model_dump_json())
@@ -103,9 +116,11 @@ class AudioAnalyzer:
         # stripped at fetch) re-attach once and upgrade; marker-less songs never re-align again.
         analysis.lyrics = {"title": title, "artist": artist, "text": text,
                            "headers_fetch": True, **aligned}
+        from .schema import STRUCTURE_VERSION
         from .structure import cap_long_segments, refine_segments_with_lyrics
         refined = refine_segments_with_lyrics(analysis)  # lyric markers → the real structure
         capped = cap_long_segments(analysis)             # cap runs regardless (per its docstring):
+        analysis.structure_version = STRUCTURE_VERSION   # segments now reflect current logic
         if refined or capped:                            # marker-less lyric songs need it too
             self._refresh_section_instrumentation(analysis, key)
         try:
@@ -117,9 +132,11 @@ class AudioAnalyzer:
     def refine_instrumental(self, analysis: SongAnalysis, path: str) -> bool:
         """Subdivide an instrumental's long sections at musical seams, re-saving the cache
         (augment-and-resave, like attach_lyrics). False when the analysis is untouched."""
+        from .schema import STRUCTURE_VERSION
         from .structure import refine_segments_for_instrumental
         if not refine_segments_for_instrumental(analysis):
             return False
+        analysis.structure_version = STRUCTURE_VERSION   # segments now reflect current logic
         key = _content_key(path)
         self._refresh_section_instrumentation(analysis, key)
         try:

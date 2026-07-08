@@ -26,7 +26,8 @@ from ..pipeline.effect_meta import (  # re-export: tests + external callers (wea
     MOTION_EFFECTS,
 )
 # Bar-math + motion-share dials moved to the tuning module's refine-control / behavior sections.
-from ..pipeline.tuning import MOTION_SHARE_MIN  # re-export
+from ..pipeline.tuning import FLAT_FLASH_SHARE_MAX, MOTION_SHARE_MIN, SHIMMER_MAX_PER_SECTION  # re-export
+from ..pipeline.effect_meta import SHOCKWAVE_SETTINGS  # for demote_offpeak_hits vocabulary swap
 
 _BED_TARGET_PREFIXES = ("SEM_BAND_",)                  # band rows MAY hold long beds
 _BED_TARGETS = {"SEM_ALL", "SEM_YARD"}                 # exact — NOT SEM_ALL_LESS_* (those weave)
@@ -38,6 +39,7 @@ _QUIET_TREATMENTS = frozenset({"rest", "gesture"})
 
 TEXTURE = {"Plasma", "Fire", "Liquid", "Life"}                   # rule #2: never on linear props
 FEATURES = {"Kaleidoscope", "Shader", "Shockwave", "Fireworks"}  # rule #4: one at a time
+_FLAT_FLASH_EFFECTS = {"On", "Twinkle", "Strobe", "Shimmer", "Lightning"}
 _LINEAR_PREFIXES = ("SEM_ARCHES", "SEM_OUTLINE", "SEM_CANES", "SEM_ICICLES", "SEM_PATH")
 
 STROBE_CAP_MS = 1000          # rule #7, verbatim: "Strobe ≤ ~1s per instance"
@@ -102,7 +104,7 @@ def evaluate(instructions, plan, manifest=None) -> tuple[int, list[Finding]]:
                     objective=True, section_index=si,
                     detail=f"{ins.effect_type} (energy {band[0]}–{band[1]}) in an energy-"
                            f"{sec_band} section — a defect, not a choice (catalog rule #3)"))
-        if ins.effect_type in FEATURES:
+        if ins.effect_type in FEATURES and getattr(ins, "source", "") != "accents":
             features.append(ins)
     # #4 — one high-attention feature MOMENT at a time. The same effect on many groups in the
     # same window is ONE gesture, so merge same-type overlapping spans into events first.
@@ -155,6 +157,15 @@ def evaluate(instructions, plan, manifest=None) -> tuple[int, list[Finding]]:
                        f"energetic section — mostly static/punctuation effects; weave motion "
                        f"cells (chases/spirals/ripples) instead (2026-07 re-measurement target "
                        f"≥ 45%; real shows clear it — docs/effects-layering-analysis-2026-07.md)"))
+        ff_share = sum(1 for x in group if x.effect_type in _FLAT_FLASH_EFFECTS) / len(group)
+        if ff_share > FLAT_FLASH_SHARE_MAX:
+            findings.append(Finding(
+                scope=f"section {si}", severity="warn", metric="rules",
+                objective=False, section_index=si,
+                detail=f"flat-flash share {ff_share:.0%} (> {FLAT_FLASH_SHARE_MAX:.0%}) in an "
+                       f"energetic section — On/Twinkle/Strobe/Shimmer/Lightning dominate; "
+                       f"community avg ≈ 7.5%; use Shockwave for hits, motion cells for the bed "
+                       f"(2026-07 corpus: community 7.5% vs ours 42%)"))
     return score, findings
 
 
@@ -169,4 +180,42 @@ def clamp_hard_caps(instructions, tempo_bpm: float | None) -> int:
         if cap and ins.end_ms - ins.start_ms > cap:
             ins.end_ms = ins.start_ms + cap
             n += 1
+    return n
+
+
+def demote_offpeak_hits(instructions: list, *, is_peak: bool) -> int:
+    """Off-peak vocabulary hygiene: Strobe → Shockwave substitution + Shimmer excess pruning.
+
+    In non-peak sections Strobe is community-rare (peak payoff only); swap each Strobe to
+    Shockwave in-place (same timing/target, swap effect_type + look_id + extra_settings).
+    Cap Shimmer to SHIMMER_MAX_PER_SECTION per section, keeping the earliest occurrences.
+
+    Returns the number of instructions changed or removed.
+    In-place mutation of `instructions`; does NOT add/reorder rows."""
+    from ..agents.catalog import candidate_look_ids
+    if is_peak:
+        return 0
+    sw_looks = candidate_look_ids("Shockwave")
+    sw_look = sw_looks[0] if sw_looks else None
+    n = 0
+    shimmer_by_section: dict[int, list[int]] = {}
+    for i, ins in enumerate(instructions):
+        si = getattr(ins, "section_index", None) or 0
+        if ins.effect_type == "Strobe":
+            ins.effect_type = "Shockwave"
+            if sw_look:
+                ins.look_id = sw_look
+                ins.extra_settings = {**ins.extra_settings, **SHOCKWAVE_SETTINGS}
+            n += 1
+        elif ins.effect_type == "Shimmer":
+            shimmer_by_section.setdefault(si, []).append(i)
+    # drop excess Shimmers: keep the earliest SHIMMER_MAX_PER_SECTION per section
+    to_remove: set[int] = set()
+    for idxs in shimmer_by_section.values():
+        if len(idxs) > SHIMMER_MAX_PER_SECTION:
+            to_remove.update(idxs[SHIMMER_MAX_PER_SECTION:])
+    if to_remove:
+        for idx in sorted(to_remove, reverse=True):
+            instructions.pop(idx)
+        n += len(to_remove)
     return n

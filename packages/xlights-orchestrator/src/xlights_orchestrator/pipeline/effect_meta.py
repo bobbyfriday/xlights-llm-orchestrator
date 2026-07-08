@@ -205,3 +205,17 @@ def duration_class(effect_type: str) -> DurationClass:
     """The effect's catalog §2.1 duration class ('free' for unlisted effects)."""
     m = EFFECT_META.get(effect_type)
     return m.duration_class if m else "free"
+
+
+# -- Shockwave accent settings (shared across beats.py + triggers.py) -------------------------
+# A radiating Shockwave that reads on an accent prop — hand-authored settings (snowflakes/spinners,
+# 0:30–0:44): a modest ring expanding from center. Overrides the frozen look base via extra_settings.
+# Moved here (from triggers.py) so beats.py can import it without creating an import cycle.
+SHOCKWAVE_SETTINGS: dict[str, str] = {
+    "E_NOTEBOOK_Shockwave": "Position", "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+    "E_CHECKBOX_Shockwave_Scale": "1", "E_SLIDER_Shockwave_Accel": "0",
+    "E_SLIDER_Shockwave_CenterX": "50", "E_SLIDER_Shockwave_CenterY": "50",
+    "E_SLIDER_Shockwave_Cycles": "1", "E_SLIDER_Shockwave_Start_Radius": "1",
+    "E_SLIDER_Shockwave_End_Radius": "76", "E_SLIDER_Shockwave_Start_Width": "5",
+    "E_SLIDER_Shockwave_End_Width": "43",
+}

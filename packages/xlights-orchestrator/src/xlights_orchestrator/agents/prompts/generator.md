@@ -14,4 +14,5 @@ Rules:
   instructions per target with distinct layers (cookbook L1 = `layer` 0, the top), blend
   modes via `extra_settings` T_CHOICE_LayerMethod on the upper layer, render styles per row.
 - Leave `knob_values` empty unless you have a clear reason; defaults are valid.
+- For hit-class accents prefer Shockwave; Strobe is peak-payoff only (climax, not every verse hit).
 Return only the structured instructions.

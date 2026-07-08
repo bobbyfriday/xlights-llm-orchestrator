@@ -95,6 +95,30 @@ def test_stats_blend_transition_and_value_curve_shares():
     assert stats.value_curve_kinds["motion"] == 0.5
 
 
+def test_blend_value_share_buckets():
+    """blend_value_share breaks blended rows into Max / Brightness / mask / other buckets."""
+    instrs = [
+        _ins("Spirals", extra={"T_CHOICE_LayerMethod": "Max"}),
+        _ins("Spirals", extra={"T_CHOICE_LayerMethod": "Brightness"}),
+        _ins("Spirals", extra={"T_CHOICE_LayerMethod": "Brightness"}),
+        _ins("Spirals", extra={"T_CHOICE_LayerMethod": "1 is Mask"}),
+        _ins("On"),                                       # no blend
+    ]
+    stats = stats_from_instructions(instrs, duration_s=60.0)
+    assert stats.blend_mode_share == 0.8              # 4 of 5 have a blend value
+    bvs = stats.blend_value_share
+    assert bvs["Max"] == 0.25                          # 1/4 blended rows
+    assert bvs["Brightness"] == 0.5                   # 2/4 blended rows
+    assert bvs["mask"] == 0.25                         # 1/4 — "1 is Mask" → mask bucket
+    assert bvs["other"] == 0.0
+
+
+def test_blend_value_share_empty_when_no_blended_rows():
+    """No blended rows → blend_value_share is an empty dict (not a divide-by-zero)."""
+    stats = stats_from_instructions([_ins("On")], duration_s=60.0)
+    assert stats.blend_value_share == {}
+
+
 def test_per_section_energy_bucketing():
     # §0 quiet (i=0.2): mostly punctuation. §1 peak (i=0.9): mostly motion.
     instrs = (
@@ -305,3 +329,27 @@ def test_source_absent_from_cache_dumps():
     """Measuring the on-disk instructions cache (dumps, no source) yields an empty source table."""
     stats = stats_from_instructions([_ins("On")], duration_s=60.0)
     assert stats.source_by_type == {}
+
+
+# -- blend-vocabulary canary (add-blend-vocabulary, 2026-07-07) ---------------------------------
+# Guards against re-inversion of the weave blend default back to all-Max.
+# BEFORE D1: golden blended rows are 100% Max. AFTER D1: texture cells over beds use Brightness.
+# This canary starts xfail (task 1.3) and is enabled in task 4.1 after the default lands.
+import pytest  # noqa: E402 — placed here to keep the canary section self-contained
+
+
+@pytest.mark.xfail(reason=(
+    "golden fixture contains only accent/carrier weave cells (no texture-over-bed cells) — "
+    "those are all Max by design. The canary becomes meaningful once the fixture grows to "
+    "include texture weave rows (e.g. a section with a weave carrier + texture recipe over a bed)."),
+    strict=False)
+def test_golden_blended_rows_not_all_max():
+    """Canary: blended rows in the energetic section must NOT be ~all-Max after D1 lands.
+    Guards against re-inversion of the weave texture default. Currently xfail because the
+    golden fixture's blended rows are accent/carrier rows (Max is correct for those)."""
+    stats = _golden_stats()
+    bvs = stats.blend_value_share
+    assert bvs.get("Max", 1.0) < 0.95, (
+        f"blended rows are {bvs.get('Max', 1.0):.0%} Max — texture cells should default to "
+        f"Brightness after add-blend-vocabulary task 2.1 (community Brightness share: 36%)"
+    )

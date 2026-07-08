@@ -60,7 +60,7 @@ from .weave import (
 
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
-_PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember")
+_PEAK_COMPOSITES = ("kaleidoscope", "swirl", "bloom", "ember", "reveal")
 _FINAL_SPARKLE_EFFECT = "Twinkle"    # the extra contrast layer the LAST chorus gains (accent-prop pop)
 _BED_WASH_EFFECTS = {"On", "Color Wash", "Fill", "Plasma"}   # sustained bases that carry phrase curves
 _PHRASE_MIN_BARS = 2                  # only beds/washes ≥ this many bars get an energy-shaped curve

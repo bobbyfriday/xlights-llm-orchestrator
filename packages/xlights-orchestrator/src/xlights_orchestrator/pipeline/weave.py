@@ -358,10 +358,17 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     else:                                     # empty/unknown ('fade' etc.) → phrasing soft edges,
         extra.update(soft_edge_settings(recipe.effect_type, end - start, phrasing))  # a real fade
     if blended:                               # blend rides the UPPER layer, only over a base.
-        # Default Max (live-verified): a top-layer cell's BLACK background otherwise OCCLUDES
-        # the bed/wash below it for the cell's whole span — the "mostly dark with sparse
-        # effects" failure. Max adds the cell's lit pixels and lets the base shine through.
-        extra["T_CHOICE_LayerMethod"] = recipe.blend or "Max"
+        # Community blend vocabulary (corpus 2026-07-07, add-blend-vocabulary):
+        #   texture cells → Brightness (36% of community blended rows): the cell's own moving
+        #     luminance sweeps the bed below — a "traveling brightness gate" where the effect's
+        #     motion shape reveals the base. Community top examples: Shockwave 256, Spirals 236,
+        #     SingleStrand 203, On 184 rows at median 950 ms, almost none with value curves.
+        #   carrier / accent cells → Max (additive pop over the bed, unchanged behavior):
+        #     Max adds the cell's lit pixels so the carrier reads on top of the base without
+        #     occluding it (the "mostly dark" failure if neither blend is set).
+        # An explicit recipe.blend (LLM-authored) always wins over these defaults.
+        default = "Brightness" if recipe.role == "texture" else "Max"
+        extra["T_CHOICE_LayerMethod"] = recipe.blend or default
     # CELLS render per-model by default: the global fallback sends chases to 'Per Preview'
     # (one gesture traveling the WHOLE yard buffer — a 0.5s cell on one group lights almost
     # nothing). A cell is rhythmic multiplicity: every prop in the group runs it.
@@ -468,6 +475,12 @@ CURATED_COMPOSITES: dict[str, list[CompositeLayer]] = {
     # radial bloom: Spirals rotating against a Fan unfolding outward
     "bloom": [CompositeLayer(effect_type="Spirals", direction="ltr"),
               CompositeLayer(effect_type="Fan", direction="center_out", blend="Max")],
+    # a Shape reveal over a spiral texture — the community's #3 stacked pair (1,189 Shape+Spirals
+    # pairs; layering guide §9 recipe 2): Shape's lit pixels reveal the texture below.
+    # Polarity: "1 is Mask" (Shape's lit area reveals Spirals); if texture appears OUTSIDE the
+    # shape in a live render, switch to "1 is Unmask". Unverified polarity — watch on first live run.
+    "reveal": [CompositeLayer(effect_type="Spirals"),
+               CompositeLayer(effect_type="Shape", blend="1 is Mask")],
 }
 
 

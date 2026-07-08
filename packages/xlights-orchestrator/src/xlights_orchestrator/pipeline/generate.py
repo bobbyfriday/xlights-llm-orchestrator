@@ -48,6 +48,7 @@ from .semantic_groups import ACCENT_GROUPS, DEFAULT_VOCAB, HERO_GROUP
 from .weave import (
     canon_effect_type,
     carrier_covers,
+    counter_rotate_stacks,
     curated_composite,
     diversify_carrier,
     expand_composite,
@@ -377,6 +378,7 @@ async def realize_section(st: State, si: int, *, agent,
             final_layer.section_index = si
             final_layer.source = "feature"    # provenance (report-only)
             kept.append(final_layer)
+    counter_rotate_stacks(kept)   # same-type rotational stacks on one target → alternating spin
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
     # ACCENTS, per treatment: full/pulse get the full beat layer, feature a sparse one, gesture/rest
     # none (the held breath stays still). A still (non-rhythmic) section never gets accents either.

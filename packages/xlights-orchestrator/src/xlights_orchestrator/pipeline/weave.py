@@ -62,8 +62,17 @@ from .effect_meta import (  # noqa: E402 — re-export DIRECTION_KNOBS (external
     CHASE_FAMILY as _CHASE_FAMILY,
     DIRECTION_KNOBS,
     DURATION_CELLABLE,
+    EFFECT_META,
     NATIVE_BOUNCE as _NATIVE_BOUNCE,
 )
+
+# Rotational effects: have an ltr/rtl spin-direction pair but are NOT linear chases.
+# Their "direction" is spin (rotation sign), not a horizontal sweep. Derived from the table so
+# new entries automatically opt in. After add-counter-rotation: {Spirals, Ripple, Pinwheel,
+# Butterfly, Fill}.
+ROTATIONAL_EFFECTS: frozenset[str] = frozenset(
+    et for et, m in EFFECT_META.items()
+    if "ltr" in m.directions and "rtl" in m.directions and not m.chase_family)
 
 _SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
@@ -279,6 +288,22 @@ def _valid_recipes(weave: SectionWeave, section: SectionPlan, available_groups: 
     for p, r in enumerate([r for r in chases             #  identical sets)
                            if r.direction == "alternate" and id(r) not in phases]):
         phases[id(r)] = p
+    # ROTATIONAL COUNTER-PHASE: same-type spin effects (ROTATIONAL_EFFECTS) on overlapping groups
+    # with no explicit direction → first gets ltr, second rtl so they spin against each other.
+    # Chase counter-phase is handled above; this covers the rotational twin (Spirals, Ripple, etc.).
+    rotational = [(r, set(r.groups)) for r in others
+                  if r.effect_type in ROTATIONAL_EFFECTS and not r.direction]
+    paired: set[int] = set()
+    for i, (a, ga) in enumerate(rotational):
+        if id(a) in paired:
+            continue
+        for b, gb in rotational[i + 1:]:
+            if b.effect_type == a.effect_type and ga & gb and id(b) not in paired:
+                a.direction = "ltr"
+                b.direction = "rtl"
+                paired.add(id(a))
+                paired.add(id(b))
+                break
     bed = next((b for b in beds if b.effect_type and candidate_look_ids(b.effect_type)), None)
     return others, bed, phases
 
@@ -430,18 +455,19 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
 # kaleidoscopic look. base layer first; upper layers carry a blend over the one below. Opposite
 # directions on a chase/curved pair make the layers WEAVE rather than sit on top of each other.
 CURATED_COMPOSITES: dict[str, list[CompositeLayer]] = {
-    # two counter-moving Morphs blended Max — the canonical kaleidoscope stack
-    "kaleidoscope": [CompositeLayer(effect_type="Morph", direction="ltr"),
-                     CompositeLayer(effect_type="Morph", direction="rtl", blend="Max")],
+    # two counter-rotating Spirals blended Max — the canonical megatree showpiece
+    # (layering guide §9 recipe 7; Morph cannot be steered by knob — zero direction keys in corpus)
+    "kaleidoscope": [CompositeLayer(effect_type="Spirals", direction="ltr"),
+                     CompositeLayer(effect_type="Spirals", direction="rtl", blend="Max")],
     # a living swirl: Galaxy bed under an organic Butterfly
     "swirl": [CompositeLayer(effect_type="Galaxy"),
               CompositeLayer(effect_type="Butterfly", blend="Max")],
     # warm depth: Plasma bed under flickering Fire
     "ember": [CompositeLayer(effect_type="Plasma"),
               CompositeLayer(effect_type="Fire", blend="Brightness")],
-    # radial bloom: Spirals under a counter-rotating Fan
+    # radial bloom: Spirals rotating against a Fan unfolding outward
     "bloom": [CompositeLayer(effect_type="Spirals", direction="ltr"),
-              CompositeLayer(effect_type="Fan", direction="rtl", blend="Max")],
+              CompositeLayer(effect_type="Fan", direction="center_out", blend="Max")],
 }
 
 
@@ -464,6 +490,17 @@ def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: f
     layers = [lyr for lyr in (recipe.layers or []) if lyr.effect_type][:4]   # layer-budget safe
     if not groups or len(layers) < 2:
         return []
+    # Pre-assign counter-rotation for same-type rotational pairs with no explicit direction.
+    # First occurrence of each rotational effect type gets "ltr", subsequent get "rtl".
+    _eff_dir: list[str] = [lyr.direction for lyr in layers]
+    _first_rotational: dict[str, int] = {}
+    for i, lyr in enumerate(layers):
+        if lyr.effect_type in ROTATIONAL_EFFECTS and not lyr.direction:
+            if lyr.effect_type not in _first_rotational:
+                _first_rotational[lyr.effect_type] = i
+                _eff_dir[i] = "ltr"
+            else:
+                _eff_dir[i] = "rtl"
     out: list[EffectInstruction] = []
     for g in groups:
         for i, lyr in enumerate(layers):
@@ -472,8 +509,11 @@ def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: f
                 continue
             look = lyr.look_id if lyr.look_id in looks else looks[0]
             extra = dict(effect_speed_setting(lyr.effect_type, intensity))
-            extra.update(motion_curve_setting(lyr.effect_type, lyr.motion_curve, intensity))
-            extra.update(direction_setting(lyr.effect_type, lyr.direction, i))   # counter-phase per layer
+            # Odd-indexed layers in a stack get sign=-1 so spin curves counter-phase too.
+            _sign = -1 if i % 2 == 1 else 1
+            extra.update(motion_curve_setting(lyr.effect_type, lyr.motion_curve, intensity,
+                                              sign=_sign))
+            extra.update(direction_setting(lyr.effect_type, _eff_dir[i], i))   # counter-phase per layer
             if i > 0 and lyr.blend:                       # upper layers blend onto the stack below
                 extra["T_CHOICE_LayerMethod"] = lyr.blend
             colors = lyr.palette or effect_palette(section.palette, lyr.effect_type, i)
@@ -483,3 +523,31 @@ def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: f
                 start_ms=section.start_ms, end_ms=section.end_ms,
                 palette_colors=colors, extra_settings=extra))
     return out
+
+
+def counter_rotate_stacks(instrs: list[EffectInstruction]) -> None:
+    """Same-type rotational effects overlapping on the same target: alternate the spin of each
+    successive overlapping layer (2nd, 4th, … get rtl) via extra_settings, unless the instruction
+    already carries that effect's direction key. In-place; deterministic (list order); idempotent."""
+    from collections import defaultdict
+    by_target_type: dict[tuple[str, str], list[EffectInstruction]] = defaultdict(list)
+    for ins in instrs:
+        if ins.effect_type in ROTATIONAL_EFFECTS:
+            by_target_type[(ins.target, ins.effect_type)].append(ins)
+    for (_, et), stack in by_target_type.items():
+        if len(stack) < 2:
+            continue
+        stack.sort(key=lambda i: (i.layer, i.start_ms))
+        dir_key = DIRECTION_KNOBS[et]["rtl"][0]
+        rtl_val = DIRECTION_KNOBS[et]["rtl"][1]
+        ltr_val = DIRECTION_KNOBS[et]["ltr"][1]
+        flip_count = 0
+        max_end = 0
+        for ins in stack:
+            if ins.start_ms < max_end:   # overlaps with previous active instruction
+                flip_count += 1
+            else:
+                flip_count = 0           # non-overlapping: new sequence, reset counter
+            if dir_key not in ins.extra_settings:
+                ins.extra_settings[dir_key] = rtl_val if flip_count % 2 == 1 else ltr_val
+            max_end = max(max_end, ins.end_ms)

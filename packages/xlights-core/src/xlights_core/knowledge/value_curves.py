@@ -61,11 +61,15 @@ MOTION_CURVES: dict[tuple[str, str], tuple[str, float, float, str]] = {
 }
 
 
-def motion_curve_setting(effect_type: str, curve: str, intensity: float = 0.5) -> dict[str, str]:
+def motion_curve_setting(effect_type: str, curve: str, intensity: float = 0.5,
+                         *, sign: int = 1) -> dict[str, str]:
     """`{E_VALUECURVE_<param>: <ramp>}` shaping the effect's MOTION over its duration.
 
     Unknown (effect, curve) pairs return `{}` — a recipe asking for a curve the effect doesn't
     have degrades to no curve, never a placement failure.
+
+    `sign` (-1 or 1) flips the ramp direction for spin-kind curves (negative = counter-clockwise).
+    Sweep-kind curves ignore `sign` (their range is inherently unsigned).
     """
     spec = MOTION_CURVES.get((effect_type, (curve or "").lower()))
     if spec is None:
@@ -73,7 +77,7 @@ def motion_curve_setting(effect_type: str, curve: str, intensity: float = 0.5) -
     param, lo, hi, kind = spec
     level = max(0.0, min(1.0, intensity))
     if kind == "spin":                       # accelerate from rest to an intensity-scaled rate
-        start, end = 0.0, hi * (0.3 + 0.7 * level)
-    else:                                    # sweep across an intensity-scaled span
+        start, end = 0.0, (hi if sign >= 0 else lo) * (0.3 + 0.7 * level)
+    else:                                    # sweep across an intensity-scaled span (sign ignored)
         start, end = lo + 0.1 * (hi - lo), lo + (0.3 + 0.6 * level) * (hi - lo)
     return {f"E_VALUECURVE_{param}": _ramp_value(param, lo, hi, start, end)}

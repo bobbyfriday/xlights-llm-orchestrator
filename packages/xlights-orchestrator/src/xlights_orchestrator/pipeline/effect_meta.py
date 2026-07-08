@@ -84,16 +84,23 @@ EFFECT_META: dict[str, EffectMeta] = {
                     "rtl": ("E_CHOICE_Wave_Direction", "Right to Left")},
         energy_band=(2, 3), duration_class="cellable", chase_family=True),
     # -- other cell-able motion effects --------------------------------------------------------
+    # E_SLIDER_Spirals_Rotation: 84 corpus looks carry the key (66 positive, 16 negative);
+    # ±20 is the corpus mode. Negative = counter-clockwise (signed slider, corpus-observed).
     "Spirals": EffectMeta(
         speed=("E_TEXTCTRL_Spirals_Movement", 0.5, 4, "f1"),
+        directions={"ltr": ("E_SLIDER_Spirals_Rotation", "20"),
+                    "rtl": ("E_SLIDER_Spirals_Rotation", "-20")},
         energy_band=(2, 5), duration_class="cellable"),
     "Pinwheel": EffectMeta(
         speed=("E_SLIDER_Pinwheel_Speed", 5, 20, "int"),
         directions={"ltr": ("E_CHECKBOX_Pinwheel_Rotation", "1"),
                     "rtl": ("E_CHECKBOX_Pinwheel_Rotation", "0")},
         energy_band=(2, 5), duration_class="cellable"),
+    # E_SLIDER_Ripple_Rotation: 22 corpus looks carry the key (13 more via E_VALUECURVE); ±20 matched.
     "Ripple": EffectMeta(
         speed=("E_TEXTCTRL_Ripple_Cycles", 1, 8, "f1"),
+        directions={"ltr": ("E_SLIDER_Ripple_Rotation", "20"),
+                    "rtl": ("E_SLIDER_Ripple_Rotation", "-20")},
         energy_band=(2, 3), duration_class="cellable"),
     "Butterfly": EffectMeta(
         speed=("E_SLIDER_Butterfly_Speed", 8, 40, "int"),

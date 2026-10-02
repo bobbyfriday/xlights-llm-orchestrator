@@ -179,5 +179,6 @@ def test_flat_flash_advisory_silent_below_threshold():
     from xlights_orchestrator.pipeline.tuning import FLAT_FLASH_SHARE_MAX
     motion = [_ins("Spirals", "SEM_FOCAL") for _ in range(8)]
     flash = [_ins("On", "SEM_ALL")]               # 1/9 ≈ 11% < FLAT_FLASH_SHARE_MAX
+    assert 1 / 9 < FLAT_FLASH_SHARE_MAX           # guard: the fixture is below the bound by premise
     _, findings = evaluate(motion + flash, _plan([0.9]))
     assert not any("flat-flash" in f.detail for f in findings)

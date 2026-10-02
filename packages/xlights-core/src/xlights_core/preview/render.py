@@ -133,4 +133,6 @@ class PreviewRenderer:
         s = self._fi(start_ms)
         e = min(self.header.frames, max(s + 1, end_ms // self.header.step_ms))
         seg = self.frames[s:e][:, self.ch].astype(np.int32).sum(axis=1)
-        return int((s + int(seg.argmax())) * self.header.step_ms)
+        # np.argmax(seg), not seg.argmax(): numpy 2.5's stubs dropped the no-arg
+        # method overload (mypy call-overload), though it is valid at runtime.
+        return int((s + int(np.argmax(seg))) * self.header.step_ms)

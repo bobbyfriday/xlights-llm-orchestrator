@@ -21,4 +21,4 @@
 ## 4. Golden regen + verification
 
 - [x] 4.1 Run the full suite (`uv run pytest`); then regenerate the golden once: `XLO_REGEN_GOLDEN=1 uv run pytest tests/test_golden_pipeline.py`. Inspect the golden diff: ONLY expected changes are new `E_SLIDER_Spirals_Rotation` / `E_SLIDER_Ripple_Rotation` keys in extra_settings and the peak-composite effect swap (Morph→Spirals). Anything else in the diff = investigate before committing.
-- [ ] 4.2 Commit golden regen as its own commit; open a PR to `main` (branch `feat/counter-rotation`; never commit directly to main). PR description must note the intentional visual-behavior change: `alternate`/`bounce` on Spirals/Ripple cells now flips rotation per bar (previously a silent no-op).
+- [x] 4.2 Commit golden regen as its own commit; open a PR to `main` (branch `feat/counter-rotation`; never commit directly to main). PR description must note the intentional visual-behavior change: `alternate`/`bounce` on Spirals/Ripple cells now flips rotation per bar (previously a silent no-op).

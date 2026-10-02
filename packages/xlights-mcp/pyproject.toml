@@ -5,7 +5,11 @@ description = "MCP server exposing the xLights automation API (reads + sequence 
 requires-python = ">=3.11"
 dependencies = [
     "xlights-core",
-    "mcp[cli]>=1.2",
+    # server.py is written against the v2 API (`mcp.server.mcpserver.MCPServer`).
+    # Kept upper-bounded: the repo tracks no lockfile and resolves fresh in CI,
+    # so an unbounded range lets a major release break the build with no commit
+    # (exactly how 1.x→2.x landed). Raise the ceiling with a migration, not before.
+    "mcp[cli]>=2,<3",
     "anyio>=4",
 ]
 

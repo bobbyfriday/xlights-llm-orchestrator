@@ -25,7 +25,7 @@ responsibility:
 | --- | --- |
 | [`xlights-core`](../../packages/xlights-core) | The **tooling**: async REST client for xLights, audio analysis (VAMP/librosa/stems/lyrics), the mined effect-preset library, colors / value curves, and layout semantics. No LLM dependencies. |
 | [`xlights-orchestrator`](../../packages/xlights-orchestrator) | The **pipeline**: the LLM agents, the deterministic weave/beat/trigger realization layers, the refine loop, and the `xlo` CLI. |
-| [`xlights-mcp`](../../packages/xlights-mcp) | A FastMCP server that exposes xLights read/edit operations as MCP **tools** for external clients (e.g. Claude Code). Independent of the pipeline. |
+| [`xlights-mcp`](../../packages/xlights-mcp) | An MCP server (MCPServer, mcp 2.x) that exposes xLights read/edit operations as MCP **tools** for external clients (e.g. Claude Code). Independent of the pipeline. |
 
 The organizing principle, stated throughout the code: **the LLM owns judgment** (themes, palette,
 section design, effect recipes) and **code owns realization** (timing snapped to the beat grid,
@@ -184,7 +184,7 @@ All offline patches are best-effort and never fail the run.
 ### The MCP server
 
 [`xlights-mcp`](../../packages/xlights-mcp/src/xlights_mcp/server.py) is a **separate interface**, not
-part of the pipeline. It is a FastMCP server (stdio JSON-RPC) that wraps the same `XLightsClient` and
+part of the pipeline. It is an MCPServer (mcp 2.x, stdio JSON-RPC) that wraps the same `XLightsClient` and
 `place_preset` primitives as MCP tools (`xl_get_models`, `xl_add_effect`, `xl_validate_preset`,
 `xl_render_all`, …) so an external MCP client like Claude Code can drive xLights interactively. It
 holds one shared client for its lifetime and surfaces domain errors as typed tool errors.

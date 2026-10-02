@@ -5,7 +5,13 @@ description = "MCP server exposing the xLights automation API (reads + sequence 
 requires-python = ">=3.11"
 dependencies = [
     "xlights-core",
-    "mcp[cli]>=1.2",
+    # Upper-bounded on purpose: server.py is written against the v1 API
+    # (`mcp.server.fastmcp.FastMCP`/`Context`). mcp 2.x renamed FastMCP to
+    # MCPServer (`mcp.server.mcpserver`) and changed surrounding APIs, so an
+    # unbounded range breaks the import outright — and the repo resolves fresh
+    # in CI (no tracked lockfile), so it breaks on an upstream release alone.
+    # Lift this together with the 15-tool migration, not before it.
+    "mcp[cli]>=1.2,<2",
     "anyio>=4",
 ]
 

@@ -1,0 +1,233 @@
+[
+  {
+    "title": "Cold open",
+    "start_ms": 0,
+    "video": "Pure black. Faint heat shimmer; a single red ember glows in the center of frame. Sound of the first riff chord.",
+    "lights": "All dark. SEM_FOCAL at 10% deep red, slow breathe.",
+    "sync": "Picture starts at 0 ms with the audio's first sample."
+  },
+  {
+    "title": "Headlights",
+    "bar": 1,
+    "video": "Low angle on a black muscle car's grille at dusk on a desert highway. Each guitar chord stab snaps the headlights on, then they fade.",
+    "lights": "White stab on SEM_OUTLINE + SEM_FOCAL on every 'Onsets (guitar)' mark, 300 ms decay.",
+    "sync": "Cut lands on Bar 1. Flash frames = guitar onsets."
+  },
+  {
+    "title": "Loading up",
+    "bar": 3,
+    "video": "Close-ups cut on the chord stabs: boots on asphalt, a guitar case slammed into the trunk, a hand turning the ignition key.",
+    "lights": "SEM_ARCHES_LTR sweep left→right on each chord; red/white.",
+    "sync": "Impact 1 = trunk slam."
+  },
+  {
+    "title": "Launch",
+    "bar": 5,
+    "video": "The drums kick in: rear wheels spin, smoke, the car launches out of frame; tail-light streaks.",
+    "lights": "Drums enter → full-yard red chase. SEM_MINITREES flash on snare (beats 2 & 4).",
+    "sync": "Cut exactly on the drum entry (Bar 5). Impact 2 = launch."
+  },
+  {
+    "title": "The road",
+    "bar": 7,
+    "video": "Drone top-down over an empty two-lane desert highway at golden hour, center dashes passing in time with the beat.",
+    "lights": "SEM_PATH / SEM_ARCHES_LTR run white 'road dashes' one step per beat.",
+    "sync": "One center dash per beat."
+  },
+  {
+    "title": "Driver POV",
+    "bar": 9,
+    "video": "Driver's-eye view over a dusty dashboard, warm amber sun low on the horizon, a dice charm swinging from the mirror.",
+    "lights": "Verse bed: warm amber/orange, low intensity. Vocal onsets twinkle on the matrix/SEM_FOCAL.",
+    "sync": "Verse starts on Bar 9. Impact 3 = the mirror charm swings hard."
+  },
+  {
+    "title": "Signs",
+    "bar": 13,
+    "video": "Roadside signs whip past one per bar: a bent speed-limit sign, a 'NO EXIT' sign, a sun-bleached billboard. Each passes on the downbeat.",
+    "lights": "Each downbeat pops a different group (SIDE_LEFT → SIDE_CENTER → SIDE_RIGHT → HOUSE), amber with a red edge.",
+    "sync": "Impact 4 = biggest sign whoosh."
+  },
+  {
+    "title": "The gang",
+    "bar": 17,
+    "video": "Silhouettes of friends in the back of a pickup alongside, fists up, hair blowing, dust kicking up behind.",
+    "lights": "Ping-pong SEM_SIDE_LEFT / SEM_SIDE_RIGHT on beats 2 & 4.",
+    "sync": "Impact 5 = pickup pulls alongside."
+  },
+  {
+    "title": "Build",
+    "bar": 21,
+    "video": "Speedometer needle climbing, heat haze rising, the sky shifting from amber to deep red.",
+    "lights": "Brightness ramp 30%→80% across 3 bars; color shifts amber → red.",
+    "sync": "Impact 6 = needle slam; hard cut at Bar 24."
+  },
+  {
+    "title": "The sign",
+    "bar": 24,
+    "video": "A giant neon highway sign reading HIGHWAY TO HELL ignites letter by letter as the car blasts past camera.",
+    "lights": "CHORUS LOOK: full yard red + white on every beat; megatree spiral; matrix title card 'HIGHWAY TO HELL'.",
+    "sync": "Ignition = Bar 24 downbeat (chorus 1 start)."
+  },
+  {
+    "title": "Fire lane",
+    "bar": 28,
+    "video": "Lines of flame erupt along both road shoulders, chasing the car down the highway.",
+    "lights": "Fire effect on SEM_ARCHES + SEM_OUTLINE; drum onsets strobe SEM_FLOODS.",
+    "sync": "Flame bursts on snare hits."
+  },
+  {
+    "title": "Whip",
+    "bar": 32,
+    "video": "Whip-pan off the car to black.",
+    "lights": "White full-yard hit then drop to 20%.",
+    "sync": "Impact 7 = whip."
+  },
+  {
+    "title": "Roadhouse",
+    "bar": 33,
+    "video": "Night. A neon-lit roadhouse and gas station; bikes parked out front; purple and blue haze.",
+    "lights": "Verse 2 bed: deep purple/blue; red only on snare hits.",
+    "sync": "Impact 8 = door kicks open."
+  },
+  {
+    "title": "Inside",
+    "bar": 37,
+    "video": "Jukebox, pinball lights, dice tumbling across felt, a deck of cards fanned out. Each object lands on a downbeat.",
+    "lights": "Matrix/SEM_FOCAL pinball sparkles on 'Onsets (guitar)'; bed stays cool.",
+    "sync": "Object hits on downbeats."
+  },
+  {
+    "title": "Night drive",
+    "bar": 41,
+    "video": "Back on the road under a full moon; telephone poles strobing past one per beat.",
+    "lights": "Chase across the sweep order, one step per beat (poles = beats).",
+    "sync": "Pole passes = beat marks."
+  },
+  {
+    "title": "Something behind",
+    "bar": 45,
+    "video": "The rearview mirror fills with a red glow; the car accelerates; the horizon ahead starts to burn red.",
+    "lights": "Red rises band by band: SEM_BAND_GROUND → MID → ROOF; final bar snare-roll ramp to white.",
+    "sync": "Impact 9 = mirror glance. Hard cut at Bar 50."
+  },
+  {
+    "title": "The reveal",
+    "bar": 50,
+    "video": "The car crests a hill: below, the actual house light display blazes in the dark. This is the biggest drum surge in the song.",
+    "lights": "CHORUS LOOK at 100%: full yard, megatree, matrix. Shockwave from SEM_FOCAL outward on the downbeat.",
+    "sync": "Impact 10 = crest cut, frame-exact."
+  },
+  {
+    "title": "Real footage",
+    "bar": 54,
+    "video": "Intercut the real filmed light show (wide shot of the house), cut on every downbeat with flame-road shots.",
+    "lights": "Same chorus look as Chorus 1, brighter.",
+    "sync": "Impact 11 = cut to the house."
+  },
+  {
+    "title": "Into the pixel",
+    "bar": 58,
+    "video": "Camera pushes into a single glowing bulb until it fills the frame.",
+    "lights": "Everything fades except SEM_FOCAL.",
+    "sync": "Transition to the solo on Bar 59."
+  },
+  {
+    "title": "Lightning",
+    "bar": 59,
+    "video": "Lightning storm over the desert; a guitarist silhouetted on the car roof; every bolt lands on a guitar note.",
+    "lights": "Guitar-solo lightning (trigger cookbook): white strikes on 'Onsets (guitar)'; everything else dark blue.",
+    "sync": "Bolt frames = guitar onsets."
+  },
+  {
+    "title": "Sparks",
+    "bar": 63,
+    "video": "Sparks spray off a guitar neck and off wheels grinding the road; fast macro cuts.",
+    "lights": "High-rate electric blue/white shimmer on SEM_ALL.",
+    "sync": "Impact 12 = biggest spark shower."
+  },
+  {
+    "title": "Fretboard",
+    "bar": 67,
+    "video": "Macro shots: fingers on strings, intercut with macro shots of the real pixels; speed ramps.",
+    "lights": "Fast sweeps changing direction every bar.",
+    "sync": "Change direction on each downbeat."
+  },
+  {
+    "title": "Rise",
+    "bar": 71,
+    "video": "Camera rises straight up off the road into the night sky.",
+    "lights": "Vertical wipe upward on all props.",
+    "sync": "Lands on Bar 72 = Chorus 3."
+  },
+  {
+    "title": "Flame tunnel",
+    "bar": 72,
+    "video": "The car drives into a tunnel of fire.",
+    "lights": "Full chorus look; fire on the arches.",
+    "sync": "Chorus 3 starts on Bar 72."
+  },
+  {
+    "title": "Peak",
+    "bar": 76,
+    "video": "Neighbours and crowd outside the real house, hands up, phones out; real footage of the display at full blast. The song's energy peak.",
+    "lights": "PEAK: everything at max brightness; megatree + matrix + all groups.",
+    "sync": "Impact 13 = crowd's big moment."
+  },
+  {
+    "title": "Ping-pong",
+    "bar": 80,
+    "video": "Alternate drone shots of the house and the highway, one cut per downbeat.",
+    "lights": "SIDE_LEFT/SIDE_RIGHT ping-pong per bar.",
+    "sync": "Cut every downbeat."
+  },
+  {
+    "title": "Cut out",
+    "bar": 84,
+    "video": "Speed blur builds to white, then hard cut to black.",
+    "lights": "Crescendo into the drop.",
+    "sync": "Builds toward Impact 14; the last frame is white."
+  },
+  {
+    "title": "Stopped",
+    "bar": 87,
+    "video": "The car sits stopped on the empty road, engine ticking, a single red glow on the horizon. Each guitar chord produces one flash of red light.",
+    "lights": "Everything cuts to near-black on the first frame. Then sparse: only SEM_FOCAL + one prop per guitar chord, long decays; matrix pulses on vocal onsets.",
+    "sync": "Impact 14 = drums drop out. The blackout must be frame-exact."
+  },
+  {
+    "title": "The beacon",
+    "bar": 91,
+    "video": "The house display glows on the horizon; each chord stab makes the flash bigger.",
+    "lights": "Each chord adds one more group (it builds up).",
+    "sync": "Impact 15 = the driver looks up. This bar grid is approximate (no drums, so the tempo drifts); sync the flashes to 'Onsets (guitar)'."
+  },
+  {
+    "title": "Fill",
+    "bar": 96,
+    "video": "The car fires up again, drum fill.",
+    "lights": "Snare-roll strobe ramp.",
+    "sync": "The drums come back in."
+  },
+  {
+    "title": "Flythrough",
+    "bar": 97,
+    "video": "The camera flies down the highway, through the megatree, into the house display; the full band hits.",
+    "lights": "Everything red/white at full yard; final chorus look.",
+    "sync": "The finale starts on Bar 97."
+  },
+  {
+    "title": "Held chord",
+    "bar": 102,
+    "video": "The final chord holds; the flames rise.",
+    "lights": "Hold at 100%, slow color swirl.",
+    "sync": ""
+  },
+  {
+    "title": "Final crash",
+    "bar": 103,
+    "video": "A hard white flash, then black. The title HIGHWAY TO HELL burns in fire on black and then fades.",
+    "lights": "White flash on the final crash, matrix title, then blackout.",
+    "sync": "Impact 16 = final crash. Fade to black by the end of the audio."
+  }
+]

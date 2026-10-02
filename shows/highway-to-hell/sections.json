@@ -1,0 +1,12 @@
+[
+  {"label": "Intro - Riff (guitar alone)", "start_ms": 0, "palette": "black · ember red #8B0000 · headlight white"},
+  {"label": "Intro - Band In", "bar": 5, "palette": "red #D10000 · white · asphalt grey"},
+  {"label": "Verse 1", "bar": 9, "palette": "amber #FF8C00 · dusty orange · sun gold"},
+  {"label": "Chorus 1", "bar": 24, "palette": "hell red #FF1A00 · neon white · flame orange"},
+  {"label": "Verse 2", "bar": 33, "palette": "deep purple #3A0CA3 · midnight blue · red snare accents"},
+  {"label": "Chorus 2", "bar": 50, "palette": "hell red · white · flame orange (brighter than Chorus 1)"},
+  {"label": "Guitar Solo", "bar": 59, "palette": "electric blue #00B4FF · lightning white · black"},
+  {"label": "Chorus 3 (double)", "bar": 72, "palette": "red · white · gold (peak)"},
+  {"label": "Breakdown (drums drop out)", "bar": 87, "palette": "black · single red glow"},
+  {"label": "Finale", "bar": 97, "palette": "red · white → black"}
+]

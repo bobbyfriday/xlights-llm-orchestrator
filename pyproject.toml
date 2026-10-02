@@ -19,9 +19,15 @@ markers = ["live: requires a running xLights instance (opt in with -m live)"]
 target-version = "py311"
 
 [tool.ruff.lint]
-# Default select (E4/E7/E9, F) minus the compact-style rules the codebase chooses
-# on purpose: E702 (paired statements via `;`), E731 (assigned lambdas),
-# E741 (short names like `l` in tight comprehensions).
+# Pinned EXPLICITLY rather than relying on ruff's default select: ruff 0.16 widened
+# its defaults to include I/RUF/UP/SIM/B/C4/PERF/PL/… (247 findings here, 119 of them
+# I001 import sorting), which silently contradicts the no-formatting stance above and
+# turned CI red on a dependency bump alone. These four are what the project has always
+# linted; adopting any further ruleset is a deliberate change, not a ruff upgrade.
+select = ["E4", "E7", "E9", "F"]
+# Minus the compact-style rules the codebase chooses on purpose: E702 (paired
+# statements via `;`), E731 (assigned lambdas), E741 (short names like `l` in tight
+# comprehensions).
 ignore = ["E702", "E731", "E741"]
 
 [tool.ruff.lint.per-file-ignores]

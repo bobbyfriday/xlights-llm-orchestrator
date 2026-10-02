@@ -1,0 +1,2081 @@
+{
+  "summary": {
+    "song": "Highway to Hell.mp3",
+    "duration_s": 208.111,
+    "tempo_bpm": 117.45,
+    "key": "D major",
+    "fps": 30,
+    "stems": [
+      "drums",
+      "bass",
+      "other",
+      "vocals",
+      "guitar",
+      "piano"
+    ],
+    "tracks": [
+      "Sections",
+      "Beats",
+      "Bars",
+      "Onsets (vocals)",
+      "Onsets (guitar)",
+      "Onsets (drums)",
+      "Chords",
+      "Impacts"
+    ]
+  },
+  "cues": [
+    {
+      "track": "Sections",
+      "label": "Intro - Riff (guitar alone)",
+      "start_ms": 0,
+      "end_ms": 9700,
+      "start_s": 0.0,
+      "timecode": "00:00:00:00",
+      "frame": 0
+    },
+    {
+      "track": "Chords",
+      "label": "N",
+      "start_ms": 200,
+      "end_ms": 250,
+      "start_s": 0.2,
+      "timecode": "00:00:00:06",
+      "frame": 6
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 250,
+      "end_ms": 2300,
+      "start_s": 0.25,
+      "timecode": "00:00:00:08",
+      "frame": 8
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 1",
+      "start_ms": 1400,
+      "end_ms": 3500,
+      "start_s": 1.4,
+      "timecode": "00:00:01:12",
+      "frame": 42
+    },
+    {
+      "track": "Chords",
+      "label": "Faug",
+      "start_ms": 2300,
+      "end_ms": 3000,
+      "start_s": 2.3,
+      "timecode": "00:00:02:09",
+      "frame": 69
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 3000,
+      "end_ms": 4400,
+      "start_s": 3.0,
+      "timecode": "00:00:03:00",
+      "frame": 90
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 2",
+      "start_ms": 3500,
+      "end_ms": 5700,
+      "start_s": 3.5,
+      "timecode": "00:00:03:15",
+      "frame": 105
+    },
+    {
+      "track": "Chords",
+      "label": "C#maj7",
+      "start_ms": 4400,
+      "end_ms": 7150,
+      "start_s": 4.4,
+      "timecode": "00:00:04:12",
+      "frame": 132
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 3",
+      "start_ms": 5700,
+      "end_ms": 7700,
+      "start_s": 5.7,
+      "timecode": "00:00:05:21",
+      "frame": 171
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 1",
+      "start_ms": 5700,
+      "end_ms": 6200,
+      "start_s": 5.7,
+      "timecode": "00:00:05:21",
+      "frame": 171
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 7150,
+      "end_ms": 10100,
+      "start_s": 7.15,
+      "timecode": "00:00:07:04",
+      "frame": 214
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 4",
+      "start_ms": 7700,
+      "end_ms": 9700,
+      "start_s": 7.7,
+      "timecode": "00:00:07:21",
+      "frame": 231
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 5",
+      "start_ms": 9700,
+      "end_ms": 11800,
+      "start_s": 9.7,
+      "timecode": "00:00:09:21",
+      "frame": 291
+    },
+    {
+      "track": "Sections",
+      "label": "Intro - Band In",
+      "start_ms": 9700,
+      "end_ms": 18100,
+      "start_s": 9.7,
+      "timecode": "00:00:09:21",
+      "frame": 291
+    },
+    {
+      "track": "Chords",
+      "label": "Fm",
+      "start_ms": 10100,
+      "end_ms": 11250,
+      "start_s": 10.1,
+      "timecode": "00:00:10:03",
+      "frame": 303
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 11250,
+      "end_ms": 15800,
+      "start_s": 11.25,
+      "timecode": "00:00:11:08",
+      "frame": 338
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 6",
+      "start_ms": 11800,
+      "end_ms": 13900,
+      "start_s": 11.8,
+      "timecode": "00:00:11:24",
+      "frame": 354
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 2",
+      "start_ms": 11800,
+      "end_ms": 12300,
+      "start_s": 11.8,
+      "timecode": "00:00:11:24",
+      "frame": 354
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 7",
+      "start_ms": 13900,
+      "end_ms": 16000,
+      "start_s": 13.9,
+      "timecode": "00:00:13:27",
+      "frame": 417
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7",
+      "start_ms": 15800,
+      "end_ms": 19500,
+      "start_s": 15.8,
+      "timecode": "00:00:15:24",
+      "frame": 474
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 8",
+      "start_ms": 16000,
+      "end_ms": 18100,
+      "start_s": 16.0,
+      "timecode": "00:00:16:00",
+      "frame": 480
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 9",
+      "start_ms": 18100,
+      "end_ms": 20200,
+      "start_s": 18.1,
+      "timecode": "00:00:18:03",
+      "frame": 543
+    },
+    {
+      "track": "Sections",
+      "label": "Verse 1",
+      "start_ms": 18100,
+      "end_ms": 49350,
+      "start_s": 18.1,
+      "timecode": "00:00:18:03",
+      "frame": 543
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 19500,
+      "end_ms": 20900,
+      "start_s": 19.5,
+      "timecode": "00:00:19:15",
+      "frame": 585
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 10",
+      "start_ms": 20200,
+      "end_ms": 22300,
+      "start_s": 20.2,
+      "timecode": "00:00:20:06",
+      "frame": 606
+    },
+    {
+      "track": "Chords",
+      "label": "C#maj7",
+      "start_ms": 20900,
+      "end_ms": 24200,
+      "start_s": 20.9,
+      "timecode": "00:00:20:27",
+      "frame": 627
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 11",
+      "start_ms": 22300,
+      "end_ms": 24400,
+      "start_s": 22.3,
+      "timecode": "00:00:22:09",
+      "frame": 669
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 3",
+      "start_ms": 22300,
+      "end_ms": 22800,
+      "start_s": 22.3,
+      "timecode": "00:00:22:09",
+      "frame": 669
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7",
+      "start_ms": 24200,
+      "end_ms": 27700,
+      "start_s": 24.2,
+      "timecode": "00:00:24:06",
+      "frame": 726
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 12",
+      "start_ms": 24400,
+      "end_ms": 26450,
+      "start_s": 24.4,
+      "timecode": "00:00:24:12",
+      "frame": 732
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 13",
+      "start_ms": 26450,
+      "end_ms": 28550,
+      "start_s": 26.45,
+      "timecode": "00:00:26:14",
+      "frame": 794
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 27700,
+      "end_ms": 32450,
+      "start_s": 27.7,
+      "timecode": "00:00:27:21",
+      "frame": 831
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 14",
+      "start_ms": 28550,
+      "end_ms": 30650,
+      "start_s": 28.55,
+      "timecode": "00:00:28:16",
+      "frame": 856
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 15",
+      "start_ms": 30650,
+      "end_ms": 32750,
+      "start_s": 30.65,
+      "timecode": "00:00:30:20",
+      "frame": 920
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 4",
+      "start_ms": 30650,
+      "end_ms": 31150,
+      "start_s": 30.65,
+      "timecode": "00:00:30:20",
+      "frame": 920
+    },
+    {
+      "track": "Chords",
+      "label": "Ab/Gb",
+      "start_ms": 32450,
+      "end_ms": 34950,
+      "start_s": 32.45,
+      "timecode": "00:00:32:14",
+      "frame": 974
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 16",
+      "start_ms": 32750,
+      "end_ms": 34800,
+      "start_s": 32.75,
+      "timecode": "00:00:32:22",
+      "frame": 982
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 17",
+      "start_ms": 34800,
+      "end_ms": 36900,
+      "start_s": 34.8,
+      "timecode": "00:00:34:24",
+      "frame": 1044
+    },
+    {
+      "track": "Chords",
+      "label": "N",
+      "start_ms": 34950,
+      "end_ms": 36300,
+      "start_s": 34.95,
+      "timecode": "00:00:34:28",
+      "frame": 1048
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 36300,
+      "end_ms": 40750,
+      "start_s": 36.3,
+      "timecode": "00:00:36:09",
+      "frame": 1089
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 18",
+      "start_ms": 36900,
+      "end_ms": 38950,
+      "start_s": 36.9,
+      "timecode": "00:00:36:27",
+      "frame": 1107
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 19",
+      "start_ms": 38950,
+      "end_ms": 41000,
+      "start_s": 38.95,
+      "timecode": "00:00:38:28",
+      "frame": 1168
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 5",
+      "start_ms": 38950,
+      "end_ms": 39450,
+      "start_s": 38.95,
+      "timecode": "00:00:38:28",
+      "frame": 1168
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7",
+      "start_ms": 40750,
+      "end_ms": 44650,
+      "start_s": 40.75,
+      "timecode": "00:00:40:22",
+      "frame": 1222
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 20",
+      "start_ms": 41000,
+      "end_ms": 43100,
+      "start_s": 41.0,
+      "timecode": "00:00:41:00",
+      "frame": 1230
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 21",
+      "start_ms": 43100,
+      "end_ms": 45200,
+      "start_s": 43.1,
+      "timecode": "00:00:43:03",
+      "frame": 1293
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 44650,
+      "end_ms": 49100,
+      "start_s": 44.65,
+      "timecode": "00:00:44:20",
+      "frame": 1340
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 22",
+      "start_ms": 45200,
+      "end_ms": 47300,
+      "start_s": 45.2,
+      "timecode": "00:00:45:06",
+      "frame": 1356
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 23",
+      "start_ms": 47300,
+      "end_ms": 49350,
+      "start_s": 47.3,
+      "timecode": "00:00:47:09",
+      "frame": 1419
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 6",
+      "start_ms": 47300,
+      "end_ms": 47800,
+      "start_s": 47.3,
+      "timecode": "00:00:47:09",
+      "frame": 1419
+    },
+    {
+      "track": "Chords",
+      "label": "Eb",
+      "start_ms": 49100,
+      "end_ms": 53400,
+      "start_s": 49.1,
+      "timecode": "00:00:49:03",
+      "frame": 1473
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 24",
+      "start_ms": 49350,
+      "end_ms": 51400,
+      "start_s": 49.35,
+      "timecode": "00:00:49:10",
+      "frame": 1480
+    },
+    {
+      "track": "Sections",
+      "label": "Chorus 1",
+      "start_ms": 49350,
+      "end_ms": 67850,
+      "start_s": 49.35,
+      "timecode": "00:00:49:10",
+      "frame": 1480
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 25",
+      "start_ms": 51400,
+      "end_ms": 53450,
+      "start_s": 51.4,
+      "timecode": "00:00:51:12",
+      "frame": 1542
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 53400,
+      "end_ms": 55050,
+      "start_s": 53.4,
+      "timecode": "00:00:53:12",
+      "frame": 1602
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 26",
+      "start_ms": 53450,
+      "end_ms": 55500,
+      "start_s": 53.45,
+      "timecode": "00:00:53:14",
+      "frame": 1604
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 55050,
+      "end_ms": 56400,
+      "start_s": 55.05,
+      "timecode": "00:00:55:02",
+      "frame": 1652
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 27",
+      "start_ms": 55500,
+      "end_ms": 57550,
+      "start_s": 55.5,
+      "timecode": "00:00:55:15",
+      "frame": 1665
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 56400,
+      "end_ms": 57050,
+      "start_s": 56.4,
+      "timecode": "00:00:56:12",
+      "frame": 1692
+    },
+    {
+      "track": "Chords",
+      "label": "C#/E#",
+      "start_ms": 57050,
+      "end_ms": 57650,
+      "start_s": 57.05,
+      "timecode": "00:00:57:02",
+      "frame": 1712
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 28",
+      "start_ms": 57550,
+      "end_ms": 59600,
+      "start_s": 57.55,
+      "timecode": "00:00:57:16",
+      "frame": 1726
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 57650,
+      "end_ms": 59200,
+      "start_s": 57.65,
+      "timecode": "00:00:57:20",
+      "frame": 1730
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 59200,
+      "end_ms": 60650,
+      "start_s": 59.2,
+      "timecode": "00:00:59:06",
+      "frame": 1776
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 29",
+      "start_ms": 59600,
+      "end_ms": 61650,
+      "start_s": 59.6,
+      "timecode": "00:00:59:18",
+      "frame": 1788
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 60650,
+      "end_ms": 61150,
+      "start_s": 60.65,
+      "timecode": "00:01:00:20",
+      "frame": 1820
+    },
+    {
+      "track": "Chords",
+      "label": "C#/E#",
+      "start_ms": 61150,
+      "end_ms": 61650,
+      "start_s": 61.15,
+      "timecode": "00:01:01:04",
+      "frame": 1834
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 30",
+      "start_ms": 61650,
+      "end_ms": 63700,
+      "start_s": 61.65,
+      "timecode": "00:01:01:20",
+      "frame": 1850
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 61650,
+      "end_ms": 63300,
+      "start_s": 61.65,
+      "timecode": "00:01:01:20",
+      "frame": 1850
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 63300,
+      "end_ms": 64750,
+      "start_s": 63.3,
+      "timecode": "00:01:03:09",
+      "frame": 1899
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 31",
+      "start_ms": 63700,
+      "end_ms": 65750,
+      "start_s": 63.7,
+      "timecode": "00:01:03:21",
+      "frame": 1911
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 64750,
+      "end_ms": 65450,
+      "start_s": 64.75,
+      "timecode": "00:01:04:22",
+      "frame": 1942
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 65450,
+      "end_ms": 65800,
+      "start_s": 65.45,
+      "timecode": "00:01:05:14",
+      "frame": 1964
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 32",
+      "start_ms": 65750,
+      "end_ms": 67850,
+      "start_s": 65.75,
+      "timecode": "00:01:05:22",
+      "frame": 1972
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 7",
+      "start_ms": 65750,
+      "end_ms": 66250,
+      "start_s": 65.75,
+      "timecode": "00:01:05:22",
+      "frame": 1972
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 65800,
+      "end_ms": 67500,
+      "start_s": 65.8,
+      "timecode": "00:01:05:24",
+      "frame": 1974
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 67500,
+      "end_ms": 71450,
+      "start_s": 67.5,
+      "timecode": "00:01:07:15",
+      "frame": 2025
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 33",
+      "start_ms": 67850,
+      "end_ms": 70000,
+      "start_s": 67.85,
+      "timecode": "00:01:07:26",
+      "frame": 2036
+    },
+    {
+      "track": "Sections",
+      "label": "Verse 2",
+      "start_ms": 67850,
+      "end_ms": 103300,
+      "start_s": 67.85,
+      "timecode": "00:01:07:26",
+      "frame": 2036
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 34",
+      "start_ms": 70000,
+      "end_ms": 72100,
+      "start_s": 70.0,
+      "timecode": "00:01:10:00",
+      "frame": 2100
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 71450,
+      "end_ms": 72250,
+      "start_s": 71.45,
+      "timecode": "00:01:11:14",
+      "frame": 2144
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 35",
+      "start_ms": 72100,
+      "end_ms": 74200,
+      "start_s": 72.1,
+      "timecode": "00:01:12:03",
+      "frame": 2163
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 8",
+      "start_ms": 72100,
+      "end_ms": 72600,
+      "start_s": 72.1,
+      "timecode": "00:01:12:03",
+      "frame": 2163
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 72250,
+      "end_ms": 76550,
+      "start_s": 72.25,
+      "timecode": "00:01:12:08",
+      "frame": 2168
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 36",
+      "start_ms": 74200,
+      "end_ms": 76250,
+      "start_s": 74.2,
+      "timecode": "00:01:14:06",
+      "frame": 2226
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 37",
+      "start_ms": 76250,
+      "end_ms": 78350,
+      "start_s": 76.25,
+      "timecode": "00:01:16:08",
+      "frame": 2288
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 76550,
+      "end_ms": 77350,
+      "start_s": 76.55,
+      "timecode": "00:01:16:16",
+      "frame": 2296
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7/C",
+      "start_ms": 77350,
+      "end_ms": 80750,
+      "start_s": 77.35,
+      "timecode": "00:01:17:10",
+      "frame": 2320
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 38",
+      "start_ms": 78350,
+      "end_ms": 80400,
+      "start_s": 78.35,
+      "timecode": "00:01:18:10",
+      "frame": 2350
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 39",
+      "start_ms": 80400,
+      "end_ms": 82500,
+      "start_s": 80.4,
+      "timecode": "00:01:20:12",
+      "frame": 2412
+    },
+    {
+      "track": "Chords",
+      "label": "C#7/E#",
+      "start_ms": 80750,
+      "end_ms": 82400,
+      "start_s": 80.75,
+      "timecode": "00:01:20:22",
+      "frame": 2422
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 82400,
+      "end_ms": 86400,
+      "start_s": 82.4,
+      "timecode": "00:01:22:12",
+      "frame": 2472
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 40",
+      "start_ms": 82500,
+      "end_ms": 84600,
+      "start_s": 82.5,
+      "timecode": "00:01:22:15",
+      "frame": 2475
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 41",
+      "start_ms": 84600,
+      "end_ms": 86700,
+      "start_s": 84.6,
+      "timecode": "00:01:24:18",
+      "frame": 2538
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7",
+      "start_ms": 86400,
+      "end_ms": 88850,
+      "start_s": 86.4,
+      "timecode": "00:01:26:12",
+      "frame": 2592
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 42",
+      "start_ms": 86700,
+      "end_ms": 88800,
+      "start_s": 86.7,
+      "timecode": "00:01:26:21",
+      "frame": 2601
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 43",
+      "start_ms": 88800,
+      "end_ms": 90850,
+      "start_s": 88.8,
+      "timecode": "00:01:28:24",
+      "frame": 2664
+    },
+    {
+      "track": "Chords",
+      "label": "N",
+      "start_ms": 88850,
+      "end_ms": 93150,
+      "start_s": 88.85,
+      "timecode": "00:01:28:26",
+      "frame": 2666
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 44",
+      "start_ms": 90850,
+      "end_ms": 92950,
+      "start_s": 90.85,
+      "timecode": "00:01:30:26",
+      "frame": 2726
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 45",
+      "start_ms": 92950,
+      "end_ms": 95000,
+      "start_s": 92.95,
+      "timecode": "00:01:32:28",
+      "frame": 2788
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 9",
+      "start_ms": 92950,
+      "end_ms": 93450,
+      "start_s": 92.95,
+      "timecode": "00:01:32:28",
+      "frame": 2788
+    },
+    {
+      "track": "Chords",
+      "label": "C#7/E#",
+      "start_ms": 93150,
+      "end_ms": 94750,
+      "start_s": 93.15,
+      "timecode": "00:01:33:04",
+      "frame": 2794
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 94750,
+      "end_ms": 97300,
+      "start_s": 94.75,
+      "timecode": "00:01:34:22",
+      "frame": 2842
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 46",
+      "start_ms": 95000,
+      "end_ms": 97100,
+      "start_s": 95.0,
+      "timecode": "00:01:35:00",
+      "frame": 2850
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 47",
+      "start_ms": 97100,
+      "end_ms": 99150,
+      "start_s": 97.1,
+      "timecode": "00:01:37:03",
+      "frame": 2913
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 97300,
+      "end_ms": 99750,
+      "start_s": 97.3,
+      "timecode": "00:01:37:09",
+      "frame": 2919
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 48",
+      "start_ms": 99150,
+      "end_ms": 101250,
+      "start_s": 99.15,
+      "timecode": "00:01:39:04",
+      "frame": 2974
+    },
+    {
+      "track": "Chords",
+      "label": "Abmaj7",
+      "start_ms": 99750,
+      "end_ms": 100450,
+      "start_s": 99.75,
+      "timecode": "00:01:39:22",
+      "frame": 2992
+    },
+    {
+      "track": "Chords",
+      "label": "C#7/E#",
+      "start_ms": 100450,
+      "end_ms": 103400,
+      "start_s": 100.45,
+      "timecode": "00:01:40:14",
+      "frame": 3014
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 49",
+      "start_ms": 101250,
+      "end_ms": 103300,
+      "start_s": 101.25,
+      "timecode": "00:01:41:08",
+      "frame": 3038
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 50",
+      "start_ms": 103300,
+      "end_ms": 105400,
+      "start_s": 103.3,
+      "timecode": "00:01:43:09",
+      "frame": 3099
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 10",
+      "start_ms": 103300,
+      "end_ms": 103800,
+      "start_s": 103.3,
+      "timecode": "00:01:43:09",
+      "frame": 3099
+    },
+    {
+      "track": "Sections",
+      "label": "Chorus 2",
+      "start_ms": 103300,
+      "end_ms": 121900,
+      "start_s": 103.3,
+      "timecode": "00:01:43:09",
+      "frame": 3099
+    },
+    {
+      "track": "Chords",
+      "label": "Eb",
+      "start_ms": 103400,
+      "end_ms": 107450,
+      "start_s": 103.4,
+      "timecode": "00:01:43:12",
+      "frame": 3102
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 51",
+      "start_ms": 105400,
+      "end_ms": 107450,
+      "start_s": 105.4,
+      "timecode": "00:01:45:12",
+      "frame": 3162
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 52",
+      "start_ms": 107450,
+      "end_ms": 109500,
+      "start_s": 107.45,
+      "timecode": "00:01:47:14",
+      "frame": 3224
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 107450,
+      "end_ms": 109050,
+      "start_s": 107.45,
+      "timecode": "00:01:47:14",
+      "frame": 3224
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 109050,
+      "end_ms": 110450,
+      "start_s": 109.05,
+      "timecode": "00:01:49:02",
+      "frame": 3272
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 53",
+      "start_ms": 109500,
+      "end_ms": 111550,
+      "start_s": 109.5,
+      "timecode": "00:01:49:15",
+      "frame": 3285
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 110450,
+      "end_ms": 111050,
+      "start_s": 110.45,
+      "timecode": "00:01:50:14",
+      "frame": 3314
+    },
+    {
+      "track": "Chords",
+      "label": "C#/E#",
+      "start_ms": 111050,
+      "end_ms": 111550,
+      "start_s": 111.05,
+      "timecode": "00:01:51:02",
+      "frame": 3332
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 54",
+      "start_ms": 111550,
+      "end_ms": 113650,
+      "start_s": 111.55,
+      "timecode": "00:01:51:16",
+      "frame": 3346
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 111550,
+      "end_ms": 113150,
+      "start_s": 111.55,
+      "timecode": "00:01:51:16",
+      "frame": 3346
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 113150,
+      "end_ms": 114700,
+      "start_s": 113.15,
+      "timecode": "00:01:53:04",
+      "frame": 3394
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 55",
+      "start_ms": 113650,
+      "end_ms": 115700,
+      "start_s": 113.65,
+      "timecode": "00:01:53:20",
+      "frame": 3410
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 114700,
+      "end_ms": 115350,
+      "start_s": 114.7,
+      "timecode": "00:01:54:21",
+      "frame": 3441
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 115350,
+      "end_ms": 117650,
+      "start_s": 115.35,
+      "timecode": "00:01:55:10",
+      "frame": 3460
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 56",
+      "start_ms": 115700,
+      "end_ms": 117750,
+      "start_s": 115.7,
+      "timecode": "00:01:55:21",
+      "frame": 3471
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 11",
+      "start_ms": 115700,
+      "end_ms": 116200,
+      "start_s": 115.7,
+      "timecode": "00:01:55:21",
+      "frame": 3471
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 117650,
+      "end_ms": 118750,
+      "start_s": 117.65,
+      "timecode": "00:01:57:20",
+      "frame": 3530
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 57",
+      "start_ms": 117750,
+      "end_ms": 119800,
+      "start_s": 117.75,
+      "timecode": "00:01:57:22",
+      "frame": 3532
+    },
+    {
+      "track": "Chords",
+      "label": "F#",
+      "start_ms": 118750,
+      "end_ms": 119300,
+      "start_s": 118.75,
+      "timecode": "00:01:58:22",
+      "frame": 3562
+    },
+    {
+      "track": "Chords",
+      "label": "C#maj7",
+      "start_ms": 119300,
+      "end_ms": 119850,
+      "start_s": 119.3,
+      "timecode": "00:01:59:09",
+      "frame": 3579
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 58",
+      "start_ms": 119800,
+      "end_ms": 121900,
+      "start_s": 119.8,
+      "timecode": "00:01:59:24",
+      "frame": 3594
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 119850,
+      "end_ms": 121400,
+      "start_s": 119.85,
+      "timecode": "00:01:59:26",
+      "frame": 3596
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 121400,
+      "end_ms": 132250,
+      "start_s": 121.4,
+      "timecode": "00:02:01:12",
+      "frame": 3642
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 59",
+      "start_ms": 121900,
+      "end_ms": 124000,
+      "start_s": 121.9,
+      "timecode": "00:02:01:27",
+      "frame": 3657
+    },
+    {
+      "track": "Sections",
+      "label": "Guitar Solo",
+      "start_ms": 121900,
+      "end_ms": 148750,
+      "start_s": 121.9,
+      "timecode": "00:02:01:27",
+      "frame": 3657
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 60",
+      "start_ms": 124000,
+      "end_ms": 126100,
+      "start_s": 124.0,
+      "timecode": "00:02:04:00",
+      "frame": 3720
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 61",
+      "start_ms": 126100,
+      "end_ms": 128150,
+      "start_s": 126.1,
+      "timecode": "00:02:06:03",
+      "frame": 3783
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 62",
+      "start_ms": 128150,
+      "end_ms": 130200,
+      "start_s": 128.15,
+      "timecode": "00:02:08:04",
+      "frame": 3844
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 63",
+      "start_ms": 130200,
+      "end_ms": 132250,
+      "start_s": 130.2,
+      "timecode": "00:02:10:06",
+      "frame": 3906
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 64",
+      "start_ms": 132250,
+      "end_ms": 134350,
+      "start_s": 132.25,
+      "timecode": "00:02:12:08",
+      "frame": 3968
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 132250,
+      "end_ms": 135350,
+      "start_s": 132.25,
+      "timecode": "00:02:12:08",
+      "frame": 3968
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 12",
+      "start_ms": 132250,
+      "end_ms": 132750,
+      "start_s": 132.25,
+      "timecode": "00:02:12:08",
+      "frame": 3968
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 65",
+      "start_ms": 134350,
+      "end_ms": 136400,
+      "start_s": 134.35,
+      "timecode": "00:02:14:10",
+      "frame": 4030
+    },
+    {
+      "track": "Chords",
+      "label": "F#6",
+      "start_ms": 135350,
+      "end_ms": 136000,
+      "start_s": 135.35,
+      "timecode": "00:02:15:10",
+      "frame": 4060
+    },
+    {
+      "track": "Chords",
+      "label": "C#/E#",
+      "start_ms": 136000,
+      "end_ms": 137100,
+      "start_s": 136.0,
+      "timecode": "00:02:16:00",
+      "frame": 4080
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 66",
+      "start_ms": 136400,
+      "end_ms": 138450,
+      "start_s": 136.4,
+      "timecode": "00:02:16:12",
+      "frame": 4092
+    },
+    {
+      "track": "Chords",
+      "label": "Abm",
+      "start_ms": 137100,
+      "end_ms": 138950,
+      "start_s": 137.1,
+      "timecode": "00:02:17:03",
+      "frame": 4113
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 67",
+      "start_ms": 138450,
+      "end_ms": 140500,
+      "start_s": 138.45,
+      "timecode": "00:02:18:14",
+      "frame": 4154
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7/C",
+      "start_ms": 138950,
+      "end_ms": 139450,
+      "start_s": 138.95,
+      "timecode": "00:02:18:28",
+      "frame": 4168
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 139450,
+      "end_ms": 140050,
+      "start_s": 139.45,
+      "timecode": "00:02:19:14",
+      "frame": 4184
+    },
+    {
+      "track": "Chords",
+      "label": "Fm",
+      "start_ms": 140050,
+      "end_ms": 140500,
+      "start_s": 140.05,
+      "timecode": "00:02:20:02",
+      "frame": 4202
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 68",
+      "start_ms": 140500,
+      "end_ms": 142600,
+      "start_s": 140.5,
+      "timecode": "00:02:20:15",
+      "frame": 4215
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 140500,
+      "end_ms": 143250,
+      "start_s": 140.5,
+      "timecode": "00:02:20:15",
+      "frame": 4215
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 69",
+      "start_ms": 142600,
+      "end_ms": 144650,
+      "start_s": 142.6,
+      "timecode": "00:02:22:18",
+      "frame": 4278
+    },
+    {
+      "track": "Chords",
+      "label": "Abm7",
+      "start_ms": 143250,
+      "end_ms": 145100,
+      "start_s": 143.25,
+      "timecode": "00:02:23:08",
+      "frame": 4298
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 70",
+      "start_ms": 144650,
+      "end_ms": 146700,
+      "start_s": 144.65,
+      "timecode": "00:02:24:20",
+      "frame": 4340
+    },
+    {
+      "track": "Chords",
+      "label": "Ab7",
+      "start_ms": 145100,
+      "end_ms": 151650,
+      "start_s": 145.1,
+      "timecode": "00:02:25:03",
+      "frame": 4353
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 71",
+      "start_ms": 146700,
+      "end_ms": 148750,
+      "start_s": 146.7,
+      "timecode": "00:02:26:21",
+      "frame": 4401
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 72",
+      "start_ms": 148750,
+      "end_ms": 150800,
+      "start_s": 148.75,
+      "timecode": "00:02:28:22",
+      "frame": 4462
+    },
+    {
+      "track": "Sections",
+      "label": "Chorus 3 (double)",
+      "start_ms": 148750,
+      "end_ms": 179600,
+      "start_s": 148.75,
+      "timecode": "00:02:28:22",
+      "frame": 4462
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 73",
+      "start_ms": 150800,
+      "end_ms": 152850,
+      "start_s": 150.8,
+      "timecode": "00:02:30:24",
+      "frame": 4524
+    },
+    {
+      "track": "Chords",
+      "label": "F#6",
+      "start_ms": 151650,
+      "end_ms": 152350,
+      "start_s": 151.65,
+      "timecode": "00:02:31:20",
+      "frame": 4550
+    },
+    {
+      "track": "Chords",
+      "label": "C#7/E#",
+      "start_ms": 152350,
+      "end_ms": 152900,
+      "start_s": 152.35,
+      "timecode": "00:02:32:10",
+      "frame": 4570
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 74",
+      "start_ms": 152850,
+      "end_ms": 154900,
+      "start_s": 152.85,
+      "timecode": "00:02:32:26",
+      "frame": 4586
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 152900,
+      "end_ms": 155850,
+      "start_s": 152.9,
+      "timecode": "00:02:32:27",
+      "frame": 4587
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 75",
+      "start_ms": 154900,
+      "end_ms": 156950,
+      "start_s": 154.9,
+      "timecode": "00:02:34:27",
+      "frame": 4647
+    },
+    {
+      "track": "Chords",
+      "label": "B/F#",
+      "start_ms": 155850,
+      "end_ms": 156600,
+      "start_s": 155.85,
+      "timecode": "00:02:35:26",
+      "frame": 4676
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 156600,
+      "end_ms": 158600,
+      "start_s": 156.6,
+      "timecode": "00:02:36:18",
+      "frame": 4698
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 76",
+      "start_ms": 156950,
+      "end_ms": 159000,
+      "start_s": 156.95,
+      "timecode": "00:02:36:28",
+      "frame": 4708
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 158600,
+      "end_ms": 159850,
+      "start_s": 158.6,
+      "timecode": "00:02:38:18",
+      "frame": 4758
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 77",
+      "start_ms": 159000,
+      "end_ms": 161050,
+      "start_s": 159.0,
+      "timecode": "00:02:39:00",
+      "frame": 4770
+    },
+    {
+      "track": "Chords",
+      "label": "F#6",
+      "start_ms": 159850,
+      "end_ms": 160650,
+      "start_s": 159.85,
+      "timecode": "00:02:39:26",
+      "frame": 4796
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 160650,
+      "end_ms": 162700,
+      "start_s": 160.65,
+      "timecode": "00:02:40:20",
+      "frame": 4820
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 78",
+      "start_ms": 161050,
+      "end_ms": 163150,
+      "start_s": 161.05,
+      "timecode": "00:02:41:02",
+      "frame": 4832
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 13",
+      "start_ms": 161050,
+      "end_ms": 161550,
+      "start_s": 161.05,
+      "timecode": "00:02:41:02",
+      "frame": 4832
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 162700,
+      "end_ms": 163200,
+      "start_s": 162.7,
+      "timecode": "00:02:42:21",
+      "frame": 4881
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 79",
+      "start_ms": 163150,
+      "end_ms": 165150,
+      "start_s": 163.15,
+      "timecode": "00:02:43:04",
+      "frame": 4894
+    },
+    {
+      "track": "Chords",
+      "label": "F#6",
+      "start_ms": 163200,
+      "end_ms": 164650,
+      "start_s": 163.2,
+      "timecode": "00:02:43:06",
+      "frame": 4896
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 164650,
+      "end_ms": 165150,
+      "start_s": 164.65,
+      "timecode": "00:02:44:20",
+      "frame": 4940
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 80",
+      "start_ms": 165150,
+      "end_ms": 167200,
+      "start_s": 165.15,
+      "timecode": "00:02:45:04",
+      "frame": 4954
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 165150,
+      "end_ms": 168250,
+      "start_s": 165.15,
+      "timecode": "00:02:45:04",
+      "frame": 4954
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 81",
+      "start_ms": 167200,
+      "end_ms": 169250,
+      "start_s": 167.2,
+      "timecode": "00:02:47:06",
+      "frame": 5016
+    },
+    {
+      "track": "Chords",
+      "label": "F#/G#",
+      "start_ms": 168250,
+      "end_ms": 169250,
+      "start_s": 168.25,
+      "timecode": "00:02:48:08",
+      "frame": 5048
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 82",
+      "start_ms": 169250,
+      "end_ms": 171350,
+      "start_s": 169.25,
+      "timecode": "00:02:49:08",
+      "frame": 5078
+    },
+    {
+      "track": "Chords",
+      "label": "Abm",
+      "start_ms": 169250,
+      "end_ms": 170900,
+      "start_s": 169.25,
+      "timecode": "00:02:49:08",
+      "frame": 5078
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 170900,
+      "end_ms": 172400,
+      "start_s": 170.9,
+      "timecode": "00:02:50:27",
+      "frame": 5127
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 83",
+      "start_ms": 171350,
+      "end_ms": 173400,
+      "start_s": 171.35,
+      "timecode": "00:02:51:10",
+      "frame": 5140
+    },
+    {
+      "track": "Chords",
+      "label": "F#maj7",
+      "start_ms": 172400,
+      "end_ms": 173000,
+      "start_s": 172.4,
+      "timecode": "00:02:52:12",
+      "frame": 5172
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 173000,
+      "end_ms": 175000,
+      "start_s": 173.0,
+      "timecode": "00:02:53:00",
+      "frame": 5190
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 84",
+      "start_ms": 173400,
+      "end_ms": 175450,
+      "start_s": 173.4,
+      "timecode": "00:02:53:12",
+      "frame": 5202
+    },
+    {
+      "track": "Chords",
+      "label": "C#/G#",
+      "start_ms": 175000,
+      "end_ms": 176250,
+      "start_s": 175.0,
+      "timecode": "00:02:55:00",
+      "frame": 5250
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 85",
+      "start_ms": 175450,
+      "end_ms": 177500,
+      "start_s": 175.45,
+      "timecode": "00:02:55:14",
+      "frame": 5264
+    },
+    {
+      "track": "Chords",
+      "label": "F#6",
+      "start_ms": 176250,
+      "end_ms": 177050,
+      "start_s": 176.25,
+      "timecode": "00:02:56:08",
+      "frame": 5288
+    },
+    {
+      "track": "Chords",
+      "label": "C#/E#",
+      "start_ms": 177050,
+      "end_ms": 177550,
+      "start_s": 177.05,
+      "timecode": "00:02:57:02",
+      "frame": 5312
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 86",
+      "start_ms": 177500,
+      "end_ms": 179600,
+      "start_s": 177.5,
+      "timecode": "00:02:57:15",
+      "frame": 5325
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 177550,
+      "end_ms": 179150,
+      "start_s": 177.55,
+      "timecode": "00:02:57:16",
+      "frame": 5326
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 179150,
+      "end_ms": 184550,
+      "start_s": 179.15,
+      "timecode": "00:02:59:04",
+      "frame": 5374
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 87",
+      "start_ms": 179600,
+      "end_ms": 181750,
+      "start_s": 179.6,
+      "timecode": "00:02:59:18",
+      "frame": 5388
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 14",
+      "start_ms": 179600,
+      "end_ms": 180100,
+      "start_s": 179.6,
+      "timecode": "00:02:59:18",
+      "frame": 5388
+    },
+    {
+      "track": "Sections",
+      "label": "Breakdown (drums drop out)",
+      "start_ms": 179600,
+      "end_ms": 198000,
+      "start_s": 179.6,
+      "timecode": "00:02:59:18",
+      "frame": 5388
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 88",
+      "start_ms": 181750,
+      "end_ms": 183900,
+      "start_s": 181.75,
+      "timecode": "00:03:01:22",
+      "frame": 5452
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 89",
+      "start_ms": 183900,
+      "end_ms": 186050,
+      "start_s": 183.9,
+      "timecode": "00:03:03:27",
+      "frame": 5517
+    },
+    {
+      "track": "Chords",
+      "label": "F#/C#",
+      "start_ms": 184550,
+      "end_ms": 186500,
+      "start_s": 184.55,
+      "timecode": "00:03:04:16",
+      "frame": 5536
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 90",
+      "start_ms": 186050,
+      "end_ms": 188000,
+      "start_s": 186.05,
+      "timecode": "00:03:06:02",
+      "frame": 5582
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 186500,
+      "end_ms": 192400,
+      "start_s": 186.5,
+      "timecode": "00:03:06:15",
+      "frame": 5595
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 91",
+      "start_ms": 188000,
+      "end_ms": 189700,
+      "start_s": 188.0,
+      "timecode": "00:03:08:00",
+      "frame": 5640
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 15",
+      "start_ms": 188000,
+      "end_ms": 188500,
+      "start_s": 188.0,
+      "timecode": "00:03:08:00",
+      "frame": 5640
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 92",
+      "start_ms": 189700,
+      "end_ms": 191350,
+      "start_s": 189.7,
+      "timecode": "00:03:09:21",
+      "frame": 5691
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 93",
+      "start_ms": 191350,
+      "end_ms": 193000,
+      "start_s": 191.35,
+      "timecode": "00:03:11:10",
+      "frame": 5740
+    },
+    {
+      "track": "Chords",
+      "label": "Ebm7b5/Db",
+      "start_ms": 192400,
+      "end_ms": 193900,
+      "start_s": 192.4,
+      "timecode": "00:03:12:12",
+      "frame": 5772
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 94",
+      "start_ms": 193000,
+      "end_ms": 194700,
+      "start_s": 193.0,
+      "timecode": "00:03:13:00",
+      "frame": 5790
+    },
+    {
+      "track": "Chords",
+      "label": "C#",
+      "start_ms": 193900,
+      "end_ms": 195100,
+      "start_s": 193.9,
+      "timecode": "00:03:13:27",
+      "frame": 5817
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 95",
+      "start_ms": 194700,
+      "end_ms": 196300,
+      "start_s": 194.7,
+      "timecode": "00:03:14:21",
+      "frame": 5841
+    },
+    {
+      "track": "Chords",
+      "label": "Ab",
+      "start_ms": 195100,
+      "end_ms": 204900,
+      "start_s": 195.1,
+      "timecode": "00:03:15:03",
+      "frame": 5853
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 96",
+      "start_ms": 196300,
+      "end_ms": 198000,
+      "start_s": 196.3,
+      "timecode": "00:03:16:09",
+      "frame": 5889
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 97",
+      "start_ms": 198000,
+      "end_ms": 199650,
+      "start_s": 198.0,
+      "timecode": "00:03:18:00",
+      "frame": 5940
+    },
+    {
+      "track": "Sections",
+      "label": "Finale",
+      "start_ms": 198000,
+      "end_ms": 208100,
+      "start_s": 198.0,
+      "timecode": "00:03:18:00",
+      "frame": 5940
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 98",
+      "start_ms": 199650,
+      "end_ms": 201150,
+      "start_s": 199.65,
+      "timecode": "00:03:19:20",
+      "frame": 5990
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 99",
+      "start_ms": 201150,
+      "end_ms": 202550,
+      "start_s": 201.15,
+      "timecode": "00:03:21:04",
+      "frame": 6034
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 100",
+      "start_ms": 202550,
+      "end_ms": 203900,
+      "start_s": 202.55,
+      "timecode": "00:03:22:16",
+      "frame": 6076
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 101",
+      "start_ms": 203900,
+      "end_ms": 205300,
+      "start_s": 203.9,
+      "timecode": "00:03:23:27",
+      "frame": 6117
+    },
+    {
+      "track": "Chords",
+      "label": "Abmaj7",
+      "start_ms": 204900,
+      "end_ms": 208300,
+      "start_s": 204.9,
+      "timecode": "00:03:24:27",
+      "frame": 6147
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 102",
+      "start_ms": 205300,
+      "end_ms": 206700,
+      "start_s": 205.3,
+      "timecode": "00:03:25:09",
+      "frame": 6159
+    },
+    {
+      "track": "Bars",
+      "label": "Bar 103",
+      "start_ms": 206700,
+      "end_ms": 207200,
+      "start_s": 206.7,
+      "timecode": "00:03:26:21",
+      "frame": 6201
+    },
+    {
+      "track": "Impacts",
+      "label": "Impact 16",
+      "start_ms": 206700,
+      "end_ms": 207200,
+      "start_s": 206.7,
+      "timecode": "00:03:26:21",
+      "frame": 6201
+    },
+    {
+      "track": "Chords",
+      "label": "N",
+      "start_ms": 208300,
+      "end_ms": 208800,
+      "start_s": 208.3,
+      "timecode": "00:03:28:09",
+      "frame": 6249
+    }
+  ]
+}

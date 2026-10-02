@@ -1,0 +1,12 @@
+[
+  {"label": "Intro - Riff (guitar alone)", "start": 0.0},
+  {"label": "Intro - Band In", "start": 9.7},
+  {"label": "Verse 1", "start": 18.1},
+  {"label": "Chorus 1", "start": 49.8},
+  {"label": "Verse 2", "start": 68.4},
+  {"label": "Chorus 2", "start": 104.0},
+  {"label": "Guitar Solo", "start": 122.4},
+  {"label": "Chorus 3 (double)", "start": 149.3},
+  {"label": "Breakdown (drums drop out)", "start": 180.1},
+  {"label": "Finale", "start": 197.2}
+]

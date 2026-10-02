@@ -17,6 +17,8 @@ from xlights_core.knowledge.value_curves import brightness_setting
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction
 from .beats import _downsample, effect_palette
+# SHOCKWAVE_SETTINGS lives in effect_meta (not here) to break the beats→triggers cycle.
+from .effect_meta import SHOCKWAVE_SETTINGS  # hand-authored radiating accent settings
 from .features import STEM_EFFECT, instrument_entrances
 from .semantic_groups import ACCENT_GROUPS, HERO_GROUP, RHYTHM_POOL, WHOLE_HOUSE_GROUPS
 from .tuning import PEAK_BAND, PEAK_FLOOR
@@ -30,7 +32,6 @@ SPARSE_MAX_INTENSITY = 0.5   # 'sparse_beat' = a strong beat with little else (l
 EVENT_MS = 220               # a point trigger's pop/flash duration (short — a drum hit)
 POP_BRIGHTNESS = 320         # 0–400 scale (100=normal): a pop is a bright FLASH, not a tint
 
-from .effect_meta import SHOCKWAVE_SETTINGS  # hand-authored radiating accent settings; defined there to break the beats→triggers cycle
 GROUP_POOLS = {"rhythm": RHYTHM_POOL, "accents": ACCENT_GROUPS, "focal": (HERO_GROUP,)}
 
 

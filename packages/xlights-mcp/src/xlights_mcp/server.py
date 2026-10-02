@@ -11,7 +11,8 @@ from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from typing import Any, TypeVar
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from xlights_core import XLightsClient
 from xlights_core.editing import (
@@ -31,7 +32,7 @@ _TOOL_ERRORS = (XLightsError, PresetPlacementError, CleanSlateRequired, KnobValu
 
 
 @asynccontextmanager
-async def _lifespan(_server: FastMCP) -> AsyncIterator[dict[str, XLightsClient]]:
+async def _lifespan(_server: MCPServer) -> AsyncIterator[dict[str, XLightsClient]]:
     client = XLightsClient()
     try:
         yield {"client": client}
@@ -39,7 +40,7 @@ async def _lifespan(_server: FastMCP) -> AsyncIterator[dict[str, XLightsClient]]
         await client.aclose()
 
 
-mcp = FastMCP("xlights", lifespan=_lifespan)
+mcp = MCPServer("xlights", lifespan=_lifespan)
 
 
 def _client(ctx: Context) -> XLightsClient:
@@ -52,7 +53,11 @@ async def _call(coro: Awaitable[T]) -> T:
         return await coro
     except _TOOL_ERRORS as exc:
         # Surface the error type so the MCP client sees *which* failure occurred.
-        raise RuntimeError(f"{type(exc).__name__}: {exc}") from exc
+        # MUST be ToolError, not RuntimeError: mcp 2.x treats any other exception as
+        # a crash and sends the model only "Error executing tool <name>", keeping the
+        # message server-side. ToolError is the "anticipated failure" channel whose
+        # text reaches the client (and logs at INFO without a traceback).
+        raise ToolError(f"{type(exc).__name__}: {exc}") from exc
 
 
 @mcp.tool()
@@ -168,14 +173,14 @@ async def xl_add_effect_raw(
 ) -> dict[str, Any]:
     """Escape hatch: place an effect from raw settings/palette strings (gated)."""
     if start_ms < 0 or end_ms <= start_ms:
-        raise ValueError(f"bad timing: start={start_ms} end={end_ms}")
+        raise ToolError(f"bad timing: start={start_ms} end={end_ms}")
     client = _client(ctx)
     if target not in set(await _call(client.get_models())):
-        raise ValueError(f"target {target!r} not in layout")
+        raise ToolError(f"target {target!r} not in layout")
     worked = await _call(client.add_effect(
         target, effect, settings, palette, layer=layer, start_ms=start_ms, end_ms=end_ms))
     if not worked:
-        raise RuntimeError("PresetPlacementError: xLights did not add the effect")
+        raise ToolError("PresetPlacementError: xLights did not add the effect")
     return {"placed": True}
 
 
@@ -203,11 +208,11 @@ async def xl_analyze_song(path: str) -> dict[str, Any]:
     try:
         from xlights_core.audio import AudioAnalyzer
     except Exception as exc:  # noqa: BLE001 - surface a clear tool error
-        raise RuntimeError(f"audio extra not installed: {exc}") from exc
+        raise ToolError(f"audio extra not installed: {exc}") from exc
     try:
         analysis = await anyio.to_thread.run_sync(lambda: AudioAnalyzer().analyze(path))
     except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"{type(exc).__name__}: {exc}") from exc
+        raise ToolError(f"{type(exc).__name__}: {exc}") from exc
     return analysis.model_dump()
 
 
@@ -218,7 +223,7 @@ async def xl_list_vamp_plugins() -> list[str]:
     try:
         from xlights_core.audio.extractors.vamp_host import list_plugins
     except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"audio extra not installed: {exc}") from exc
+        raise ToolError(f"audio extra not installed: {exc}") from exc
     return await anyio.to_thread.run_sync(list_plugins)
 
 

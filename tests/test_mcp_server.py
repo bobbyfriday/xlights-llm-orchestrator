@@ -1,6 +1,6 @@
 """Tests for the xlights-mcp server tools (I6).
 
-Hermetic: no real xLights, no network. FastMCP registers the tool functions but leaves the
+Hermetic: no real xLights, no network. MCPServer registers the tool functions but leaves the
 module-level names as plain coroutines, so we call them directly with a duck-typed fake client
 wrapped in a minimal Context. This exercises pass-through shape, error translation, timing/target
 gates, and the lazy-audio fallback. We drive the coroutines with `asyncio.run` to match the repo's
@@ -13,6 +13,8 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 
 from xlights_core.exceptions import XLightsConnectionError
 from xlights_core.knowledge.validators import KnobValueError
@@ -97,7 +99,7 @@ def test_call_translates_typed_errors(exc, prefix):
     def _raise(*a, **k):
         raise exc
     c = FakeClient(get_version=_raise)
-    with pytest.raises(RuntimeError) as ei:
+    with pytest.raises(ToolError) as ei:
         run(server.xl_get_version(_ctx(c)))
     assert str(ei.value).startswith(prefix)
 
@@ -130,19 +132,19 @@ def test_save_sequence_passes_name_none_through():
 
 def test_add_effect_raw_rejects_bad_timing_before_any_client_call():
     c = FakeClient()               # no methods → any client call would AttributeError
-    with pytest.raises(ValueError, match="bad timing"):
+    with pytest.raises(ToolError, match="bad timing"):
         run(server.xl_add_effect_raw(_ctx(c), "Tree", "On", start_ms=100, end_ms=100))
 
 
 def test_add_effect_raw_rejects_target_not_in_layout():
     c = FakeClient(get_models=["Arch1"])
-    with pytest.raises(ValueError, match="not in layout"):
+    with pytest.raises(ToolError, match="not in layout"):
         run(server.xl_add_effect_raw(_ctx(c), "Tree", "On", start_ms=0, end_ms=1000))
 
 
 def test_add_effect_raw_worked_false_raises_placement_error():
     c = FakeClient(get_models=["Tree"], add_effect=False)
-    with pytest.raises(RuntimeError, match="PresetPlacementError"):
+    with pytest.raises(ToolError, match="PresetPlacementError"):
         run(server.xl_add_effect_raw(_ctx(c), "Tree", "On", start_ms=0, end_ms=1000))
 
 
@@ -199,5 +201,70 @@ def test_analyze_song_missing_audio_extra_clean_error(monkeypatch):
         return real_import(name, *a, **k)
 
     monkeypatch.setattr(builtins, "__import__", _blocked)
-    with pytest.raises(RuntimeError, match="audio extra not installed"):
+    with pytest.raises(ToolError, match="audio extra not installed"):
         run(server.xl_analyze_song("s.mp3"))
+
+
+# -- registration: drive the REAL server object, not just the coroutines ------
+# Every test above calls the tool functions directly, which passes even if server
+# construction or tool registration is broken — the mcp 1.x→2.x rename surfaced
+# only as a module-level ImportError at collection time. These exercise the actual
+# MCPServer so an SDK change that breaks registration fails as a test, not a run.
+
+EXPECTED_TOOLS = {
+    "xl_get_version", "xl_get_show_folder", "xl_get_models", "xl_get_model",
+    "xl_get_controllers", "xl_new_sequence", "xl_open_sequence", "xl_save_sequence",
+    "xl_close_sequence", "xl_render_all", "xl_add_effect", "xl_add_effect_raw",
+    "xl_validate_preset", "xl_analyze_song", "xl_list_vamp_plugins",
+}
+
+
+def test_every_tool_registers_on_the_server():
+    """All 15 tools reach the real MCPServer registry (no xLights, no connection)."""
+    names = {t.name for t in run(server.mcp.list_tools())}
+    assert names == EXPECTED_TOOLS
+
+
+def test_registered_tools_are_still_directly_callable():
+    """The decorator must leave module-level names as plain coroutines.
+
+    The whole harness above depends on this; some SDK versions could wrap tools
+    un-callably (a risk add-engineering-hardening flagged), which would silently
+    invalidate every other test in this file rather than failing loudly.
+    """
+    for name in EXPECTED_TOOLS:
+        fn = getattr(server, name)
+        assert asyncio.iscoroutinefunction(fn), f"{name} is no longer a coroutine function"
+
+
+def test_context_is_not_exposed_in_tool_schemas():
+    """`ctx` is framework-injected, so it must never appear as a client parameter."""
+    for tool in run(server.mcp.list_tools()):
+        props = tool.input_schema.get("properties", {})
+        assert "ctx" not in props, f"{tool.name} leaks ctx into its input schema"
+
+
+def test_tool_descriptions_come_from_docstrings():
+    """Docstrings are the tool descriptions the MCP client sees — none may be blank."""
+    for tool in run(server.mcp.list_tools()):
+        assert (tool.description or "").strip(), f"{tool.name} has no description"
+
+
+def test_anticipated_failures_carry_their_message_to_the_client():
+    """An expected failure must reach the client as ToolError WITH its message.
+
+    This is the one guarantee the whole `_call` wrapper exists for, and mcp 2.x
+    changed how it is earned: any exception that is not a ToolError is treated as
+    a crash, and the client is told only "Error executing tool <name>" while the
+    detail stays in the server log. Driven through the real `call_tool` because
+    that is where the distinction is actually made — raising the right *type* in a
+    unit test proves nothing about what the client ends up seeing.
+    """
+    # bad timing raises before the tool touches ctx, so no lifespan/client is needed
+    with pytest.raises(ToolError) as ei:
+        run(server.mcp.call_tool(
+            "xl_add_effect_raw",
+            {"target": "Tree", "effect": "On", "start_ms": 100, "end_ms": 100}))
+    assert not isinstance(ei.value, UnexpectedToolError), \
+        "raised as a crash — the message was withheld from the client"
+    assert "bad timing: start=100 end=100" in str(ei.value)

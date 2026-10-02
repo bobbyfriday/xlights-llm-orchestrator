@@ -28,7 +28,7 @@ A [uv](https://docs.astral.sh/uv/) workspace of three installable packages:
 | Package | Role |
 | --- | --- |
 | [`xlights-core`](packages/xlights-core) | Async REST client, audio analysis (VAMP/librosa/stems/lyrics), the mined effect-preset library, layout semantics. No LLM deps. |
-| [`xlights-mcp`](packages/xlights-mcp) | A FastMCP server exposing xLights read/edit operations as tools (usable from Claude Code). |
+| [`xlights-mcp`](packages/xlights-mcp) | An MCP server (MCPServer, mcp 2.x) exposing xLights read/edit operations as tools (usable from Claude Code). |
 | [`xlights-orchestrator`](packages/xlights-orchestrator) | The LLM pipeline: agents, the deterministic weave/beat/trigger layers, the refine loop, the `xlo` CLI. |
 
 ## Quickstart

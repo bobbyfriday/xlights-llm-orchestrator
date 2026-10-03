@@ -115,6 +115,21 @@ async def _ab(args) -> None:
     print(ab_mod.render_ab_summary(summary))
 
 
+def _video_script(args) -> None:
+    from .pipeline.video import run_video_script
+    if not args.matrix_size:          # refuse before the key check / any spend
+        raise SystemExit("--matrix-size is required (e.g. 1024x768); the script will not guess "
+                         "the video matrix's resolution")
+    if not has_llm_key():
+        raise SystemExit("No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env")
+    try:
+        md = asyncio.run(run_video_script(args.song, matrix_size=args.matrix_size,
+                                          frame_ms=args.frame_ms, max_shot_s=args.max_shot_s))
+    except (ValueError, FileNotFoundError) as exc:
+        raise SystemExit(str(exc)) from exc
+    print(f"video script written: {md}\n                      {md.with_suffix('.json')}")
+
+
 def _report(args) -> None:
     """Deterministic offline cost/quality dashboard over the revision logs. No LLM, no xLights,
     no network — and NO has_llm_key() gate."""
@@ -204,6 +219,15 @@ def main(argv: list[str] | None = None) -> None:
                     help="write a self-contained HTML page (optional PATH; default: <root>/report.html)")
     rp.add_argument("--json", action="store_true", help="emit the Report as JSON")
     rp.add_argument("--reprice", action="store_true", help="recompute cost from the current price table")
+    vs = sub.add_parser("video-script",
+                        help="write a story-driven storyboard for the centerpiece video matrix "
+                             "(from cache; one LLM call)")
+    vs.add_argument("--song", required=True, help="path to the audio file (must have been run before)")
+    vs.add_argument("--matrix-size", default=None,
+                    help="video matrix resolution, e.g. 1024x768 (required — never guessed)")
+    vs.add_argument("--frame-ms", type=int, default=50, help="sequence frame interval (default 50 → 20 fps)")
+    vs.add_argument("--max-shot-s", type=float, default=None,
+                    help="split shots longer than this on downbeats (for clip-length-limited video tools)")
     ab = sub.add_parser("ab", help="provider A/B: run one song through multiple routing arms")
     ab.add_argument("--song", required=True, help="path to a (short) fixture audio file")
     ab.add_argument("--arm", action="append", required=True, dest="arm",
@@ -231,6 +255,9 @@ def main(argv: list[str] | None = None) -> None:
                 "No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env"
             )
         asyncio.run(_run(args))
+    if args.cmd == "video-script":
+        _video_script(args)
+        return
     if args.cmd == "ab":
         asyncio.run(_ab(args))          # preflight inside _ab refuses before spend if a key is missing
         return

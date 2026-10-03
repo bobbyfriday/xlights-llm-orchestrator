@@ -30,12 +30,17 @@ def song_key(path: str) -> str:
     return h.hexdigest()[:16]
 
 
+# Roles that only READ cached pipeline artifacts and produce none the pipeline consumes. Re-pointing
+# (or adding) one must not re-namespace every LLM stage, or it would cold-start every song's cache.
+FINGERPRINT_EXEMPT_ROLES = frozenset({"videographer"})
+
+
 def models_fingerprint() -> str:
     """A stable 8-hex fingerprint of the whole per-role model snapshot. Over-invalidates slightly
     (any role change re-namespaces all LLM stages) but is impossible to get wrong, and the stage
     inputs are transitively coupled anyway."""
     from ..models.registry import model_snapshot
-    snap = model_snapshot()
+    snap = {r: m for r, m in model_snapshot().items() if r not in FINGERPRINT_EXEMPT_ROLES}
     blob = json.dumps(snap, sort_keys=True).encode()
     return "m-" + hashlib.sha1(blob).hexdigest()[:8]
 

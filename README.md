@@ -71,6 +71,16 @@ xlo report --json                         # the Report model as JSON (A/B harnes
 xlo report --reprice                      # recompute cost from the current price table
 ```
 
+### Video script for the centerpiece matrix
+
+`xlo video-script` writes a storyboard — a short film that tells the song's story — for the video
+matrix, timed to the show's own section cuts. One LLM call per song; see
+[docs/usage.md](docs/usage.md#video-script-for-the-centerpiece-matrix).
+
+```bash
+xlo video-script --song "mp3/your song.mp3" --matrix-size 1024x768
+```
+
 ## Editable show "voice"
 
 Five hand-editable markdown files shape the agents and the deterministic layers — tune them

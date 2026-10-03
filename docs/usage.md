@@ -242,6 +242,33 @@ poisoning the Director prompt with an empty group list.
 > `degradations.note(...)`, or re-raise — never a silent `pass`. A structural AST audit test
 > (`tests/test_log_audit.py`) enforces this.
 
+## Video script for the centerpiece matrix
+
+`xlo video-script` writes a **storyboard** for the high-resolution video matrix: a short film that
+tells the song's story while the rest of the display plays the lights. It reads the song's cached
+artifacts (so run `xlo run` for the song first), makes **one** LLM call (the `videographer` role —
+about $0.05 per song on the default Anthropic routing), and never touches xLights.
+
+```bash
+xlo video-script --song "mp3/christmas canon.mp3" --matrix-size 1024x768
+xlo video-script --song "mp3/christmas canon.mp3" --matrix-size 1024x768 --max-shot-s 10
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--matrix-size WxH` | (required) the video matrix resolution. Never guessed — the command refuses without it. |
+| `--frame-ms N` | sequence frame interval (default 50 → 20 fps). |
+| `--max-shot-s N` | split shots longer than N seconds on downbeats, for video tools with clip-length limits. |
+
+Output, in the song's cache directory: `video_script.md` (read this) and `video_script.json` (hand
+this to a video-generation agent). The story is built from the lyrics, narrative, themes and featured
+lines; the agent is deliberately **not** shown the lights' per-section descriptions, so the film tells
+its own story instead of re-describing the house. Shots are cut on the same section boundaries as the
+lights, and every timestamp comes from the cached beat grid, not the model.
+
+It is a hand-off artifact: nothing in the pipeline consumes it yet, and no video is placed on the
+matrix. Songs whose cache predates `song_analysis.json` need one `xlo run` first.
+
 ## Tuning the show's voice
 
 Five hand-editable markdown files (repo root) — edits take effect on the next run, no code:

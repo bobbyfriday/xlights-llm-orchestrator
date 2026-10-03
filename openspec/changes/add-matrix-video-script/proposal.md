@@ -1,103 +1,69 @@
-# Export a time-coded video script from the show's existing creative direction
+# Generate a story-driven video script for the centerpiece matrix
 
 ## Why
 
-The matrix is the show's storyteller (`xlights-scene-cookbook.md` SC-08), and of its real vocabulary —
-"Text/Pictures/Video/Shaders" (`xlights-effects-catalog.md`) — only Text has shipped (F-C,
-`pipeline/matrix_text.py`). The rest were deferred together in `docs/craft-roadmap.md` §8 for one
-reason: "Pictures/Video/Shaders need asset management → OUT for now." Generative video has since made
-the *content* half cheap; what stays expensive is knowing what to ask for, when, and within what
-constraints.
+The show gains a high-resolution matrix (~1024×768) that can carry real pictures and video. It is not
+another prop in the yard — it is the **centerpiece**, and its job is to **tell a story** that goes with
+the song: for *Christmas Canon*, snow falling past a lit window, a Christmas tree glowing in a dark
+room, a vigil kept across generations — imagery that sets the song's mood, not a re-description of
+what the arches and outline are doing.
 
-**The pipeline already knows all three, and already writes them down.** `creative_brief.json` is cached
-for every show and carries, per section, exactly the `SectionPlan` field set — resolved `start_ms`/
-`end_ms`, plus `look`, `palette`, `motion`, `transition`, `intensity`, `effect_types`, `scene_id` and
-`rationale` — above which sit the show-level `concept`, `experience`, named `palette`, and
-`key_moments`. The `look` field is documented in `show_plan.py:40` as "PLAIN-language: what a viewer
-sees here (no music theory)", and in practice reads like this, from a real cached show:
+The pipeline already holds the raw material for that story, cached per song:
 
-> §0 0.00s → 15.21s — "A quiet, freezing night. The yard is barely lit with a frosty blue glow, while
-> slow, gentle snow falls softly across the display." · motion: *Slow, drifting, and falling down* ·
-> palette: deep blue, ice blue, lavender, cool white · in: *Fade in*
+- `song_analysis.json` → the full **lyrics** with line- and word-level timing.
+- `song_description.json` (the cached MusicBrief) → `narrative_or_journey`, `candidate_themes`,
+  `sentiment`, `key_mood`, `featured_lines`, `repetition_map`, labeled sections.
+  For *Christmas Canon* that is: "a dream passed down from a central figure to younger generations…
+  a vigil or state of anticipation"; themes *Legacy and Remembrance*, *Generational Continuity*,
+  *Faith and Hope*; featured lines "This dream he had each child still knows", "We are waiting".
+- `creative_brief.json` (the cached ShowPlan) → section boundaries (downbeat-aligned), per-section
+  energy, the show's named palette and `concept`.
 
-That is already a shot. The timings are already resolved and already downbeat-aligned (PR #28/#29 plus
-the #68 self-heal). The section boundaries are already the cut list — and because the lights change
-there too, a video that cuts on them reads as one gesture with the display instead of fighting it.
+What it does **not** hold is the story itself. Turning themes and lyrics into a sequence of images
+with a through-line is genuine creative invention, so this needs an LLM pass — a **Videographer** agent.
 
-So this change is an **export**, not a new pipeline stage: project cached data into a script a video
-agent can execute. A prototype of the whole idea is ~20 lines and produces usable output today.
+An earlier draft of this change exported the cached per-section `look` text directly. That was wrong
+for this goal: `look` describes the light display ("pulses dart across the arches", "the yard returns
+to a dark wash"), so the output could only ever replicate the house.
 
 ## What Changes
 
-**A deterministic `xlo video-script` subcommand.**
-- Reads the cached `creative_brief.json` (plus `song_analysis.json` for the beat grid) and writes
-  `video_script.json` (machine) and `video_script.md` (human) into the song's cache directory.
-- **No LLM call.** Free, offline, reproducible, hermetically testable, and it works on every show
-  already in the cache. No new agent role, no `models/config.yaml` change, no token spend, and no
-  effect on `xlo report`'s cost accounting.
-
-**One shot per section, by default.**
-- Shot spans come verbatim from the cached section boundaries. Nothing re-derives, re-snaps or
-  re-invents a timestamp, because nothing needs to — the boundaries are already correct.
-- `--max-shot-s N` optionally subdivides a long section for tools with clip-length limits, splitting on
-  **downbeats** from the cached beat grid (`beats[].bar_position == 1`), so even a mechanical split
-  lands musically. Off by default; the script always states each shot's duration and frame count, so
-  the limit can be judged before reaching for the flag.
-
-**A technical contract beside the creative prose.**
-- Target pixel dimensions (`--matrix-size WxH`), frame rate derived from the sequence frame interval
-  (50 ms → 20 fps, never assumed), total duration, per-shot `start_ms`/`end_ms` and frame counts, and
-  loop points for recurring sections.
-- Full-frame, fully opaque footage, and no rendered words: the video matrix is **dedicated to video**,
-  and text lives on a different matrix (F-C's job). There is deliberately no chroma-key or compositing
-  field — keying against an underlying wash on a small canvas is the most likely route to mud, and a
-  reliable key colour is among the things generative video is worst at.
-- Dimensions are supplied, never guessed: with no `--matrix-size` the command **refuses**, because a
-  confident wrong resolution is worse than an error.
+- **`xlo video-script --song <path> --matrix-size 1024x768`** — an opt-in subcommand over cached
+  artifacts. No pipeline re-run, no xLights, never runs during `xlo run`.
+- **A Videographer agent** (planner tier, routed to an already-priced model) receives the song's
+  story material — lyrics with timing, narrative, themes, sentiment, mood, featured lines — plus the
+  section structure, energy arc and show palette. It returns a **storyboard**: a logline, recurring
+  visual motifs, and one story beat per section (subject, action, camera, lighting/colour, continuity
+  from the previous beat, and the lyric it lands on, if any).
+- **The agent is deliberately not given the lights' per-section `look`/`motion`/effect lists.** It
+  gets the show's palette and energy so the film *harmonizes* with the house, but it cannot copy it.
+- **Code owns timing.** Beats are keyed by section; code fills in the cached boundaries, frame counts
+  and (optionally, `--max-shot-s`) downbeat-aligned splits for video tools with clip-length limits.
+  The model never writes a timestamp.
+- **A technical contract** beside the story: supplied resolution, frame rate derived from the sequence
+  frame interval, durations, frame counts, full-frame opaque footage, and no rendered words (lyrics and
+  titles live on the separate text matrix).
+- Output `video_script.json` + `video_script.md` in the song's cache directory; token usage recorded in
+  the existing telemetry so `xlo report` prices it.
 
 ## Capabilities
 
 ### New Capabilities
-- `video-script`: Exporting a time-coded video script from a show's cached creative direction — one
-  shot per section with spans taken verbatim from the cached boundaries, optional downbeat-aligned
-  subdivision for clip-length limits, the technical contract a returned video must satisfy (supplied
-  dimensions, derived frame rate, durations, frame counts, loop points, full-frame opacity, no rendered
-  text), both serializations and their cache location, and the requirement that the export is
-  deterministic and makes no model call.
+- `video-script`: Generating a story-driven storyboard for the centerpiece matrix from a song's cached
+  story material — the Videographer agent and its validated output, the rule that it tells a story
+  rather than replicating the lights, code-owned timing from cached section boundaries with optional
+  downbeat-aligned splitting, the technical contract, both serializations, and opt-in invocation with
+  cost accounting.
 
 ### Modified Capabilities
 
-None. The export reads existing cached artifacts and writes new files; no existing requirement changes.
+None.
 
 ## Impact
 
-**New code** — one module (`video_script.py`: the models, the projection, both renderers), one
-subcommand in `cli.py`, one test file.
-
-**Modified code** — `cli.py` only.
-
-**Dependencies, cost, cache** — none, zero, untouched. No xLights connection, no network, no key, no
-`ANALYZER_VERSION`/`STRUCTURE_VERSION` bump.
-
-**Risk** — the honest one is visible in the prototype output: `look` describes the **light display**
-("the yard", "the house outline", "arches provide a heartbeat chase"), but a 64×32 matrix should carry
-the *imagery* (a freezing night, drifting snow), not a depiction of a yard with arches on it. The cheap
-mitigation ships here: one line in the contract telling the video agent that these describe a light
-show and to render the mood rather than the props. Whether that is enough is an empirical question,
-answered by generating scripts for the five cached songs and reading them — not by more design.
-
-## Deferred, deliberately
-
-- **A Videographer LLM agent.** Considered and *not* built. Its only real value-add over the export is
-  translating light-language into video-imagery, and the contract instruction above may cover that for
-  free. If reading the exported scripts shows otherwise, adding an opt-in polish pass is a small,
-  contained follow-up — and by then we will know what it has to fix instead of guessing.
-- **The return trip** (ingest the finished video, place a `Video` effect on the matrix): `Video` is in
-  `ASSET_BOUND_TYPES` so there are zero mined looks and its settings template needs hand-authoring from
-  a live probe; `direct_settings.DIRECT_TYPES` needs `"Video"`; xLights' media sandbox constrains paths;
-  and the matrix's dedication must be enforced by excluding that model from normal targeting (for which
-  `layout_semantics.py`'s subtractive ensembles are the ready-made mechanism).
-- **The `matrix_height` bug.** `matrix_text.py:218` reads `getattr(st, "matrix_height", 0)` and nothing
-  ever sets it, so the hardcoded 50 is always used and the probe promised at line 216 was never built.
-  Real, and worth fixing — but unrelated to this export, which takes dimensions as an argument.
-  Bundling it here was scope creep; it belongs in its own small change.
+- **New:** `video_script.py` (models, timing resolution, renderers), `agents/videographer.py`,
+  `agents/prompts/videographer.md`, a `videographer` row in `models/config.yaml`, tests.
+- **Modified:** `cli.py` (subcommand), telemetry wiring.
+- **Cost:** one planner-tier call per script, only when asked for. Zero otherwise.
+- **Out of scope:** generating the video, ingesting it, placing a `Video` effect on the matrix, and
+  enforcing that the matrix carries nothing else. Those follow once scripts prove worth filming.

@@ -1,167 +1,127 @@
 ## ADDED Requirements
 
-### Requirement: Export a video script from a show's cached creative direction
+### Requirement: Generate a storyboard from a song's cached story material
 
-The system SHALL produce a time-coded video script for a song from its already-cached creative brief,
-without re-running any pipeline stage and without contacting xLights. The export SHALL be
-deterministic and SHALL NOT invoke a language model, so that the same cached inputs always produce the
-same script and the export incurs no model cost.
+The system SHALL produce a video storyboard for a song from its cached lyrics, music brief and show
+plan, using a Videographer agent whose output is a validated structured type, without re-running any
+pipeline stage and without contacting xLights.
 
-#### Scenario: Script produced from cache alone
+#### Scenario: Storyboard produced from cache
 
-- **WHEN** a video script is requested for a song whose creative brief is cached
-- **THEN** the system writes a script covering the song, with no pipeline stage re-run and no model call
-
-#### Scenario: Deterministic output
-
-- **WHEN** a script is generated twice from unchanged cached inputs
-- **THEN** both runs produce identical content
+- **WHEN** a video script is requested for a song whose analysis, music brief and show plan are cached
+- **THEN** the system writes a storyboard covering the song with no pipeline stage re-run
 
 #### Scenario: Missing prerequisites refuse clearly
 
-- **WHEN** a video script is requested for a song with no cached creative brief
-- **THEN** the system refuses with an error naming the missing artifact, and writes no script file
+- **WHEN** a required cached artifact is absent
+- **THEN** the system refuses with an error naming it, and writes no script file
 
-### Requirement: One shot per section, spanning the cached section boundaries
+#### Scenario: Malformed agent output never reaches a file
 
-The system SHALL emit one shot per section of the cached brief by default, using that section's
-`start_ms` and `end_ms` verbatim. The system SHALL NOT recompute, snap, or otherwise alter the cached
-boundaries.
+- **WHEN** the agent's output fails validation
+- **THEN** no script file is written
 
-#### Scenario: Shot spans match the cached sections
+### Requirement: The video tells a story rather than replicating the lights
 
-- **WHEN** a script is generated for a brief with N sections
-- **THEN** the script contains N shots whose start and end times equal those sections' cached boundaries
+The system SHALL give the Videographer the song's story material — lyrics, narrative, themes,
+sentiment, mood and featured lines — together with section structure, energy and the show palette, and
+SHALL NOT give it the per-section lighting descriptions, motions, effect types or target groups.
 
-#### Scenario: Shots tile the song without gaps or overlaps
+#### Scenario: Story inputs are provided
 
-- **WHEN** the generated shots are inspected in order
-- **THEN** each shot begins where the previous one ends, covering the song continuously
+- **WHEN** the agent input is built for a song with cached lyrics and narrative
+- **THEN** it contains the lyrics, narrative, themes, sentiment, mood, featured lines, section energies and palette
 
-#### Scenario: Creative fields are carried through
+#### Scenario: Lighting descriptions are withheld
 
-- **WHEN** a section carries a look description, palette, motion and transition
-- **THEN** the corresponding shot carries that description, palette, motion and transition
+- **WHEN** the agent input is built
+- **THEN** it contains no per-section look, motion, effect type or target group text
 
-#### Scenario: Sections with no description are reported, not faked
+### Requirement: The storyboard has a through-line
 
-- **WHEN** a cached section has an empty look description
-- **THEN** the shot is still emitted with its correct timing, and the script marks it as having no description
+The storyboard SHALL state a logline and a set of recurring visual motifs, and each beat SHALL identify
+the motifs it carries and how it continues from the previous beat.
 
-### Requirement: Optional subdivision splits long shots on downbeats
+#### Scenario: Logline and motifs present
 
-The system SHALL accept a maximum shot duration and, when given, SHALL split any shot longer than that
-maximum into consecutive parts, each aligned to a downbeat from the cached beat grid. Each part SHALL
-carry its parent section's description and an identifying part index. Without that maximum, no shot
-SHALL be subdivided.
+- **WHEN** a storyboard is generated
+- **THEN** it contains a logline and at least one recurring motif
 
-#### Scenario: No subdivision by default
+#### Scenario: Beats declare continuity
 
-- **WHEN** a script is generated without a maximum shot duration
-- **THEN** no section is split, regardless of its length
+- **WHEN** a beat after the first is inspected
+- **THEN** it names the motifs it carries and its continuity from the previous beat
 
-#### Scenario: A long section is split
+### Requirement: Timing is owned by code
 
-- **WHEN** a maximum shot duration is supplied and a section exceeds it
-- **THEN** that section becomes multiple consecutive shots, each no longer than the maximum
+The system SHALL key beats by section and SHALL set every beat's start and end from the cached section
+boundaries; the agent SHALL NOT supply timestamps. Each beat SHALL carry the lyric lines whose timing
+falls within it.
 
-#### Scenario: Splits land on downbeats
+#### Scenario: Beat spans equal cached sections
 
-- **WHEN** a section is split
-- **THEN** each interior split point coincides with a downbeat from the cached beat grid
+- **WHEN** a storyboard is generated for N sections
+- **THEN** it contains N beats whose spans equal the cached section boundaries, tiling the song
 
-#### Scenario: Split parts preserve the section's content and coverage
+#### Scenario: Missing or extra beats are reconciled
 
-- **WHEN** a section is split into parts
-- **THEN** every part carries the parent section's description and a part index, and the parts together span exactly the original section
+- **WHEN** the agent omits a section or returns an out-of-range section index
+- **THEN** the omitted section inherits the previous beat and the out-of-range beat is dropped
 
-#### Scenario: Short sections are untouched
+#### Scenario: Lyrics attach to their beat
 
-- **WHEN** a maximum shot duration is supplied and a section is shorter than it
-- **THEN** that section remains a single shot
+- **WHEN** a cached lyric line starts within a section
+- **THEN** that line is attached to that section's beat
 
-### Requirement: The script states a technical contract the returned video must satisfy
+### Requirement: Optional downbeat-aligned splitting
 
-The script SHALL carry a constraints block, distinct from the creative shot content, stating the target
-pixel dimensions, the frame rate, the total duration, each shot's absolute start and end in
-milliseconds with its frame count, and loop points for sections that recur. The frame rate SHALL be
-derived from the sequence's configured frame interval rather than assumed.
+The system SHALL, when a maximum shot duration is supplied, split longer beats into consecutive parts
+whose interior boundaries fall on cached downbeats, each part sharing the beat and carrying a part
+index; without it, no beat SHALL be split.
 
-#### Scenario: Constraints are separate from creative content
+#### Scenario: No split by default
 
-- **WHEN** a generated script is inspected
-- **THEN** computed constraints and per-shot creative description are distinguishable, not interleaved in one prose field
+- **WHEN** no maximum is supplied
+- **THEN** no beat is split
 
-#### Scenario: Frame rate follows the sequence frame interval
+#### Scenario: Long beat split on downbeats
 
-- **WHEN** a script is generated for a sequence whose frame interval is 50 ms
-- **THEN** the stated frame rate is 20 frames per second
+- **WHEN** a maximum is supplied and a beat exceeds it
+- **THEN** it becomes consecutive parts no longer than the maximum, split on downbeats, spanning exactly the original beat
 
-#### Scenario: Shots state their frame counts
+### Requirement: Technical contract
 
-- **WHEN** a shot spans a known duration
-- **THEN** the script states that shot's frame count at the stated frame rate
+The script SHALL state the supplied target resolution, a frame rate derived from the sequence frame
+interval, total and per-shot durations with frame counts, full-frame opaque footage, and that no
+rendered words appear. The system SHALL refuse when no resolution is supplied.
 
-#### Scenario: Recurring sections declare loop points
+#### Scenario: Frame rate derived
 
-- **WHEN** the cached brief marks two or more sections as the same recurring label
-- **THEN** the script declares loop points for those sections
+- **WHEN** the sequence frame interval is 50 ms
+- **THEN** the stated frame rate is 20 fps
 
-### Requirement: Target dimensions are supplied, never guessed
+#### Scenario: Resolution required
 
-The system SHALL take the target pixel dimensions as a caller-supplied argument and SHALL refuse to
-generate a script when they are absent. The system SHALL NOT substitute a default or assumed
-resolution.
+- **WHEN** no target resolution is supplied
+- **THEN** the system refuses and writes no file
 
-#### Scenario: Supplied dimensions appear in the contract
+### Requirement: Persisted, opt-in and accounted
 
-- **WHEN** the caller supplies target dimensions
-- **THEN** the script's constraints state exactly those dimensions
-
-#### Scenario: Absent dimensions refuse rather than assume
-
-- **WHEN** no target dimensions are supplied
-- **THEN** the system refuses with an error, and writes no script file
-
-### Requirement: The contract specifies full-frame opaque footage and excludes words
-
-Because the target matrix is dedicated to video, the script SHALL specify footage that fills the frame
-and is fully opaque, and SHALL NOT request chroma-key, transparency, or compositing against underlying
-content. The script SHALL state that no lyrics, titles, or other rendered text appear in the video,
-because textual narrative is carried by a different prop.
-
-#### Scenario: No keying or transparency is requested
-
-- **WHEN** a generated script is inspected
-- **THEN** it specifies full-frame opaque footage and requests no chroma-key, transparency, or compositing
-
-#### Scenario: Text is excluded from the video
-
-- **WHEN** a generated script is inspected
-- **THEN** it states that rendered words must not appear in the footage
-
-### Requirement: The script explains that descriptions are of a light display
-
-The script SHALL instruct the consuming agent to render the imagery and mood that the cached
-descriptions evoke, rather than depicting the lighting hardware itself, because those descriptions
-describe prop-based lighting and not video content.
-
-#### Scenario: The framing instruction is present
-
-- **WHEN** a generated script is inspected
-- **THEN** it states that the descriptions describe a light display and that the video should render their imagery and mood rather than the props
-
-### Requirement: The script is persisted in both machine and human form
-
-The system SHALL write the script into the song's cache directory in a machine-readable form for a
-downstream consumer and a human-readable form for review, alongside the existing cached artifacts.
+The system SHALL write a machine-readable and a human-readable script to the song's cache directory,
+replacing any previous one; SHALL NOT invoke the Videographer during a normal show run; SHALL record the
+agent's token usage under its own role; and SHALL route the role to a priced model.
 
 #### Scenario: Both forms written
 
-- **WHEN** a script is generated successfully
-- **THEN** a machine-readable script and a human-readable script are both written to the song's cache directory
+- **WHEN** a script is generated
+- **THEN** JSON and Markdown forms are written to the song's cache directory, replacing prior ones
 
-#### Scenario: Regeneration replaces, never appends
+#### Scenario: Normal runs unaffected
 
-- **WHEN** a script is generated for a song that already has one
-- **THEN** the previous script files are replaced rather than duplicated or appended to
+- **WHEN** a show is generated without requesting a script
+- **THEN** no Videographer call occurs
+
+#### Scenario: Role is priced
+
+- **WHEN** the configured Videographer model is checked for each provider
+- **THEN** a price entry exists

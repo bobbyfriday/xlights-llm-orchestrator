@@ -1,32 +1,25 @@
-## 1. The model and the projection
+## 1. Models and timing
 
-- [ ] 1.1 Add `video_script.py` beside `show_plan.py` with pydantic models: `VideoScript{song, constraints, shots}`, `ScriptConstraints{target_model, width, height, fps, total_ms, loop_points, full_frame_opaque, no_rendered_text, framing_note}`, `Shot{index, section_index, part, start_ms, end_ms, frames, description, palette, motion, transition, intensity}`. Per design.md D5 `constraints` is a SEPARATE object from shot content. There is deliberately NO chroma-key/compositing field — the matrix is dedicated to video, so its absence is the design.
-- [ ] 1.2 Implement `shots_from_brief(brief) -> list[Shot]`: one shot per cached section, `start_ms`/`end_ms` copied VERBATIM (design.md D2 — do not snap, clamp or recompute; the boundaries are already downbeat-aligned). Carry `look` → `description` plus `palette`/`motion`/`transition`/`intensity`. Tolerate blanks: the oldest cached show (`c261ecf9c0fe9e93`) has empty `look`/`motion`/`palette`, so a missing field must yield a shot with correct timing and an explicit "no description" marker, never a confident empty shot.
-- [ ] 1.3 Unit tests (`tests/test_video_script.py`) per the spec scenarios in §"One shot per section": N sections → N shots with boundaries equal to the cached ones; shots tile the song with no gaps or overlaps; creative fields carried through; an empty `look` still yields a correctly-timed shot marked as having no description.
+- [ ] 1.1 `video_script.py`: `VideographerOut{logline, motifs[], beats[{section_index, title, imagery, action, camera, lighting, motifs[], continuity, draws_on}]}` (no time fields) and the resolved `VideoScript{song, constraints, logline, motifs, shots[]}`.
+- [ ] 1.2 `resolve_beats(out, sections, lyrics, fps)`: spans from cached boundaries, frame counts, lyric lines attached by start time, missing sections inherit the previous beat, out-of-range indexes dropped.
+- [ ] 1.3 `split_long_shots(shots, max_shot_s, downbeats_ms)` on cached `beats[].bar_position == 1`; identity when no max.
+- [ ] 1.4 Tests for 1.2–1.3 per spec scenarios, including Christmas Canon's 8-plan vs 16-brief section mismatch (labels by time overlap, `repetition_map` values are start_ms).
 
-## 2. The contract block
+## 2. The Videographer agent
 
-- [ ] 2.1 Implement `constraints_for(brief, *, width, height, frame_ms, target_model) -> ScriptConstraints`: `fps` DERIVED from `frame_ms` (50 → 20; derive, never hardcode), `total_ms` from the last section's end, per-shot `frames` from duration and fps, `loop_points` for repetition labels covering ≥2 sections, and the three fixed terms — full-frame/opaque, no rendered text, and the design.md D6 framing note ("these describe a light display; render the imagery and mood they evoke, not the props").
-- [ ] 2.2 Unit tests: 50 ms → 20 fps AND a second interval (e.g. 25 ms → 40 fps) so the derivation is tested rather than the constant; a 3-section repetition label yields loop points for all three, a 1-section label yields none; frame counts match duration × fps; the three fixed terms are present on every script regardless of input (spec §§"full-frame opaque footage and excludes words", "descriptions are of a light display").
+- [ ] 2.1 `videographer` role in `models/config.yaml` (planner tier, already-priced models) + price-coverage test.
+- [ ] 2.2 `agents/videographer.py`: `render_input()` built from lyrics, narrative, themes, sentiment, mood, featured lines, labeled sections with energy, climax, palette, concept; song identity from cached lyrics title/artist or filename. Test that no `look`/`motion`/`effect_types`/`target_groups` text appears in the input.
+- [ ] 2.3 `agents/prompts/videographer.md`: a centerpiece film that tells this song's story; commit to motifs up front; one beat per given section with continuity; cite what each beat draws on; no timestamps; no on-screen words; harmonize with palette and energy, never depict the light display.
+- [ ] 2.4 Hermetic `TestModel` test: stub output → complete `VideoScript`; invalid output → no file.
 
-## 3. Optional downbeat subdivision
+## 3. CLI and output
 
-- [ ] 3.1 Implement `split_long_shots(shots, *, max_shot_s, downbeats_ms) -> list[Shot]` per design.md D3: a shot longer than `max_shot_s` splits into the fewest equal parts that fit, each interior boundary snapped to the nearest downbeat; parts inherit the parent description and get a `part` index. No `max_shot_s` → identity. Derive `downbeats_ms` from the cached `song_analysis.json` (`beats[].bar_position == 1`) — no new analysis.
-- [ ] 3.2 Unit tests per the spec scenarios in §"Optional subdivision": identity with no max; a 29 s section at max 10 s becomes 3 parts each ≤ 10 s; every interior split coincides with a supplied downbeat; parts together span exactly the original section and all carry the parent description plus a part index; a section shorter than the max is untouched. Include a section with NO downbeats inside it (pathological) and assert it still returns valid, tiling shots.
+- [ ] 3.1 `xlo video-script --song --matrix-size WxH [--max-shot-s N] [--cache-dir]`; refuse without size or cached artifacts; never touches `pipeline/run.py`.
+- [ ] 3.2 Write `video_script.json` + readable `video_script.md` to the song's cache dir; record usage under `videographer`.
+- [ ] 3.3 CLI wiring tests (size parsing, refusals write nothing).
 
-## 4. Serialization and the `xlo video-script` subcommand
+## 4. Prove it
 
-- [ ] 4.1 Implement the two renderers: `video_script.json` (the machine contract) and `video_script.md` (human-readable, grouped by shot with timings, duration, frame count, description, palette/motion/transition). The Markdown is what a person reads to judge the feature, so make it genuinely readable — the throwaway prototype output in the PR description is a good target.
-- [ ] 4.2 Write both via the existing `cache_path(key, stage)` seam in `pipeline/cache.py`, mirroring the `creative_brief.json`/`.md` precedent. Overwrite in place (spec requires replace, not append).
-- [ ] 4.3 Add the `video-script` subcommand in `cli.py` beside `report`/`ab` (~line 200): `--song` (required), `--matrix-size WxH` (required — refuse without it, design.md D4), `--matrix <name>` (free-text metadata only; nothing resolves or validates it), `--max-shot-s N` (optional), `--cache-dir`. Per design.md D1 this is subcommand-only: do NOT add a stage to `pipeline/run.py` or a flag to `run`.
-- [ ] 4.4 Implement the command body: load cached `creative_brief.json` (refuse naming the missing artifact if absent) and `song_analysis.json` (only needed when `--max-shot-s` is given) → build shots → optionally split → build constraints → write both files. No xLights client, no LLM, no network anywhere in this path.
-- [ ] 4.5 CLI wiring tests (per I6's "cli.py argument wiring — a bad flag rename ships silently today"): `--matrix-size 64x32` parses to 64/32; a malformed `--matrix-size` errors; missing `--matrix-size` exits non-zero; a song with no cached brief exits non-zero naming the artifact; no script file is written in ANY refusal path.
-- [ ] 4.6 Determinism test (spec §"Deterministic output"): generating twice over unchanged inputs produces byte-identical JSON. Guard anything time- or environment-derived (a `generated_at` timestamp would break this — either omit it or exclude it from the comparison deliberately and say which).
-
-## 5. Verify, read, land
-
-- [ ] 5.1 Full hermetic suite green (`uv run pytest`), `uv run ruff check` and `uv run mypy` clean. The repo resolves dependencies fresh in CI (no tracked lockfile), so verify with CI's own invocations (`uv sync --extra preview`, then `uv run --no-sync …`) rather than a stale venv.
-- [ ] 5.2 **The acceptance task.** Generate a script for every cached show that has a brief (`1bca3fb13ed3a67a`, `606d87415af80862`, `e1a6805bc78a0643`, `ca201073c36e0fc0`, `5bd84fa71b2b05d6`, `cfb62d6a5dcd3b13`, `f83b944948b3cfcc`) and READ them. The question is not "did it run" but: could a video agent make something from this, is it about THIS song specifically rather than generic mood prose, and does design.md D6's framing note actually overcome the prop-centric language ("the yard", "the house outline", "arches")? Paste one full script in the PR.
-- [ ] 5.3 Based on 5.2, record a verdict in the PR on whether the deferred LLM polish pass is needed, and if so exactly what it must fix. This is the decision the whole change exists to inform — do not leave it implicit.
-- [ ] 5.4 Document the subcommand in `docs/usage.md` (a short section beside `xlo report`, which is the closest sibling — both offline, no xLights, no key) and in `README.md`'s command list. State plainly that the script is a hand-off artifact: nothing in the pipeline consumes it, and no video is placed on the matrix yet.
-- [ ] 5.5 PR to `main` (branch `feat/matrix-video-script`; never commit directly to main). Note in the description: no LLM and no new agent role (so no cost impact), the return trip is out of scope, the video matrix's dedication is asserted by the contract but not yet enforced, and the unrelated `matrix_text` `matrix_height` bug is left for its own change.
+- [ ] 4.1 ruff, mypy, pytest green with CI's fresh-resolve invocations.
+- [ ] 4.2 Generate storyboards for the cached songs at 1024x768 and read them: does each tell a story specific to its song, hang together, and avoid depicting the house? Paste Christmas Canon in the PR.
+- [ ] 4.3 Document in `docs/usage.md`; PR to `main` from `feat/matrix-video-script`.

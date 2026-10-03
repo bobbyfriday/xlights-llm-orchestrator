@@ -81,10 +81,59 @@ frame rate SHALL be derived from the sequence's configured frame interval rather
 - **WHEN** a script is generated for a matrix at or near the minimum media resolution
 - **THEN** the constraints state that fine detail, small text, and recognizable faces will not read at that size
 
+### Requirement: The contract specifies full-frame opaque footage and excludes words
+
+Because the target matrix is dedicated to video, the script SHALL specify footage that fills the frame
+and is fully opaque, and SHALL NOT request chroma-key, transparency, or compositing against underlying
+content. The script SHALL instruct that no lyrics, titles, or other rendered text appear in the video,
+because textual narrative is carried by a different prop.
+
+#### Scenario: No keying or transparency is requested
+
+- **WHEN** a generated script is inspected
+- **THEN** it specifies full-frame opaque footage and requests no chroma-key, transparency, or compositing
+
+#### Scenario: Text is excluded from the video
+
+- **WHEN** a generated script is inspected
+- **THEN** it states that rendered words must not appear in the footage
+
+### Requirement: The target matrix is identified explicitly, never by arbitrary choice
+
+The system SHALL determine which matrix model the video is intended for from an explicit caller-supplied
+name or a configured default, SHALL use the sole candidate when the layout contains exactly one, and
+SHALL refuse — naming every candidate it found — when the layout contains more than one and none was
+specified. The system SHALL NOT select among multiple matrix candidates implicitly.
+
+#### Scenario: Explicit name selects the matrix
+
+- **WHEN** the caller names the video matrix model
+- **THEN** the script targets that model
+
+#### Scenario: Sole candidate is used without being named
+
+- **WHEN** the layout contains exactly one matrix candidate and the caller named none
+- **THEN** the script targets that candidate
+
+#### Scenario: Ambiguity refuses and names the candidates
+
+- **WHEN** the layout contains two or more matrix candidates and the caller named none
+- **THEN** the system refuses with an error listing every candidate, and writes no script file
+
+#### Scenario: A named model that is absent refuses
+
+- **WHEN** the caller names a model that does not exist in the layout
+- **THEN** the system refuses with an error naming the model it could not find, and writes no script file
+
+#### Scenario: An ambiguous choice elsewhere is reported, not silently taken
+
+- **WHEN** matrix content other than video resolves its target by first match while several candidates exist
+- **THEN** the system emits a warning naming every candidate
+
 ### Requirement: Target resolution is discovered or declared, never guessed
 
-The system SHALL determine the matrix's real pixel dimensions by probing the layout, SHALL accept an
-explicit caller-supplied size, and SHALL refuse to generate a script when neither is available. The
+The system SHALL determine the target matrix's real pixel dimensions by probing the layout, SHALL accept
+an explicit caller-supplied size, and SHALL refuse to generate a script when neither is available. The
 system SHALL NOT substitute a default or assumed resolution into the script's constraints.
 
 #### Scenario: Dimensions probed from the layout

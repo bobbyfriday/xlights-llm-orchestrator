@@ -1,65 +1,91 @@
 ## ADDED Requirements
 
-### Requirement: Generate a video script from a show's cached artistic direction
+### Requirement: Export a video script from a show's cached creative direction
 
-The system SHALL produce a time-coded video script for a song from its already-cached `MusicBrief` and
-`ShowPlan`, driven by an LLM Videographer agent whose output is a validated structured type. The script
-SHALL be generatable without re-running analysis, interpretation, planning, or generation, and without
-any xLights write operation.
+The system SHALL produce a time-coded video script for a song from its already-cached creative brief,
+without re-running any pipeline stage and without contacting xLights. The export SHALL be
+deterministic and SHALL NOT invoke a language model, so that the same cached inputs always produce the
+same script and the export incurs no model cost.
 
 #### Scenario: Script produced from cache alone
 
-- **WHEN** a video script is requested for a song whose brief and show plan are cached
-- **THEN** the system returns a script covering the song, with no analysis, planning, or generation stage re-run
+- **WHEN** a video script is requested for a song whose creative brief is cached
+- **THEN** the system writes a script covering the song, with no pipeline stage re-run and no model call
+
+#### Scenario: Deterministic output
+
+- **WHEN** a script is generated twice from unchanged cached inputs
+- **THEN** both runs produce identical content
 
 #### Scenario: Missing prerequisites refuse clearly
 
-- **WHEN** a video script is requested for a song with no cached show plan
+- **WHEN** a video script is requested for a song with no cached creative brief
 - **THEN** the system refuses with an error naming the missing artifact, and writes no script file
 
-#### Scenario: Malformed agent output never reaches a file
+### Requirement: One shot per section, spanning the cached section boundaries
 
-- **WHEN** the Videographer returns output that does not satisfy the script's structured type
-- **THEN** validation fails and no script artifact is written
+The system SHALL emit one shot per section of the cached brief by default, using that section's
+`start_ms` and `end_ms` verbatim. The system SHALL NOT recompute, snap, or otherwise alter the cached
+boundaries.
 
-### Requirement: Shot timings derive from the musical grid, never from the model
+#### Scenario: Shot spans match the cached sections
 
-The system SHALL compute every shot's absolute start and end time in code from the song's real section
-boundaries and bar grid. The Videographer SHALL express shot placement only in bar-relative terms within
-a named section, and SHALL NOT supply absolute timestamps. Resolved shots SHALL lie within their owning
-section's span.
+- **WHEN** a script is generated for a brief with N sections
+- **THEN** the script contains N shots whose start and end times equal those sections' cached boundaries
 
-#### Scenario: Shot times are resolved from bar offsets
+#### Scenario: Shots tile the song without gaps or overlaps
 
-- **WHEN** the Videographer returns a shot with a bar offset and a length in bars for a section
-- **THEN** the system resolves that shot's `start_ms` and `end_ms` from the section's real bar grid
+- **WHEN** the generated shots are inspected in order
+- **THEN** each shot begins where the previous one ends, covering the song continuously
 
-#### Scenario: A shot cannot escape its section
+#### Scenario: Creative fields are carried through
 
-- **WHEN** a returned shot's bar offset and length would extend beyond its section's end
-- **THEN** the resolved shot is clamped to the section end
+- **WHEN** a section carries a look description, palette, motion and transition
+- **THEN** the corresponding shot carries that description, palette, motion and transition
 
-#### Scenario: Overlapping shots are reconciled
+#### Scenario: Sections with no description are reported, not faked
 
-- **WHEN** two resolved shots in the same section overlap in time
-- **THEN** the earlier shot is truncated at the later shot's start, leaving no overlap
+- **WHEN** a cached section has an empty look description
+- **THEN** the shot is still emitted with its correct timing, and the script marks it as having no description
 
-#### Scenario: Degenerate sections still yield a shot
+### Requirement: Optional subdivision splits long shots on downbeats
 
-- **WHEN** every shot returned for a section resolves to zero length
-- **THEN** the system emits a single shot spanning that section
+The system SHALL accept a maximum shot duration and, when given, SHALL split any shot longer than that
+maximum into consecutive parts, each aligned to a downbeat from the cached beat grid. Each part SHALL
+carry its parent section's description and an identifying part index. Without that maximum, no shot
+SHALL be subdivided.
 
-#### Scenario: Shots tile their section without gaps
+#### Scenario: No subdivision by default
 
-- **WHEN** the resolved shots for a section leave a trailing gap before the section end
-- **THEN** the final shot is extended to the section end
+- **WHEN** a script is generated without a maximum shot duration
+- **THEN** no section is split, regardless of its length
+
+#### Scenario: A long section is split
+
+- **WHEN** a maximum shot duration is supplied and a section exceeds it
+- **THEN** that section becomes multiple consecutive shots, each no longer than the maximum
+
+#### Scenario: Splits land on downbeats
+
+- **WHEN** a section is split
+- **THEN** each interior split point coincides with a downbeat from the cached beat grid
+
+#### Scenario: Split parts preserve the section's content and coverage
+
+- **WHEN** a section is split into parts
+- **THEN** every part carries the parent section's description and a part index, and the parts together span exactly the original section
+
+#### Scenario: Short sections are untouched
+
+- **WHEN** a maximum shot duration is supplied and a section is shorter than it
+- **THEN** that section remains a single shot
 
 ### Requirement: The script states a technical contract the returned video must satisfy
 
-The script SHALL carry a constraints block, separate from creative prose, stating at minimum: the target
-pixel dimensions, the frame rate, the total duration, each shot's absolute start and end in milliseconds,
-loop points for sections that recur, and guidance on what the target resolution cannot legibly carry. The
-frame rate SHALL be derived from the sequence's configured frame interval rather than assumed.
+The script SHALL carry a constraints block, distinct from the creative shot content, stating the target
+pixel dimensions, the frame rate, the total duration, each shot's absolute start and end in
+milliseconds with its frame count, and loop points for sections that recur. The frame rate SHALL be
+derived from the sequence's configured frame interval rather than assumed.
 
 #### Scenario: Constraints are separate from creative content
 
@@ -71,21 +97,37 @@ frame rate SHALL be derived from the sequence's configured frame interval rather
 - **WHEN** a script is generated for a sequence whose frame interval is 50 ms
 - **THEN** the stated frame rate is 20 frames per second
 
+#### Scenario: Shots state their frame counts
+
+- **WHEN** a shot spans a known duration
+- **THEN** the script states that shot's frame count at the stated frame rate
+
 #### Scenario: Recurring sections declare loop points
 
-- **WHEN** the brief's repetition map marks two or more sections as the same recurring label
+- **WHEN** the cached brief marks two or more sections as the same recurring label
 - **THEN** the script declares loop points for those sections
 
-#### Scenario: Low-resolution limits are stated
+### Requirement: Target dimensions are supplied, never guessed
 
-- **WHEN** a script is generated for a matrix at or near the minimum media resolution
-- **THEN** the constraints state that fine detail, small text, and recognizable faces will not read at that size
+The system SHALL take the target pixel dimensions as a caller-supplied argument and SHALL refuse to
+generate a script when they are absent. The system SHALL NOT substitute a default or assumed
+resolution.
+
+#### Scenario: Supplied dimensions appear in the contract
+
+- **WHEN** the caller supplies target dimensions
+- **THEN** the script's constraints state exactly those dimensions
+
+#### Scenario: Absent dimensions refuse rather than assume
+
+- **WHEN** no target dimensions are supplied
+- **THEN** the system refuses with an error, and writes no script file
 
 ### Requirement: The contract specifies full-frame opaque footage and excludes words
 
 Because the target matrix is dedicated to video, the script SHALL specify footage that fills the frame
 and is fully opaque, and SHALL NOT request chroma-key, transparency, or compositing against underlying
-content. The script SHALL instruct that no lyrics, titles, or other rendered text appear in the video,
+content. The script SHALL state that no lyrics, titles, or other rendered text appear in the video,
 because textual narrative is carried by a different prop.
 
 #### Scenario: No keying or transparency is requested
@@ -98,63 +140,16 @@ because textual narrative is carried by a different prop.
 - **WHEN** a generated script is inspected
 - **THEN** it states that rendered words must not appear in the footage
 
-### Requirement: The target matrix is identified explicitly, never by arbitrary choice
+### Requirement: The script explains that descriptions are of a light display
 
-The system SHALL determine which matrix model the video is intended for from an explicit caller-supplied
-name or a configured default, SHALL use the sole candidate when the layout contains exactly one, and
-SHALL refuse — naming every candidate it found — when the layout contains more than one and none was
-specified. The system SHALL NOT select among multiple matrix candidates implicitly.
+The script SHALL instruct the consuming agent to render the imagery and mood that the cached
+descriptions evoke, rather than depicting the lighting hardware itself, because those descriptions
+describe prop-based lighting and not video content.
 
-#### Scenario: Explicit name selects the matrix
+#### Scenario: The framing instruction is present
 
-- **WHEN** the caller names the video matrix model
-- **THEN** the script targets that model
-
-#### Scenario: Sole candidate is used without being named
-
-- **WHEN** the layout contains exactly one matrix candidate and the caller named none
-- **THEN** the script targets that candidate
-
-#### Scenario: Ambiguity refuses and names the candidates
-
-- **WHEN** the layout contains two or more matrix candidates and the caller named none
-- **THEN** the system refuses with an error listing every candidate, and writes no script file
-
-#### Scenario: A named model that is absent refuses
-
-- **WHEN** the caller names a model that does not exist in the layout
-- **THEN** the system refuses with an error naming the model it could not find, and writes no script file
-
-#### Scenario: An ambiguous choice elsewhere is reported, not silently taken
-
-- **WHEN** matrix content other than video resolves its target by first match while several candidates exist
-- **THEN** the system emits a warning naming every candidate
-
-### Requirement: Target resolution is discovered or declared, never guessed
-
-The system SHALL determine the target matrix's real pixel dimensions by probing the layout, SHALL accept
-an explicit caller-supplied size, and SHALL refuse to generate a script when neither is available. The
-system SHALL NOT substitute a default or assumed resolution into the script's constraints.
-
-#### Scenario: Dimensions probed from the layout
-
-- **WHEN** the matrix model's dimensions can be read from the layout
-- **THEN** the script's constraints state those dimensions
-
-#### Scenario: Explicit size overrides the probe
-
-- **WHEN** the caller supplies an explicit target size
-- **THEN** the script's constraints state the supplied size and no probe is required
-
-#### Scenario: Unknown dimensions refuse rather than assume
-
-- **WHEN** the matrix dimensions can neither be probed nor were supplied by the caller
-- **THEN** the system refuses with an error naming both remedies, and writes no script file
-
-#### Scenario: Probed dimensions are reused
-
-- **WHEN** dimensions have been probed for a layout
-- **THEN** a later request for the same layout reuses them without re-probing
+- **WHEN** a generated script is inspected
+- **THEN** it states that the descriptions describe a light display and that the video should render their imagery and mood rather than the props
 
 ### Requirement: The script is persisted in both machine and human form
 
@@ -170,24 +165,3 @@ downstream consumer and a human-readable form for review, alongside the existing
 
 - **WHEN** a script is generated for a song that already has one
 - **THEN** the previous script files are replaced rather than duplicated or appended to
-
-### Requirement: Script generation is opt-in and its cost is accounted
-
-Script generation SHALL NOT occur during a normal show run. The Videographer's token usage SHALL be
-recorded in the same telemetry the cost report reads, and the role SHALL be routed to a model that has a
-price entry so that generating a script never renders a run's reported cost unknown.
-
-#### Scenario: A normal run makes no Videographer call
-
-- **WHEN** a show is generated without explicitly requesting a video script
-- **THEN** no Videographer invocation occurs and no script artifact is written
-
-#### Scenario: Usage is recorded for reporting
-
-- **WHEN** a script is generated
-- **THEN** the Videographer's token usage is recorded under its own role in the telemetry the cost report reads
-
-#### Scenario: The role is priced
-
-- **WHEN** the configured Videographer model is checked against the price table for any supported provider
-- **THEN** a price entry exists for that model

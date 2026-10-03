@@ -1,246 +1,145 @@
 ## Context
 
-The pipeline already computes a complete, time-coded account of the show's intended look and caches it
-per song (`SectionPlan.look`/`palette`/`motion`/`transition`/`treatment`/`intensity` with real
-`start_ms`/`end_ms`; the brief's narrative, identity, themes and `featured_lyric_moments`; the rhythm
-analyst's `climax_ms`/`builds_ms`/`drops_ms`). Nothing consumes that material for the matrix's narrative
-job beyond F-C's sparse Text. This change adds a Videographer agent that turns it into a video script
-for an external video-generation agent, with the resulting footage destined for a matrix prop
-dedicated to it.
+`creative_brief.json` is cached for every show and already contains the entire creative substance of a
+video script: per section the resolved `start_ms`/`end_ms` plus `look`, `palette`, `motion`,
+`transition`, `intensity`, `effect_types` and `rationale`, with show-level `concept`, `experience`,
+named `palette` and `key_moments` above them. The boundaries are downbeat-aligned already. A working
+prototype of this entire feature is about twenty lines of Python over that file.
 
-Four existing facts constrain the design hard:
-
-1. **`build_agent(role, output_type=…)` + `run_agent(agent, prompt, role=…)`** (`models/registry.py`)
-   are the only LLM seam, and routing is data-driven from `models/config.yaml`. A new role is a config
-   row plus an agent module — no new plumbing.
-2. **`estimate_cost()` returns `None` if ANY role with nonzero usage runs on a model with no price row**
-   ("unknown ≠ zero", `registry.py`). A new role on an unpriced model would silently turn every
-   `xlo report` cost cell for that run into `—`. The role must route to an already-priced model.
-3. **The matrix's real resolution is not known to the codebase.** `matrix_text.py:218` reads
-   `int(getattr(st, "matrix_height", 0) or _DEFAULT_MATRIX_H)` and nothing anywhere sets
-   `st.matrix_height` (grepped across `packages/` and `tests/`), so the hardcoded 50 is always used and
-   the probe promised at `matrix_text.py:216` was never built.
-4. **This layout has more than one matrix, and nothing distinguishes them.** The cached targetable
-   groups include a plural **`Matrixes`** group, used as `G2-CANVAS`/`G2-HERO` in real scene
-   adaptations. But `find_matrix(model_names)` returns "the first name containing 'matrix',
-   case-insensitive" (`matrix_text.py:61`), so with two or more matrices F-C Text lands on whichever
-   model `get_model_names()` happens to return first. The individual model names are not cached
-   anywhere (that cache holds *groups*), so which one Text has been using cannot be determined
-   offline. This was filed as a minor inherited edge case in the first draft of this design; the
-   two-matrix layout promotes it to something that must be solved.
-
-**Role split (decided by the user):** text lives on one matrix, video on another, and the **video
-matrix is dedicated to video** — the pipeline stops targeting it with washes, weave cells and peak
-composites. This simplifies the contract considerably (no chroma-key, no compositing-over-lights, no
-legibility compromise against an underlying wash) and removes the hardest open question from the
-first draft.
+An earlier draft of this design proposed a Videographer LLM agent, bar-relative shot subdivision with
+overlap/gap reconciliation, a live matrix-geometry probe with a per-model cache, and a new priced model
+role — 32 tasks. That was over-built. Nearly all of the machinery existed to support a single choice
+(letting a model subdivide sections into sub-shots), and removing that choice removes the machinery with
+it. What follows is the smaller design the data actually calls for.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- A validated, time-coded `VideoScript` artifact per song, derived from cached artifacts, that an
-  external video agent can execute against without further interpretation.
-- Make invented timings structurally impossible, not merely discouraged.
-- Identify *which* matrix the video is for, explicitly — never by arbitrary first match.
-- State that matrix's real technical constraints in the script, or refuse to pretend.
-- Work on shows already in the cache, with no regeneration and no xLights write path.
-- Zero cost added to runs that do not ask for it.
+- Project cached creative direction into a video script a generative video agent can execute against.
+- Deterministic: same inputs, same bytes. No model call, no network, no key, no xLights.
+- Work on every show already in the cache.
+- State the technical constraints a returned video must satisfy, or refuse.
 
 **Non-Goals:**
-- Ingesting the returned video or placing a `Video` effect on the matrix (the return trip — see
-  Decision 8 for the seam this leaves).
-- Generating video here. No media encoding, no model hosting, no new dependency.
-- Enforcing the video matrix's dedication. The contract *assumes* nothing else lights that prop, but
-  actually excluding it from the pipeline's normal targeting is a placement-side change (Decision 8).
-- Changing F-C matrix Text's behavior beyond making its existing matrix choice visible. Text and video
-  are on different props now, so there is nothing to reconcile — only to disambiguate.
-- A standalone music video, or a shot list for filming the real display. Both were considered and
-  explicitly rejected in favor of matrix content.
+- Any LLM pass. Deferred on evidence, not on principle (see D6).
+- Re-deriving, snapping or validating timings. They are already correct; touching them would only add
+  ways to be wrong.
+- Probing xLights for anything. Dimensions are an argument.
+- Ingesting the returned video or placing a `Video` effect (the return trip).
+- Fixing `matrix_text`'s unreachable `matrix_height`. Real bug, unrelated change.
 
 ## Decisions
 
-### D1 — A dedicated `xlo video-script` subcommand, not a `run` stage
+### D1 — A pure export, not a pipeline stage
 
-The proposal floated "a `--video-script` flag on `xlo run` plus a standalone path". The design picks
-**subcommand only**: `xlo video-script --song <path>`, reading the cached `MusicBrief` + `ShowPlan`.
+`xlo video-script --song <path>` reads cached artifacts and writes files. It is not a stage in
+`pipeline/run.py` and not a flag on `run`: nothing downstream consumes the script, so being in the
+pipeline would buy nothing while touching the refine loop and the regen splice path. As a subcommand it
+also runs against the five shows already in the cache, which is how we find out whether the output is
+any good.
 
-Rationale: in phase 1 **nothing downstream consumes the script**. Threading a stage into `pipeline/run.py`
-(and therefore past the refine loop, the splice logic, and `xlo regen`) buys nothing and touches the
-highest-risk function in the codebase for no benefit. A subcommand also means every show already in
-`data/analyses/orchestrator/` can produce a script immediately, which is the fastest way to find out
-whether the output is any good.
+### D2 — One shot per section; the boundaries are the cut list
 
-*Alternative considered:* a `run --video-script` flag. Deferred to phase 2 — once the script actually
-feeds placement, being in-pipeline earns its keep, and by then the stage ordering matters.
+Shot spans are copied from the cached section boundaries. No bar arithmetic, no snapping, no clamping,
+no overlap reconciliation, no gap closing — none of it is needed, because the sections already tile the
+song exactly and are already downbeat-aligned.
 
-### D2 — Shots are bar-relative; code resolves them to milliseconds
+This is also better than sub-shots on the merits, not just simpler: the lights change at section
+boundaries, so a video that cuts there reads as one gesture with the display. Finer cuts would land
+where nothing else changes, which looks like the video is out of sync with the show.
 
-The agent never emits a timestamp. For each section it receives the section index, span, and bar count,
-and returns shots as `{start_bar_offset, length_bars, …creative fields}`. Code maps bar offsets to ms
-through the real bar grid, clamps the last shot to the section end, and drops zero-length shots.
+*Alternative considered (and previously chosen):* let a model subdivide sections into bar-relative
+shots. Rejected — it was the single source of nearly all the complexity in the first draft, and it
+produces cuts the lights do not honor.
 
-This makes a hallucinated time **unrepresentable** rather than validated-against. It is the same posture
-as `matrix_text`'s "only strings already present in the brief can ever appear" — grounding by
-construction, not by checking. It also means the shot grid is automatically musical: cuts land on bar
-lines, which is where the lights already change.
+### D3 — Optional downbeat-aligned subdivision, for clip limits only
 
-*Alternatives considered:* (a) the LLM returns ms and code snaps to the nearest bar — rejected, it
-permits a shot to be invented in the wrong section entirely and then quietly relocated; (b) exactly one
-shot per section — rejected as too coarse, a 60-second chorus is not one image.
+Real sections in the cached show run 7.6 s to 29.3 s; most generative video models cap a clip around
+5–10 s. `--max-shot-s N` splits any section longer than N into equal parts, each snapped to the nearest
+**downbeat** (`beats[].bar_position == 1` in the cached `song_analysis.json`), with every part carrying
+the parent section's description and an explicit part index.
 
-### D3 — Name the video matrix explicitly; refuse when it is ambiguous
+The flag is off by default and the split is mechanical, driven by a tool limitation rather than by
+creative judgment. The distinction matters: this is the *only* legitimate reason to cut inside a
+section, and keeping it on downbeats means even a technical split lands musically. Every shot states
+its duration and frame count, so the need for the flag is visible before it is used.
 
-Because this layout has several matrices (Context fact #4), the video matrix is identified in this
-order:
-1. An explicit `--matrix <model name>`.
-2. A configured default (`XLO_MATRIX_VIDEO`), so a user settles it once rather than per invocation.
-3. If exactly one matrix candidate exists in the layout, use it.
-4. **Refuse**, listing every candidate it found, when two or more exist and none was named.
+### D4 — Dimensions are supplied; no probe, and no default
 
-Branch 4 is the whole point. Silently picking the first match is what `find_matrix` does today, and on
-a multi-matrix layout that is a coin flip that produces a confidently wrong contract — a video rendered
-for the wrong prop's dimensions, destined for the prop that is supposed to be showing text.
+`--matrix-size WxH` is required; without it the command refuses. There is no probe (that was scope
+creep toward the unrelated `matrix_height` bug) and deliberately no default, because a confident wrong
+resolution reaches the video agent and a refusal does not. `--matrix <name>` is accepted as free-text
+metadata recorded in the script for the eventual placement phase; nothing resolves or validates it
+here.
 
-`find_matrix` itself gains an optional preferred name and, when it falls through to first-match with
-multiple candidates, **logs a warning naming all of them**. Deliberately a warning and not a refusal:
-F-C Text works today and silently changing which prop it targets — or breaking it outright — is not
-this change's business. The goal is to make an existing arbitrary choice *visible*, so the user can
-settle it, while the video path (which has no legacy behavior to preserve) refuses outright.
+### D5 — The contract is computed; the prose is copied
 
-*Alternative considered:* a `SEM_MATRIX_VIDEO` / `SEM_MATRIX_TEXT` semantic-group pair, which would fit
-the "one source of truth for names" principle in `semantic_groups.py`. Rejected for phase 1: matrix
-content targets the **model**, never a group (`matrix_text.py` is explicit about this), so a group adds
-an indirection that must then be resolved back to a member. The real long-term home is F-E's layout
-manifest with per-prop role flags — which the roadmap already calls "designed but never emitted or
-consumed — the biggest miss". A flag plus an env default is the right amount of mechanism until that
-exists.
+The JSON keeps a `constraints` object separate from the shot list. Constraints are computed facts the
+video agent must satisfy: dimensions as supplied, `fps` derived from the sequence frame interval
+(50 ms → 20 fps, derived not hardcoded), total duration, per-shot ms and frame counts, loop points for
+`repetition_map` labels covering two or more sections, plus two fixed terms — **full-frame and fully
+opaque**, and **no rendered words**.
 
-### D4 — Real resolution, an explicit override, or refuse — never a silent guess
+Those two are constants, not suggestions. The matrix is dedicated to video, so there is no underlying
+wash to key against and no reason for transparency; and text belongs to the other matrix, so a video
+rendering lyrics would duplicate it badly. Keying on a small canvas against a moving wash was the most
+likely route to a muddy result, and a reliable key colour is among the things generative video is worst
+at — so the field is absent by design, not by omission.
 
-Resolution for the **video matrix specifically** (the two matrices may differ in size) resolves in this
-order:
-1. A live probe: `client.get_model(<video matrix>)` → `parm1`/`parm2`, cached per layout fingerprint
-   beside the existing `targetable_groups_<fingerprint>.json` precedent.
-2. An explicit `--matrix-size WxH`.
-3. **Refuse**, with an error naming both remedies.
+### D6 — No LLM, with the one real gap stated in the contract
 
-The script's entire value as a contract rests on real dimensions, so inheriting `_DEFAULT_MATRIX_H = 50`
-would produce a confident, wrong instruction to the video agent. Refusing is the honest third branch.
-Keeping the override means the command still works with xLights closed, which is the common case for
-this kind of offline work.
+The prototype exposes the only genuine weakness of a pure export: `look` is written about the **light
+display** — "the yard is barely lit", "the house outline", "arches provide a heartbeat chase", "focal
+prop". Rendered literally on a 64×32 matrix that would produce a picture of a yard with arches, which
+is not the point.
 
-`matrix_text.py` is pointed at the same probe for *its* matrix, which is the first time its font sizing
-will reflect reality.
+The export ships one sentence of contract text instead of an agent: *these descriptions are of a light
+display; render the imagery and mood they evoke, not the props themselves.* That may be sufficient —
+video models are good at taking mood from prose — and it costs nothing to find out. If reading real
+exports shows it is not, an opt-in polish pass that rewrites `look` into frame imagery is a small
+follow-up, and by then its job is known rather than assumed.
 
-*Alternative considered:* fall back to 50 with a warning. Rejected — a warning in a log does not reach
-the external agent, which is the one party that needs the truth.
+*Alternative considered (and previously chosen):* build the agent now. Rejected on evidence: the cached
+`look` text is already vivid and specific, and paying a planner-tier call per song to improve prose
+that may already be good enough is the wrong order of operations.
 
-### D5 — Two serializations, following the `creative_brief` precedent
+### D7 — Two serializations, following the `creative_brief` precedent
 
-`video_script.json` (the machine contract, for the downstream agent) and `video_script.md` (readable, for
-a human to sanity-check or hand-edit before sending). This mirrors `creative_brief.json`/`.md` already in
-the cache dir, so the artifact set stays uniform and `xlo`'s existing cache conventions apply unchanged.
-
-### D6 — A technical header distinct from the creative body
-
-The JSON separates a `constraints` block (resolution, fps derived from the sequence `frame_ms` — 50 ms →
-20 fps, never assumed; total duration; per-shot ms; loop points for sections sharing a `repetition_map`
-label; a legibility budget) from the per-shot creative prose. The split matters because the two have
-different authorities: constraints are computed facts the video agent must satisfy, prose is the agent's
-latitude. Collapsing them invites a video agent to treat resolution as a suggestion.
-
-Legibility guidance is derived rather than invented: `MIN_MATRIX_PX = 50` and catalog rule #2 ("no media
-effects under ~50px resolution") set the floor, and the contract states what a canvas that size cannot
-carry — fine detail, small text, recognizable faces.
-
-**Because the matrix is dedicated to video, the contract specifies full-frame, fully opaque footage and
-says nothing about chroma-key or compositing.** The first draft of this design carried a
-background/compositing-intent field so video could sit over the matrix's washes and composites without
-obliterating them; the dedicated matrix deletes that requirement outright. This is a real simplification
-rather than a cosmetic one: keying against an underlying wash on a ~50 px canvas was the single most
-likely way for this feature to produce mud, and asking a generative video agent for a reliable key
-colour is asking for the thing such agents are worst at. The video now owns every pixel of its prop.
-
-Text is likewise absent from the contract: it lives on the other matrix (F-C's job), so the script
-explicitly instructs the video agent **not** to render lyrics or titles — otherwise the two props end up
-competing to say the same thing, badly on one of them.
-
-### D7 — `videographer` routes to an already-priced planner-tier model
-
-Planner tier, because this is whole-song gestalt judgment (the same reason `director` and `synthesizer`
-are). It must point at a model that already has a `pricing` row — otherwise Context fact #2 turns the
-entire run's cost reporting to unknown. A test asserts the role's configured model is priced for both
-providers, so a future re-point cannot regress `xlo report` silently.
-
-### D8 — Document the return-trip seam; build none of it
-
-The script's `constraints` block is designed to be exactly what a future placement pass needs to validate
-a returned file (dimensions, duration, fps, loop points). That is the whole seam. Not built here:
-`"Video"` into `direct_settings.DIRECT_TYPES`, a `build_video_settings` hand-authored from a live probe
-(there are zero mined `Video` looks — `Video` is in `ASSET_BOUND_TYPES`), the xLights media-sandbox
-question ("preview filenames must be bare names that land in its container"), and **enforcing the video
-matrix's dedication** — excluding that model from the pipeline's normal targeting so nothing lights it
-underneath the video. That last one has a ready-made mechanism: the subtractive-ensemble pattern already
-in `layout_semantics.py` (`SEM_ALL_LESS_FOCAL`, "the bed goes on everything except the feature, killing
-bed-ghosting with zero blending arithmetic") is exactly the shape needed. Each needs live hardware; none
-needs to block a script you can hand to a video agent today.
+`video_script.json` (machine) and `video_script.md` (human), written into the song's cache directory via
+the existing `cache_path` seam, mirroring `creative_brief.json`/`.md`. The Markdown exists because the
+first real test of this feature is a person reading it and judging whether a video agent could work
+from it.
 
 ## Risks / Trade-offs
 
-- **[The script reads beautifully and the resulting video looks like mud on a ~50 px canvas]** → The
-  honest risk, and not resolvable by any amount of design: it is perceptual, which this repo already
-  treats as live-verify-only. Mitigations are conservative contract constraints (D6) and the feature
-  being wholly opt-in. Accept that the first real verdict comes from a human watching a render.
+- **[`look` reads as light-show description, not video imagery]** → The real risk, addressed by D6's
+  contract sentence and measured by reading five real exports. If it fails, the fix is a known, small,
+  opt-in pass — not a redesign.
 
-- **[A new planner-tier role makes runs quietly more expensive]** → Subcommand-only (D1) means it never
-  fires during `xlo run`; usage threads into the existing I1 telemetry so `xlo report` prices it; D7
-  guarantees it is priceable.
+- **[Sections are too long for one clip]** → D3's `--max-shot-s`, off by default, splitting on
+  downbeats. Deliberately not guessing a default, since the limit depends on the video tool.
 
-- **[Agent returns shots that do not tile the section — gaps or overlaps]** → Code owns resolution (D2):
-  overlaps are truncated to the next shot's start, trailing gaps extend the final shot to the section
-  end, and a section whose shots all resolve to zero length falls back to one section-spanning shot. The
-  validated output type plus bar-relative encoding make the pathological cases narrow.
+- **[Partial data in older caches]** → The oldest cached show has empty `look`/`motion`/`palette`
+  (those fields postdate it), and even the newest has occasional blanks. The renderers must tolerate
+  missing fields and the export should say plainly which sections carry no description rather than
+  emitting confident empty shots.
 
-- **[Picking the wrong matrix on a multi-matrix layout]** → Was listed as an inherited edge case; the
-  two-matrix split makes it live. Addressed in D3: the video path refuses when the choice is ambiguous
-  rather than guessing, and `find_matrix` warns with every candidate named when Text falls through to
-  first-match. What this change does NOT do is retroactively determine which matrix F-C Text has been
-  using — that cannot be established offline (model names are not cached) and needs one look with
-  xLights open. F-E's manifest with per-prop role flags is the real long-term fix.
-
-- **[The contract promises a dedicated prop that nothing yet enforces]** → The script tells the video
-  agent it owns every pixel, but until the placement phase excludes that model from normal targeting
-  (D8), the pipeline will still wash it. Harmless in phase 1 — no video is placed, so nothing conflicts
-  — but it means the first end-to-end render is not a fair test of the contract. Flagged in the tasks so
-  it is not discovered as a surprise.
-
-- **[Phase 1 ships an artifact nothing consumes]** → Deliberate. It is independently useful (hand it to a
-  video agent now), and it de-risks the expensive half by letting us judge script quality before building
-  asset placement, a Video settings template, and sandbox handling.
+- **[The contract promises a dedicated prop that nothing enforces]** → Harmless now (no video is
+  placed), but the first end-to-end render will still have washes under the video until the placement
+  phase excludes that model. Noted for the follow-up, not solved here.
 
 ## Migration Plan
 
-Additive and reversible. No schema migration, no cache invalidation: the command reads existing cached
-artifacts and writes new files alongside them. `ANALYZER_VERSION`/`STRUCTURE_VERSION` are untouched —
-nothing here changes analysis or segmentation, so no cache re-derivation is triggered. Rollback is
-deleting the subcommand and the role row; previously written `video_script.*` files are inert.
-
-The one behavioral change outside the new feature is `matrix_text.py` consuming a probed matrix height
-instead of an unreachable `getattr` (D4). That alters Text font sizing on any layout whose matrix is not
-50 px tall, so it regenerates the golden fixture and wants a live look before it is called done.
+Purely additive: a new subcommand and new output files. No schema change, no cache invalidation, no
+`ANALYZER_VERSION`/`STRUCTURE_VERSION` bump, nothing existing reads the new files. Rollback is deleting
+the module and the subcommand; previously written `video_script.*` files are inert.
 
 ## Open Questions
 
-- **Will an external video agent actually honor the constraints block?** Unknowable from here, and it
-  determines whether the contract needs to be stricter (e.g. an explicit per-shot frame count) or whether
-  a validation pass on the returned file is required in phase 2.
-- **`Video` vs `Pictures` for playback.** A frame sequence via `Pictures` may sync more reliably on a
-  small matrix than a video file via `Video`, whose render cost the catalog calls "heavy" and whose
-  behavior is "file-path dependent". This changes nothing about the script, but it decides what phase 2
-  builds — worth settling before then.
-- **Do the two matrices want the same script?** Resolved for now — text and video are separate props, so
-  this change targets only the video matrix and tells the agent not to render words. Still open at the
-  *show* level: whether the text matrix should take narrative cues from the video script so the two props
-  read as one idea rather than two unrelated ones. A composition question, not a technical one.
-- **Shot-count bounds.** The design clamps per section, but the right ceiling for a video agent's cost
-  and coherence is unknown until we see one execute a script.
+- **Does the contract sentence (D6) do the job?** The question this change exists to answer. Settled by
+  reading the exports, not by analysis.
+- **What clip length should `--max-shot-s` usually be?** Depends on the video tool; left explicit until
+  there is a real one in the loop.
+- **`Video` vs `Pictures` for eventual playback.** A frame sequence may sync more reliably on a small
+  matrix than a video file, whose render cost the catalog calls "heavy" and whose behavior is
+  "file-path dependent". Changes nothing here; decides what the placement phase builds.

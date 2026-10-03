@@ -77,14 +77,19 @@ async def run_video_script(song: str, *, matrix_size: str | None, frame_ms: int 
     analysis_p = song_dir / "song_analysis.json"
     brief_p = find_llm_artifact(song_dir, "creative_brief")
     desc_p = find_llm_artifact(song_dir, "song_description")
-    missing = [n for n, p in (("song_analysis", analysis_p if analysis_p.exists() else None),
-                              ("creative_brief (show plan)", brief_p),
+    missing = [n for n, p in (("creative_brief (show plan)", brief_p),
                               ("song_description (music brief)", desc_p)) if p is None]
     if missing:
         raise FileNotFoundError(f"no cached {', '.join(missing)} for {song} under {song_dir} — "
                                 f"run `xlo run --song` for this song first")
     assert brief_p is not None and desc_p is not None
 
+    if not analysis_p.exists():
+        # Older caches predate the persisted analysis. Re-analyze the audio offline (no xLights,
+        # no LLM) and persist it — the same fallback `xlo regen` uses (regen.py).
+        log.info("no cached song_analysis for %s — analyzing the audio (one-time)", song)
+        from xlights_core.audio import AudioAnalyzer
+        analysis_p.write_text(AudioAnalyzer().analyze(song).model_dump_json())
     analysis = json.loads(analysis_p.read_text())
     brief = json.loads(brief_p.read_text())
     description = json.loads(desc_p.read_text())

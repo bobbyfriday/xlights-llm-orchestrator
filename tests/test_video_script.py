@@ -311,3 +311,28 @@ def test_cli_refuses_without_size_before_any_spend(cached_song, monkeypatch):
     with pytest.raises(SystemExit, match="matrix-size is required"):
         cli.main(["video-script", "--song", str(song)])
     assert not (d / "video_script.json").exists()
+
+
+def test_older_cache_without_analysis_is_analyzed_once_and_persisted(cached_song, monkeypatch):
+    """Older caches predate song_analysis.json: analyze the audio offline (as `xlo regen` does)."""
+    import xlights_core.audio as audio_mod
+    song, d = cached_song
+    persisted = (d / "song_analysis.json").read_text()
+    (d / "song_analysis.json").unlink()
+    calls = []
+
+    class FakeAnalysis:
+        def model_dump_json(self):
+            return persisted
+
+    class FakeAnalyzer:
+        def analyze(self, path):
+            calls.append(path)
+            return FakeAnalysis()
+
+    monkeypatch.setattr(audio_mod, "AudioAnalyzer", FakeAnalyzer)
+    run(run_video_script(str(song), matrix_size="1024x768", agent=_agent(out(0, 1, 2))))
+    assert calls == [str(song)]
+    assert (d / "song_analysis.json").read_text() == persisted     # persisted for next time
+    run(run_video_script(str(song), matrix_size="1024x768", agent=_agent(out(0, 1, 2))))
+    assert len(calls) == 1                                          # not re-analyzed

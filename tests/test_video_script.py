@@ -179,12 +179,15 @@ DESCRIPTION = {"narrative_or_journey": "A dream passed down to younger generatio
                "candidate_themes": ["Legacy and Remembrance", "Faith and Hope"],
                "sentiment": "Pensive, reverent, hopeful", "key_mood": "Somber",
                "featured_lines": ["This dream he had each child still knows"],
-               "sections": [{"start_ms": 0, "end_ms": 52_000, "label": "verse"}]}
+               "sections": [{"start_ms": 0, "end_ms": 10_000, "label": "intro"},
+                            {"start_ms": 10_000, "end_ms": 40_000, "label": "verse"},
+                            {"start_ms": 40_000, "end_ms": 52_000, "label": "outro"}]}
 LIGHT_SENTINEL = "ZZ-ARCHES-CHASE-ZZ"
 BRIEF = {"concept": "A midnight vigil.",
          "palette": {"name": "Midnight Vigil", "colors": ["deep blue", "gold"]},
-         "sections": [{"start_ms": s, "end_ms": e, "intensity": 0.5,
-                       **{f: f"{LIGHT_SENTINEL} {f}" for f in LIGHTING_FIELDS}} for s, e in SECTIONS]}
+         "sections": [{"start_ms": s, "end_ms": e, "intensity": en,          # the verse is the climax
+                       **{f: f"{LIGHT_SENTINEL} {f}" for f in LIGHTING_FIELDS}}
+                      for (s, e), en in zip(SECTIONS, (0.3, 1.0, 0.2))]}
 
 
 def test_agent_input_carries_story_material():
@@ -255,7 +258,8 @@ def _agent(o: VideographerOut) -> Agent:
 
 def test_end_to_end_writes_both_forms(cached_song):
     song, d = cached_song
-    md = run(run_video_script(str(song), matrix_size="1024x768", agent=_agent(out(0, 1, 2))))
+    # veo_clips=0: all procedural, so no filmed-clip splitting and the shots tile the sections exactly
+    md = run(run_video_script(str(song), matrix_size="1024x768", veo_clips=0, agent=_agent(out(0, 1, 2))))
     data = json.loads((d / "video_script.json").read_text())
     assert data["song"] == "Christmas Canon — TSO"
     assert data["constraints"]["width"] == 1024 and data["constraints"]["fps"] == 20
@@ -263,6 +267,20 @@ def test_end_to_end_writes_both_forms(cached_song):
     assert data["shots"][1]["lyrics"] == ["We are waiting"]
     text = md.read_text()
     assert "A vigil kept across generations." in text and "1024×768" in text
+
+
+def test_end_to_end_default_budget_plans_media_and_splits_filmed_shots(cached_song):
+    song, d = cached_song
+    run(run_video_script(str(song), matrix_size="1024x768", agent=_agent(out(0, 1, 2))))
+    data = json.loads((d / "video_script.json").read_text())
+    plan = json.loads((d / "media_plan.json").read_text())
+    assert data["media"]["campaign_clips"] == 10                      # one day's quota from config
+    assert {s["medium"] for s in plan["sections"]} <= {"filmed", "procedural"}
+    filmed = [s for s in data["shots"] if s["medium"] == "filmed"]
+    assert filmed and max(s["end_ms"] - s["start_ms"] for s in filmed) <= 9_600   # 8 s × 1.2
+    assert {h["shot_index"] for h in plan["handoff"]} == {s["index"] for s in data["shots"]}
+    text = (d / "video_script.md").read_text()
+    assert "## Media" in text and "FILMED" in text
 
 
 def test_regeneration_replaces_rather_than_appends(cached_song):
@@ -336,3 +354,182 @@ def test_older_cache_without_analysis_is_analyzed_once_and_persisted(cached_song
     assert (d / "song_analysis.json").read_text() == persisted     # persisted for next time
     run(run_video_script(str(song), matrix_size="1024x768", agent=_agent(out(0, 1, 2))))
     assert len(calls) == 1                                          # not re-analyzed
+
+
+# -- written for the medium (add-video-media-plan) ----------------------------------
+
+from pydantic_ai.messages import ModelResponse, RetryPromptPart, ToolCallPart  # noqa: E402
+from pydantic_ai.models.function import FunctionModel  # noqa: E402
+
+from xlights_orchestrator.agents.videographer import _PROMPT, lint_media, videographer_agent  # noqa: E402
+from xlights_orchestrator.media_plan import MediaBudget, plan as plan_media  # noqa: E402
+from xlights_orchestrator.video_script import Shot, VideoScript  # noqa: E402
+
+LABELS3 = ["intro", "verse", "outro"]
+ENERGY3 = [0.3, 1.0, 0.2]
+
+
+def _plan(clips=10, pinned=()):
+    return plan_media(SECTIONS, LABELS3, ENERGY3, {}, MediaBudget(campaign_clips=clips, pinned=list(pinned)), 10)
+
+
+def test_agent_input_shows_medium_per_section_and_asset_groups():
+    p = _plan(clips=4)                       # verse (climax, 30 s ⇒ 4 clips) is the one filmed group
+    text = render_input(song="x", description=DESCRIPTION, brief=BRIEF, sections=SECTIONS,
+                        labels=LABELS3, energies=ENERGY3, lyrics=[], plan=p)
+    assert "[1] verse · 30.0s · energy 1.00 · FILMED (asset A2, 4 clips)  <- CLIMAX" in text
+    assert "[0] intro · 10.0s · energy 0.30 · PROCEDURAL" in text
+    assert "A2 = sections 1" in text and "procedural_stand_in" in text
+    assert LIGHT_SENTINEL not in text
+
+
+def test_agent_input_all_procedural_says_so():
+    text = render_input(song="x", description=DESCRIPTION, brief=BRIEF, sections=SECTIONS,
+                        labels=LABELS3, energies=ENERGY3, lyrics=[], plan=_plan(clips=0))
+    assert "the whole film is procedural" in text and "FILMED (" not in text
+
+
+def test_prompt_carries_vocabulary_and_motif_rule():
+    low = _PROMPT.lower()
+    assert "procedural" in low and "proxy object" in low
+    assert "never put these in a procedural beat" in low and "procedural_stand_in" in low
+
+
+def _beats(overrides: dict | None = None):
+    overrides = overrides or {}
+    base = {i: beat(i) for i in range(3)}
+    for i, b in base.items():
+        b.procedural_stand_in = "a lantern glows in falling snow"
+    for i, kw in overrides.items():
+        base[i] = base[i].model_copy(update=kw)
+    return VideographerOut(logline="l", motifs=["lantern"], beats=list(base.values()))
+
+
+def test_lint_flags_people_in_procedural_beats_only():
+    media = {0: "procedural", 1: "filmed", 2: "procedural"}
+    ok = _beats({1: {"imagery": "wrinkled hands pass a lantern"}})
+    assert lint_media(ok, media) == []                               # hands on FILM are fine
+    bad = _beats({0: {"action": "a child runs to the window"}})
+    [msg] = lint_media(bad, media)
+    assert "section 0" in msg and "'child'" in msg and "PROCEDURAL" in msg
+
+
+def test_lint_requires_a_clean_stand_in_on_filmed_beats():
+    media = {0: "procedural", 1: "filmed", 2: "procedural"}
+    missing = _beats({1: {"procedural_stand_in": ""}})
+    assert any("no procedural_stand_in" in m for m in lint_media(missing, media))
+    dirty = _beats({1: {"procedural_stand_in": "her face in the window"}})
+    assert any("'face'" in m for m in lint_media(dirty, media))
+    assert lint_media(_beats({1: {"procedural_stand_in": "Lantern light on fresh snow."}}), media) == []
+
+
+def _sequenced_model(first: VideographerOut, then: VideographerOut, calls: list):
+    """A FunctionModel that returns `first`, and `then` once a retry prompt is in the history."""
+    def fn(messages, info):
+        retried = any(isinstance(p, RetryPromptPart) for m in messages for p in getattr(m, "parts", []))
+        calls.append("retry" if retried else "first")
+        out = then if retried else first
+        return ModelResponse(parts=[ToolCallPart(tool_name=info.output_tools[0].name,
+                                                 args=out.model_dump())])
+    return FunctionModel(fn)
+
+
+def test_person_in_procedural_beat_gets_one_rewrite(cached_song):
+    """Default budget films the verse (climax); intro/outro are procedural. A child in the intro ⇒ one
+    ModelRetry naming the beat and the term; the rewrite is accepted and written."""
+    song, d = cached_song
+    calls: list[str] = []
+    bad = _beats({0: {"imagery": "a child at a frosted window"}})
+    good = _beats({0: {"imagery": "a frosted window, candle-lit"}})
+    run(run_video_script(str(song), matrix_size="1024x768", veo_clips=4,
+                         model=_sequenced_model(bad, good, calls)))
+    assert calls == ["first", "retry"]
+    data = json.loads((d / "video_script.json").read_text())
+    assert data["shots"][0]["beat"]["imagery"] == "a frosted window, candle-lit"
+    assert data["shots"][0]["medium"] == "procedural"
+
+
+def test_repeated_violation_writes_nothing(cached_song):
+    song, d = cached_song
+    bad = _beats({0: {"imagery": "a child at a frosted window"}})
+    with pytest.raises(Exception):
+        run(run_video_script(str(song), matrix_size="1024x768", veo_clips=4,
+                             model=_sequenced_model(bad, bad, [])))
+    assert not (d / "video_script.json").exists() and not (d / "media_plan.json").exists()
+
+
+def test_people_allowed_in_filmed_beats_end_to_end(cached_song):
+    song, d = cached_song
+    calls: list[str] = []
+    filmed_people = _beats({1: {"imagery": "wrinkled hands give way to small hands"}})
+    run(run_video_script(str(song), matrix_size="1024x768", veo_clips=4,
+                         model=_sequenced_model(filmed_people, filmed_people, calls)))
+    assert calls == ["first"]
+    plan = json.loads((d / "media_plan.json").read_text())
+    assert plan["sections"][1]["medium"] == "filmed"
+    h = [x for x in plan["handoff"] if x["section_index"] == 1]
+    assert all("hands" in x["veo_prompt"] for x in h)
+    assert all(x["procedural_brief"].startswith("a lantern glows in falling snow") for x in h)
+
+
+def test_videographer_agent_without_plan_has_no_lint(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-real-key")
+    agent = videographer_agent()
+    assert agent._output_validators == []                    # the lint needs a plan to know media
+    assert videographer_agent(_plan())._output_validators
+
+
+def test_no_veo_leaves_long_procedural_shots_unsplit(cached_song):
+    song, d = cached_song
+    run(run_video_script(str(song), matrix_size="1024x768", veo_clips=0, max_shot_s=10,
+                         agent=_agent(out(0, 1, 2))))
+    shots = json.loads((d / "video_script.json").read_text())["shots"]
+    assert [(s["start_ms"], s["end_ms"]) for s in shots] == SECTIONS    # the 30 s verse stays whole
+    assert all(s["medium"] == "procedural" for s in shots)
+
+
+def test_pinned_sections_reach_the_plan_and_over_budget_refuses(cached_song):
+    song, d = cached_song
+    run(run_video_script(str(song), matrix_size="1024x768", veo_clips=2, pinned=[2],
+                         agent=_agent(out(0, 1, 2))))
+    plan = json.loads((d / "media_plan.json").read_text())
+    # the outro (2 clips) is pinned and fills the budget; the climax verse (4 clips) stays procedural
+    assert plan["sections"][2]["medium"] == "filmed" and plan["sections"][1]["medium"] == "procedural"
+    with pytest.raises(ValueError, match="pinned section 1"):
+        run(run_video_script(str(song), matrix_size="1024x768", veo_clips=2, pinned=[1],
+                             agent=_agent(out(0, 1, 2))))
+
+
+def test_negative_budget_refuses(cached_song):
+    song, d = cached_song
+    with pytest.raises(ValueError, match="veo-clips"):
+        run(run_video_script(str(song), matrix_size="1024x768", veo_clips=-1, agent=_agent(out(0, 1, 2))))
+
+
+def test_cli_media_flags_reach_the_pipeline(cached_song, monkeypatch):
+    from xlights_orchestrator import cli
+    from xlights_orchestrator.pipeline import video as video_mod
+    song, d = cached_song
+    seen = {}
+
+    async def fake(song_path, **kw):
+        seen.update(kw)
+        return d / "video_script.md"
+    monkeypatch.setattr(cli, "has_llm_key", lambda: True)
+    monkeypatch.setattr(video_mod, "run_video_script", fake)
+    cli.main(["video-script", "--song", str(song), "--matrix-size", "1024x768", "--no-veo",
+              "--filmed-sections", "0,2"])
+    assert seen["veo_clips"] == 0 and seen["pinned"] == [0, 2]
+    cli.main(["video-script", "--song", str(song), "--matrix-size", "1024x768", "--veo-clips", "6"])
+    assert seen["veo_clips"] == 6 and seen["pinned"] is None
+
+
+def test_pre_plan_script_json_still_loads():
+    """A video_script.json written before media planning has no medium/asset fields."""
+    old = {"song": "s", "logline": "l", "motifs": [], "constraints": constraints_for(1024, 768, 50, 1000).model_dump(),
+           "shots": [{"index": 0, "section_index": 0, "start_ms": 0, "end_ms": 1000, "frames": 20,
+                      "beat": {"section_index": 0, "title": "t", "imagery": "i", "action": "a",
+                               "camera": "c", "lighting": "l"}}]}
+    vs = VideoScript.model_validate(old)
+    assert vs.media is None and vs.shots[0].medium == "filmed" and vs.shots[0].promote_rank is None
+    assert isinstance(vs.shots[0], Shot)

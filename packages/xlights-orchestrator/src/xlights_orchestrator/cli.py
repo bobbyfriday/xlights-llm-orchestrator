@@ -123,11 +123,16 @@ def _video_script(args) -> None:
     if not has_llm_key():
         raise SystemExit("No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env")
     try:
+        pinned = ([int(x) for x in args.filmed_sections.split(",") if x.strip()]
+                  if args.filmed_sections else None)
         md = asyncio.run(run_video_script(args.song, matrix_size=args.matrix_size,
-                                          frame_ms=args.frame_ms, max_shot_s=args.max_shot_s))
+                                          frame_ms=args.frame_ms, max_shot_s=args.max_shot_s,
+                                          veo_clips=0 if args.no_veo else args.veo_clips,
+                                          pinned=pinned))
     except (ValueError, FileNotFoundError) as exc:
         raise SystemExit(str(exc)) from exc
-    print(f"video script written: {md}\n                      {md.with_suffix('.json')}")
+    print(f"video script written: {md}\n                      {md.with_suffix('.json')}\n"
+          f"                      {md.with_name('media_plan.json')}")
 
 
 def _report(args) -> None:
@@ -227,7 +232,14 @@ def main(argv: list[str] | None = None) -> None:
                     help="video matrix resolution, e.g. 1024x768 (required — never guessed)")
     vs.add_argument("--frame-ms", type=int, default=50, help="sequence frame interval (default 50 → 20 fps)")
     vs.add_argument("--max-shot-s", type=float, default=None,
-                    help="split shots longer than this on downbeats (for clip-length-limited video tools)")
+                    help="filmed clip length override: split FILMED shots longer than this on downbeats "
+                         "(default: the configured Veo clip length × stretch; procedural shots never split)")
+    vs.add_argument("--veo-clips", type=int, default=None, metavar="N",
+                    help="campaign clip budget the story may assume will be filmed "
+                         "(default: one day's quota from models/config.yaml)")
+    vs.add_argument("--no-veo", action="store_true", help="plan an all-procedural film (budget 0)")
+    vs.add_argument("--filmed-sections", default=None, metavar="I,J",
+                    help="section indexes to film first, e.g. 3,6 (then the budget is spent by value)")
     cr = sub.add_parser("cache-rename",
                         help="retrofit hash-named cache dirs to readable <song>--<hash> names")
     cr.add_argument("--songs", action="append", default=None, metavar="DIR",

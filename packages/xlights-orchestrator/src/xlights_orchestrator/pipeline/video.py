@@ -1,7 +1,9 @@
 """`xlo video-script`: write a story-driven storyboard for the centerpiece video matrix.
 
-Reads cached artifacts only — no pipeline stage re-runs, no xLights. One Videographer call per song.
-Writes `video_script.json` + `video_script.md` into the song's cache directory.
+Reads cached artifacts only — no pipeline stage re-runs, no xLights. The MEDIA PLAN (which sections
+are filmed by Veo and which are procedural) is decided first, by code, from cached structure and the
+clip budget; the Videographer then writes one beat per section FOR its medium (one LLM call).
+Writes `video_script.json` + `video_script.md` + `media_plan.json` into the song's cache directory.
 """
 
 from __future__ import annotations
@@ -11,8 +13,9 @@ import logging
 import re
 from pathlib import Path
 
-from .. import telemetry
-from ..models.registry import run_agent
+from .. import telemetry, veo_ledger
+from ..media_plan import MediaBudget, apply_media, build_handoff, featured_hits, plan as plan_media, summary
+from ..models.registry import run_agent, veo_config
 from ..video_script import (
     VideoScript,
     assign_lyrics,
@@ -62,9 +65,15 @@ def song_title(analysis: dict, song_path: str) -> str:
 
 
 async def run_video_script(song: str, *, matrix_size: str | None, frame_ms: int = 50,
-                           max_shot_s: float | None = None, agent=None) -> Path:
-    """Generate and write the script; returns the Markdown path. Raises on any refusal, before
-    spending a model call and without writing anything."""
+                           max_shot_s: float | None = None, veo_clips: int | None = None,
+                           pinned: list[int] | None = None, agent=None, model=None) -> Path:
+    """Generate and write the script + media plan; returns the Markdown path. Raises on any refusal,
+    before spending a model call and without writing anything.
+
+    `veo_clips` is the CAMPAIGN clip budget the story may assume (default: one day's quota from
+    config; 0 ⇒ all procedural). `pinned` sections are filmed first. `max_shot_s` overrides the
+    filmed clip length (procedural shots are never split). `agent` injects a ready agent (tests);
+    `model` substitutes the model while keeping the role's media-lint validator."""
     if not matrix_size:
         raise ValueError("--matrix-size is required (e.g. 1024x768); the script will not guess "
                          "the video matrix's resolution")
@@ -104,10 +113,22 @@ async def run_video_script(song: str, *, matrix_size: str | None, frame_ms: int 
     title = song_title(analysis, song)
     constraints = constraints_for(width, height, frame_ms, sections[-1][1])
 
+    # The media plan: code, before the model, from structure + budget + today's ledger.
+    veo = veo_config()
+    budget = MediaBudget(campaign_clips=int(veo["daily_clips"]) if veo_clips is None else int(veo_clips),
+                         clip_s=float(veo["clip_s"]), max_stretch=float(veo["max_stretch"]),
+                         pinned=list(pinned or []))
+    if budget.campaign_clips < 0:
+        raise ValueError(f"--veo-clips must be >= 0, got {budget.campaign_clips}")
+    remaining = veo_ledger.remaining_today(int(veo["daily_clips"]), str(veo["quota_reset_tz"]))
+    media = plan_media(sections, labels, energies,
+                       featured_hits(description.get("featured_lines") or [], lyrics, sections),
+                       budget, remaining, per_second_usd=veo.get("per_second_usd"))
+
     from ..agents.videographer import render_input, videographer_agent
     prompt = render_input(song=title, description=description, brief=brief, sections=sections,
-                          labels=labels, energies=energies, lyrics=lyrics)
-    agent = agent or videographer_agent()
+                          labels=labels, energies=energies, lyrics=lyrics, plan=media)
+    agent = agent or videographer_agent(media, model=model)
     if telemetry.current() is None:
         telemetry.start_run()
     result = await run_agent(agent, prompt, role="videographer")
@@ -116,14 +137,19 @@ async def run_video_script(song: str, *, matrix_size: str | None, frame_ms: int 
 
     shots = resolve_beats(out, sections, frame_ms=frame_ms, labels=labels,
                           energies=energies, lyrics=lyrics)
-    shots = split_long_shots(shots, max_shot_s=max_shot_s, downbeats_ms=downbeats_ms(analysis),
-                             frame_ms=frame_ms)
+    apply_media(shots, media)
+    shots = split_long_shots(shots, max_shot_s=max_shot_s or budget.effective_clip_s,
+                             downbeats_ms=downbeats_ms(analysis), frame_ms=frame_ms)
     assign_lyrics(shots, lyrics)
+    palette = brief.get("palette") or {}
+    media.handoff = build_handoff(shots, list(palette.get("colors") or []) if isinstance(palette, dict)
+                                  else [], constraints)
 
     source = ", ".join(str(p.relative_to(song_dir)) for p in (brief_p, desc_p, analysis_p))
     vs = VideoScript(song=title, source=source, logline=out.logline, motifs=out.motifs,
-                     constraints=constraints, shots=shots)
+                     constraints=constraints, shots=shots, media=summary(media))
     (song_dir / "video_script.json").write_text(vs.model_dump_json(indent=1))
+    (song_dir / "media_plan.json").write_text(media.model_dump_json(indent=1))
     md = song_dir / "video_script.md"
     md.write_text(render_markdown(vs))
 

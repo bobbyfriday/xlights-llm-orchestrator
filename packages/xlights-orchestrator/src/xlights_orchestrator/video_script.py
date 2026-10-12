@@ -29,6 +29,10 @@ class Beat(BaseModel):
     motifs: list[str] = Field(default=[], description="which recurring motifs appear in this beat")
     continuity: str = Field(default="", description="how this beat follows from the previous one")
     draws_on: str = Field(default="", description="the lyric, theme or narrative element this beat comes from")
+    procedural_stand_in: str = Field(
+        default="",
+        description="FILMED beats only: one sentence saying how this beat looks rendered procedurally "
+                    "(snow, light, geometry, silhouettes of objects — no people, faces, hands or animals)")
 
 
 class VideographerOut(BaseModel):
@@ -62,7 +66,24 @@ class Shot(BaseModel):
     energy: float = 0.0
     inherited: bool = False          # the agent gave no beat for this section; previous beat held
     lyrics: list[str] = []
+    medium: str = "filmed"           # "filmed" (Veo) | "procedural" (code); pre-plan scripts were all filmed
+    asset: str = ""                  # media-plan asset id this shot renders (shared by repeated sections)
+    clips: int = 0                   # Veo clips the asset needs (0 for procedural)
+    promote_rank: int | None = None  # order in which filmed assets get rendered as quota allows
     beat: Beat
+
+
+class MediaSummary(BaseModel):
+    """What the media plan decided, for the script's readers (the full plan is media_plan.json)."""
+    campaign_clips: int
+    filmed_sections: int
+    procedural_sections: int
+    assets_filmed: int
+    clips_planned: int
+    veo_seconds: float
+    est_usd: float | None = None     # None = unpriced (never zero)
+    ledger_remaining: int
+    renderable_today: int
 
 
 class VideoScript(BaseModel):
@@ -72,6 +93,7 @@ class VideoScript(BaseModel):
     motifs: list[str]
     constraints: ScriptConstraints
     shots: list[Shot]
+    media: MediaSummary | None = None
 
 
 CONTRACT_NOTES = [
@@ -168,12 +190,13 @@ def resolve_beats(out: VideographerOut, sections: list[tuple[int, int]], *, fram
 
 def split_long_shots(shots: list[Shot], *, max_shot_s: float | None, downbeats_ms: list[int],
                      frame_ms: int) -> list[Shot]:
-    """Split shots longer than `max_shot_s` into parts no longer than it, cutting on downbeats.
+    """Split FILMED shots longer than `max_shot_s` into parts no longer than it, cutting on downbeats.
 
     Each cut aims at an even share of the remaining span and takes the nearest downbeat inside the
     window that still respects the maximum; with no downbeat available it cuts at the even point.
-    Identity when `max_shot_s` is None. Shot indexes are renumbered; call `assign_lyrics` after
-    so each lyric line lands in the part it starts in.
+    Identity when `max_shot_s` is None. Procedural shots are never split — they render any length,
+    frame-exact — so the maximum is a filmed clip length. Shot indexes are renumbered; call
+    `assign_lyrics` after so each lyric line lands in the part it starts in.
     """
     if not max_shot_s:
         return shots
@@ -182,7 +205,7 @@ def split_long_shots(shots: list[Shot], *, max_shot_s: float | None, downbeats_m
         raise ValueError(f"bad --max-shot-s {max_shot_s}")
     out: list[Shot] = []
     for sh in shots:
-        if sh.end_ms - sh.start_ms <= max_ms:
+        if sh.medium == "procedural" or sh.end_ms - sh.start_ms <= max_ms:
             out.append(sh)
             continue
         cuts, cur = [], sh.start_ms
@@ -227,16 +250,31 @@ def render_markdown(vs: VideoScript) -> str:
     L += [f"- {n}" for n in c.notes]
     if vs.source:
         L += [f"- Built from: `{vs.source}`"]
+    if vs.media:
+        m = vs.media
+        est = "unpriced" if m.est_usd is None else f"~${m.est_usd:.2f}"
+        L += ["", "## Media", "",
+              f"- **{m.filmed_sections} filmed** section(s) in {m.assets_filmed} asset(s) · "
+              f"**{m.procedural_sections} procedural**",
+              f"- Veo: {m.clips_planned} clip(s) of the {m.campaign_clips}-clip campaign budget · "
+              f"{m.veo_seconds:g} s · {est}",
+              f"- Today: {m.ledger_remaining} clip(s) left in the daily quota → "
+              f"{m.renderable_today} planned asset(s) renderable now; the rest play their "
+              f"procedural stand-in until promoted"]
     L += ["", "## Shots", ""]
     for sh in vs.shots:
         b = sh.beat
         part = f" (part {sh.part})" if sh.part else ""
         label = f" · {sh.label}" if sh.label else ""
         L.append(f"### {sh.index}. {b.title}{part}{label} — {_clock(sh.start_ms)} → {_clock(sh.end_ms)}")
+        media = (f"FILMED · {sh.asset} · {sh.clips} clip(s) · promote #{sh.promote_rank}"
+                 if sh.medium == "filmed" and sh.asset else sh.medium.upper())
         L.append(f"*{(sh.end_ms - sh.start_ms) / 1000:.1f}s · {sh.frames} frames · energy {sh.energy:.2f}"
-                 + (" · holds the previous beat" if sh.inherited else "") + "*")
+                 f" · {media}" + (" · holds the previous beat" if sh.inherited else "") + "*")
         L += ["", f"**See:** {b.imagery}", "", f"**Happens:** {b.action}", "",
               f"**Camera:** {b.camera}  ", f"**Light:** {b.lighting}"]
+        if sh.medium == "filmed" and b.procedural_stand_in:
+            L.append(f"**Procedural stand-in:** {b.procedural_stand_in}  ")
         if b.motifs:
             L.append(f"**Motifs:** {', '.join(b.motifs)}  ")
         if b.continuity:

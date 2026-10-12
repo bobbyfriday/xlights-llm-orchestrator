@@ -41,8 +41,11 @@ def separate(path: str, sample_rate: int):
                 raw = _separate_torch(path)
             else:
                 continue
-        except ImportError:
-            continue  # backend not installed; try the next
+        except ImportError as exc:
+            # Not installed — OR installed but refusing (demucs-mlx raises ImportError when its
+            # converted-weights cache is unusable and the [convert] extra is absent). Say which.
+            log.info("stem separation backend %s unavailable: %s", name, exc or "not installed")
+            continue
         except Exception as exc:  # noqa: BLE001 — separation is best-effort
             log.warning("stem separation backend %s failed: %s", name, exc)
             continue

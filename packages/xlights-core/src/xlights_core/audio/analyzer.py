@@ -1,4 +1,4 @@
-"""AudioAnalyzer: path -> SongAnalysis, with content-hash caching.
+"""AudioAnalyzer: path -> SongAnalysis, with content-hash caching (readable `<slug>--<hash>` names).
 
 Plugins are required: the analyzer checks them up front and fails clearly if missing.
 """
@@ -10,6 +10,7 @@ import logging
 import os
 from pathlib import Path
 
+from .. import cache_names
 from . import fusion
 from .extractors import vamp_host
 from .schema import ANALYZER_VERSION, SongAnalysis
@@ -60,11 +61,17 @@ class AudioAnalyzer:
     def __init__(self, cache_dir: str | Path | None = None) -> None:
         self.cache_dir = Path(cache_dir) if cache_dir is not None else default_cache_dir()
 
+    def _entry(self, path: str) -> str:
+        """The cache entry name for ``path``: ``<song-slug>--<digest16>`` (``.json`` + stems dir),
+        or a pre-slug full-hash entry that is still on disk."""
+        full = _content_key(path)
+        return cache_names.resolve(self.cache_dir, path, full[:16], legacy=(full,))
+
     def analyze(self, path: str, *, use_cache: bool = True, stems: bool = False) -> SongAnalysis:
         vamp_host.check_required_plugins()  # fail fast if a required plugin is missing
         stems = stems or os.environ.get("XLO_STEMS") == "1"
 
-        key = _content_key(path)
+        key = self._entry(path)
         cache_file = self.cache_dir / f"{key}.json"
         if use_cache and cache_file.exists():
             analysis = SongAnalysis.model_validate_json(cache_file.read_text())
@@ -103,7 +110,7 @@ class AudioAnalyzer:
         """Align lyric TEXT against the persisted vocal stem → timed lyrics on the analysis,
         re-saving the cache (augment-and-resave, like stems). Graceful: False on any failure."""
         from .lyrics_align import align_lyrics
-        key = _content_key(path)
+        key = self._entry(path)
         stem = next((self.cache_dir / key / "stems" / f"vocals.{ext}"
                      for ext in ("wav", "mp3")
                      if (self.cache_dir / key / "stems" / f"vocals.{ext}").exists()), None)
@@ -137,7 +144,7 @@ class AudioAnalyzer:
         if not refine_segments_for_instrumental(analysis):
             return False
         analysis.structure_version = STRUCTURE_VERSION   # segments now reflect current logic
-        key = _content_key(path)
+        key = self._entry(path)
         self._refresh_section_instrumentation(analysis, key)
         try:
             (self.cache_dir / f"{key}.json").write_text(analysis.model_dump_json())

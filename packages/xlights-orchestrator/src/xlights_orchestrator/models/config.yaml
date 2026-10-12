@@ -52,3 +52,25 @@ pricing:
   gemini-3.1-pro-preview:  {input: 2.00, output: 12.00, cache_read: 0.20,  cache_write: 4.50}
   gemini-3.1-flash-lite:   {input: 0.25, output: 1.50,  cache_read: 0.025, cache_write: 1.00}
   gemini-3.5-flash:        {input: 1.50, output: 9.00,  cache_read: 0.15,  cache_write: 1.00}
+
+# Media for the centerpiece video matrix (add-video-media-plan). The storyboard is PLANNED across
+# two media before the Videographer writes: `filmed` (Veo via the Gemini API — clip-length-limited,
+# daily-quota-limited, priced per second) and `procedural` (code: snow/light/geometry — free,
+# frame-exact, any length). Quota and prices are DATA here, never constants in code.
+#   clip_s / daily_clips: the user's Veo limits (8 s clips, ~10 a day) — update when Google's change.
+#   max_stretch: a 24 fps clip played frame-for-frame at the sequence's 20 fps runs 1.2× longer.
+#   quota_reset_tz: the day boundary the ledger counts clips in. UNVERIFIED against Google's reset;
+#     a wrong zone only mis-predicts "renderable today" — the API's refusal is the ground truth.
+#   per_second_usd / per_image_usd: null ⇒ the planned spend is UNKNOWN (None), never zero. Fill from
+#     ai.google.dev/gemini-api/docs/pricing.
+video:
+  veo:
+    model: veo-3.1-generate-preview        # TODO verify the current Gemini API model id
+    per_second_usd: null                   # TODO price from Google's page
+    clip_s: 8
+    max_stretch: 1.2
+    daily_clips: 10
+    quota_reset_tz: America/Los_Angeles
+  still:                                   # one generated still per motif (renderers; priced here)
+    model: gemini-3.1-flash-image          # TODO verify
+    per_image_usd: null

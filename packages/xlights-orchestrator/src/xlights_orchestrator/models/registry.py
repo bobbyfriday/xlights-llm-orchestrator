@@ -97,6 +97,31 @@ def estimate_cost(models: dict[str, str], usage: dict) -> float | None:
     return total / 1_000_000
 
 
+# -- video media (add-video-media-plan): quota + prices are DATA in config.yaml ----------------
+
+def video_config() -> dict[str, Any]:
+    """The `video:` block (Veo clip length / daily quota / reset tz / prices, still-image prices)."""
+    return _cfg().get("video", {}) or {}
+
+
+def veo_config() -> dict[str, Any]:
+    """`video.veo` with the planner's required keys defaulted (clip_s 8, max_stretch 1.2,
+    daily_clips 10, quota_reset_tz UTC) so a trimmed config still plans."""
+    cfg = dict(video_config().get("veo") or {})
+    cfg.setdefault("clip_s", 8.0); cfg.setdefault("max_stretch", 1.2)
+    cfg.setdefault("daily_clips", 10); cfg.setdefault("quota_reset_tz", "UTC")
+    return cfg
+
+
+def video_cost(seconds: float) -> float | None:
+    """Planned Veo spend for `seconds` of clips at the configured per-second rate. None (unknown,
+    never zero) while the rate is unpriced — the same convention as `estimate_cost`."""
+    rate = veo_config().get("per_second_usd")
+    if rate is None:
+        return None
+    return float(seconds) * float(rate)
+
+
 def active_provider() -> str:
     """Global provider in effect: XLO_PROVIDER env override, else config default."""
     return os.environ.get("XLO_PROVIDER") or _cfg().get("default_provider", "anthropic")
@@ -146,11 +171,13 @@ def _settings(role: str, *, provider: str | None = None):
     return settings if settings else None
 
 
-def build_agent(role: str, *, output_type, system_prompt: str) -> Agent:
-    """Construct a PydanticAI Agent for a role. Lazy: no API call at construction."""
+def build_agent(role: str, *, output_type, system_prompt: str, model: Any = None) -> Agent:
+    """Construct a PydanticAI Agent for a role. Lazy: no API call at construction. `model`
+    substitutes a Model instance (a hermetic TestModel/FunctionModel) for the routed one, keeping
+    the role's output validators attached; provider settings are then not applied."""
     return Agent(
-        model_string(role),
+        model or model_string(role),
         output_type=output_type,
         system_prompt=system_prompt,
-        model_settings=_settings(role),
+        model_settings=None if model is not None else _settings(role),
     )

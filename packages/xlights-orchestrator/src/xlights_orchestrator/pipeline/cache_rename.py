@@ -78,7 +78,9 @@ def plan(song_dirs: list[Path]) -> list[Rename]:
 
 def apply(r: Rename) -> list[str]:
     """Rename one entry (dir and/or `.json`) and rewrite its revision log. Returns notes."""
-    notes = []
+    notes: list[str] = []
+    if r.new is None:                                    # no source song matched: nothing to rename
+        return [f"skipped {r.old}: no source song found"]
     for suffix in ("", ".json"):
         src, dst = r.root / f"{r.old}{suffix}", r.root / f"{r.new}{suffix}"
         if not src.exists():

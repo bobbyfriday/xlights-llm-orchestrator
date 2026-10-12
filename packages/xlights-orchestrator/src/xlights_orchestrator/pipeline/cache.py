@@ -1,4 +1,5 @@
-"""Per-song stage cache paths. Resume = cached stage artifacts keyed by song content hash.
+"""Per-song stage cache paths. Resume = cached stage artifacts keyed by song content hash, in a
+readable `<song-slug>--<hash>` dir (see `xlights_core.cache_names`).
 
 LLM-stage artifacts (song_description, creative_brief, instructions, visual_review) are
 additionally namespaced under a fingerprint of the active per-role model routing (`models=True`),
@@ -17,12 +18,14 @@ import json
 import os
 from pathlib import Path
 
+from xlights_core import cache_names
+
 
 def cache_root() -> Path:
     return Path(os.environ.get("XLO_CACHE_DIR", "data")) / "orchestrator"
 
 
-def song_key(path: str) -> str:
+def content_digest(path: str) -> str:
     h = hashlib.sha1()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -30,12 +33,24 @@ def song_key(path: str) -> str:
     return h.hexdigest()[:16]
 
 
+def song_key(path: str) -> str:
+    """The song's cache dir name under `cache_root()`: `<song-slug>--<digest>`. The digest is the
+    identity (renamed/duplicate MP3s share one dir); a pre-slug bare-digest dir keeps resolving."""
+    digest = content_digest(path)
+    return cache_names.resolve(cache_root(), path, digest, legacy=(digest,))
+
+
+# Roles that only READ cached pipeline artifacts and produce none the pipeline consumes. Re-pointing
+# (or adding) one must not re-namespace every LLM stage, or it would cold-start every song's cache.
+FINGERPRINT_EXEMPT_ROLES = frozenset({"videographer"})
+
+
 def models_fingerprint() -> str:
     """A stable 8-hex fingerprint of the whole per-role model snapshot. Over-invalidates slightly
     (any role change re-namespaces all LLM stages) but is impossible to get wrong, and the stage
     inputs are transitively coupled anyway."""
     from ..models.registry import model_snapshot
-    snap = model_snapshot()
+    snap = {r: m for r, m in model_snapshot().items() if r not in FINGERPRINT_EXEMPT_ROLES}
     blob = json.dumps(snap, sort_keys=True).encode()
     return "m-" + hashlib.sha1(blob).hexdigest()[:8]
 

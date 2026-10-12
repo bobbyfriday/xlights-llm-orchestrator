@@ -28,6 +28,9 @@ roles:
   visual_critic_lite:                         # cheap contact-sheet critique (worker tier, I8 Tier 1)
     anthropic: {model: claude-sonnet-4-6, thinking: adaptive}
     gemini:    {model: gemini-3.1-flash-lite}
+  videographer:                               # story-driven script for the centerpiece video matrix
+    anthropic: {model: claude-opus-4-8, thinking: adaptive, effort: high}   # planner: whole-song
+    gemini:    {model: gemini-3.1-pro-preview}                              #   creative judgment
 
 # Provider → PydanticAI model-string prefix. ('google:' replaces the deprecated 'google-gla:')
 providers:

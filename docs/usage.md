@@ -181,11 +181,21 @@ SSE `Last-Event-ID`. It exposes no state-changing GET route; checkpoint tokens a
 ## Outputs & caching
 
 Under `data/analyses/`:
-- `<song-hash>.json` — the cached `SongAnalysis` (+ stems under `<song-hash>/stems/`).
-- `orchestrator/<song-key>/` — `song_description.json`, `creative_brief.json` (+ `.md` renders), `instructions.json`, `revision_log.{jsonl,md}`, `visual_review/iterN/` (stills/clips the critic saw).
+- `<song>--<hash>.json` — the cached `SongAnalysis` (+ stems under `<song>--<hash>/stems/`).
+- `orchestrator/<song>--<hash>/` — `song_description.json`, `creative_brief.json` (+ `.md` renders), `instructions.json`, `revision_log.{jsonl,md}`, `visual_review/iterN/` (stills/clips the critic saw).
 
 The saved `.xsq` lands in your xLights show folder. Re-running reuses caches; `--no-cache` forces a
-recompute. To re-plan only, delete the relevant `orchestrator/<song-key>/*.json` stage files.
+recompute. To re-plan only, delete the relevant `orchestrator/<song>--<hash>/*.json` stage files.
+
+Entries are named `<song-slug>--<content-hash>` (e.g. `carol-of-the-bells--cfb62d6a5dcd3b13`). The
+hash is the identity: a renamed or duplicated MP3 reuses the existing entry, whatever its slug.
+Caches from before readable names (bare hashes) still resolve; `xlo cache-rename` renames them
+(dry run by default, `--apply` to do it, `--songs DIR` to match hashes against audio elsewhere):
+
+```bash
+uv run xlo cache-rename --songs ~/xlights           # preview
+uv run xlo cache-rename --songs ~/xlights --apply
+```
 
 ## Resilience & degradations
 

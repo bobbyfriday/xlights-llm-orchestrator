@@ -228,6 +228,12 @@ def main(argv: list[str] | None = None) -> None:
     vs.add_argument("--frame-ms", type=int, default=50, help="sequence frame interval (default 50 → 20 fps)")
     vs.add_argument("--max-shot-s", type=float, default=None,
                     help="split shots longer than this on downbeats (for clip-length-limited video tools)")
+    cr = sub.add_parser("cache-rename",
+                        help="retrofit hash-named cache dirs to readable <song>--<hash> names")
+    cr.add_argument("--songs", action="append", default=None, metavar="DIR",
+                    help="extra dir of audio files to match hashes against (repeatable; "
+                         "default: . and mp3/)")
+    cr.add_argument("--apply", action="store_true", help="do the renames (default: dry run)")
     ab = sub.add_parser("ab", help="provider A/B: run one song through multiple routing arms")
     ab.add_argument("--song", required=True, help="path to a (short) fixture audio file")
     ab.add_argument("--arm", action="append", required=True, dest="arm",
@@ -241,6 +247,12 @@ def main(argv: list[str] | None = None) -> None:
     load_env()
     if args.cmd == "report":            # offline, deterministic — NO has_llm_key() gate
         _report(args)
+        return
+    if args.cmd == "cache-rename":      # offline file housekeeping — no key, no xLights
+        from pathlib import Path
+        from .pipeline import cache_rename
+        dirs = [Path(d).expanduser() for d in (args.songs or [".", "mp3"])]
+        print(cache_rename.run(dirs, do_apply=args.apply))
         return
     if args.cmd == "edit-brief":
         _edit_brief(args)

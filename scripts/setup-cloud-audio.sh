@@ -12,9 +12,9 @@ cd "$(dirname "$0")/.."
 SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 export VAMP_PREFIX="${VAMP_PREFIX:-/usr/local/lib/vamp}"
 
-if ! command -v ffmpeg >/dev/null || ! command -v g++ >/dev/null || ! ldconfig -p | grep -q libsndfile; then
+if ! command -v ffmpeg >/dev/null || ! command -v g++ >/dev/null || [ ! -f /usr/include/boost/tokenizer.hpp ] || ! ldconfig -p | grep -q libsndfile; then
   $SUDO apt-get update -qq
-  $SUDO apt-get install -y -qq --no-install-recommends build-essential git ffmpeg libsndfile1
+  $SUDO apt-get install -y -qq --no-install-recommends build-essential git libboost-dev ffmpeg libsndfile1
 fi
 
 if ! ls "$VAMP_PREFIX"/{qm-vamp-plugins,nnls-chroma,segmentino}.so >/dev/null 2>&1; then

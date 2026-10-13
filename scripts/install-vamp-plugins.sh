@@ -5,7 +5,8 @@
 #
 # The compile recipe mirrors the upstream Vamp Plugin Pack's qmake projects
 # (github.com/vamp-plugins/vamp-plugin-pack: qm-vamp-plugins.pro, nnls-chroma.pro,
-# segmentino.pro, plugin.pri) as plain gcc/g++ calls, so it needs only build-essential + git.
+# segmentino.pro, plugin.pri) as plain gcc/g++ calls, so it needs only build-essential, git,
+# and the header-only Boost (libboost-dev; nnls-chroma uses boost/tokenizer).
 # Used by docker/audio-analysis.Dockerfile and by scripts/setup-cloud-audio.sh.
 #
 #   VAMP_PREFIX=/usr/local/lib/vamp  install dir (on the vamp host's default Linux search path)

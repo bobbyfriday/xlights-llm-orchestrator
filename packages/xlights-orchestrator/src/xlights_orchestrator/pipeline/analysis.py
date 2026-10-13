@@ -27,8 +27,9 @@ def analyze_song(song_path: str, *, stems: bool = True, lyrics: bool = True,
 
     `analyze` replaces the base feature extraction (a test seam with the simple
     (path)->SongAnalysis shape); enrichment still runs on its result. `lyrics_text` supplies
-    the lyric text directly (skips Genius); `lyrics=False` skips lyric alignment entirely. The audio cache is intentionally not bypassable here: re-analysis is
-    expensive AND lyric alignment is not always reproducible. A cached analysis whose
+    the lyric text directly (skips Genius); `lyrics=False` skips lyric alignment entirely. The
+    audio cache is intentionally not bypassable here: re-analysis is expensive AND lyric
+    alignment is not always reproducible. A cached analysis whose
     segmentation predates a structure.py fix self-heals on load (AudioAnalyzer migrates it in
     place from cached lyrics/beats).
     """

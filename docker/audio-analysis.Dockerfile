@@ -11,7 +11,7 @@
 # -- stage 1: compile the required VAMP plugins (not packaged by apt) ------------------
 FROM debian:bookworm-slim AS vamp
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential git ca-certificates \
+        build-essential git ca-certificates libboost-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY scripts/install-vamp-plugins.sh /tmp/install-vamp-plugins.sh
 RUN VAMP_PREFIX=/opt/vamp bash /tmp/install-vamp-plugins.sh

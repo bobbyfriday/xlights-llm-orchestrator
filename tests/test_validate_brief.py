@@ -24,6 +24,7 @@ VOCAB = {
     "scene_ids": ["SC-01", "SC-09"],
     "stems": ["drums", "vocals"],
     "colors": ["red", "warm white", "deep blue"],
+    "blends": ["Normal", "Max", "Brightness"],
 }
 DURATION = 30_000
 DOWNBEATS = [0, 2_000, 4_000, 6_000, 8_000, 10_000, 12_000, 14_000, 16_000, 18_000,
@@ -326,3 +327,20 @@ def test_membership_errors_still_reported_when_pydantic_fails():
     b["sections"][1]["target_groups"] = ["X"]   # membership error — must still surface
     r = _run(b)
     assert {"sections[0].intensity", "sections[1].target_groups[0]"} <= set(_paths(r))
+
+
+def test_fabric_blend_must_be_a_known_layer_method():
+    b = _clean()
+    b["sections"][0]["fabric"] = {"carrier": "SingleStrand", "blend": "Multiply"}
+    r = _run(b)
+    e = next(i for i in r.errors if i.path == "sections[0].fabric.blend")
+    assert e.allowed == ["Normal", "Max", "Brightness"] and not r.ok
+    b["sections"][0]["fabric"]["blend"] = "Max"
+    assert _run(b).ok
+
+
+def test_fabric_blend_unchecked_without_a_blends_vocab():
+    vocab = {k: v for k, v in VOCAB.items() if k != "blends"}      # an older vocab.json
+    b = _clean()
+    b["sections"][0]["fabric"] = {"blend": "Whatever"}
+    assert validate_brief(b, vocab, duration_ms=DURATION).ok

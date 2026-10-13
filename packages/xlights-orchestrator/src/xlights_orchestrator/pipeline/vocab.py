@@ -3,11 +3,12 @@
 `xlo groups` writes `vocab.json` BEFORE any brief exists so Claude (and `validate-brief`) share one
 source for what a brief may name: the live layout's targetable groups, the placeable effect
 types, the cellable carrier types (for `fabric.carrier`), the cookbook scene ids, the song's
-stems, and the named colors. This module takes those lists as arguments — it never calls
-xLights or the preset library itself — so it is hermetic and the values are the caller's to
-source (`pipeline.groups.targetable_groups`, `agents.catalog.placeable_effect_types`,
-`pipeline.effect_meta.DURATION_CELLABLE`, `agents.guide_extracts.scene_ids`, the analysis'
-stems, `xlights_core.knowledge.colors.NAMED_COLORS`).
+stems, the named colors, and the layer blend methods (for `fabric.blend`). This module takes
+those lists as arguments — it never calls xLights or the preset library itself — so it is
+hermetic and the values are the caller's to source (`pipeline.groups.targetable_groups`,
+`agents.catalog.placeable_effect_types`, `pipeline.effect_meta.DURATION_CELLABLE`,
+`agents.guide_extracts.scene_ids`, the analysis' stems,
+`xlights_core.knowledge.colors.NAMED_COLORS`, `show_plan.BLEND_METHODS`).
 """
 
 from __future__ import annotations
@@ -17,11 +18,12 @@ import json
 from pathlib import Path
 
 from ..brief_schema import SCHEMA_NAME, build_brief_schema
+from ..show_plan import BLEND_METHODS
 
 VOCAB_NAME = "vocab.json"
 
 # The keys of vocab.json, in the order they are written.
-VOCAB_KEYS = ("groups", "effect_types", "cellable", "scene_ids", "stems", "colors")
+VOCAB_KEYS = ("groups", "effect_types", "cellable", "scene_ids", "stems", "colors", "blends")
 
 
 def _dedupe(values) -> list[str]:
@@ -36,10 +38,12 @@ def _dedupe(values) -> list[str]:
     return out
 
 
-def build_vocab(*, groups, effect_types, cellable, scene_ids, stems, colors) -> dict:
+def build_vocab(*, groups, effect_types, cellable, scene_ids, stems, colors,
+                blends=BLEND_METHODS) -> dict:
     """Assemble the vocabulary dict. Order is preserved for groups (the layout's own order is
-    meaningful to a reader); the type/scene/stem/color lists are sorted for a stable file.
-    `cellable` is intersected with `effect_types` — a carrier must also be placeable."""
+    meaningful to a reader) and blends (xLights' menu order); the type/scene/stem/color lists
+    are sorted for a stable file. `cellable` is intersected with `effect_types` — a carrier
+    must also be placeable. `blends` defaults to the contract's `BLEND_METHODS`."""
     types = sorted(_dedupe(effect_types))
     placeable = set(types)
     return {
@@ -49,6 +53,7 @@ def build_vocab(*, groups, effect_types, cellable, scene_ids, stems, colors) -> 
         "scene_ids": sorted(_dedupe(scene_ids)),
         "stems": _dedupe(stems),
         "colors": _dedupe(colors),
+        "blends": _dedupe(blends),
     }
 
 

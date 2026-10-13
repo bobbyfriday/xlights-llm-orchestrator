@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from xlights_orchestrator.brief_schema import SCHEMA_NAME
+from xlights_orchestrator.show_plan import BLEND_METHODS
 from xlights_orchestrator.pipeline.vocab import (
     VOCAB_KEYS,
     VOCAB_NAME,
@@ -26,13 +27,15 @@ ARGS = dict(groups=["SEM_ALL", "SEM_ROOF", "SEM_ALL", ""],   # dup + blank dropp
 
 def test_build_vocab_keys_and_normalization():
     v = build_vocab(**ARGS)
-    assert tuple(v) == VOCAB_KEYS == ("groups", "effect_types", "cellable", "scene_ids", "stems", "colors")
+    assert tuple(v) == VOCAB_KEYS == ("groups", "effect_types", "cellable", "scene_ids", "stems",
+                                      "colors", "blends")
     assert v["groups"] == ["SEM_ALL", "SEM_ROOF"]
     assert v["effect_types"] == ["On", "SingleStrand", "Twinkle"]
     assert v["cellable"] == ["SingleStrand"]
     assert v["scene_ids"] == ["SC-01", "SC-09"]
     assert v["stems"] == ["drums", "vocals"]
     assert v["colors"] == ["red", "warm white"]
+    assert v["blends"] == list(BLEND_METHODS)                  # the contract's layer methods
 
 
 def test_write_and_load_round_trip(tmp_path):

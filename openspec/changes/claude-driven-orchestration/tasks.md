@@ -35,7 +35,7 @@
 - [x] 3.5 Remove `pydantic-ai` from `packages/xlights-orchestrator/pyproject.toml`; `uv lock`; confirm `uv sync` installs no model client
 - [x] 3.6 Delete tests for removed modules (`test_ab`, `test_brief_editor*`, `test_live_server`, `test_orchestrator` agent paths, `test_layout_classifier_llm`, refine/judge/critic/telemetry/report/revision-log tests, `test_guide_extracts`, `test_guide_injection`); rewrite `test_golden_pipeline.py` on a fixture `creative_brief.json` (with a `fabric` block on one section) asserting the same instruction properties and the fabric canary
 - [x] 3.7 Grep for `telemetry`, `degradations.start_run`, `models.registry`, `run_agent`, `MusicBrief` and remove dead references; run `pytest` hermetic suite green
-- [ ] 3.8 Update the memory notes that reference the removed pieces (LLM auth, PR workflow unchanged) and the CLAUDE.md/usage pointers
+- [x] 3.8 Update the memory notes that reference the removed pieces (LLM auth, PR workflow unchanged) and the CLAUDE.md/usage pointers
 - [x] 3.9 Make `xlo --help` work after a plain `uv sync`: declare numpy as a dependency of the orchestrator or import it lazily in `qa/fseq_metrics.py`; then simplify the README/usage install line
 - [ ] 3.10 Settle the cookbook layer mapping against the emitter (cookbook L1 → layer 0 vs "higher index renders on top") with a live render of SC-01, and fix `pipeline/scenes.py` if the bed lands above the feature
 - [ ] 3.11 Peak sections targeting SEM_FOCAL exceed the 4-layer budget (brief row + Ripple texture + 3-layer peak composite), so `clamp_layer_budget` drops the composite's top layer; give the composite precedence or skip the brief base row on the hero at the peak

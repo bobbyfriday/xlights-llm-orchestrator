@@ -2,7 +2,7 @@
 
 These measure *musical shape*, not correctness — repeated music that fails to rhyme, a show with
 no dynamic range, a quiet section drowning in concurrent motion. Every finding is `objective=False`
-(it informs the Judge and the revision log, never gates the refine loop's convergence) and the
+(it informs the reviewer, never counts toward the objective score) and the
 metric names are `musicality:*` so `source_of` groups them apart from sync/placement/variety.
 
 Pure functions over the placed `EffectInstruction[]` + the plan + the repetition map — no xLights,

@@ -23,7 +23,7 @@ def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
     s_var, f_var = variety.evaluate(instructions, groups)
     s_rules, f_rules = rules.evaluate(instructions, plan, manifest)
     # advisory musicality: repetition-rhyme + dynamic-range + focus-budget (objective=False —
-    # informs the Judge/revision log, never gates the objective score or the loop's convergence).
+    # informs the reviewer, never counts toward the objective score).
     s_mus, f_mus = musicality.evaluate(instructions, plan, repetition_map)
     subscores: dict[str, float] = {"sync": s_sync, "placement": s_place, "rules": s_rules,
                                    "variety": s_var, "musicality": s_mus}
@@ -35,7 +35,7 @@ def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
         fseq_sub, fseq_find = fseq_metrics.evaluate(plan, analysis, fseq_series,
                                                     repetition_map=_repetition_map(plan))
         subscores.update(fseq_sub)               # fseq:* subscores are recorded...
-        findings += fseq_find                    # ...and their findings inform Judge/human (advisory-first)
+        findings += fseq_find                    # ...and their findings inform the human (advisory-first)
         if "fseq:coverage" in fseq_sub:          # rendered-series coverage replaces the sampler's
             subscores["coverage"] = fseq_sub["fseq:coverage"]
         elif sampler is not None:
@@ -51,7 +51,7 @@ def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
         findings += f_cov
         parts.append(s_cov)
     objective = round(sum(parts) / len(parts))
-    # advisory score blends variety + musicality (both non-gating) so the Judge sees one number
+    # advisory score blends variety + musicality (both non-gating) so the reviewer sees one number
     advisory = round((s_var + s_mus) / 2)
     return QAReport(
         objective_score=objective,

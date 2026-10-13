@@ -381,7 +381,7 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
     extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
     _t = _canon_transition(recipe.transition)
-    if _t:                                    # a VALID explicit Generator transition wins
+    if _t:                                    # a VALID explicit recipe transition wins
         extra.update({"T_CHOICE_In_Transition_Type": _t,
                       "T_CHOICE_Out_Transition_Type": _t,
                       "T_SLIDER_In_Transition_Adjust": "50",
@@ -404,8 +404,8 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     # (one gesture traveling the WHOLE yard buffer — a 0.5s cell on one group lights almost
     # nothing). A cell is rhythmic multiplicity: every prop in the group runs it.
     # EXCEPT a directional sweep: per-model confines the motion to each prop — the sweep MUST
-    # travel the GROUP buffer to be seen. This is forced (not a default): the Generator
-    # reflexively sets render_style on every recipe, which silently un-swept the sweeps.
+    # travel the GROUP buffer to be seen. This is forced (not a default): a recipe's render_style
+    # (the old LLM Generator set one on every recipe) would silently un-sweep the sweeps.
     sweep = recipe.direction in _SWEEP_DIRECTIONS and recipe.effect_type in _CHASE_FAMILY
     style = "Default" if sweep else (recipe.render_style or "Per Model Default")
     # LED-contrast floor: rhythm-carrying cells alternate the two most hue-distant anchors

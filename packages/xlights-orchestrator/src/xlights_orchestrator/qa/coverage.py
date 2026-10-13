@@ -1,8 +1,8 @@
 """Coverage QA (objective): is the display actually LIT in high-energy sections?
 
 Samples rendered frames from the `.fseq` via an injected `sampler(t_ms) -> lit_pixel_count`.
-This is the metric that gates the dark-chorus failure mode the Judge kept describing while the
-objective score looked fine. Quiet sections are exempt — restraint is intentional; only
+This is the metric that catches the dark-chorus failure mode while the other objective
+scores look fine. Quiet sections are exempt — restraint is intentional; only
 high-energy darkness is a defect.
 """
 

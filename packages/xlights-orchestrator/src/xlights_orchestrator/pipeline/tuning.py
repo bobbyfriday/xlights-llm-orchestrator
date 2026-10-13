@@ -23,7 +23,7 @@ WEAVE_BED_BRIGHTNESS = "60"            # the woven section-spanning bed (static 
 
 # -- phrasing / soft-edge transitions (legato vs staccato) ------------------
 # A section's cells are either legato (soft, evolving — fades/dissolves at the edges, for calm
-# introspective sections) or staccato (crisp on/off, for energetic sections). The Director may
+# introspective sections) or staccato (crisp on/off, for energetic sections). The brief may
 # direct it per section; left blank, it defaults from intensity at this threshold.
 PHRASING_INTENSITY_THRESHOLD = 0.5     # below this a section defaults to legato, at/above to staccato
 LEGATO_FADE_FRACTION = 0.35            # legato fade time as a fraction of the cell's own length...
@@ -84,8 +84,8 @@ PHRASE_BARS = 8                # a PHRASE-class effect is clamped to ~this many 
 CELL_BARS = 2                 # a CELL-ABLE motion effect left long is chopped into this-bar cells
 # Fabric re-measurement (docs/effects-layering-analysis-2026-07.md) energetic-section target: motion
 # ≥ 0.45. Raised 0.30 → 0.40 (just under target) NOW that real shows clear it (68–97% motion), so
-# the Judge defends the new fabric without being spammed on legitimately mixed sections. Energetic
+# QA defends the new fabric without being spammed on legitimately mixed sections. Energetic
 # sections only (MOTION_SHARE_INTENSITY gate); quiet/rest/gesture exempt.
 MOTION_SHARE_MIN = 0.40        # energetic sections below this motion-effect share advise a fabric regression (I7 lever)
-# community ≈ 7.5% flat-flash, ours ≈ 42% (2026-07-07); 0.30 is deliberately loose to avoid Judge spam
+# community ≈ 7.5% flat-flash, ours ≈ 42% (2026-07-07); 0.30 is deliberately loose to avoid finding spam
 FLAT_FLASH_SHARE_MAX = 0.30    # energetic sections above this flat-flash share (On/Twinkle/Strobe/Shimmer/Lightning) get an advisory

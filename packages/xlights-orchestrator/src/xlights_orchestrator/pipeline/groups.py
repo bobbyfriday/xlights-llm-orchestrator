@@ -37,9 +37,9 @@ async def targetable_groups(client, *, cache_root: Path) -> list[str]:
     """The subset of prop groups xLights accepts effects on (cached per layout).
 
     A failed *listing* (``get_group_names``) FAILS FAST — it re-raises rather than limping on an
-    empty list. An empty ``available_groups`` has no useful degraded mode: it poisons the Director
-    prompt ("choose from: nothing") and produces a garbage cached brief AFTER paying for analysis +
-    panel + director tokens, so raising early fails before any LLM spend. A failed *probe* (below)
+    empty list. An empty ``available_groups`` has no useful degraded mode: it writes a vocab with no
+    groups, so every brief fails validation downstream; raising early names the real cause. A
+    failed *probe* (below)
     keeps its sane full-list fallback; only the listing itself is fatal. A genuinely empty layout
     that lists successfully returns ``[]`` normally.
     """

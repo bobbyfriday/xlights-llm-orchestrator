@@ -1,7 +1,7 @@
 """Placement-rules QA (objective) — the effects catalog §11 rules that are 'normative for
-automated sequencing', detected deterministically. The Generator stays the author: violations
-become section-scoped findings the refine loop regenerates (plus two hard duration caps the
-catalog states verbatim).
+automated sequencing', detected deterministically. The brief stays the author: violations
+become section-scoped findings (proposals for brief edits), plus two hard duration caps the
+catalog states verbatim.
 
 Enforced here: #2 texture-on-linear affinity, #3 energy bands (±1), #4 one-feature-per-moment,
 #7 Strobe/Shimmer hard caps (via `clamp_hard_caps`).

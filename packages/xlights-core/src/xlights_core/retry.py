@@ -8,10 +8,8 @@ invisibly — a fake that never raises a retryable exception is called exactly o
 hermetic suite sees identical behavior.
 
 Retryability is a **caller-supplied predicate**, never a blanket "5xx ⇒ retry": xLights
-overloads 5xx for non-transient semantic states, and LLM schema/auth failures repeat
-identically at full token cost. The two predicates live next to their taxonomies —
-``xlights_transient`` here, ``llm_transient`` in the orchestrator (owner of the pydantic_ai
-dependency).
+overloads 5xx for non-transient semantic states. The predicate lives next to its taxonomy:
+``xlights_transient`` here.
 """
 
 from __future__ import annotations

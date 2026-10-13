@@ -1,7 +1,6 @@
 """The analyze stage: cached audio analysis + lyric attach + instrumental subdivision.
 
-Factored out of `run_pipeline` (behavior unchanged) so `xlo analyze` and `xlo run` share one
-body. Three steps, each usable alone:
+The body of `xlo analyze`. Three steps, each usable alone:
 
   * `analyze_audio(song, stems=)`      — `AudioAnalyzer().analyze` (the analyzer's own cache;
                                           `use_cache=False` recomputes the whole analysis)

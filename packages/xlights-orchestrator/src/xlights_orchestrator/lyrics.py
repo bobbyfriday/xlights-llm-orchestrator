@@ -2,7 +2,7 @@
 
 Reads artist/title from the audio file's tags (filename fallback), then fetches the
 lyric TEXT (untimed) from Genius. Any miss — no token, no tags, no match, network
-error, timeout — returns None and the panel simply runs without the lyric analyst.
+error, timeout — returns None and the analysis simply carries no lyrics.
 Word-level timing (forced alignment) is out of scope (a later enrichment).
 
 Retry asymmetry (I2): this module deliberately keeps ``lyricsgenius(retries=1)`` (Genius'

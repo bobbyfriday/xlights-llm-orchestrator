@@ -301,9 +301,9 @@ def _brief_base_instructions(section, available_groups: list[str], *,
     scene_id = getattr(section, "scene_id", "") or ""
     if scene_id:
         stack = parse_scene_stack(scene_id)
-        rows = cast_scene(section, stack, available_groups, pal_offset=pal_offset) if stack else []
-        if rows:
-            return rows
+        cast = cast_scene(section, stack, available_groups, pal_offset=pal_offset) if stack else []
+        if cast:
+            return cast
     types: list[str] = []
     for raw in (section.effect_family, *(section.effect_types or [])):
         t = canon_effect_type(raw)
@@ -386,7 +386,7 @@ def realize_section_effects(st: State, si: int, out: SectionEffects) -> list[Eff
         ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
     kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
     for j, ins in enumerate(kept):
-        ins.section_index = si              # tag for scoped regen / per-section QA
+        ins.section_index = si              # tag for per-section QA
         ins.source = ins.source or "generator"   # provenance (I7; excluded from dump — report-only)
         if section.palette and not ins.palette_colors:   # a row's explicit color (scene) wins
             ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
@@ -576,7 +576,7 @@ def assemble_show(st: State, instrs: list[EffectInstruction]) -> list[EffectInst
 
 def place_matrix_narrative(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
     """Append F-C narrative Text on the matrix model to `instrs` (idempotent: drops any prior
-    matrix-text before re-placing, so refine/regen splices reproduce exactly one copy per moment).
+    matrix-text before re-placing, so a re-run reproduces exactly one copy per moment).
 
     `place_matrix_text` reads/dims the existing matrix background in `st.instructions`, so point
     that at the working list for the duration of the pass. No matrix / no grounded text → no-op."""

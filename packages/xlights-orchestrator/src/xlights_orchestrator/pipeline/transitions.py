@@ -1,8 +1,7 @@
 """Boundary transitions: compose the joins between sections (Phase 3).
 
 Hand shows live on the connective tissue — a riser into a chorus, a one-beat blackout before the
-drop, a sweep handoff on a lateral move. Nothing downstream consumed the analyst's boundary cues,
-so section joins were butt joints. This pass reads pure signal math (the energy arc and the
+drop. Section joins used to be butt joints. This pass reads pure signal math (the energy arc and the
 downbeat grid) and PLACES those transitions.
 
 Contract:
@@ -11,8 +10,7 @@ Contract:
 - The pass is IDEMPOTENT via an `extra_settings` marker: a re-run after a section splice strips its
   own prior output and re-derives, so it replaces rather than stacks. Blackout gating trims end
   times only (never reorders), so occlusion logic still sees final geometry.
-- Runs in `generate_instructions` and after refine-loop / `xlo regen` splices, BEFORE
-  `finalize_effects`.
+- Runs inside `finalize_effects` (every realization), before the occlusion guard.
 """
 
 from __future__ import annotations

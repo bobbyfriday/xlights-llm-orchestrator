@@ -104,7 +104,7 @@ def review_records(plan: LayoutPlan) -> list[dict]:
     """One record per prop that still needs review: what the classifier observed (`name`,
     `display_as`, `nodes`, world `pos` [x, y], the user `groups` it belongs to), its current guess
     (`role`, `confidence`) and the closed role enum to choose from (`candidate_roles`). A review
-    name with no parsed prop (an excluded outlier) carries its name only."""
+    name with no parsed prop carries its name only."""
     by_name = {p.name: p for p in plan.props}
     out: list[dict] = []
     for name in plan.review:

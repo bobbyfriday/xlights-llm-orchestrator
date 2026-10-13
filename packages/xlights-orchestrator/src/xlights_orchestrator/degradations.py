@@ -1,16 +1,16 @@
 """Per-run degradations collector — turn "the show looks off" into "stems failed, brief had
 no instruments".
 
-The pipeline's best-effort posture (lyrics, stems, the visual critic, the real render, timing
-tracks, caching are enrichments) is correct, but a lost capability used to scatter across
-debug/info/warning with no rule and nothing aggregated at the end. This module is the aggregation:
-a run-scoped, best-effort collector keyed by a **closed capability taxonomy**, an end-of-run
-summary, and a machine-readable ``degradations.json`` written beside ``revision_log.jsonl``.
+The stages' best-effort posture (lyrics, stems, triggers, timing tracks, media staging are
+enrichments) is correct, but a lost capability used to scatter across debug/info/warning with no
+rule and nothing aggregated at the end. This module is the aggregation: a stage-scoped,
+best-effort collector keyed by a **closed capability taxonomy**, an end-of-stage summary (each
+`xlo` stage prints it to stderr), and an optional machine-readable ``degradations.json``.
 
-Contract (mirrors ``RevisionLog.write``): observability must NEVER break a run. ``note()`` is
-wrapped in its own guard, is a safe no-op when there's no active run, and dedupes repeated losses
-of the same capability into one entry with a count. The collector is a ``ContextVar`` so two
-sequential runs in one process (tests, ``regen``) don't bleed into each other.
+Contract: observability must NEVER break a stage. ``note()`` is wrapped in its own guard, is a
+safe no-op when there's no active run, and dedupes repeated losses of the same capability into one
+entry with a count. The collector is a ``ContextVar`` so two sequential runs in one process
+(tests) don't bleed into each other.
 
 Capability keys are a FIXED, documented set (free-form keys would defeat dashboard aggregation):
 
@@ -20,17 +20,10 @@ Capability keys are a FIXED, documented set (free-form keys would defeat dashboa
     groups:probe                targetability probe failed → using the full group list
     emit:view                   the SEM Master render-order view wasn't loaded → default view
     qa:coverage-blind           coverage sampling failed → the objective can't see darkness
-    qa:render-flush             the pre-QA .fseq save/real-render refresh failed
-    visual:critique             the multimodal visual critic couldn't run this iteration
-    visual:real-render          the real xLights render/export was unavailable
-    visual:fseq-metrics         (reserved) deterministic Tier-0 fseq-metrics skipped
-    refine:redesign             a section redesign escalation failed
-    refine:analyst-drop         a panel analyst was dropped after its retry
     generate:triggers           one or more trigger detectors failed
     finalize:media              the show folder / media staging was unavailable
     finalize:timing-tracks      reference timing tracks couldn't be patched into the .xsq
     finalize:xsq-patch          the offline .xsq patch step failed
-    cache:post-refine           persisting the revised brief/instructions failed
 """
 
 from __future__ import annotations
@@ -46,11 +39,8 @@ log = logging.getLogger(__name__)
 # Closed taxonomy — a typo here is a phantom capability, so keep these as the single source.
 CAPABILITIES = frozenset({
     "audio:lyrics", "audio:stems", "audio:instrumental-refine",
-    "groups:probe", "emit:view", "qa:coverage-blind", "qa:render-flush",
-    "visual:critique", "visual:real-render", "visual:fseq-metrics",
-    "refine:redesign", "refine:analyst-drop", "generate:triggers",
+    "groups:probe", "emit:view", "qa:coverage-blind", "generate:triggers",
     "finalize:media", "finalize:timing-tracks", "finalize:xsq-patch",
-    "cache:post-refine",
 })
 
 
@@ -89,8 +79,8 @@ _current: contextvars.ContextVar[DegradationLog | None] = contextvars.ContextVar
 
 
 def start_run() -> DegradationLog:
-    """Install a fresh collector for the current run and return it. Call at each pipeline entry
-    point (``run_pipeline``/``regen_section``); a later ``start_run()`` isolates the next run."""
+    """Install a fresh collector for the current run and return it. Called at each stage entry
+    (``cli._run_stage``); a later ``start_run()`` isolates the next run."""
     dl = DegradationLog()
     _current.set(dl)
     return dl
@@ -164,7 +154,7 @@ def emit_summary(dl: DegradationLog) -> None:
 
 
 def write_json(dl: DegradationLog, path: str | Path) -> None:
-    """Best-effort write of ``degradations.json`` beside the revision log. A degraded run's
+    """Best-effort write of ``degradations.json`` (e.g. into a song dir). A degraded run's
     machine-readable record; absent/empty for a clean run (callers may skip when empty)."""
     try:
         p = Path(path)

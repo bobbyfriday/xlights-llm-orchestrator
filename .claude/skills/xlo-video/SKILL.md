@@ -5,9 +5,8 @@ description: How to write video_story.json — the short film for the show's cen
 
 # xlo-video
 
-You write the story; code does the timing and the media plan. Story rules below come from the
-former Videographer prompt (`packages/xlights-orchestrator/src/xlights_orchestrator/agents/prompts/videographer.md`,
-kept as the reference until PR 3 deletes it); the file shape is `VideographerOut` in
+You write the story; code does the timing and the media plan. The story rules below are the
+whole contract (they absorbed the former Videographer prompt); the file shape is `VideoStory` in
 `packages/xlights-orchestrator/src/xlights_orchestrator/video_script.py`.
 
 ## Inputs you read
@@ -61,7 +60,8 @@ which from energy, hooks and the clip budget — after you write. So:
 - Procedural **cannot draw**: people, faces, eyes, hands, bodies, animals, crowds, vehicles, any
   object that must be recognized while it moves, text. The planner lints `imagery` + `action` of
   procedural beats and every `procedural_stand_in` for person/animal words
-  (`agents/videographer.py:PERSON_TERMS`) and refuses the story on a hit.
+  (`video_script.py:PERSON_TERMS`) and refuses the story on a hit (exit 1, naming the section
+  and the word).
 - A character may appear only in filmed beats; carry them through procedural beats with a
   **proxy object** motif — something they own, wear, hold or leave behind, specific to this song.
   Make the proxy one of your motifs.

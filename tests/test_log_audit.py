@@ -3,8 +3,8 @@
 Walks every source file in both packages and fails any ``except`` handler whose body neither
 logs (a ``log.*`` / ``logging.*`` call), records a degradation (a ``note(`` / ``note_once(``
 call), nor re-raises. This is the going-forward guard so a new best-effort block can't sneak in
-a bare ``pass``. The stdlib-browser servers (``server.py``/``brief_editor.py``) that re-raise as
-HTTP errors are auto-skipped.
+a bare ``pass``. HTTP-handler modules named ``server.py`` that re-raise as HTTP errors are
+auto-skipped.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ SRC_DIRS = [
 ]
 # These implement HTTP handlers that translate exceptions into responses (out of scope):
 # a malformed request is answered with a 4xx status, which IS the report.
-SKIP_NAMES = {"server.py", "brief_editor.py", "live_server.py"}
+SKIP_NAMES = {"server.py"}
 
 
 def _handler_is_ok(handler: ast.ExceptHandler) -> bool:

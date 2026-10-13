@@ -10,7 +10,7 @@ digraph tooling_stack {
   instrs [label="EffectInstruction[]\n(target, effect, look,\nlayer, start/end ms, settings)", shape=ellipse, fillcolor="#f0f0f0"];
 
   // emitter
-  emitter [label="effect_emitter.apply_instructions()\n• close + new clean sequence\n• layer allocation (free / on-top)\n• resolve render style\n• render_all() at the end", shape=box, fillcolor="#dcedda"];
+  emitter [label="effect_emitter.apply_instructions()\n• close + new clean sequence\n• layer allocation (free / on-top)\n• resolve render style\n• render_all() with --render", shape=box, fillcolor="#dcedda"];
 
   // editing
   place [label="editing.place_preset()\n• load Look from preset library\n• palette colors → C_BUTTON_Palette\n• assemble + validate settings\n• verify target exists", shape=box, fillcolor="#cfe9df"];
@@ -30,7 +30,7 @@ digraph tooling_stack {
 
   // MCP parallel interface
   subgraph cluster_mcp {
-    label="External interface (separate from the pipeline)";
+    label="Optional live interface (separate from the stages)";
     style="rounded,dashed"; color="#b0a0c8"; fontname="Helvetica-Bold";
     mcp [label="xlights-mcp server\nFastMCP (stdio JSON-RPC)\nxl_add_effect · xl_render_all · …", shape=box, fillcolor="#e8e3f5"];
   }

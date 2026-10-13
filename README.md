@@ -1,112 +1,130 @@
 # xLights LLM Orchestrator
 
-Turn an MP3 into a finished [xLights](https://xlights.org) light-show sequence with a pipeline of
-LLM agents. Point it at a song; it analyzes the music, designs a show, generates effects across
-your props, renders and critiques the result, refines, and saves a playable `.xsq` with the audio
-and timing tracks attached.
+Turn an MP3 into a finished [xLights](https://xlights.org) light-show sequence by talking it
+through with [Claude Code](https://claude.com/claude-code). Claude reads an analysis of the song,
+discusses it with you, and writes a creative brief. A deterministic `xlo` command-line toolkit
+turns that brief into thousands of beat-aligned effects across your props, places them in the
+running xLights, and saves a playable `.xsq` with the audio and timing tracks attached.
 
 > Full walkthrough: **[docs/usage.md](docs/usage.md)**. Architecture & diagrams: **[docs/architecture/](docs/architecture/README.md)**.
 
 ## What it does
 
 ```
-MP3 ─▶ analyze ─▶ interpret ─▶ design ─▶ generate ─▶ render+critique ─▶ refine ─▶ save .xsq
-       (audio/     (LLM panel   (LLM       (per-section  (real render +    (scoped   (+audio,
-        stems/      → brief)     show       effects +     LLM critics +    regen)    timing
-        lyrics)                  plan)      cell fabric)   QA gates)                  tracks)
+MP3 ─▶ analyze ─▶ design ─────▶ realize ─▶ apply ─▶ review ─▶ finalize
+       (audio,     (Claude +     (brief →   (live     (you      (save .xsq
+        stems,      you write     effects,   xLights,  watch,    + audio
+        lyrics,     the creative  QA; no     clean     Claude    + timing
+        digest)     brief)        model)     slate)    edits the tracks)
+                                                       brief) ──┐
+                                  ▲─────────────────────────────┘
 ```
 
-The split throughout: **the LLM owns judgment** (themes, palette, section design, effect recipes)
-and **code owns realization** (timing from the beat grid, palette → real settings strings, render
-order, brightness, sparsity). Musical structure comes from Genius lyric markers (or audio
-segmentation for instrumentals); rhythm and accents are placed deterministically from the audio.
+The split throughout: **Claude Code owns judgment** (what the song is, where the peak is, the
+palette, each section's look, what to change after watching) and **code owns realization**
+(timing from the beat grid, palette → real settings strings, layering, render order, brightness,
+sparsity, triggers). The one artifact in between is `creative_brief.json`: Claude writes it, a
+validator checks it, and every later stage reads it. Musical structure comes from Genius lyric
+markers (or audio segmentation for instrumentals); rhythm and accents are placed deterministically
+from the audio.
 
 ## Repository
 
-A [uv](https://docs.astral.sh/uv/) workspace of three installable packages:
+A [uv](https://docs.astral.sh/uv/) workspace of three installable packages, plus the Claude Code
+skills and commands under `.claude/`:
 
 | Package | Role |
 | --- | --- |
-| [`xlights-core`](packages/xlights-core) | Async REST client, audio analysis (VAMP/librosa/stems/lyrics), the mined effect-preset library, layout semantics. No LLM deps. |
+| [`xlights-core`](packages/xlights-core) | Async REST client, audio analysis (VAMP/librosa/stems/lyrics), the mined effect-preset library, layout semantics, the offline preview renderer. |
 | [`xlights-mcp`](packages/xlights-mcp) | A FastMCP server exposing xLights read/edit operations as tools (usable from Claude Code). |
-| [`xlights-orchestrator`](packages/xlights-orchestrator) | The LLM pipeline: agents, the deterministic weave/beat/trigger layers, the refine loop, the `xlo` CLI. |
+| [`xlights-orchestrator`](packages/xlights-orchestrator) | The `xlo` stage CLI: digest, brief validation, the deterministic weave/beat/trigger/scene layers, QA, stills, finalize, video planning. **No LLM dependency.** |
+
+| `.claude/` | Role |
+| --- | --- |
+| `skills/xlo-*` | What Claude knows: `xlo-brief` (the brief file and its loop), `xlo-sequencing`, `xlo-scenes`, `xlo-layout`, `xlo-video`. Each points at the hand-editable guides below. |
+| `commands/xlo/*` | What Claude does: `/xlo:analyze`, `/xlo:design`, `/xlo:realize`, `/xlo:apply`, `/xlo:review`, `/xlo:finalize`, `/xlo:video`, `/xlo:init-layout`, `/xlo:show`. |
 
 ## Quickstart
 
 ```bash
-uv sync                                   # or: pip install -e packages/*
-cp .env.example .env                      # add ANTHROPIC_API_KEY or GEMINI_API_KEY (+ GENIUS_ACCESS_TOKEN for lyrics)
-
-# xLights running, automation listener on, your layout's SEM_ groups built once (see docs)
-xlo run --song "mp3/your song.mp3" --refine --auto
+uv sync --all-packages --extra preview       # or: pip install -e packages/*
+cp .env.example .env                         # optional GENIUS_ACCESS_TOKEN for lyrics
 ```
 
-Open the named sequence in xLights (File → Open Sequence) to play it with audio.
+With xLights running (automation listener on) and your layout's `SEM_` groups built once
+(`/xlo:init-layout`, see the docs), open Claude Code in this repo and run:
 
-### Targeted fixes: regenerate one section
+```
+/xlo:show mp3/your-song.mp3
+```
 
-To redo a single section without re-running the whole show (a targeted fix), use `xlo regen` —
-it reloads the cached show, regenerates just that section, and leaves every other section intact:
+Claude analyzes the song and shows you its structure, writes and validates the brief and presents
+it section by section (it waits for your edits), then realizes and applies it into xLights and
+stops so you can watch. When it looks right, `/xlo:finalize` saves the `.xsq`; open it in xLights
+(File → Open Sequence) to play it with audio.
+
+Every stage is also a plain command you can run by hand. Each one reads and writes files in the
+song's cache dir, so you can stop and resume anywhere:
 
 ```bash
-xlo regen --song "mp3/your song.mp3" --list                       # list sections (index, time, look)
-xlo regen --song "mp3/your song.mp3" --section 4 --note "too busy, calm it down"
+xlo analyze        --song "mp3/your song.mp3"   # analysis + analysis_digest.md
+xlo groups         --song "mp3/your song.mp3"   # targetable groups → vocab.json + brief schema
+#   … write creative_brief.json (Claude, or by hand against creative_brief.schema.json) …
+xlo validate-brief --song "mp3/your song.mp3"   # validation.json; exit 1 on errors
+xlo realize        --song "mp3/your song.mp3"   # instructions.json
+xlo qa             --song "mp3/your song.mp3"   # qa.json
+xlo apply          --song "mp3/your song.mp3"   # into xLights → applied.json (--render for the .fseq)
+xlo finalize       --song "mp3/your song.mp3"   # save + audio + timing tracks
 ```
 
-Use this for a one-off correction; use `xlo run --refine` when you want the automatic
-test→judge→refine loop to re-evaluate the whole show.
+### The review cycle
 
-### Cost & quality report
+You watch the show in xLights and say what to change, in your words: "section 4 is too busy",
+"redo 1:05 to 1:30, bluer", "less white overall". `/xlo:review` turns that into edits to the brief
+(splitting a section when your time range falls inside one), validates, re-realizes and re-applies
+the whole show, and summarizes what changed. With a rendered apply it also looks at per-section
+still images and the QA coverage findings first. Nothing reviews automatically: you decide.
 
-`xlo report` is a deterministic, offline dashboard over the refine loop's revision logs — no
-LLM, no xLights, no network, no key required. It answers cost-per-show, cost-per-objective-point,
-churn, reverts, skip-gate rate, and the stop-reason mix. Pre-telemetry runs still report full
-quality metrics (their cost cells render `—`).
+### Video for the centerpiece matrix
 
-```bash
-xlo report                                # terminal tables over all songs
-xlo report --song "mp3/your song.mp3"     # one song
-xlo report --html report.html             # a self-contained page (no JS, no external URLs)
-xlo report --json                         # the Report model as JSON (A/B harness input)
-xlo report --reprice                      # recompute cost from the current price table
-```
-
-### Video script for the centerpiece matrix
-
-`xlo video-script` writes a storyboard — a short film that tells the song's story — for the video
-matrix, timed to the show's own section cuts. One LLM call per song; see
-[docs/usage.md](docs/usage.md#video-script-for-the-centerpiece-matrix).
-
-```bash
-xlo video-script --song "mp3/your song.mp3" --matrix-size 1024x768
-```
+`/xlo:video` has Claude write a short film that tells the song's story (a logline, recurring
+motifs, one beat per section) and `xlo video-plan` time it to the show's section cuts and plan
+which sections are filmed and which are rendered procedurally. See
+[docs/usage.md](docs/usage.md#video-for-the-centerpiece-matrix).
 
 ## Editable show "voice"
 
-Five hand-editable markdown files shape the agents and the deterministic layers — tune them
-without touching code:
+Five hand-editable markdown files at the repo root are the single source of craft. The skills
+point Claude at them, and the deterministic layers read the cookbooks directly, so edits take
+effect on the next design without touching code:
 
-- `xlights-sequencing-guide.md`, `xlights-effects-catalog.md`, `xlights-layering-rendering-guide.md` — best-practices injected into the agents
-- `xlights-scene-cookbook.md` — named multi-prop scene recipes the Director composes from
+- `xlights-sequencing-guide.md`, `xlights-effects-catalog.md`, `xlights-layering-rendering-guide.md` — best practices Claude designs by
+- `xlights-scene-cookbook.md` — named multi-prop scene recipes a section can cast onto your groups
 - `xlights-trigger-cookbook.md` — curated semantic accents (drum-hit shockwaves, guitar-solo lightning, lyric color words) — see [docs/usage.md](docs/usage.md#the-trigger-cookbook)
+
+The skills (`.claude/skills/xlo-*/SKILL.md`) and commands (`.claude/commands/xlo/*.md`) are plain
+markdown too; change them to change how Claude works.
 
 ## Prerequisites
 
-- Python 3.11+ (the repo currently runs on 3.14)
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/)
+- [Claude Code](https://claude.com/claude-code) for the conversational flow (the `xlo` stages run without it)
 - A running **xLights** with the automation/REST listener enabled (`http://127.0.0.1:49913`)
-- One LLM key (`ANTHROPIC_API_KEY` and/or `GEMINI_API_KEY`); optional `GENIUS_ACCESS_TOKEN` for lyrics
-- `ffmpeg` (audio encode + preview clips); demucs/torch for stems (optional, auto-skips)
+- **No model API key.** Optional `GENIUS_ACCESS_TOKEN` for lyrics (timed lyrics, lyric-derived sections, singing faces)
+- `ffmpeg` (audio patching, preview clips); demucs for stems (optional, auto-skips)
 
 ## MCP server
 
 ```bash
-xlights-mcp        # stdio MCP server: xl_get_models, xl_add_effect_from_preset, xl_render_all, …
+xlights-mcp        # stdio MCP server: xl_get_models, xl_add_effect, xl_render_all, …
 ```
+
+Register it with Claude Code for live read/edit operations the `xlo` stages don't cover.
 
 ## Tests
 
 ```bash
-pytest                 # hermetic unit tests (no live xLights / no LLM calls)
+pytest                 # hermetic unit tests (no live xLights, no network)
 pytest -m live         # opt-in smoke tests against a running xLights
 ```
 
@@ -114,4 +132,4 @@ pytest -m live         # opt-in smoke tests against a running xLights
 
 Changes are developed as [OpenSpec](openspec/) proposals (propose → design → build → live-verify →
 archive) and land via pull request. See [docs/usage.md](docs/usage.md#development) and
-`openspec/changes/archive/` for the full history of ~50 changes.
+`openspec/changes/archive/` for the design history.

@@ -1,0 +1,33 @@
+digraph command_flow {
+  rankdir=LR;
+  bgcolor="white";
+  labelloc="t"; fontname="Helvetica-Bold"; fontsize=20;
+  label="Command flow — Claude Code commands, the xlo stages they run, and where they stop";
+  node [fontname="Helvetica", fontsize=10, style="filled", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  analyze  [label="/xlo:analyze <mp3>\nxlo analyze · xlo groups", shape=box, fillcolor="#f3d9e6"];
+  design   [label="/xlo:design\nwrite brief ·\nxlo validate-brief (loop)", shape=box, fillcolor="#f3d9e6"];
+  realize  [label="/xlo:realize\nxlo realize · xlo qa", shape=box, fillcolor="#f3d9e6"];
+  apply    [label="/xlo:apply\nxlo apply [--render]", shape=box, fillcolor="#f3d9e6"];
+  review   [label="/xlo:review\nxlo stills · xlo qa ·\nedit brief · validate ·\nrealize · apply", shape=box, fillcolor="#f3d9e6"];
+  finalize [label="/xlo:finalize\nxlo finalize --name", shape=box, fillcolor="#f3d9e6"];
+  video    [label="/xlo:video\nxlo video-plan --plan-only ·\nwrite story · xlo video-plan", shape=box, fillcolor="#efc9dc"];
+  layout   [label="/xlo:init-layout\nxlo init-layout --dry-run ·\nlayout_overrides.json ·\nxlo init-layout", shape=box, fillcolor="#efc9dc"];
+
+  s1 [label="STOP:\nconfirm structure", shape=diamond, fillcolor="#fde0dc"];
+  s2 [label="STOP:\napprove brief", shape=diamond, fillcolor="#fde0dc"];
+  s3 [label="STOP:\nwatch in xLights", shape=diamond, fillcolor="#fde0dc"];
+  s4 [label="STOP:\nbefore write", shape=diamond, fillcolor="#fde0dc"];
+
+  layout -> s4 [style=dotted];
+  s4 -> analyze [label="once per layout", style=dashed];
+  analyze -> s1 -> design -> s2 -> realize -> apply -> s3;
+  s3 -> review [label="feedback"];
+  review -> s3 [label="re-applied", style=dashed, color="#cc7a00"];
+  s3 -> finalize [label="happy"];
+  s2 -> video [style=dotted, label="any time\nafter design"];
+
+  show [label="/xlo:show <mp3>\nchains analyze → design → realize → apply", shape=note, fillcolor="#fff2cc"];
+  show -> analyze [style=dotted];
+}

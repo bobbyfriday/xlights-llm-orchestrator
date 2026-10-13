@@ -49,16 +49,19 @@ build() {   # build <name> <extra-flags-var> <sources…>
   local name="$1" extra_var="$2"; shift 2
   local -n extra="$extra_var"
   local objdir="obj/$name"; mkdir -p "$objdir"
-  local objs=()
+  local objs=() cmds=()
   echo "building $name ($# sources)…"
   for src in "$@"; do
     local obj="$objdir/$(echo "$src" | tr '/' '_').o"
     objs+=("$obj")
     case "$src" in
-      *.c) echo "gcc ${COMMON_FLAGS[*]} ${extra[*]} -c $src -o $obj" ;;
-      *)   echo "g++ -std=c++14 ${COMMON_FLAGS[*]} ${extra[*]} -c $src -o $obj" ;;
+      *.c) cmds+=("gcc ${COMMON_FLAGS[*]} ${extra[*]} -c $src -o $obj") ;;
+      *)   cmds+=("g++ -std=c++14 ${COMMON_FLAGS[*]} ${extra[*]} -c $src -o $obj") ;;
     esac
-  done | xargs -P "$JOBS" -I{} sh -c '{}'
+  done
+  # compile in parallel; the loop above must NOT be piped (a piped loop runs in a subshell
+  # and its objs+= are lost — the link then silently produces an empty library)
+  printf '%s\n' "${cmds[@]}" | xargs -P "$JOBS" -I{} sh -c '{}'
   local libs=(); [ "$name" = qm-vamp-plugins ] && libs=(-lpthread)
   g++ "${LDFLAGS[@]}" -o "out/$name.so" "${objs[@]}" "${libs[@]}"
 }
@@ -110,10 +113,23 @@ build segmentino SEG_FLAGS \
 
 mkdir -p "$PREFIX"
 cp out/*.so "$PREFIX/"
+bad=0
 for so in out/*.so; do   # capture first: `nm | grep -q` under pipefail fails on SIGPIPE
   syms="$(nm -D --defined-only "$so")"
-  grep -q vampGetPluginDescriptor <<<"$syms" || { echo "$so exports no vampGetPluginDescriptor" >&2; exit 1; }
+  if grep -q '^[0-9a-f]* T vampGetPluginDescriptor$' <<<"$syms"; then
+    echo "$so: exports vampGetPluginDescriptor"
+  else
+    bad=1
+    name="$(basename "$so" .so)"
+    echo "$so exports no vampGetPluginDescriptor; where it is defined in the objects:" >&2
+    for o in obj/"$name"/*.o; do
+      hits="$(nm -C "$o" | grep -i 'vampGetPluginDescriptor' || true)"
+      [ -n "$hits" ] && echo "  $o: $hits" >&2
+    done
+    echo "  dynamic symbols matching 'Descriptor': $(grep -i descriptor <<<"$syms" | head -5 || true)" >&2
+  fi
 done
+[ "$bad" -eq 0 ] || exit 1
 for d in qm-vamp-plugins nnls-chroma segmentino; do
   cp "$d"/*.cat "$d"/*.n3 "$PREFIX/" 2>/dev/null || true
 done

@@ -22,13 +22,13 @@
 - [x] 2.3 Write `.claude/skills/xlo-layout/SKILL.md` for the layout semantics spec, the manifest, SEM_ groups, and `layout_overrides.json`
 - [x] 2.4 Write `.claude/skills/xlo-brief/SKILL.md`: every `ShowPlan`/`SectionPlan` field in plain terms, the treatment table, the fabric knobs and their defaults, a complete worked section, the validate-fix loop, and how to split a section for time-range feedback
 - [x] 2.5 Write `.claude/skills/xlo-video/SKILL.md` from the videographer prompt (story rules, no time fields, `video_story.json` shape)
-- [ ] 2.6 Write `.claude/commands/xlo/analyze.md`, `design.md`, `realize.md`, `apply.md`, `review.md`, `finalize.md`, `video.md`, `init-layout.md`, `show.md` per design D8 (which skills to load, which `xlo` commands to run, which files to read, what to present, where to pause)
+- [x] 2.6 Write `.claude/commands/xlo/analyze.md`, `design.md`, `realize.md`, `apply.md`, `review.md`, `finalize.md`, `video.md`, `init-layout.md`, `show.md` per design D8 (which skills to load, which `xlo` commands to run, which files to read, what to present, where to pause)
 - [ ] 2.7 Make one real show end-to-end in a Claude Code session on the branch; capture what the skills got wrong and fix the skill/command text
-- [ ] 2.8 Rewrite `README.md` and `docs/usage.md` around the command flow; update `docs/architecture/` and its diagrams; update `.env.example` (drop LLM keys, keep `GENIUS_ACCESS_TOKEN`, `XLO_CACHE_DIR`)
+- [x] 2.8 Rewrite `README.md` and `docs/usage.md` around the command flow; update `docs/architecture/` and its diagrams; update `.env.example` (drop LLM keys, keep `GENIUS_ACCESS_TOKEN`, `XLO_CACHE_DIR`)
 
 ## 3. PR 3 — Remove the agent harness
 
-- [ ] 3.1 Move `agents/catalog.py` to `pipeline/catalog.py`; update imports
+- [ ] 3.1 Move `agents/catalog.py` to `pipeline/catalog.py`; move `scene_recipe`, `scene_ids` (and the `_cut`/`load_guide` helpers they need) from `agents/guide_extracts.py`/`agents/guide.py` into `pipeline/cookbook.py` (used by `pipeline/scenes.py` and `xlo groups`); repoint `pipeline/groups.py`'s `candidate_look_ids` import away from `agents.generator`; update all imports before anything in 3.2 is deleted
 - [ ] 3.2 Delete `agents/` (director, generator, panel, synthesizer, judge, visual_critic, videographer, layout_classifier, guide, guide_extracts, prompts/), `models/` (registry, config.yaml), `music_brief.py`, `song_description.py`, `refine.py`, `revision_log.py`, `telemetry.py`, `reporting.py`, `live_server.py`, `brief_editor.py`, `progress.py`, `veo_ledger.py` (if only telemetry uses it), `pipeline/{run,regen,refine_loop,ab,visual}.py`
 - [ ] 3.3 Strip the agent call from `video_script.py` (keep `resolve_beats`, `split_long_shots`, `assign_lyrics`, `render_markdown`; `VideographerOut` becomes the `video_story.json` model) and from `init_layout.py` (write `layout_review.json` in dry-run; remove `classify_tail` and `has_llm_key`)
 - [ ] 3.4 Remove the `run`, `regen`, `report`, `ab`, `edit-brief` subcommands and the `--refine/--auto/--no-browser/--max-iterations/--no-log` flags; make `init-layout` write the review file
@@ -36,3 +36,5 @@
 - [ ] 3.6 Delete tests for removed modules (`test_ab`, `test_brief_editor*`, `test_live_server`, `test_orchestrator` agent paths, `test_layout_classifier_llm`, refine/judge/critic/telemetry/report/revision-log tests, `test_guide_extracts`, `test_guide_injection`); rewrite `test_golden_pipeline.py` on a fixture `creative_brief.json` (with a `fabric` block on one section) asserting the same instruction properties and the fabric canary
 - [ ] 3.7 Grep for `telemetry`, `degradations.start_run`, `models.registry`, `run_agent`, `MusicBrief` and remove dead references; run `pytest` hermetic suite green
 - [ ] 3.8 Update the memory notes that reference the removed pieces (LLM auth, PR workflow unchanged) and the CLAUDE.md/usage pointers
+- [ ] 3.9 Make `xlo --help` work after a plain `uv sync`: declare numpy as a dependency of the orchestrator or import it lazily in `qa/fseq_metrics.py`; then simplify the README/usage install line
+- [ ] 3.10 Settle the cookbook layer mapping against the emitter (cookbook L1 → layer 0 vs "higher index renders on top") with a live render of SC-01, and fix `pipeline/scenes.py` if the bed lands above the feature

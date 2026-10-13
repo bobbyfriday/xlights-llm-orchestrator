@@ -26,17 +26,16 @@ def _sa(*, beats=None, stems=None, chords=None, lyrics=None, duration_s=60.0):
         lyrics=lyrics, duration_s=duration_s)
 
 
-def _brief(sections):
-    return SimpleNamespace(sections=[SimpleNamespace(label=l, start_ms=s, end_ms=e)
-                                     for l, s, e in sections])
+def _sections(sections):
+    return [SimpleNamespace(label=l, start_ms=s, end_ms=e) for l, s, e in sections]
 
 
 # -- builders -----------------------------------------------------------------
 
 def test_section_beat_bar_tracks():
     sa = _sa(beats=[i * 0.5 for i in range(8)])      # 8 beats at 0,0.5,1.0,...
-    brief = _brief([("intro", 0, 2000), ("verse", 2000, 4000)])
-    tracks = {t.name: t for t in T.build_timing_tracks(sa, brief)}
+    secs = _sections([("intro", 0, 2000), ("verse", 2000, 4000)])
+    tracks = {t.name: t for t in T.build_timing_tracks(sa, sections=secs)}
     assert tracks["Sections"].marks[0].label == "intro"
     beat = tracks["Beats"]
     assert [m.label for m in beat.marks[:5]] == ["1", "2", "3", "4", "1"]   # beat-in-bar cycles
@@ -46,7 +45,7 @@ def test_section_beat_bar_tracks():
 def test_section_falls_back_to_index_labels():
     sa = _sa(beats=[0.0, 0.5])
     plan = [SimpleNamespace(start_ms=0, end_ms=1000), SimpleNamespace(start_ms=1000, end_ms=2000)]
-    tracks = {t.name: t for t in T.build_timing_tracks(sa, None, fallback_sections=plan)}
+    tracks = {t.name: t for t in T.build_timing_tracks(sa, sections=plan)}
     assert [m.label for m in tracks["Sections"].marks] == ["Section 1", "Section 2"]
 
 
@@ -55,7 +54,7 @@ def test_onset_tracks_selective_exclude_other_and_silent_vocals():
         "drums": ([0.1, 0.2, 0.3], 0.5), "guitar": ([0.15, 0.25], 0.6),
         "bass": ([0.2, 0.4], 0.3), "other": ([0.1] * 50, 0.9),    # other excluded (catch-all)
         "vocals": ([0.1] * 80, 0.001)})                           # onset-noisy but SILENT → dropped by energy
-    names = {t.name for t in T.build_timing_tracks(sa, None)}
+    names = {t.name for t in T.build_timing_tracks(sa)}
     assert "Onsets (drums)" in names and "Onsets (guitar)" in names
     assert "Onsets (other)" not in names and "Onsets (vocals)" not in names   # both excluded
     assert len([n for n in names if n.startswith("Onsets")]) <= T.MAX_ONSET_STEMS
@@ -63,15 +62,15 @@ def test_onset_tracks_selective_exclude_other_and_silent_vocals():
 
 def test_chords_and_lyrics_conditional():
     instrumental = _sa(beats=[0.0], chords=[(0.0, "C"), (2.0, "G")])
-    names = {t.name for t in T.build_timing_tracks(instrumental, None)}
+    names = {t.name for t in T.build_timing_tracks(instrumental)}
     assert "Chords" in names and "Lyrics" not in names       # chords present, no lyrics
     vocal = _sa(beats=[0.0], lyrics={"lines": [{"text": "hi", "start": 1.0, "end": 2.0}]})
-    assert "Lyrics" in {t.name for t in T.build_timing_tracks(vocal, None)}
+    assert "Lyrics" in {t.name for t in T.build_timing_tracks(vocal)}
 
 
 def test_last_mark_clamped():
     sa = _sa(beats=[0.0, 1.0], duration_s=100.0)     # 2nd beat would tile to 100s without clamp
-    beat = {t.name: t for t in T.build_timing_tracks(sa, None)}["Beats"]
+    beat = {t.name: t for t in T.build_timing_tracks(sa)}["Beats"]
     assert beat.marks[-1].end_ms - beat.marks[-1].start_ms <= T.LAST_MARK_MS
 
 
@@ -112,7 +111,7 @@ def test_patch_no_tracks_is_noop(tmp_path):
 def test_overall_onset_fallback_when_no_stems():
     sa = _sa(beats=[0.0, 0.5], stems={}, duration_s=10.0)
     sa = SimpleNamespace(**{**sa.__dict__, "onsets": [0.1, 0.4, 0.9, 1.5]})
-    tracks = {t.name: t for t in T.build_timing_tracks(sa, _brief([("A", 0, 10000)]))}
+    tracks = {t.name: t for t in T.build_timing_tracks(sa, sections=_sections([("A", 0, 10000)]))}
     assert "Onsets" in tracks                                   # whole-mix fallback present
     assert len(tracks["Onsets"].marks) >= 3
     assert not any(n.startswith("Onsets (") for n in tracks)    # no per-stem tracks (no stems)
@@ -121,7 +120,7 @@ def test_overall_onset_fallback_when_no_stems():
 def test_per_stem_onsets_preferred_over_fallback():
     sa = _sa(beats=[0.0, 0.5], stems={"drums": ([0.1, 0.6, 1.1], 1.0)}, duration_s=10.0)
     sa = SimpleNamespace(**{**sa.__dict__, "onsets": [0.1, 0.4, 0.9]})
-    names = {t.name for t in T.build_timing_tracks(sa, _brief([("A", 0, 10000)]))}
+    names = {t.name for t in T.build_timing_tracks(sa, sections=_sections([("A", 0, 10000)]))}
     assert "Onsets (drums)" in names and "Onsets" not in names  # stems win; no redundant fallback
 
 

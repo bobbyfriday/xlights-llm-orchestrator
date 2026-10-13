@@ -8,27 +8,13 @@ from xlights_orchestrator.pipeline.beats import place_beat_accents, section_rhyt
 from xlights_orchestrator.pipeline.meter import (
     DEFAULT_BEATS_PER_BAR,
     detect_beats_per_bar,
-    parse_time_signature,
     resolve_beats_per_bar,
 )
 from xlights_orchestrator.pipeline.timing import _bar_track
 from xlights_orchestrator.show_plan import SectionPlan
 
 
-# -- parsing ------------------------------------------------------------------
-
-def test_parse_time_signature():
-    assert parse_time_signature("3/4") == 3
-    assert parse_time_signature("6/8") == 6
-    assert parse_time_signature("4/4") == 4
-    assert parse_time_signature("5") == 5
-    assert parse_time_signature("") is None
-    assert parse_time_signature(None) is None
-    assert parse_time_signature("common time") is None   # non-numeric → no guess
-    assert parse_time_signature("13/8") is None           # out of 2..12 range
-
-
-# -- resolution precedence ----------------------------------------------------
+# -- resolution: detected from the analysis, else 4/4 ----------------------------------------------------
 
 def _sa(bar_positions=None):
     beats = [SimpleNamespace(time=i * 0.5, bar_position=bp)
@@ -36,26 +22,16 @@ def _sa(bar_positions=None):
     return SimpleNamespace(beats=beats)
 
 
-def _brief(ts):
-    return SimpleNamespace(identity=SimpleNamespace(time_signature=ts))
-
-
-def test_brief_time_signature_overrides():
-    sa = _sa([1, 2, 3, 4] * 4)                 # tracker says 4/4...
-    assert resolve_beats_per_bar(sa, _brief("3/4")) == 3   # ...but the brief says waltz → 3 wins
-
-
 def test_detection_from_bar_positions():
     sa = _sa([1, 2, 3] * 5)                     # downbeats recur every 3rd beat
     assert detect_beats_per_bar(sa) == 3
-    assert resolve_beats_per_bar(sa, None) == 3
+    assert resolve_beats_per_bar(sa) == 3
 
 
 def test_defaults_to_four_when_unknown():
-    assert resolve_beats_per_bar(_sa([]), None) == DEFAULT_BEATS_PER_BAR
-    assert resolve_beats_per_bar(_sa([]), _brief("")) == DEFAULT_BEATS_PER_BAR
+    assert resolve_beats_per_bar(_sa([])) == DEFAULT_BEATS_PER_BAR
     # robust to stub beats with no bar_position attribute at all
-    assert resolve_beats_per_bar(SimpleNamespace(beats=[SimpleNamespace(time=0.0)]), None) == 4
+    assert resolve_beats_per_bar(SimpleNamespace(beats=[SimpleNamespace(time=0.0)])) == 4
 
 
 # -- section_rhythm carries it ------------------------------------------------

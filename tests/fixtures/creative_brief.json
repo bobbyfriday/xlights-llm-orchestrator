@@ -1,0 +1,21 @@
+{
+ "concept": "golden fixture",
+ "experience": "A quiet build on the arches and canes that drops into a full-yard peak.",
+ "palette": {"name": "test", "colors": ["Red", "Green", "Blue"]},
+ "sections": [
+  {
+   "start_ms": 0, "end_ms": 12000, "label": "build",
+   "target_groups": ["SEM_ARCHES", "SEM_CANES"],
+   "effect_family": "On", "intensity": 0.45, "palette": ["Red", "Green"],
+   "pulse_groups": ["SEM_ARCHES"], "pulse_on": "beat"
+  },
+  {
+   "start_ms": 12000, "end_ms": 24000, "label": "drop",
+   "target_groups": ["SEM_ALL", "SEM_FOCAL"],
+   "effect_family": "On", "intensity": 0.92, "palette": ["Blue", "Red"],
+   "pulse_groups": ["SEM_CANES"], "pulse_on": "onset",
+   "fabric": {"carrier": "SingleStrand", "alternation": "pingpong", "cell_beats": 2}
+  }
+ ],
+ "key_moments": [{"at_ms": 12000, "kind": "climax", "treatment": "the drop"}]
+}

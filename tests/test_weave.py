@@ -11,7 +11,6 @@ from xlights_orchestrator.pipeline.weave import (
     carrier_covers,
     cell_budget,
     counter_rotate_stacks,
-    diversify_carrier,
     expand_weave,
     fallback_weave,
     section_carrier,
@@ -306,23 +305,6 @@ def test_fallback_weave_uses_rotated_carrier():
     wv = fallback_weave(_sec(), GROUPS, carrier="Bars")
     carriers = [c for c in wv.cells if c.role == "carrier"]
     assert carriers and all(c.effect_type == "Bars" for c in carriers)
-
-
-def test_diversify_carrier_swaps_plain_keeps_distinctive():
-    # a plain SingleStrand/On carrier is rotated...
-    plain = SectionWeave(cells=[CellRecipe(effect_type="On", role="carrier", look_id="On#0",
-                                           groups=["SEM_ARCHES"])])
-    diversify_carrier(plain, "Garlands")
-    assert plain.cells[0].effect_type == "Garlands" and plain.cells[0].look_id == ""
-    # ...but a deliberately distinctive carrier (Spirals) is left alone
-    fancy = SectionWeave(cells=[CellRecipe(effect_type="Spirals", role="carrier",
-                                           groups=["SEM_ARCHES"])])
-    diversify_carrier(fancy, "Garlands")
-    assert fancy.cells[0].effect_type == "Spirals"
-    # a non-carrier texture is never touched
-    tex = SectionWeave(cells=[CellRecipe(effect_type="On", role="texture", groups=["SEM_ARCHES"])])
-    diversify_carrier(tex, "Bars")
-    assert tex.cells[0].effect_type == "On"
 
 
 # -- composite stacks (multi-effect blended layers) ---------------------------

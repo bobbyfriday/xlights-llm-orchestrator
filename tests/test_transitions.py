@@ -1,8 +1,7 @@
 """Phase 3 — boundary transitions: risers into rising boundaries, a one-beat blackout before a
-downbeat drop, sweep handoffs on marked lateral joins; tagged to the outgoing section; idempotent."""
+downbeat drop; tagged to the outgoing section; idempotent."""
 from __future__ import annotations
 
-from xlights_orchestrator.music_brief import MusicBrief
 from xlights_orchestrator.pipeline.state import State
 from xlights_orchestrator.pipeline.transitions import (
     _GATE_MARKER,
@@ -21,7 +20,7 @@ def _sa(energy_pairs, dur=24.0):
                         energy_arc=[EnergyPoint(time=t, rms=r) for t, r in energy_pairs])
 
 
-def _state(energy_pairs, boundaries, *, cues=None):
+def _state(energy_pairs, boundaries):
     st = State(song_path="s.mp3")
     st.song_analysis = _sa(energy_pairs)
     secs = []
@@ -29,7 +28,6 @@ def _state(energy_pairs, boundaries, *, cues=None):
         secs.append(SectionPlan(start_ms=s, end_ms=e, target_groups=["SEM_ALL"],
                                 effect_family="On", intensity=0.6, palette=["Red", "Blue"]))
     st.show_plan = ShowPlan(concept="c", sections=secs)
-    st.music_brief = MusicBrief(sections=[], transition_cues_ms=cues or [])
     return st
 
 
@@ -70,15 +68,7 @@ def test_drop_gates_the_final_beat():
     assert not [i for i in out if i.extra_settings.get(_MARKER) == "riser"]
 
 
-# -- sweep handoff on a marked lateral join -----------------------------------
-
-def test_sweep_on_a_cued_lateral_boundary():
-    # flat energy across a boundary that a transition cue marks → a sweep handoff
-    st = _state([(0, 0.5), (12, 0.5), (24, 0.5)], [(0, 12000), (12000, 24000)], cues=[12000])
-    out = place_transitions(st, [_ins("SEM_ALL", 0, 12000, 0)])
-    sweeps = [i for i in out if i.extra_settings.get(_MARKER) == "sweep"]
-    assert len(sweeps) == 1 and sweeps[0].section_index == 0
-
+# -- a flat join stays a butt joint --------------------------------------------
 
 def test_no_transition_on_a_plain_flat_join():
     st = _state([(0, 0.5), (12, 0.5), (24, 0.5)], [(0, 12000), (12000, 24000)])
@@ -108,19 +98,18 @@ def test_idempotent_gate_restores_then_re_gates():
     assert gated_once == gated_twice                # re-gates to the SAME beat, doesn't compound
 
 
-def test_finalize_wires_transitions_and_regen_preserves_the_riser():
-    # finalize_effects runs place_transitions; regenerating the INCOMING section (splice) and
-    # re-running finalize keeps exactly one riser (tagged to the OUTGOING section, idempotent).
+def test_finalize_wires_transitions_and_rerun_keeps_one_riser():
+    # finalize_effects runs place_transitions; replacing the INCOMING section's rows and re-running
+    # finalize keeps exactly one riser (tagged to the OUTGOING section, idempotent).
     from xlights_orchestrator.pipeline.generate import finalize_effects
-    from xlights_orchestrator.refine import replace_section
     st = _state([(0, 0.2), (8, 0.3), (10, 0.6), (12, 0.9), (24, 0.9)],
                 [(0, 12000), (12000, 24000)])
     instrs = [_ins("SEM_ALL", 0, 12000, 0), _ins("SEM_ALL", 12000, 24000, 1)]
     once = finalize_effects(st, instrs)
     risers1 = [i for i in once if i.extra_settings.get(_MARKER) == "riser"]
     assert len(risers1) == 1 and risers1[0].section_index == 0
-    # regenerate section 1 (incoming) and re-run finalize
-    spliced = replace_section(once, 1, [_ins("SEM_FOCAL", 12000, 24000, 1)])
+    # swap section 1 (incoming) for different rows and re-run finalize
+    spliced = [i for i in once if i.section_index != 1] + [_ins("SEM_FOCAL", 12000, 24000, 1)]
     twice = finalize_effects(st, spliced)
     risers2 = [i for i in twice if i.extra_settings.get(_MARKER) == "riser"]
     assert len(risers2) == 1                        # exactly one riser survives the regen

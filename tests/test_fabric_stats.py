@@ -25,8 +25,8 @@ from xlights_orchestrator.show_plan import EffectInstruction
 
 GOLDEN = Path(__file__).parent / "fixtures" / "golden_instructions.json"
 
-# The golden fixture's two known sections (see tests/test_golden_pipeline.py::_show_plan):
-# §0 intensity 0.45 (quiet build), §1 intensity 0.92 (peak). No treatments (pre-Phase 2).
+# The golden fixture's two known sections (tests/fixtures/creative_brief.json):
+# §0 intensity 0.45 (quiet build), §1 intensity 0.92 (peak). No explicit treatments.
 GOLDEN_SECTIONS = {
     0: {"intensity": 0.45, "treatment": None, "start_ms": 0, "end_ms": 12000},
     1: {"intensity": 0.92, "treatment": None, "start_ms": 12000, "end_ms": 24000},
@@ -334,19 +334,13 @@ def test_source_absent_from_cache_dumps():
 # -- blend-vocabulary canary (add-blend-vocabulary, 2026-07-07) ---------------------------------
 # Guards against re-inversion of the weave blend default back to all-Max.
 # BEFORE D1: golden blended rows are 100% Max. AFTER D1: texture cells over beds use Brightness.
-# This canary starts xfail (task 1.3) and is enabled in task 4.1 after the default lands.
-import pytest  # noqa: E402 — placed here to keep the canary section self-contained
+# The brief-driven golden fixture has a texture cell (Ripple) over the peak's SEM_ALL bed, so the
+# canary is live (it was xfail while the fixture held only accent/carrier rows, Max by design).
 
 
-@pytest.mark.xfail(reason=(
-    "golden fixture contains only accent/carrier weave cells (no texture-over-bed cells) — "
-    "those are all Max by design. The canary becomes meaningful once the fixture grows to "
-    "include texture weave rows (e.g. a section with a weave carrier + texture recipe over a bed)."),
-    strict=False)
 def test_golden_blended_rows_not_all_max():
     """Canary: blended rows in the energetic section must NOT be ~all-Max after D1 lands.
-    Guards against re-inversion of the weave texture default. Currently xfail because the
-    golden fixture's blended rows are accent/carrier rows (Max is correct for those)."""
+    Guards against re-inversion of the weave texture default."""
     stats = _golden_stats()
     bvs = stats.blend_value_share
     assert bvs.get("Max", 1.0) < 0.95, (

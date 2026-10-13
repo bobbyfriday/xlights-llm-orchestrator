@@ -1,6 +1,5 @@
-"""The LLM-free realization path (claude-driven-orchestration D3): a hand-written brief + the
-golden fixture analysis → `generate_instructions_from_brief` with no agent, no model API, no
-xLights. Asserts coverage of every section, woven cells, that a section's `fabric` block is
+"""The realization path (claude-driven-orchestration D3): a hand-written brief + the golden
+fixture analysis → `generate_instructions_from_brief` with no model API and no xLights. Asserts coverage of every section, woven cells, that a section's `fabric` block is
 honored, byte-identical output across two runs, and that recurring section labels rhyme through
 the label-derived repetition map."""
 
@@ -9,7 +8,6 @@ from __future__ import annotations
 import json
 
 from xlights_orchestrator.brief_schema import build_brief_schema
-from xlights_orchestrator.music_brief import LabeledSection, MusicBrief
 from xlights_orchestrator.pipeline.generate import (
     generate_instructions_from_brief,
     realize_section_from_brief,
@@ -148,16 +146,9 @@ def test_repetition_map_from_labels_excludes_one_offs_and_blanks():
     assert repetition_map_from_labels([]) == {}
 
 
-def test_existing_music_brief_map_is_left_alone():
+def test_repetition_map_comes_from_the_brief_labels():
     st = _state(ShowPlan(sections=[_sec(0, "chorus"), _sec(1, "chorus"), _sec(2, "verse")]))
-    assert repetition_map(st) == {"chorus": [0, 1]}                  # labels, no MusicBrief
-    st.music_brief = MusicBrief(
-        sections=[LabeledSection(start_ms=i * 8000, end_ms=(i + 1) * 8000, label="x", intensity=0.9)
-                  for i in range(3)],
-        repetition_map={"hook": [1, 2]})
-    assert repetition_map(st) == {"hook": [1, 2]}                    # the analyst's map wins
-    st.music_brief = MusicBrief(sections=st.music_brief.sections, repetition_map={})
-    assert repetition_map(st) == {"chorus": [0, 1]}                  # an EMPTY map falls through
+    assert repetition_map(st) == {"chorus": [0, 1]}
     st.show_plan = ShowPlan(sections=[_sec(0, "a"), _sec(1, "b")])
     assert repetition_map(st) is None                                # nothing recurs → one-offs
 

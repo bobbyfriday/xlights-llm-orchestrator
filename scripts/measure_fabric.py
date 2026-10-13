@@ -25,7 +25,8 @@ licensed vendor corpus is not on the machine.
 Run as a CLI::
 
     python scripts/measure_fabric.py <instructions.json>|<show.xsq> [--duration-s S] [--rgbeffects X]
-    python scripts/measure_fabric.py --golden       # measure tests/fixtures/golden_instructions.json
+    python scripts/measure_fabric.py --golden       # tests/fixtures/golden_instructions.json, the
+                                                    # realization of tests/fixtures/creative_brief.json
 """
 
 from __future__ import annotations
@@ -537,7 +538,7 @@ def render_report(stats: FabricStats, *, title: str = "fabric") -> str:
 
 # -- CLI ----------------------------------------------------------------------------------------
 def _load_sections_from_show_plan(path: Path) -> dict[int, dict]:
-    """section_index -> {intensity, treatment, start_ms, end_ms} from a cached show_plan.json."""
+    """section_index -> {intensity, treatment, start_ms, end_ms} from a creative_brief.json."""
     try:
         doc = json.loads(path.read_text())
     except Exception:  # noqa: BLE001
@@ -552,11 +553,12 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Measure a show's effect fabric.")
     ap.add_argument("input", nargs="?", help="an instructions.json cache OR a finalized .xsq")
     ap.add_argument("--golden", action="store_true",
-                    help="measure tests/fixtures/golden_instructions.json")
+                    help="measure tests/fixtures/golden_instructions.json (sections from the fixture "
+                         "creative_brief.json it is realized from)")
     ap.add_argument("--duration-s", type=float, default=None,
                     help="song duration for effects/min (instructions mode; default from spans)")
     ap.add_argument("--show-plan", default=None,
-                    help="a show_plan.json for per-section intensity/treatment (instructions mode)")
+                    help="a creative_brief.json for per-section intensity/treatment (instructions mode)")
     ap.add_argument("--rgbeffects", default=None,
                     help="rgbeffects.xml for the prop-row-equivalent expansion")
     ap.add_argument("--top", type=int, default=12, help="top-N effect types in the by-type table")
@@ -565,10 +567,12 @@ def main(argv: list[str] | None = None) -> int:
     expansion = expansion_from_rgbeffects(args.rgbeffects) if args.rgbeffects else None
 
     if args.golden or (args.input and args.input.endswith(".json")):
-        path = (Path(__file__).resolve().parent.parent / "tests" / "fixtures"
-                / "golden_instructions.json") if args.golden else Path(args.input)
+        fixtures = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
+        path = fixtures / "golden_instructions.json" if args.golden else Path(args.input)
         instrs = json.loads(path.read_text())
-        sections = _load_sections_from_show_plan(Path(args.show_plan)) if args.show_plan else None
+        brief = (Path(args.show_plan) if args.show_plan
+                 else fixtures / "creative_brief.json" if args.golden else None)
+        sections = _load_sections_from_show_plan(brief) if brief else None
         duration_s = args.duration_s
         if duration_s is None:
             duration_s = max((int(d.get("end_ms", 0)) for d in instrs), default=0) / 1000.0

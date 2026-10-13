@@ -29,7 +29,7 @@ from xlights_orchestrator.pipeline.stage_io import (
 from xlights_orchestrator.pipeline.vocab import VOCAB_NAME, build_vocab, write_vocab_and_schema
 from xlights_orchestrator.show_plan import BLEND_METHODS
 
-FIXTURES = Path(__file__).parent / "fixtures" / "agent_payloads"
+FIXTURES = Path(__file__).parent / "fixtures" / "cache_payloads"
 ANALYSIS = FIXTURES / "song_analysis.json"          # 24 s, 120 BPM, two segments, a drums stem
 
 GROUPS = ["SEM_ALL", "SEM_BAND_GROUND", "SEM_FOCAL", "SEM_ARCHES", "SEM_CANES", "SEM_MINITREES",
@@ -435,6 +435,16 @@ def test_video_plan_invalid_story_names_the_section_and_writes_nothing(song_dir,
     (song_dir / STORY_NAME).write_text(json.dumps(story))
     code, _out, err = _main(["video-plan", "--cache", str(song_dir), "--matrix-size", "64x32"], capsys)
     assert code == 1 and "beats[1] carries a time field 'start_ms'" in err
+
+
+def test_video_plan_refuses_a_person_in_a_procedural_beat(song_dir, capsys):
+    story = _story(0, 1)
+    story["beats"][0]["action"] = "a child runs to the window"
+    (song_dir / STORY_NAME).write_text(json.dumps(story))
+    code, _out, err = _main(["video-plan", "--cache", str(song_dir), "--matrix-size", "64x32",
+                             "--no-veo"], capsys)                     # all procedural
+    assert code == 1 and "medium contract" in err and "section 0" in err and "'child'" in err
+    assert not (song_dir / VIDEO_SCRIPT_NAME).exists()
 
 
 def test_video_plan_allow_inherit_holds_the_previous_beat(song_dir, capsys):

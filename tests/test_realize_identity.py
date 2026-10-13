@@ -1,20 +1,12 @@
-"""Phase 1 integration — realize_section keys carrier/composite/palette on the repetition label
-and escalates recurring occurrences structurally (coverage, accent density, a final extra layer)."""
+"""Phase 1 integration — the realization keys carrier/composite/palette on the repetition label
+(the brief sections' recurring `label`s) and escalates recurring occurrences structurally
+(coverage, accent density, a final extra layer)."""
 from __future__ import annotations
 
-import asyncio
-from types import SimpleNamespace
-
-from xlights_orchestrator.music_brief import MusicBrief, LabeledSection
-from xlights_orchestrator.pipeline.generate import realize_section
+from xlights_orchestrator.pipeline.generate import realize_section_from_brief
 from xlights_orchestrator.pipeline.state import State
 from xlights_orchestrator.pipeline.weave import CARRIER_ROTATION
-from xlights_orchestrator.show_plan import (
-    EffectInstruction,
-    SectionEffects,
-    SectionPlan,
-    ShowPlan,
-)
+from xlights_orchestrator.show_plan import SectionPlan, ShowPlan
 from xlights_core.audio import Beat, EnergyPoint, Segment, SongAnalysis, StemFeatures
 
 GROUPS = [
@@ -22,19 +14,6 @@ GROUPS = [
     "SEM_MINITREES", "SEM_SNOWFLAKES", "SEM_SPINNERS",
     "SEM_SIDE_LEFT", "SEM_SIDE_CENTER", "SEM_SIDE_RIGHT",
 ]
-
-
-def run(c):
-    return asyncio.run(c)
-
-
-class _FakeGen:
-    def __init__(self, effects):
-        self._e = effects
-
-    async def run(self, _rendered):
-        # fresh copy per call — realize_section mutates its instructions
-        return SimpleNamespace(output=self._e.model_copy(deep=True))
 
 
 def _analysis(n_sec: int, sec_ms: int) -> SongAnalysis:
@@ -54,33 +33,24 @@ def _analysis(n_sec: int, sec_ms: int) -> SongAnalysis:
     )
 
 
-def _section(i: int, sec_ms: int, intensity: float) -> SectionPlan:
+def _section(i: int, sec_ms: int, intensity: float, label: str) -> SectionPlan:
     return SectionPlan(
-        start_ms=i * sec_ms, end_ms=(i + 1) * sec_ms,
+        start_ms=i * sec_ms, end_ms=(i + 1) * sec_ms, label=label,
         target_groups=["SEM_ARCHES", "SEM_CANES", "SEM_MINITREES", "SEM_ALL", "SEM_FOCAL",
                        "SEM_SIDE_LEFT", "SEM_SIDE_CENTER", "SEM_SIDE_RIGHT"],
         effect_family="On", intensity=intensity, palette=["Red", "Green", "Blue"],
         pulse_groups=["SEM_ARCHES"], pulse_on="beat")
 
 
-def _state(intensities, repetition_map) -> State:
+def _state(intensities, labels) -> State:
     sec_ms = 8000
     n = len(intensities)
     st = State(song_path="s.mp3")
     st.song_analysis = _analysis(n, sec_ms)
     st.available_groups = list(GROUPS)
     st.show_plan = ShowPlan(
-        concept="c", sections=[_section(i, sec_ms, v) for i, v in enumerate(intensities)])
-    st.music_brief = MusicBrief(
-        sections=[LabeledSection(start_ms=i * sec_ms, end_ms=(i + 1) * sec_ms, label="l",
-                                 intensity=v) for i, v in enumerate(intensities)],
-        repetition_map=repetition_map)
+        concept="c", sections=[_section(i, sec_ms, v, labels[i]) for i, v in enumerate(intensities)])
     return st
-
-
-def _gen():
-    return _FakeGen(SectionEffects(instructions=[EffectInstruction(
-        target="SEM_ARCHES", effect_type="On", look_id="On#0", start_ms=0, end_ms=8000)]))
 
 
 def _carriers(instrs):
@@ -89,19 +59,17 @@ def _carriers(instrs):
 
 def test_choruses_share_carrier_one_offs_may_differ():
     # sections 0,1,2 are all "chorus"; the deterministic fallback weave rotates a carrier per section
-    st = _state([0.9, 0.9, 0.9], {"chorus": [0, 1, 2]})
-    gen = _gen()
-    outs = [run(realize_section(st, i, agent=gen)) for i in range(3)]
+    st = _state([0.9, 0.9, 0.9], ["chorus", "chorus", "chorus"])
+    outs = [realize_section_from_brief(st, i) for i in range(3)]
     c0, c1, c2 = (_carriers(o) for o in outs)
     assert c0 and c0 == c1 == c2                       # every chorus shares the carrier (rhymes)
 
 
 def test_one_off_sections_rotate_by_index():
     # no recurring labels → each section keys its carrier on the index (varies), as before
-    st = _state([0.9, 0.9], {})
-    gen = _gen()
-    o0 = run(realize_section(st, 0, agent=gen))
-    o1 = run(realize_section(st, 1, agent=gen))
+    st = _state([0.9, 0.9], ["intro", "outro"])
+    o0 = realize_section_from_brief(st, 0)
+    o1 = realize_section_from_brief(st, 1)
     assert _carriers(o0) != _carriers(o1)
 
 
@@ -110,10 +78,9 @@ def _lit_targets(instrs):
 
 
 def test_final_chorus_is_fuller_and_gains_a_layer():
-    st = _state([0.9, 0.9, 0.9], {"chorus": [0, 1, 2]})
-    gen = _gen()
-    first = run(realize_section(st, 0, agent=gen))
-    last = run(realize_section(st, 2, agent=gen))
+    st = _state([0.9, 0.9, 0.9], ["chorus", "chorus", "chorus"])
+    first = realize_section_from_brief(st, 0)
+    last = realize_section_from_brief(st, 2)
     # structural escalation: the final occurrence lights at least as many prop groups
     assert len(_lit_targets(last)) >= len(_lit_targets(first))
     # ...and gains the extra sparkle-contrast layer on an accent prop group
@@ -123,8 +90,7 @@ def test_final_chorus_is_fuller_and_gains_a_layer():
 
 
 def test_escalation_never_exceeds_available_groups():
-    st = _state([0.95, 0.95, 0.95, 0.95], {"chorus": [0, 1, 2, 3]})
-    gen = _gen()
+    st = _state([0.95, 0.95, 0.95, 0.95], ["chorus"] * 4)
     for i in range(4):
-        out = run(realize_section(st, i, agent=gen))
+        out = realize_section_from_brief(st, i)
         assert _lit_targets(out) <= set(GROUPS)         # caps hold

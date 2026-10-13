@@ -1,7 +1,7 @@
 """Align fetched lyric TEXT against the separated VOCAL stem → timed lines + structure hints.
 
-Whisper (MLX) transcribes the vocal stem with word timestamps; each lyric line is fuzzy-matched
-against the transcript word stream (monotonic cursor). Output feeds SongAnalysis.lyrics:
+Whisper (MLX on macOS, faster-whisper elsewhere) transcribes the vocal stem with word timestamps;
+each lyric line is fuzzy-matched against the transcript word stream (monotonic cursor). Output feeds SongAnalysis.lyrics:
 {lines:[{text,start,end}], sections:[{label,start}], repeated:[{text,times}]}. Fully graceful —
 any failure returns None and analysis proceeds without timed lyrics.
 """
@@ -9,12 +9,14 @@ any failure returns None and analysis proceeds without timed lyrics.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from difflib import SequenceMatcher
 
 log = logging.getLogger(__name__)
 
 _MODEL = "mlx-community/whisper-small-mlx"
+_FASTER_MODEL = "small"                       # same size as the MLX default; XLO_WHISPER_MODEL overrides
 _MARKER = re.compile(r"^\[([^\]]+)\]\s*$")
 _WORD = re.compile(r"[a-z0-9']+")
 
@@ -40,6 +42,23 @@ def _parse_text(text: str) -> tuple[list[str], dict[int, str]]:
 
 
 def _transcribe(vocal_path: str) -> list[tuple[str, float, float]]:
+    """Word-timestamped transcript of the vocal stem: [(word, start, end)].
+
+    Backend resolved at call time like stem separation: mlx-whisper (Apple Silicon) first, then
+    faster-whisper (CPU/CUDA, Linux containers); XLO_WHISPER_BACKEND in {mlx,faster} pins one."""
+    backend = os.environ.get("XLO_WHISPER_BACKEND")
+    for name in [backend] if backend else ["mlx", "faster"]:
+        try:
+            if name == "mlx":
+                return _transcribe_mlx(vocal_path)
+            if name == "faster":
+                return _transcribe_faster(vocal_path)
+        except ImportError:
+            continue                               # backend not installed; try the next
+    raise ImportError("no whisper backend: install mlx-whisper (macOS) or faster-whisper")
+
+
+def _transcribe_mlx(vocal_path: str) -> list[tuple[str, float, float]]:
     import mlx_whisper  # heavy import deferred
 
     out = mlx_whisper.transcribe(str(vocal_path), path_or_hf_repo=_MODEL,
@@ -49,6 +68,20 @@ def _transcribe(vocal_path: str) -> list[tuple[str, float, float]]:
         for w in seg.get("words", []):
             for token in _norm_words(w.get("word", "")):
                 words.append((token, float(w["start"]), float(w["end"])))
+    return words
+
+
+def _transcribe_faster(vocal_path: str) -> list[tuple[str, float, float]]:
+    from faster_whisper import WhisperModel  # heavy import deferred
+
+    model = WhisperModel(os.environ.get("XLO_WHISPER_MODEL", _FASTER_MODEL),
+                         device="auto", compute_type="int8")
+    segments, _ = model.transcribe(str(vocal_path), word_timestamps=True, language="en")
+    words: list[tuple[str, float, float]] = []
+    for seg in segments:
+        for w in seg.words or []:
+            for token in _norm_words(w.word):
+                words.append((token, float(w.start), float(w.end)))
     return words
 
 

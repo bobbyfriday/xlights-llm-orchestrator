@@ -43,6 +43,17 @@ xlo run --song "mp3/your song.mp3" --refine --auto
 
 Open the named sequence in xLights (File → Open Sequence) to play it with audio.
 
+### Audio analysis only (bundle for other LLM pipelines)
+
+`xlo analyze` runs just the audio stage, with no LLM key and no xLights. It writes stems,
+beats/bars, onsets, key, chords, sections, energy, and timed lyrics to a self-contained bundle
+(`analysis.json` + a prompt-sized `summary.json` + `stems/`). It also ships as a Docker image
+and runs in Claude Code cloud sessions. See **[docs/audio-analysis.md](docs/audio-analysis.md)**.
+
+```bash
+xlo analyze "mp3/your song.mp3"           # → data/bundles/your_song/
+```
+
 ### Targeted fixes: regenerate one section
 
 To redo a single section without re-running the whole show (a targeted fix), use `xlo regen` —

@@ -1,0 +1,89 @@
+name: audio-analysis image
+
+# Builds docker/audio-analysis.Dockerfile (VAMP plugins compiled from source, CPU torch +
+# demucs, faster-whisper, models baked in), smoke-tests it on a synthetic clip, and on main
+# publishes it to GHCR. Path-filtered: only runs when the analysis stack changes.
+on:
+  push:
+    paths:
+      - docker/**
+      - scripts/install-vamp-plugins.sh
+      - packages/xlights-core/**
+      - packages/xlights-orchestrator/src/xlights_orchestrator/cli.py
+      - packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/analysis.py
+      - packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/bundle.py
+      - .github/workflows/audio-image.yml
+  pull_request:
+    paths:
+      - docker/**
+      - scripts/install-vamp-plugins.sh
+      - packages/xlights-core/**
+      - packages/xlights-orchestrator/src/xlights_orchestrator/cli.py
+      - packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/analysis.py
+      - packages/xlights-orchestrator/src/xlights_orchestrator/pipeline/bundle.py
+      - .github/workflows/audio-image.yml
+  workflow_dispatch:
+
+concurrency:
+  group: audio-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/xlights-audio-analysis
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/audio-analysis.Dockerfile
+          load: true
+          tags: xlights-audio:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A 30s synthetic clip: a two-note drone plus a click every 0.5s (120 bpm), so the
+      # beat tracker, onset detector, key detector, and segmenter all have something to find.
+      - name: Smoke test — analyze a synthetic clip
+        run: |
+          mkdir -p smoke out
+          ffmpeg -loglevel error -f lavfi \
+            -i "aevalsrc='0.25*sin(2*PI*220*t)+0.25*sin(2*PI*330*t)+0.8*lt(mod(t,0.5),0.03)*sin(2*PI*1500*t)':d=30:s=44100" \
+            smoke/smoke.mp3
+          docker run --rm -v "$PWD/smoke:/in:ro" -v "$PWD/out:/out" xlights-audio:ci /in/smoke.mp3 --no-lyrics
+          python3 - <<'EOF'
+          import json, pathlib
+          b = pathlib.Path("out/smoke")
+          m = json.loads((b / "manifest.json").read_text())
+          s = json.loads((b / "summary.json").read_text())
+          print(json.dumps(m, indent=1)); print(json.dumps({k: v for k, v in s.items() if k != "sections"}, indent=1))
+          assert m["capabilities"]["stems"], "stem separation did not run"
+          assert s["counts"]["beats"] > 20 and s["counts"]["onsets"] > 0, "no beats/onsets"
+          assert s["sections"] and s["key"], "no sections/key"
+          assert any(b.glob("stems/*.mp3")), "stems not exported"
+          EOF
+
+      - name: Smoke test — whisper backend loads offline
+        run: |
+          docker run --rm --network none -v "$PWD/smoke:/in:ro" --entrypoint python xlights-audio:ci \
+            -c "from xlights_core.audio.lyrics_align import _transcribe; print('words:', _transcribe('/in/smoke.mp3'))"
+
+      - name: Publish
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag xlights-audio:ci "$IMAGE:latest"
+          docker tag xlights-audio:ci "$IMAGE:${GITHUB_SHA::12}"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA::12}"

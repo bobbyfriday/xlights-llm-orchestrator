@@ -34,7 +34,16 @@ stems = [
 ]
 # Fallback backend for non-Apple/Linux (pulls PyTorch). Select via XLO_STEMS_BACKEND=torch.
 stems-torch = [
-    "demucs",
+    "demucs>=4.1",                       # 4.1 is the first PyPI release with demucs.api
+]
+# Timed-lyric alignment backends (Whisper word timestamps on the vocal stem). mlx-whisper is
+# Apple-Silicon only; faster-whisper (CTranslate2) is the Linux/container backend. Select via
+# XLO_WHISPER_BACKEND={mlx,faster}; default tries mlx, then faster.
+align = [
+    "mlx-whisper",
+]
+align-cpu = [
+    "faster-whisper>=1.0",
 ]
 # Offline preview renderer (.fseq + layout → still PNG / clip MP4). Clips also need the
 # `ffmpeg` system binary (graceful: no ffmpeg → stills only). No xLights, no LLM dep.

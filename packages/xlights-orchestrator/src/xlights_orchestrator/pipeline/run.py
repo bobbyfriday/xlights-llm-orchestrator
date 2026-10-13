@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
-from xlights_core.audio import AudioAnalyzer, SongAnalysis
+from xlights_core.audio import SongAnalysis
 
 import logging
 
@@ -41,6 +41,7 @@ from ..song_description import render_description
 
 from .beats import feature_prop_contrast
 from .groups import targetable_groups
+from .analysis import analyze_song
 from .media import prepare_media
 from .state import State, require
 from .visual import RealRender, make_fseq_series_provider, make_lit_sampler, make_visual_critique
@@ -179,45 +180,8 @@ async def run_pipeline(
     # 1. analyze. The default analyzer requests stems (per-section instrument signal);
     #    an injected analyze callable keeps the simple (path)->SongAnalysis shape.
     progress.emit("stage", stage="analyze", payload={"phase": "start"})
-    if analyze is not None:
-        st.song_analysis = analyze(song_path)
-    else:
-        # The audio cache is intentionally NOT gated on the run's --no-cache: re-analysis is
-        # expensive AND lyric alignment is not always reproducible (optional aligner). A cached
-        # analysis whose segmentation predates a structure.py fix self-heals on load
-        # (AudioAnalyzer migrates it in place from cached lyrics/beats), so a stale analysis never
-        # forces the choice between wrong boundaries and discarding good lyric data.
-        st.song_analysis = AudioAnalyzer().analyze(song_path, stems=stems)
-    # timed lyrics as part of the INITIAL analysis: fetch text, align on the vocal stem (cached).
-    # This also flips the synthesizer's `instrumental` flag (it reads sa.lyrics) for vocal songs.
-    # Re-attach when the cache predates marker-aware fetching (no headers_fetch flag) so lyric
-    # section markers upgrade old caches once.
-    _ly = getattr(st.song_analysis, "lyrics", None) or {}
-    if not _ly.get("lines") or not _ly.get("headers_fetch"):
-        try:
-            _ld = fetch_lyrics(song_path)
-            if _ld and _ld.text:
-                if AudioAnalyzer().attach_lyrics(st.song_analysis, song_path, text=_ld.text,
-                                                 title=_ld.title or "", artist=_ld.artist or ""):
-                    _lines = (getattr(st.song_analysis, "lyrics", None) or {}).get("lines", [])
-                    log.info("timed lyrics attached (%d lines)", len(_lines))
-        except Exception as exc:  # noqa: BLE001 — lyrics are enrichment
-            degradations.note("audio:lyrics", exc, stage="analyze")
-    # Instrumental complement: still no timed lines → subdivide long audio sections at
-    # musical seams so no single look runs past ~32s (best-effort; never blocks the run).
-    if not (getattr(st.song_analysis, "lyrics", None) or {}).get("lines"):
-        try:
-            if AudioAnalyzer().refine_instrumental(st.song_analysis, song_path):
-                log.info("instrumental sections refined (%d segments)",
-                         len(st.song_analysis.segments))
-        except Exception as exc:  # noqa: BLE001 — refinement is enrichment
-            degradations.note("audio:instrumental-refine", exc, stage="analyze")
-
-    # Core-owned outcome observed at the seam: stems requested but the analysis has none →
-    # all separation backends failed (core logs per-backend; the run reports the terminal loss).
-    if stems and not (getattr(st.song_analysis, "stems", None) or []):
-        degradations.note("audio:stems", "all separation backends failed (no per-section instruments)",
-                          stage="analyze")
+    # audio features + stems + timed lyrics + section refinement (shared with `xlo analyze`)
+    st.song_analysis = analyze_song(song_path, stems=stems, analyze=analyze)
 
     try:    # persist the analysis so `xlo regen` can rehydrate without re-analyzing the audio
         sa_cache = _cache_path(key, "song_analysis")

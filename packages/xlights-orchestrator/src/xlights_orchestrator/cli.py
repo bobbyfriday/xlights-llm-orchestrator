@@ -158,6 +158,27 @@ def _edit_brief(args) -> None:
     serve(brief, open_browser=not args.no_open)
 
 
+def _analyze(args) -> None:
+    """Audio-only export: analysis bundle(s) for downstream LLM use — no LLM key, no xLights."""
+    import logging
+    from pathlib import Path
+
+    from . import degradations
+    from .pipeline.analysis import analyze_song
+    from .pipeline.bundle import write_bundle
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    text = Path(args.lyrics).read_text() if args.lyrics else None
+    for song in args.song:
+        dl = degradations.start_run()
+        sa = analyze_song(song, stems=not args.no_stems, lyrics=not args.no_lyrics, lyrics_text=text)
+        out = write_bundle(sa, song, Path(args.out) / safe_name(song), degradations=dl.as_json())
+        lost = ", ".join(d.capability for d in dl.summary()) or "none"
+        print(f"{song} → {out}  ({len(sa.segments)} sections, {len(sa.beats)} beats, "
+              f"stems={'yes' if sa.stems else 'no'}, lyrics={'yes' if (sa.lyrics or {}).get('lines') else 'no'}, "
+              f"degraded: {lost})")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="xlo", description="xLights LLM orchestrator")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -212,9 +233,19 @@ def main(argv: list[str] | None = None) -> None:
     ab.add_argument("--max-iterations", type=int, default=3, help="hard cap on refine iterations per run")
     ab.add_argument("--name-prefix", default=None, help="sequence name prefix (default: from the song)")
     ab.add_argument("--keep-sequences", action="store_true", help="don't clean up per-arm sequences")
+    an = sub.add_parser("analyze",
+                        help="audio-only: stems + beats/onsets/key/chords/sections/lyrics → a bundle dir")
+    an.add_argument("song", nargs="+", help="audio file(s) to analyze")
+    an.add_argument("--out", default="data/bundles", help="bundle root (one subdir per song)")
+    an.add_argument("--no-stems", action="store_true", help="skip stem separation (much faster)")
+    an.add_argument("--no-lyrics", action="store_true", help="skip lyric fetch + alignment")
+    an.add_argument("--lyrics", default=None, help="lyric text file to align (instead of Genius)")
     args = ap.parse_args(argv)
 
     load_env()
+    if args.cmd == "analyze":           # audio only — NO has_llm_key() gate, no xLights
+        _analyze(args)
+        return
     if args.cmd == "report":            # offline, deterministic — NO has_llm_key() gate
         _report(args)
         return

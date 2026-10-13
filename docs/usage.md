@@ -1,16 +1,22 @@
 # Usage Guide
 
-How to install, configure, run, and tune the xLights LLM Orchestrator.
+How to install, configure, and make a show with the xLights LLM Orchestrator: a Claude Code
+session for the creative work, and the deterministic `xlo` stage commands for everything else.
 
 - [Install](#install)
 - [Configure (.env)](#configure-env)
-- [One-time layout setup (SEM_ groups)](#one-time-layout-setup-sem_-groups)
-- [Run a show](#run-a-show)
-- [What the pipeline does](#what-the-pipeline-does)
-- [Outputs & caching](#outputs--caching)
+- [How a show is made](#how-a-show-is-made)
+- [The Claude Code commands](#the-claude-code-commands)
+- [The `xlo` stage commands](#the-xlo-stage-commands)
+- [The song's cache dir (file contract)](#the-songs-cache-dir-file-contract)
+- [The creative brief](#the-creative-brief)
+- [Review feedback patterns](#review-feedback-patterns)
+- [Layout onboarding (SEM_ groups)](#layout-onboarding-sem_-groups)
+- [Singing faces and matrix captions](#singing-faces-and-matrix-captions)
+- [Video for the centerpiece matrix](#video-for-the-centerpiece-matrix)
 - [Tuning the show's voice](#tuning-the-shows-voice)
   - [The trigger cookbook](#the-trigger-cookbook)
-- [Model routing & cost](#model-routing--cost)
+- [Degradations](#degradations)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 
@@ -18,328 +24,324 @@ How to install, configure, run, and tune the xLights LLM Orchestrator.
 
 ## Install
 
-A [uv](https://docs.astral.sh/uv/) workspace; Python 3.11+ (developed on 3.14).
+A [uv](https://docs.astral.sh/uv/) workspace; Python 3.11+.
 
 ```bash
-uv sync
+uv sync --all-packages --extra preview     # preview = stills + rendered-coverage QA
 # or:
 python -m venv .venv && . .venv/bin/activate
-pip install -e packages/xlights-core -e packages/xlights-mcp -e packages/xlights-orchestrator
+pip install -e packages/xlights-core -e packages/xlights-mcp -e "packages/xlights-orchestrator[preview]"
 ```
 
+Optional extras on `xlights-core`: `audio` (VAMP/librosa), `lyrics` (CMU dictionary for accurate
+singing-face phonemes), `stems` (demucs-mlx, Apple Silicon) or `stems-torch` (PyTorch demucs).
+
 System deps:
-- **ffmpeg** — required (audio encode for the offline media patch; preview clip extraction).
-- **demucs + torch** — optional, for stem separation (per-instrument analysis, lyric alignment, the trigger detectors). Without them the pipeline still runs; stem-dependent features auto-skip.
-- xLights' bundled **VAMP plugins** are auto-discovered for beat/tempo/key analysis; librosa is the fallback.
+- **ffmpeg**: audio patching at finalize, preview clips.
+- **demucs**: optional, for stem separation (per-instrument energy, lyric alignment, the trigger
+  detectors). Without it the stages still run; stem-dependent features skip.
+- xLights' bundled **VAMP plugins** are auto-discovered for beat/tempo/key analysis; librosa is the
+  fallback.
+- **Claude Code**, opened in this repo, for the `/xlo:*` commands. The `xlo` stages run without it.
 
 ## Configure (.env)
 
-Copy `.env.example` to `.env`. Keys:
+Copy `.env.example` to `.env`. **No model API key is needed**: the creative work happens in your
+Claude Code session, and no `xlo` command calls a model.
 
 | Variable | Purpose |
 | --- | --- |
-| `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` | At least one required. The model registry routes each agent role to whichever provider is active. |
-| `XLO_PROVIDER` | `anthropic` (default) or `gemini` — switches all roles' provider without code changes. |
-| `GENIUS_ACCESS_TOKEN` | Optional. Enables lyric fetch → timed alignment → lyric-derived song sections + color-word triggers. |
 | `XLIGHTS_BASE_URL` | xLights automation endpoint (default `http://127.0.0.1:49913`; instance "B" is `49914`). |
-| `XLO_CACHE_DIR` | Where analysis/plan artifacts cache (default `data/analyses`). |
-| `XLO_REFINE_SKIP_OBJECTIVE` | Skip the `--refine` loop (no Judge/critic/regen spend) when the first-pass objective score is ≥ this (default `88`). Set `101` to disable and always iterate. Saves cost on drafts that are already good. |
-| `XLO_STEMS` | `1` to force stem separation on; otherwise the CLI requests it by default. |
-| `XLO_STEMS_MODEL` / `XLO_STEMS_BACKEND` | Override the demucs model/backend. |
-| `XLO_SEQUENCING_GUIDE`, `XLO_EFFECTS_CATALOG`, `XLO_LAYERING_GUIDE`, `XLO_SCENE_COOKBOOK`, `XLO_TRIGGER_COOKBOOK` | Override the path to each guide/cookbook (defaults are the repo-root `.md` files). |
+| `XLO_CACHE_DIR` | Root of the song caches (`.env.example` sets `data/analyses`; each song gets `$XLO_CACHE_DIR/orchestrator/<song-slug>--<hash>/`). |
+| `GENIUS_ACCESS_TOKEN` | Optional. Lyric fetch → timed alignment → lyric-derived sections, color-word triggers, singing faces, matrix captions. |
+| `XLO_STEMS` / `XLO_STEMS_BACKEND` / `XLO_STEMS_MODEL` | Force stems on; pick the demucs backend (`mlx`, `torch`) or model (default `htdemucs_6s`). |
+| `XLO_FSEQ_METRICS` | `0` disables the rendered-pixel coverage metrics in `xlo qa`. |
 
-> **The `.env` is gitignored — never commit real keys.**
+> **The `.env` is gitignored. Never commit real keys.**
 
-## One-time layout setup (SEM_ groups)
-
-The orchestrator targets **semantic groups** (`SEM_FOCAL`, `SEM_ARCHES`, `SEM_SIDE_LEFT`,
-`SEM_SNOWFLAKES`, `SEM_ALL`, …) it derives from your xLights layout — props classified by role and
-position. These are written into your `xlights_rgbeffects.xml` once, and xLights loads them on the
-next restart.
-
-Run the guided command **once**, with xLights **closed** (it rewrites `rgbeffects.xml` from memory
-on exit and would clobber the edit — the command refuses to write while xLights answers its port):
+## How a show is made
 
 ```
-xlo init-layout --show-folder /path/to/show          # analyze → review → write → manifest → validate
-xlo init-layout --show-folder /path/to/show --dry-run  # preview the group membership diff, write nothing
+/xlo:init-layout   once per layout: SEM_ groups + layout manifest
+        │
+/xlo:analyze  ──▶ /xlo:design ──▶ /xlo:realize ──▶ /xlo:apply ──▶ /xlo:review ──┐
+  structure        brief, until      instructions     into xLights     your        │
+  you confirm      you approve       + QA proposals   (watch it)       feedback    │
+                        ▲                                                          │
+                        └──────────── edit brief → validate → realize → apply ◀───┘
+                                                                          │
+                                                                /xlo:finalize ──▶ .xsq
 ```
 
-What it does (all deterministic — **no LLM key required**):
+`/xlo:show <mp3>` chains analyze → design → realize → apply and pauses twice: after the brief is
+presented (for your edits and approval) and after the show is applied (to watch it). `/xlo:video`
+is a side branch once the brief exists.
 
-1. **Analyze** — `parse_props` reads every model in the default preview; `classify` assigns a role
-   by DisplayAs map → tree pixel-count → name heuristics → your group names; `derive_spatial`
-   computes bands, sides, sweep order, mirror pairs, and focal flags (`--invert-x` flips the axis
-   if your preview is mirrored).
-2. **Review** — every prop below 0.8 confidence and each excluded outlier is offered in a terminal
-   prompt (accept the suggestion, force a role, or exclude). `--yes` accepts all unattended (they
-   still land in the manifest's `review` list and the command warns). Irreducible judgment calls go
-   in a per-layout `layout_overrides.json` (`{"Prop Name": {"role": "OUTLINE"}}`) beside the show,
-   applied after the deterministic steps. With an LLM key and without `--no-llm`, the unresolved
-   tail is resolved by one batched, enum-constrained call (low-confidence guesses still go to review).
-3. **Write** — the `SEM_` modelGroups are created idempotently (members, GridSize, the layout-mode
-   attribute), your own groups untouched, a timestamped `.bak` taken, the file replaced atomically.
-   A converged re-run is a byte-level no-op.
-4. **Manifest** — `layout_semantics.json` is written to the show folder (and a cache copy) — the
-   compact per-prop role/capability/geometry the Director, QA, and choreography vocabulary consume.
-5. **Validate** — offline (no xLights): structural checks (every member exists, no empty group,
-   `SEM_ALL` excludes faces/signs, `_LTR` order matches sweep order) plus a deterministic
-   sweep-centroid check; `--no-validate` skips it. A backward sweep recommends `--invert-x`.
+Claude does the judgment in conversation: reading the analysis digest with you, writing the brief,
+turning your feedback into brief edits. Code does the rest, deterministically: the same brief
+always realizes the same effects.
 
-Then **restart xLights** so it loads the groups; the first `xlo run` re-probes targetability.
-Re-run `init-layout` after adding props. Without SEM_ groups the run still works but targets
-whatever groups exist; the curated layers (rhythm pool, accents, peak fill) assume the SEM_ set.
-Full role/spatial rules: [`xlights-layout-semantics-spec.md`](../xlights-layout-semantics-spec.md).
+## The Claude Code commands
 
-## Singing faces (lip-sync)
+Project-local commands in `.claude/commands/xlo/`. Each loads the skills it needs, runs `xlo`
+stages through Bash, reads the files they write, and talks to you in viewer language (what the
+display does), never in JSON. Commands that take a song accept an mp3 path; without one they use
+the song from earlier in the conversation, or ask.
 
-When a song has **timed lyrics** (Genius text aligned to the vocals — needs `GENIUS_ACCESS_TOKEN`) and
-your layout has a **singing-face prop with a node face definition** (a `faceInfo` with the
-`Mouth-AI/E/FV/L/MBP/O/U/WQ/etc/rest` shapes — the standard for HD singing props), the pipeline
-automatically:
-
-- generates phonemes from each lyric word (CMU dictionary, with a letter-based fallback),
-- writes a three-layer **`Faces` timing track** (phrases / words / phonemes) into the `.xsq`, and
-- places an xLights **Faces** effect on each face prop, reading that track, with the mouth resting
-  during instrumental passages (`SuppressWhenNotSinging`) and eyes on Auto.
-
-Install the optional `lyrics` extra for accurate phonemes (`uv sync --extra lyrics`); without it the
-faces still sing using the heuristic fallback. Instrumental songs (no timed lyrics) place no faces.
-
-## Matrix narrative text
-
-When your layout has a **matrix model** (any model whose name contains "matrix"), the pipeline places
-sparse narrative **Text** effects on it — the matrix is the show's storyteller, not just another wash
-canvas. Text is treated as **punctuation, not captioning** (a matrix that talks all night is a chyron):
-
-- a **title card** in the intro (the song's title, plus the artist if it fits), and
-- up to **4 featured lyric phrases** — the ones the panel curated as the song's signature lines,
-  each snapped to its aligned lyric line so it lands on the audio, at least 20 s apart, at most one
-  per section, and **never in the peak section** (the peak belongs to the composite payoff).
-
-**Grounded by construction:** only text already present in the brief (the song identity or a curated
-featured line) can ever appear — section labels ("CHORUS"), invented captions, and full lyric
-captioning never do. A featured line that doesn't fuzzy-match an aligned lyric line is dropped rather
-than shown at a guessed time. Text rides on top with a `Max` blend in the section's lightest color,
-and the matrix's own background is dimmed under each phrase so the glyphs stay legible; other props are
-never touched. Instrumental songs get the title card only; layouts with no matrix place no text. The
-caps live in `pipeline/tuning.py` (`MAX_TEXT_MOMENTS`, `TEXT_SPACING_MS`) and an advisory QA finding
-fires if a future author pushes past them.
-
-## Run a show
-
-```bash
-xlo run --song "mp3/your song.mp3" --refine --auto
-```
-
-Then in xLights: **File → Open Sequence → your song**. It opens as a Media sequence with the audio
-and reference timing tracks attached.
-
-### Flags
-
-| Flag | Effect |
-| --- | --- |
-| `--song PATH` | (required) the audio file. |
-| `--name NAME` | sequence name (default: derived from the filename). |
-| `--refine` | run the test → critique → judge → regenerate loop (recommended). |
-| `--auto` | unattended: take the Judge's verdict, skip the human review checkpoints. |
-| `--no-browser` | attended run **without** the live browser surface (terminal checkpoints only). |
-| `--max-iterations N` | cap on refine iterations (default 3). |
-| `--no-save` | generate but don't save (leave the sequence open). |
-| `--no-cache` | ignore cached analysis/brief/instructions and recompute. |
-| `--no-timing-tracks` | skip patching reference timing tracks into the `.xsq`. |
-| `--no-log` | disable the per-iteration revision log. |
-
-**Attended vs `--auto`:** without `--auto`, the run pauses at checkpoints — after interpreting
-the song (shows `description.md`), after the creative brief (shows `creative_brief.md`), on each
-refine iteration, and at final save — so you can stop and hand-edit before generation. With `--auto`
-it runs straight through.
-
-### Run-mode matrix
-
-| Mode | Command | Live browser | Checkpoints answered via |
+| Command | Runs | Reads | Then |
 | --- | --- | --- | --- |
-| **Attended + browser** (default) | `xlo run --song … --refine` | yes — opens a local page (stage timeline, section grid, QA sparkline, refine log) | the browser (approve / edit / stop), never parking the event loop; a stdout line mirrors the URL |
-| **Attended + terminal** | `xlo run … --refine --no-browser` | no | the original blocking terminal prompts — byte-for-byte the pre-F-I behavior |
-| **Unattended** | `xlo run … --refine --auto` | no | the Judge's verdict (no human gate) |
+| `/xlo:analyze <mp3>` | `xlo analyze`, `xlo groups` | `analysis_digest.md`, `vocab.json` | Summarizes the sections (m:ss, energy, dominant stems), lyric hooks, entrances and your layout's group families. **Waits** for you to correct the structure. If xLights isn't running, says so and continues without the group probe. |
+| `/xlo:design` | `xlo validate-brief` (until clean) | digest, vocab, schema, `validation.json` | Loads `xlo-brief`, `xlo-sequencing`, `xlo-scenes`, `xlo-layout`; settles the concept, palette and peak; writes `creative_brief.json`; fixes every validation error; presents the brief section by section. **Waits** for your edits. |
+| `/xlo:realize` | `xlo realize`, `xlo qa` | `qa.json` (`validation.json` on refusal) | Reports QA findings grouped by section as proposed brief edits. **Waits.** Without a render, QA has no coverage series and says so. |
+| `/xlo:apply` | `xlo apply` (`--render` on request) | `applied.json` | Reports placed/skipped and the advice for target-missing skips. Tells you to watch it in xLights. **Waits.** |
+| `/xlo:review` | `xlo stills` + `xlo qa` (when rendered), then `validate-brief`, `realize`, `apply` | stills PNGs, `qa.json` | Asks what you saw, turns it into brief edits, re-applies the whole show, summarizes what changed. **Waits.** One round per invocation; there is no automatic critique loop. |
+| `/xlo:finalize` | `xlo finalize --name <seq>` | | Reports the `.xsq` path and that audio and timing tracks were patched in. |
+| `/xlo:video` | `xlo video-plan --plan-only`, then `xlo video-plan --matrix-size WxH` | `media_plan.json`, `video_script.md` | Loads `xlo-video`; writes `video_story.json` for the planned media; presents the storyboard. |
+| `/xlo:init-layout [show folder]` | `xlo init-layout --dry-run`, then (on your word) `xlo init-layout` | `layout_review.json` when present | Loads `xlo-layout`; classifies the unresolved props into `layout_overrides.json`; shows the membership diff. **Waits** before the write. |
+| `/xlo:show <mp3>` | the four above in order | | Pauses after the brief and after apply. |
 
-The live surface is a stdlib-only HTTP server bound to `127.0.0.1` on an ephemeral port (no
-framework, no CDN, zero external resources). A reopened/reconnected page replays missed events via
-SSE `Last-Event-ID`. It exposes no state-changing GET route; checkpoint tokens are single-use.
+The skills in `.claude/skills/` are the knowledge the commands load:
 
-## What the pipeline does
+| Skill | Covers | Points at |
+| --- | --- | --- |
+| `xlo-brief` | every brief field, the treatment table, fabric, scene casting, key moments, the validate loop, presenting the brief, applying feedback | `show_plan.py`, `creative_brief.schema.json` |
+| `xlo-sequencing` | effect families by moment, energy → intensity/treatment/phrasing, accent budgets, palette and LED contrast | the sequencing guide, effects catalog, layering guide |
+| `xlo-scenes` | when to cast a cookbook scene, `scene_cast`, how the brief steers the trigger layer | the scene and trigger cookbooks |
+| `xlo-layout` | the `SEM_` vocabulary, the layout manifest, classifying unresolved props | `xlights-layout-semantics-spec.md` |
+| `xlo-video` | the story rules and `video_story.json` shape | the video-script models |
 
-1. **Analyze** (`xlights-core/audio`) — tempo, beat grid, bars, key, chords, onsets, per-band energy; optional demucs stems → per-stem energy/onsets; optional Genius lyrics → forced-aligned timed words/lines. Cached by song hash.
-2. **Lyric/instrumental structure** — Genius `[Verse]/[Chorus]` markers become beat-snapped, labeled song sections; instrumentals fall back to audio segmentation, subdividing long sections at harmonic seams.
-3. **Interpret** — a parallel panel of analyst agents (structure, rhythm, harmony, lyrics) → a synthesizer → a `MusicBrief` (`description.md`).
-4. **Design** — the Director agent → a `ShowPlan`: per-section look, palette, effect types, scene choice, rhythmic intent, key moments (`creative_brief.md`).
-5. **Generate** — per section, a Generator agent emits effect instructions **and** a few `CellRecipe`s; a deterministic **weaver** expands those into beat-snapped motion cells across the props. Then code adds: the beat-accent layer, instrument-feature layer, peak fill, and the **trigger** layer.
-6. **Render + critique** — the real xLights render is exported; deterministic QA (sync, placement rules, coverage, motion share) plus LLM critics (visual, technical) feed a Judge → a score + scoped revisions.
-7. **Refine** — flagged sections regenerate (bounded, with an anti-oscillation ledger and objective-regression revert) until convergence or the iteration cap.
-8. **Finalize** — save; offline-patch the `.xsq` to a Media sequence (attach audio), set canonical render order, and add reference timing tracks (Sections/Beats/Bars/Onsets/Chords/Lyrics).
+## The `xlo` stage commands
 
-## Outputs & caching
+Every stage is file-in, file-out over the song's cache dir. Name the song with `--song <mp3>`
+(the cache dir is found by content hash) or `--cache <dir>`. Each prints a short summary, writes
+its real output to files, and exits:
 
-Under `data/analyses/`:
-- `<song>--<hash>.json` — the cached `SongAnalysis` (+ stems under `<song>--<hash>/stems/`).
-- `orchestrator/<song>--<hash>/` — `song_description.json`, `creative_brief.json` (+ `.md` renders), `instructions.json`, `revision_log.{jsonl,md}`, `visual_review/iterN/` (stills/clips the critic saw).
+- **0**: done;
+- **1**: refused or failed (validation errors, xLights refusing a clean slate, a bad story);
+- **2**: a prerequisite file is missing; the message names it and the stage that makes it,
+  e.g. `missing instructions.json: run xlo realize first`.
 
-The saved `.xsq` lands in your xLights show folder. Re-running reuses caches; `--no-cache` forces a
-recompute. To re-plan only, delete the relevant `orchestrator/<song>--<hash>/*.json` stage files.
+No stage calls a model. `groups`, `apply` and `finalize` talk to the running xLights; the rest are
+offline.
 
-Entries are named `<song-slug>--<content-hash>` (e.g. `carol-of-the-bells--cfb62d6a5dcd3b13`). The
-hash is the identity: a renamed or duplicated MP3 reuses the existing entry, whatever its slug.
-Caches from before readable names (bare hashes) still resolve; `xlo cache-rename` renames them
-(dry run by default, `--apply` to do it, `--songs DIR` to match hashes against audio elsewhere):
+| Command | Does | Notable flags |
+| --- | --- | --- |
+| `xlo analyze` | Audio analysis (beats, bars, tempo, key, chords, onsets, per-band energy; stems; timed lyrics), instrumental subdivision, and the bounded `analysis_digest.md`. Prints the song dir. | `--no-cache` re-analyzes; `--cache <dir>` alone only regenerates the digest. |
+| `xlo groups` | Probes which groups xLights accepts effects on; writes `vocab.json` (groups, placeable and cellable effect types, scene ids, stems, colors, blends), the per-song `creative_brief.schema.json`, and `layout.json` (show folder, model names). | |
+| `xlo validate-brief` | Checks `creative_brief.json` against the vocabulary and the song; writes `validation.json`. Exit 1 on errors. | |
+| `xlo realize` | Brief → `instructions.json`: every deterministic layer (scenes, beds, fabric, accents, triggers, flashes, phrase curves, composites, faces, matrix captions, layer clamp). Refuses (exit 1) an invalid brief. | `--show-folder` (default from `layout.json`). |
+| `xlo apply` | Closes any open sequence, creates a clean one, emits every instruction; writes `applied.json`. A full re-emit every time. | `--render` also renders and saves (writes the `.fseq` for `stills` and `qa`); `--name`. |
+| `xlo qa` | Deterministic QA (sync, placement, variety, musicality; rendered coverage, dark and static sections when an `.fseq` exists) → `qa.json`. Nothing gates. | `--name`, `--show-folder`. |
+| `xlo stills` | One preview PNG per section from the rendered `.fseq` → `stills/`. Prints a hint and exits 0 when there is no render. | `--name`, `--show-folder`. |
+| `xlo finalize` | Saves and closes the open sequence, then patches the `.xsq` offline: audio, canonical render order, timing tracks. | `--name`; `--no-timing-tracks`. |
+| `xlo video-plan` | `--plan-only`: the media plan from the brief. Then: validates and times `video_story.json` → `video_script.json` + `.md`. | `--matrix-size WxH` (required for the full run), `--veo-clips`, `--no-veo`, `--filmed-sections`, `--max-shot-s`, `--frame-ms`, `--allow-inherit`. |
+| `xlo init-layout` | Classifies the layout's props and writes the `SEM_` groups + `layout_semantics.json`. Needs xLights **closed** to write. | `--show-folder`, `--dry-run`, `--yes`, `--invert-x`, `--no-validate`. |
+| `xlo cache-rename` | Renames old hash-only cache dirs to `<song-slug>--<hash>`. Dry run unless `--apply`. | `--songs DIR`. |
 
-```bash
-uv run xlo cache-rename --songs ~/xlights           # preview
-uv run xlo cache-rename --songs ~/xlights --apply
-```
+## The song's cache dir (file contract)
 
-## Resilience & degradations
+`$XLO_CACHE_DIR/orchestrator/<song-slug>--<hash>/`, e.g.
+`data/analyses/orchestrator/carol-of-the-bells--cfb62d6a5dcd3b13/`. The hash is the identity: a
+renamed or copied MP3 reuses the same dir. Because every stage reads and writes files here, any
+stage can be re-run on its own and a session can pick up where the last one stopped.
 
-**Transient-failure retry (I2).** A run makes ~10–20 LLM requests and hundreds of xLights REST
-calls; a single 429/529 or a momentary connection blip used to drop an analyst or abort a whole
-stage. Both seams now self-heal with bounded exponential backoff + jitter (a shared, stdlib-only
-`with_retry` primitive):
+| File | Written by | Read by |
+| --- | --- | --- |
+| `song_analysis.json` | `xlo analyze` | every later stage |
+| `analysis_digest.md` | `xlo analyze` | Claude (`/xlo:analyze`, `/xlo:design`, `/xlo:video`) |
+| `vocab.json` | `xlo groups` | Claude, `validate-brief`, `realize`, `qa`, `stills` |
+| `creative_brief.schema.json` | `xlo groups` | Claude; your editor (the brief's `$schema`) |
+| `layout.json` | `xlo groups` | `realize`, `qa`, `stills`, `finalize` (show folder, model names) |
+| `creative_brief.json` | **Claude** (`/xlo:design`, `/xlo:review`) or you | `validate-brief`, `realize`, `qa`, `stills`, `finalize`, `video-plan` |
+| `validation.json` | `xlo validate-brief`, `xlo realize` | Claude (the fix loop) |
+| `instructions.json` | `xlo realize` | `apply`, `qa` |
+| `applied.json` | `xlo apply` | Claude (`/xlo:apply`), `qa` (placement) |
+| `qa.json` | `xlo qa` | Claude (`/xlo:realize`, `/xlo:review`) |
+| `stills/NN-<label>.png` | `xlo stills` | Claude (`/xlo:review`) |
+| `media_plan.json` | `xlo video-plan` | Claude (`/xlo:video`), `video-plan` |
+| `video_story.json` | **Claude** (`/xlo:video`) | `xlo video-plan` |
+| `video_script.json`, `video_script.md` | `xlo video-plan` | Claude, the video renderers |
 
-- **LLM calls** retry provider overload/rate-limit/timeout classes only (HTTP 408/429/500/502/503/529
-  and escaping transport/timeout errors) — never schema/auth/bad-request errors (those repeat
-  identically at full token cost). Run-fatal roles (director, synthesizer, generator, judge) get 3
-  attempts; best-effort roles (panel analysts, visual critic, section redesigner) get 2.
-- **xLights transport**: reads retry on connection failure *and* timeout; mutations retry on
-  connection failure *only*, inside the write lock (ordering preserved), and never double-apply. The
-  long-running `renderAll`/`exportVideoPreview` are excluded. The retry budget is a client constructor
-  knob (`retry_attempts`, default 3; `0`/`1` disables — used in tests). Constants-first: no env knob in
-  v1.
+Outside the song dir: the targetable-groups probe caches per layout under
+`$XLO_CACHE_DIR/orchestrator/`; stems sit beside the analysis; `layout_semantics.json` and
+`layout_overrides.json` live in the xLights show folder (`layout_review.json` too, when
+`init-layout` writes one). The saved `.xsq` and `.fseq` land in the show folder.
 
-The `lyricsgenius` fetch keeps its own internal `retries=1` and is intentionally **not** wrapped
-(no double-retry).
+Old caches from before readable names (bare hashes) still resolve; `xlo cache-rename --songs DIR`
+previews the renames and `--apply` performs them. Caches from the earlier agent pipeline keep
+their analysis; their `m-xxxxxxxx/` subdirs are never read, so each such song needs one
+`/xlo:design`.
 
-**Degradations summary (I5).** Best-effort enrichments (lyrics, stems, the visual critic, the real
-render, timing tracks, caching) fail gracefully — but a lost capability is no longer silent. Every
-best-effort block logs at least at DEBUG; a *whole-capability* loss logs at WARNING, so
-`grep -i warning` over a run log is a complete degradation list. A per-run collector aggregates them
-and the run ends with a summary block; a degraded run also writes `degradations.json` beside
-`revision_log.jsonl`. The closed capability taxonomy:
+## The creative brief
 
-| Key | Meaning |
+`creative_brief.json` is the one judgment artifact: the show's sections and what each should look
+like. Claude writes it; you can edit it by hand too (VS Code validates it against
+`creative_brief.schema.json` through its `$schema` key). The full field reference, defaults, a
+worked section and the validate loop are in the **`xlo-brief` skill**
+(`.claude/skills/xlo-brief/SKILL.md`); the essentials:
+
+- **Show level**: `experience` and `concept` (prose for people), `palette`, `group_motifs`, and
+  `key_moments` (`climax`/`accent`/`drop`/`hit` become a white flash on `SEM_ALL`; `kind: "lyric"`
+  with a `text` becomes a matrix caption).
+- **Sections** tile the song in order, in integer milliseconds. Each has a `label` (recurring
+  labels like `chorus 1`, `chorus 2` rhyme and escalate), `target_groups` in priority order,
+  `effect_family` plus up to three `effect_types`, `intensity` (0–1, tracking the digest's energy),
+  `look` (what a viewer sees), a 3–5 color `palette`, `phrasing` (legato/staccato), and a
+  `treatment` that decides which layers run (`full`, `pulse`, `feature`, `gesture`, `rest`; blank
+  means by energy).
+- **Fabric**: `fabric: {carrier, alternation, cell_beats, blend}` designs the beat carrier, the
+  cell weave that walks the rhythm props: what moves (a cellable effect such as SingleStrand, Bars,
+  Wave), how it alternates across the pool (`chase`, `pingpong`, `all`, `sparse`), how many beats
+  each cell holds (1–8), and how it blends over the bed (`Max` by default). All four are optional;
+  empty means code chooses. **An explicit `fabric.carrier` weaves even under `pulse` and
+  `feature`** (`pulse` gets carrier + texture, `feature` the carrier alone), which those
+  treatments otherwise withhold; leave `carrier` out to keep them fabric-free. `rest` never weaves.
+- **Scenes**: `scene_id` casts a named recipe from the scene cookbook (`SC-01` … `SC-19`); its
+  stack table replaces the section's generic base rows. **`scene_cast`** maps each of the scene's
+  archetype rows to one real group, e.g.
+  `{"G2-HERO": "SEM_FOCAL", "G2-RHYTHM": "SEM_ARCHES", "G0-ALL-LESS-HERO": "SEM_ALL_LESS_FOCAL"}`.
+  Leave it `{}` and code casts by role (hero → `SEM_FOCAL`, rhythm → the section's rhythm pool,
+  accent → snowflakes, canvas → the matrix group…). `scene_adaptation` is the same cast in prose for
+  the reader. Details in the `xlo-scenes` skill.
+- **Rhythmic intent**: `pulse_groups` (who walks the beat; also makes a quiet section rhythmic),
+  `follow_stem` (whose onsets the hero follows), `accent_effect`, `pulse_on`.
+
+`xlo validate-brief` writes `validation.json` as `{ok, errors: [{path, message, allowed}],
+warnings: [{path, message}]}`. Errors (unknown names, unordered or uncovered sections, intensity
+out of range, a non-cellable carrier, an unknown blend) block `realize`; each names the JSON path
+and, for vocabulary errors, the allowed values. Warnings (a boundary off the downbeat, a section
+longer than 32 s, the same family as the previous section) are advice.
+
+## Review feedback patterns
+
+Feedback always becomes a brief edit, then validate → realize → apply. `instructions.json` is never
+edited by hand, and sections you didn't mention stay exactly as they were.
+
+| You say | Claude changes |
 | --- | --- |
-| `audio:lyrics` | lyric fetch/attach failed → no timed lines |
-| `audio:stems` | all stem-separation backends failed → no per-section instruments |
-| `audio:instrumental-refine` | instrumental section subdivision failed |
-| `groups:probe` | targetability probe failed → using the full group list |
-| `emit:view` | the SEM Master render-order view wasn't loaded → default view |
-| `qa:coverage-blind` | coverage sampling failed → the objective can't see darkness |
-| `qa:render-flush` | the pre-QA `.fseq` save / real-render refresh failed |
-| `visual:critique` | the multimodal visual critic couldn't run this iteration |
-| `visual:real-render` | the real xLights render/export was unavailable |
-| `refine:redesign` | a section redesign escalation failed |
-| `refine:analyst-drop` | a panel analyst was dropped after its retry |
-| `generate:triggers` | one or more trigger detectors failed |
-| `finalize:media` | the show folder / media staging was unavailable |
-| `finalize:timing-tracks` | reference timing tracks couldn't be patched into the `.xsq` |
-| `finalize:xsq-patch` | the offline `.xsq` patch step failed |
-| `cache:post-refine` | persisting the revised brief/instructions failed |
+| "Section 4 is too busy, calm it down" | that section only: intensity down a step, `treatment` to `feature` or `gesture`, fewer `effect_types`, `legato`, a longer `cell_beats` or `sparse` alternation |
+| "Redo 1:05 to 1:30, bluer" (inside one section) | splits the section at 1:05 and 1:30 (snapped to downbeats; it tells you the exact times), copies the parent into each piece with the same label, makes only the middle piece bluer |
+| "The second chorus should hit harder" | that section's intensity and treatment (`full`), maybe broader `target_groups` or a carrier |
+| "Less white everywhere" | palettes across the show; reports which sections changed |
+| "The arches never light" | checks `applied.json` for target-missing skips and `vocab.json`, swaps the group |
+| A QA finding (`visual:dark`, `visual:static`) | proposes the finding's fix (raise intensity, broaden groups, add a moving carrier) and waits for your yes |
 
-Reading a summary: `stems failed` + `qa:coverage-blind` explains "the show looks off and the
-objective looked fine" — the coverage QA had no `.fseq` to sample. A failed *group listing* (as
-opposed to the targetability probe) is fatal by design — it raises before any LLM spend rather than
-poisoning the Director prompt with an empty group list.
+Each `/xlo:review` re-emits the whole show (seconds to a minute). Add `--render` to the apply when
+you want stills and coverage QA for the next round.
 
-> **Project convention:** every new best-effort `except` block must log (at least DEBUG), record a
-> `degradations.note(...)`, or re-raise — never a silent `pass`. A structural AST audit test
-> (`tests/test_log_audit.py`) enforces this.
+## Layout onboarding (SEM_ groups)
 
-## Video script for the centerpiece matrix
+The brief targets **semantic groups** (`SEM_FOCAL`, `SEM_ARCHES`, `SEM_SIDE_LEFT`,
+`SEM_SNOWFLAKES`, `SEM_ALL`, …) derived from your xLights layout: props classified by role and
+position, written into `xlights_rgbeffects.xml` once.
 
-`xlo video-script` writes a **storyboard** for the high-resolution video matrix: a short film that
-tells the song's story while the rest of the display plays the lights. It reads the song's cached
-artifacts (so run `xlo run` for the song first), makes **one** LLM call (the `videographer` role —
-about $0.05 per song on the default Anthropic routing), and never touches xLights.
+Run `/xlo:init-layout /path/to/show` in Claude Code, or by hand:
 
 ```bash
-xlo video-script --song "mp3/christmas canon.mp3" --matrix-size 1024x768
-xlo video-script --song "mp3/christmas canon.mp3" --matrix-size 1024x768 --max-shot-s 10
+xlo init-layout --show-folder /path/to/show --dry-run    # preview the membership diff, write nothing
+xlo init-layout --show-folder /path/to/show              # write (xLights must be CLOSED)
 ```
+
+1. **Analyze**: every model in the default preview gets a role from DisplayAs, tree pixel count,
+   name heuristics and your own group names; then bands, sides, sweep order, mirror pairs and focal
+   flags (`--invert-x` if your preview is mirrored).
+2. **Resolve the tail**: props the rules can't place are left for review. In `/xlo:init-layout`,
+   Claude classifies them using the `xlo-layout` skill (asking you about any it can't justify) and
+   writes `layout_overrides.json` in the show folder: `{"Prop Name": {"role": "OUTLINE"}}`. An
+   override is a human decision and always wins. By hand, `--yes` accepts the suggestions instead.
+3. **Write**: the `SEM_` groups are created idempotently, your own groups untouched, a timestamped
+   `.bak` taken. xLights must be **closed** (it rewrites the file from memory on exit); the command
+   refuses while xLights answers its port. `/xlo:init-layout` stops for your go-ahead first.
+4. **Manifest**: `layout_semantics.json` (per-prop role, capability, geometry) in the show folder.
+5. **Validate**: offline structural checks plus a sweep-direction check.
+
+Then restart xLights; the next `xlo groups` probes the new groups. Re-run after adding props.
+Without `SEM_` groups a show still works, but the curated layers (rhythm pool, accents, peak fill,
+scene casting) assume the `SEM_` set. Full rules: [`xlights-layout-semantics-spec.md`](../xlights-layout-semantics-spec.md).
+
+## Singing faces and matrix captions
+
+When a song has **timed lyrics** (needs `GENIUS_ACCESS_TOKEN`) and your layout has a singing-face
+prop with a node face definition, `xlo realize` automatically generates phonemes per lyric word
+(CMU dictionary with the `lyrics` extra, a letter-based fallback without) and places an xLights
+**Faces** effect on each face prop; `xlo finalize` writes the matching three-layer `Faces` timing
+track. Mouths rest during instrumental passages.
+
+When your layout has a **matrix** (a model whose name contains "matrix"), the brief can put lyric
+lines on it as captions: a `key_moments` entry with `kind: "lyric"` and the line as `text`. Code
+snaps each caption to the aligned lyric line that matches, and drops one that matches nothing
+(never a guessed time). At most 4 captions, at least 20 s apart, one per section, never in the
+peak section. Text rides on top in the section's lightest color with the matrix's background
+dimmed underneath.
+
+## Video for the centerpiece matrix
+
+`/xlo:video` writes a **storyboard** for the high-resolution video matrix: a short film that tells
+the song's story while the rest of the display plays the lights. It never touches xLights.
+
+1. `xlo video-plan --plan-only` decides, from the brief and the analysis, which sections are
+   **filmed** (generated video clips: 8 s each, about 10 a day) and which are **procedural**
+   (rendered by code: snow, embers, window light, fog, geometry, slow drift over a still; free, any
+   length, but no people, faces, hands or animals). The climax, sections carrying lyric hooks and
+   the opening rank highest; returning sections (chorus, refrain) share one filmed asset.
+2. Claude writes `video_story.json` under the `xlo-video` skill: a logline, recurring motifs (a
+   proxy object carries a character through procedural beats), and exactly one beat per section,
+   written for its medium, with a `procedural_stand_in` on every beat. No time fields, no on-screen
+   text, nothing that depicts the light display.
+3. `xlo video-plan --matrix-size 1024x768` validates the story, times each beat to the brief's
+   section cuts on the beat grid, splits long filmed shots on downbeats, assigns the sung lyrics,
+   and writes `video_script.json`, `video_script.md` and `media_plan.json`.
 
 | Flag | Effect |
 | --- | --- |
-| `--matrix-size WxH` | (required) the video matrix resolution. Never guessed — the command refuses without it. |
+| `--matrix-size WxH` | (required for the full run) the matrix resolution. Never guessed. |
+| `--veo-clips N` | the campaign clip budget the plan may assume will be filmed (default: one day's quota). |
+| `--no-veo` | an all-procedural film. |
+| `--filmed-sections I,J` | sections to film first; the rest of the budget is spent by value. |
+| `--max-shot-s N` | filmed clip length override (default 8 s × 1.2 retime). Procedural shots never split. |
 | `--frame-ms N` | sequence frame interval (default 50 → 20 fps). |
-| `--veo-clips N` | the **campaign** clip budget the story may assume will be filmed (default: one day's quota, 10). |
-| `--no-veo` | plan an all-procedural film (budget 0). Free, and the whole film exists. |
-| `--filmed-sections I,J` | pin sections to film first; the rest of the budget is spent by value. Refuses if the pins don't fit. |
-| `--max-shot-s N` | override the filmed clip length (default 8 s × 1.2 retime = 9.6 s). Procedural shots are never split. |
+| `--allow-inherit` | accept a story missing some beats (they hold the previous beat). |
 
-Output, in the song's cache directory: `video_script.md` (read this), `video_script.json` and
-`media_plan.json` (hand these to the renderers). The story is built from the lyrics, narrative, themes
-and featured lines; the agent is deliberately **not** shown the lights' per-section descriptions, so
-the film tells its own story instead of re-describing the house. Shots are cut on the same section
-boundaries as the lights, and every timestamp comes from the cached beat grid, not the model.
-
-### Two media, planned before the story is written
-
-The film has two renderers. **Filmed** sections are generated by Veo through the Gemini API: 8-second
-clips, about 10 a day, priced per second — 80 seconds of film a day against songs of 160–260 s.
-**Procedural** sections are rendered by code (snow, embers, window light, moon, fog, geometry, slow
-drift over a still): free, any length, frame-exact at 20 fps, and unable to draw people, faces, hands
-or animals.
-
-Because a beat written for film loses its subject when downgraded, while a procedural beat films fine,
-the **media plan comes first**, deterministically, from cached structure: the climax, sections carrying
-featured lines, the opening and energy raise a section's value; returning sections (chorus, pre-/post-
-chorus, refrain — never verses) form one **asset** that spends its clips once; assets are filmed by value until the next would exceed the
-campaign budget. The Videographer then writes every beat *for* its medium — filmed beats may use
-people and real places and must also give a one-sentence `procedural_stand_in`; procedural beats use
-the procedural vocabulary, and a word-list lint sends a beat that names a person back for one rewrite.
-Characters are carried through procedural beats by a **proxy object** motif (the lantern for the hands
-that hold it).
-
-Two numbers are deliberately separate. The campaign budget (`--veo-clips`) decides *which* sections
-are filmed and never changes day to day. The **Veo ledger** — `veo_ledger.jsonl` at the cache root, one
-line per generated clip, counted per day in `video.veo.quota_reset_tz` — decides how many of the
-planned assets are *renderable today*; the plan carries a **promote order** so a renderer spends each
-day's quota on the next most valuable asset while the rest play their stand-ins. Quota, clip length,
-retime and prices live in `models/config.yaml` under `video:`; the plan's Veo spend reads "unpriced"
-until `per_second_usd` is filled in.
-
-Nothing renders yet: the Veo client (the ledger's only writer), the procedural renderer and the film
-assembly are follow-up changes that consume `media_plan.json`. Songs whose cache predates
-`song_analysis.json` need one `xlo run` first.
+The renderers (the clip generator, the procedural renderer, film assembly) are follow-up work that
+consumes `media_plan.json` and `video_script.json`.
 
 ## Tuning the show's voice
 
-Five hand-editable markdown files (repo root) — edits take effect on the next run, no code:
+Five hand-editable markdown files at the repo root. The skills tell Claude which to read for which
+decision, and the cookbooks are also read by the deterministic layers, so an edit takes effect at
+the next `/xlo:design` (and, for the cookbooks, the next `xlo realize`). No code changes.
 
 | File | Shapes |
 | --- | --- |
-| `xlights-sequencing-guide.md` | musical best-practices injected into the Director/Generator/critics. |
+| `xlights-sequencing-guide.md` | musical best practices: phrasing, dynamics, the structure playbook, color. |
 | `xlights-effects-catalog.md` | the effect menu, energy bands, duration classes, placement rules. |
-| `xlights-layering-rendering-guide.md` | layering, blend modes, render-style (per-model vs group canvas). |
-| `xlights-scene-cookbook.md` | named multi-prop scene recipes the Director casts onto your groups. |
+| `xlights-layering-rendering-guide.md` | layering, blend modes, render styles. |
+| `xlights-scene-cookbook.md` | named multi-prop scene recipes a section casts with `scene_id` + `scene_cast`. |
 | `xlights-trigger-cookbook.md` | curated semantic accents (below). |
+
+The skills and commands themselves (`.claude/skills/xlo-*/SKILL.md`, `.claude/commands/xlo/*.md`)
+are markdown too: change them to change how Claude designs, presents or reviews.
 
 ### The trigger cookbook
 
 `xlights-trigger-cookbook.md` defines **curated "when X happens, do Y" accents** placed sparingly
-over the show. Each trigger is a `## ` block of `- field: value` lines; a bad/unknown entry is
-skipped (logged), never fatal. Fields:
+over the show by `xlo realize`. The brief never lists triggers; it only steers the beat layer they
+sit on. Each trigger is a `## ` block of `- field: value` lines; an unknown entry is skipped and
+logged, never fatal. Fields:
 
-- **detector** — what finds the events: `drum_onsets` | `guitar_solo` | `lyric_color` | `instrument_entrance`
-- **effect** — the xLights effect (`Shockwave`, `Lightning`, `On`, …; `stem_default` maps per stem)
-- **render** — `per_model` (each prop, scaled to it) | `whole_house` (one gesture across the layout)
-- **groups** — per-model target pool: `rhythm` (arches/canes/mini-trees) | `accents` (snowflakes/spinners) | `focal`
-- **sections** — eligibility: `any` | `drum_prominent` | `sparse_beat` (strong beat, low overall energy) | `has_guitar_solo` | `peak`
-- **select** — `all` | `rotate` (only the top-energy subset of eligible sections — keeps it sparse)
-- **density** — events per selected section (`per_onset` = every qualifying hit, or a number)
-- **magnitude** — `any` | `top:<pct>` (only the strongest hits, e.g. `top:6`)
-- **color** — `anchor_alternate` (two contrast colors) | `lyric` | `section` | `fixed:<name>`
-- **direction** — `none` | `out` | `in` | `alternate` (for Shockwave, expand/collapse)
-- **enabled** — `true` | `false`
+- **detector**: what finds the events: `drum_onsets` | `guitar_solo` | `lyric_color` | `instrument_entrance`
+- **effect**: the xLights effect (`Shockwave`, `Lightning`, `On`, …; `stem_default` maps per stem)
+- **render**: `per_model` (each prop, scaled to it) | `whole_house` (one gesture across the layout)
+- **groups**: per-model target pool: `rhythm` (arches/canes/mini-trees) | `accents` (snowflakes/spinners) | `focal`
+- **sections**: eligibility: `any` | `drum_prominent` | `sparse_beat` (strong beat, low overall energy) | `has_guitar_solo` | `peak`
+- **select**: `all` | `rotate` (only the top-energy subset of eligible sections)
+- **density**: events per selected section (`per_onset` or a number)
+- **magnitude**: `any` | `top:<pct>` (only the strongest hits, e.g. `top:6`)
+- **color**: `anchor_alternate` (two contrast colors) | `lyric` | `section` | `fixed:<name>`
+- **direction**: `none` | `out` | `in` | `alternate` (for Shockwave, expand/collapse)
+- **enabled**: `true` | `false`
 
-Example — radiating shockwaves on the snowflakes/spinners on each drum hit, only in sparse
+Example: radiating shockwaves on the snowflakes/spinners on each drum hit, only in sparse
 strong-beat sections:
 
 ```markdown
@@ -356,68 +358,75 @@ strong-beat sections:
 - enabled: true
 ```
 
-Trigger accents render **on top, opaque** (they punch through the fabric) and survive the refine
-loop. Tuning is pure markdown: change `density`, `magnitude`, `groups`, `color`, or flip `enabled`.
+Trigger accents render **on top, opaque**: they punch through the fabric.
 
-## Model routing & cost
+## Degradations
 
-`packages/xlights-orchestrator/src/xlights_orchestrator/models/config.yaml` maps each agent **role**
-(director, generator, analyst, synthesizer, judge, visual_critic) to a model per provider. Defaults
-route the high-volume worker roles (generator, analyst) to a cheap tier and the judgment-heavy roles
-(director, synthesizer, judge, visual_critic) to a planner tier. Switch provider with
-`XLO_PROVIDER`; change individual roles by editing the YAML.
+Best-effort enrichments (lyrics, stems, the group probe, render-order view, coverage sampling,
+timing tracks, media staging) fail gracefully, but never silently: each stage ends with a summary
+of what it lost, printed to stderr after its own summary. Reading one: `audio:stems` plus a QA run
+with no coverage series explains "the show looks off and QA looked fine". The keys you are most
+likely to see:
 
-Cost levers already in place: the Generator prompt carries trimmed guide extracts (not the full
-guides), the refine loop stops on a plateau, and cheap tiers handle the bulk of calls. A full
-refined run is a few-minutes / modest-token operation.
+| Key | Meaning |
+| --- | --- |
+| `audio:lyrics` | lyric fetch/alignment failed → no timed lines (no lyric sections, faces or captions) |
+| `audio:stems` | stem separation failed → no per-section instruments or stem triggers |
+| `audio:instrumental-refine` | instrumental section subdivision failed |
+| `groups:probe` | the targetability probe failed → the full group list is used |
+| `emit:view` | the render-order view wasn't loaded → default view |
+| `generate:triggers` | one or more trigger detectors failed |
+| `qa:coverage-blind` | coverage sampling failed → QA can't see darkness |
+| `finalize:media` | the show folder / audio staging was unavailable |
+| `finalize:timing-tracks` | timing tracks couldn't be patched into the `.xsq` |
+| `finalize:xsq-patch` | the offline `.xsq` patch failed |
 
-### Token & cost telemetry
-
-Every run captures the tokens each role spends (PydanticAI's per-run usage) into a run-scoped
-collector and prices them from a `pricing:` table in `config.yaml` (USD per 1M tokens, keyed by bare
-model id; Claude rows are real, Gemini rows are TODO). Telemetry is **best-effort** — it can never
-break a run.
-
-- **`usage.json`** — written under `data/orchestrator/<song_key>/usage.json` for *every* run
-  (including non-refine and fully-cached runs). A list of runs keyed by `run_id`, each with the
-  `provider`, per-role `models`, per-role `usage_total`, and `cost_usd`.
-- **Revision-log fields** — each `revision_log.jsonl` iteration record carries `usage` (the per-role
-  tokens spent producing *that* iteration — a delta window); the finalize record additionally carries
-  `usage_total` (whole-run per-role totals) and `cost_usd`. The finalize `revision_log.md` line shows
-  a `**Tokens:** … · $2.41` tail.
-- **None-vs-zero convention** — `cost_usd: null` means **unknown** (some used model has no price row);
-  `0.0` means **genuinely zero** (a fully-cached, zero-LLM run). They are never conflated: an unpriced
-  model makes the whole run's cost `null`, never a guessed number.
-- **Re-pricing** is a data change: edit `pricing:` in `config.yaml`; no code change needed.
-
-### Kill switches / env knobs
-
-- `XLO_FSEQ_METRICS=0` — disable the deterministic rendered-pixel fseq metrics (I8 Tier 0); coverage
-  falls back to the 3-point sampler. `1`/unset enables them (advisory-first).
-- `XLO_REFINE_SKIP_OBJECTIVE=<N>` — skip the refine loop when the first-pass objective ≥ N.
+> **Project convention:** every new best-effort `except` block must log (at least DEBUG), record a
+> `degradations.note(...)`, or re-raise; never a silent `pass`. `tests/test_log_audit.py` enforces
+> it.
 
 ## Troubleshooting
 
-- **"No LLM key found"** — set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` in `.env`.
-- **Connection error / `XLightsConnectionError`** — xLights isn't running or the automation listener is off (Preferences → enable the xFade/REST port).
-- **`CleanSlateRequired`** — a sequence is open in xLights; close it before generating.
-- **Sequence opens as Animation with no audio** — that's an intermediate; the finished `.xsq` is patched to Media at finalize. If you opened a copy before finalize, reopen it. (The offline patch happens after the pipeline closes the sequence.)
-- **Timing tracks / SEM_ groups missing** — they're written to the `.xsq` / `rgbeffects.xml` offline; reopen the sequence / restart xLights to load them.
-- **Stems skipped** — demucs/torch not installed; per-stem features (instrument triggers, prominence) degrade gracefully.
-- **429 / spend cap** — provider billing; switch `XLO_PROVIDER` or top up.
-- **`exportVideoPreview` fails on an absolute path** — xLights is sandboxed; preview filenames must be bare names that land in its container (the pipeline already does this).
+- **xLights not running** (connection error from `groups`, `apply` or `finalize`): start xLights
+  and enable the automation listener (Preferences → Output → xFade port). `/xlo:analyze` carries on
+  without the group probe; design needs it.
+- **`apply refused`**: xLights couldn't give a clean slate (an open sequence it couldn't close).
+  Close it in xLights and run `xlo apply` again.
+- **xLights crashed during apply**: restart it and run the same `xlo apply`. Nothing is lost:
+  `instructions.json` is on disk and apply always starts from a clean slate.
+- **Target-missing skips** in `applied.json` (`XLightsTargetMissing`): the brief named a group
+  xLights won't place on (often a stale or nested group). Swap it for a same-role group from
+  `vocab.json` and re-run validate → realize → apply. If whole families are missing, re-run
+  `xlo groups` (the probe is cached per layout) or `/xlo:init-layout`.
+- **Validation errors**: read `validation.json`; each error has the JSON `path` and, for names,
+  the `allowed` list. `xlo realize` refuses until it is clean. Warnings never block.
+- **Exit 2 `missing <file>: run xlo <stage> first`**: run the stage it names (for
+  `creative_brief.json`, run `/xlo:design`).
+- **No `.fseq` for stills** (`no rendered .fseq … run: xlo apply --render`): the last apply didn't
+  render. Run `xlo apply --render`, then `xlo stills`. Use the same `--name` throughout if you
+  named the sequence. Stills and coverage QA also need the `preview` extra and a known show folder
+  (from `xlo groups`, or `--show-folder`).
+- **The sequence plays with no audio**: apply builds it without media on purpose (setting media
+  live hangs xLights); `xlo finalize` patches the audio in. Reopen the finalized `.xsq`.
+- **Timing tracks / SEM_ groups missing**: both are written offline; reopen the sequence / restart
+  xLights to load them.
+- **Stems skipped**: demucs isn't installed (the core package's `stems` extra) or it failed;
+  per-stem features degrade gracefully.
+- **Exports to absolute paths fail**: xLights is sandboxed; the stages already use bare names that
+  land in its container.
 
 ## Development
 
 Work is structured as [OpenSpec](https://github.com/openspec) changes: propose → design → spec →
 build → live-verify → archive, one feature per change, landed via pull request. Archived changes
-(~50) live in `openspec/changes/archive/` and are the project's design history.
+live in `openspec/changes/archive/` and are the project's design history.
 
 ```bash
-pytest                 # hermetic unit tests — no live xLights, no LLM/network calls
+pytest                 # hermetic unit tests: no live xLights, no network
 pytest -m live         # opt-in smoke tests against a running xLights
 ```
 
-Conventions: code-owns-realization / LLM-owns-judgment; deterministic layers are hermetically
-tested; anything perceptual (does an effect *read* on the props) is verified by a live render and,
-ideally, a human watch — pixel counts and objective scores don't capture "looks good."
+Conventions: Claude owns judgment, code owns realization; every deterministic layer is
+hermetically tested (the golden fixture brief, the fabric canary); anything perceptual (does an
+effect *read* on the props) is verified by a live render and a human watch. Pixel counts and QA
+scores don't capture "looks good".

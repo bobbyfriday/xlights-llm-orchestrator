@@ -9,19 +9,19 @@
 - [x] 1.7 Add the dark-mid-energy and static-section findings to `qa` (over the `.fseq` series via `fseq_metrics`; neutral when no series); write `qa.json` with `section_index` + plain-language fix per finding; tests on a synthetic series
 - [x] 1.8 Add `pipeline/stills.py`: per-section PNG from the compiled `.fseq` + layout geometry (reuse `xlights_core.preview`), at the section's energy peak or midpoint; skip with a message when no `.fseq`; test with the preview fixture
 - [x] 1.9 Remove the `models=` namespace from `cache.cache_path`; delete `models_fingerprint`/`FINGERPRINT_EXEMPT_ROLES`; point brief/instructions/stills/video paths at the flat song dir; test that old namespaced dirs are not read
-- [ ] 1.10 Rewrite `cli.py` with subcommands `analyze` (analysis + lyrics + digest), `groups` (vocab + schema), `validate-brief`, `realize`, `apply` (`--render`, writes `applied.json`), `qa`, `stills`, `finalize --name`, `video-plan`, `cache-rename`; each takes `--song`/`--cache`, exits non-zero naming a missing prerequisite; keep `run`/`regen`/`report`/`ab`/`edit-brief`/`init-layout` registered for PR 3
-- [ ] 1.11 Thread `apply` through the existing `effect_emitter.apply_instructions` (clean slate + additive emit) and record per-instruction outcomes in `applied.json`
+- [x] 1.10 Rewrite `cli.py` with subcommands `analyze` (analysis + lyrics + digest), `groups` (vocab + schema), `validate-brief`, `realize`, `apply` (`--render`, writes `applied.json`), `qa`, `stills`, `finalize --name`, `video-plan`, `cache-rename`; each takes `--song`/`--cache`, exits non-zero naming a missing prerequisite; keep `run`/`regen`/`report`/`ab`/`edit-brief`/`init-layout` registered for PR 3
+- [x] 1.11 Thread `apply` through the existing `effect_emitter.apply_instructions` (clean slate + additive emit) and record per-instruction outcomes in `applied.json`
 - [x] 1.12 Make `build_timing_tracks` and `resolve_beats_per_bar` accept the brief's sections directly (brief=None path) so `finalize` works without a `MusicBrief`; test the no-MusicBrief path
-- [ ] 1.13 Add `tests/test_cli_stages.py` exercising each stage command with a fake client over the golden fixture dir (missing-prerequisite exits, file outputs, byte-identical `realize`)
-- [ ] 1.14 Verify on an existing cached song: `xlo groups && xlo validate-brief && xlo realize` over the cached brief reproduces the golden properties; run `scripts/measure_fabric.py` before/after and record the fabric stats in the PR
+- [x] 1.13 Add `tests/test_cli_stages.py` exercising each stage command with a fake client over the golden fixture dir (missing-prerequisite exits, file outputs, byte-identical `realize`)
+- [x] 1.14 Verify on an existing cached song: `xlo groups && xlo validate-brief && xlo realize` over the cached brief reproduces the golden properties; run `scripts/measure_fabric.py` before/after and record the fabric stats in the PR
 
 ## 2. PR 2 — Skills, commands, and docs (used on at least one real song)
 
-- [ ] 2.1 Write `.claude/skills/xlo-sequencing/SKILL.md` pointing at the sequencing guide, effects catalog, and layering guide, stating which to read for which decision (vocabulary, placement rules, render styles)
-- [ ] 2.2 Write `.claude/skills/xlo-scenes/SKILL.md` for the scene and trigger cookbooks (when to cast a scene, how `scene_adaptation` maps archetypes to groups)
-- [ ] 2.3 Write `.claude/skills/xlo-layout/SKILL.md` for the layout semantics spec, the manifest, SEM_ groups, and `layout_overrides.json`
-- [ ] 2.4 Write `.claude/skills/xlo-brief/SKILL.md`: every `ShowPlan`/`SectionPlan` field in plain terms, the treatment table, the fabric knobs and their defaults, a complete worked section, the validate-fix loop, and how to split a section for time-range feedback
-- [ ] 2.5 Write `.claude/skills/xlo-video/SKILL.md` from the videographer prompt (story rules, no time fields, `video_story.json` shape)
+- [x] 2.1 Write `.claude/skills/xlo-sequencing/SKILL.md` pointing at the sequencing guide, effects catalog, and layering guide, stating which to read for which decision (vocabulary, placement rules, render styles)
+- [x] 2.2 Write `.claude/skills/xlo-scenes/SKILL.md` for the scene and trigger cookbooks (when to cast a scene, how `scene_adaptation` maps archetypes to groups)
+- [x] 2.3 Write `.claude/skills/xlo-layout/SKILL.md` for the layout semantics spec, the manifest, SEM_ groups, and `layout_overrides.json`
+- [x] 2.4 Write `.claude/skills/xlo-brief/SKILL.md`: every `ShowPlan`/`SectionPlan` field in plain terms, the treatment table, the fabric knobs and their defaults, a complete worked section, the validate-fix loop, and how to split a section for time-range feedback
+- [x] 2.5 Write `.claude/skills/xlo-video/SKILL.md` from the videographer prompt (story rules, no time fields, `video_story.json` shape)
 - [ ] 2.6 Write `.claude/commands/xlo/analyze.md`, `design.md`, `realize.md`, `apply.md`, `review.md`, `finalize.md`, `video.md`, `init-layout.md`, `show.md` per design D8 (which skills to load, which `xlo` commands to run, which files to read, what to present, where to pause)
 - [ ] 2.7 Make one real show end-to-end in a Claude Code session on the branch; capture what the skills got wrong and fix the skill/command text
 - [ ] 2.8 Rewrite `README.md` and `docs/usage.md` around the command flow; update `docs/architecture/` and its diagrams; update `.env.example` (drop LLM keys, keep `GENIUS_ACCESS_TOKEN`, `XLO_CACHE_DIR`)

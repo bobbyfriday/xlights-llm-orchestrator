@@ -9,8 +9,11 @@ exactly the legacy sync+placement mean.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from ..refine import QAReport
-from . import coverage, fseq_metrics, musicality, placement, rules, sync, variety
+from . import coverage, fseq_metrics, musicality, placement, rules, sync, variety, visual
 
 
 def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
@@ -39,6 +42,9 @@ def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
             s_cov, f_cov = coverage.evaluate(plan, sampler)
             subscores["coverage"] = s_cov
             findings += f_cov
+        # advisory visual judgments (dark mid-energy / static section) — findings only, no score
+        findings += visual.evaluate(plan, fseq_series,
+                                    repetition_map=repetition_map or _repetition_map(plan))
     elif sampler is not None:                    # rendered eyes available → coverage gates too
         s_cov, f_cov = coverage.evaluate(plan, sampler)
         subscores["coverage"] = s_cov
@@ -55,10 +61,31 @@ def evaluate(instructions, analysis, plan, applied, groups, *, sampler=None,
     )
 
 
+def write_qa(song_dir, report: QAReport) -> Path:
+    """Write ``qa.json`` under the song's cache dir: the ``QAReport`` dump plus a top-level
+    ``summary`` of finding counts per severity (``info``/``warn``/``error``, and ``total``).
+
+    Findings are dumped individually so subclass fields (``visual.VisualFinding.fix``) survive —
+    ``QAReport.findings`` is typed ``list[Finding]`` and a model dump would narrow to the base."""
+    song_dir = Path(song_dir)
+    song_dir.mkdir(parents=True, exist_ok=True)
+    data = report.model_dump()
+    data["findings"] = [f.model_dump() for f in report.findings]
+    summary = {"info": 0, "warn": 0, "error": 0}
+    for f in report.findings:
+        summary[f.severity] = summary.get(f.severity, 0) + 1
+    summary["total"] = len(report.findings)
+    data["summary"] = summary
+    path = song_dir / "qa.json"
+    path.write_text(json.dumps(data, indent=1, ensure_ascii=False))
+    return path
+
+
 def _repetition_map(plan):
     """Best-effort repetition_map (label -> section indices) from the plan/brief, for rhyme."""
     rm = getattr(plan, "repetition_map", None)
     return rm if isinstance(rm, dict) else None
 
 
-__all__ = ["evaluate", "coverage", "fseq_metrics", "musicality", "rules", "sync", "variety", "placement"]
+__all__ = ["evaluate", "write_qa", "coverage", "fseq_metrics", "musicality", "rules", "sync",
+           "variety", "placement", "visual"]

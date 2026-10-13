@@ -33,8 +33,10 @@ async def finalize_sequence(st: State, *, client, save_as: str, media, show_fold
             note("finalize:xsq-patch", f"render-order patch reported no change for {xsq}",
                  stage="finalize", level=logging.DEBUG)
         if xsq and timing_tracks:             # reference grid for hand-editing (best-effort)
+            # Sections come from the creative brief's SectionPlans; `st.music_brief` is normally
+            # None (interpretation happens in conversation) and only adds a legacy override.
             tracks = build_timing_tracks(
-                st.song_analysis, st.music_brief,
+                st.song_analysis, getattr(st, "music_brief", None),
                 fallback_sections=st.show_plan.sections if st.show_plan else None)
             if patch_xsq_timing_tracks(xsq, tracks):
                 log.info("added %d reference timing tracks to %s", len(tracks), xsq)

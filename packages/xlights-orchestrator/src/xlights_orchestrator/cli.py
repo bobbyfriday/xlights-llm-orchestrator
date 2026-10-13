@@ -170,7 +170,7 @@ def _edit_brief(args) -> None:
     if args.brief:
         brief = Path(args.brief)
     elif args.song:
-        brief = _cache_path(_song_key(args.song), "creative_brief", models=True)
+        brief = _cache_path(_song_key(args.song), "creative_brief")
     else:
         raise SystemExit("edit-brief needs --song or --brief")
     if not brief.exists():

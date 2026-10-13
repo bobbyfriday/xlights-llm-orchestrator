@@ -13,7 +13,8 @@ Controlled conditions:
   - the A/B manifest (`ab_runs.json`) is written INCREMENTALLY after each completed run, so an
     interrupted A/B keeps the data for the runs that finished.
 
-Cache isolation is handled by the model-fingerprinted cache namespacing (see cache.py); the
+The stage cache is flat (see cache.py), so arms SHARE cached LLM-stage artifacts: a cached
+brief from arm A is reused by arm B. Run against a cold song dir for a fair comparison. The
 shared `revision_log.jsonl` accumulates every arm's run, distinguished by `run_id` + `models` —
 exactly what F-G's `summarize_run` groups by. Statistical honesty: report medians + min–max
 ranges (never single numbers); "indistinguishable when ranges overlap"; no significance tests v1.
@@ -111,7 +112,7 @@ def preflight_keys(arms: list[ArmSpec]) -> None:
 
 async def run_arm(song, arm: ArmSpec, *, client, analysis, save_as, run_pipeline, **kw):
     """Run one arm in-process under its routing. Injects the shared ``analysis`` so the audio is
-    analyzed once; the model-fingerprinted cache keeps this arm's LLM artifacts separate."""
+    analyzed once; the flat cache (cache.py) is shared across arms."""
     with arm_env(arm):
         return await run_pipeline(str(song), client=client, save_as=save_as,
                                   analyze=lambda _p: analysis, **kw)

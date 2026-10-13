@@ -47,9 +47,13 @@ skills and commands under `.claude/`:
 ## Quickstart
 
 ```bash
-uv sync --all-packages --extra preview       # or: pip install -e packages/*
+uv sync --all-packages --extra audio --extra preview   # audio = xlo analyze, preview = stills
 cp .env.example .env                         # optional GENIUS_ACCESS_TOKEN for lyrics
 ```
+
+A plain `uv sync` installs the `xlo` CLI and every stage from `groups` through `finalize`; only
+audio analysis (`xlo analyze`, the `audio` extra) and the rendered previews (`xlo stills` and
+rendered-coverage QA, the `preview` extra) need more. No model API key is needed anywhere.
 
 With xLights running (automation listener on) and your layout's `SEM_` groups built once
 (`/xlo:init-layout`, see the docs), open Claude Code in this repo and run:

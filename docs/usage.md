@@ -27,14 +27,18 @@ session for the creative work, and the deterministic `xlo` stage commands for ev
 A [uv](https://docs.astral.sh/uv/) workspace; Python 3.11+.
 
 ```bash
-uv sync --all-packages --extra preview     # preview = stills + rendered-coverage QA
+uv sync --all-packages --extra audio --extra preview   # everything a show needs
 # or:
 python -m venv .venv && . .venv/bin/activate
-pip install -e packages/xlights-core -e packages/xlights-mcp -e "packages/xlights-orchestrator[preview]"
+pip install -e "packages/xlights-core[audio]" -e packages/xlights-mcp -e "packages/xlights-orchestrator[preview]"
 ```
 
-Optional extras on `xlights-core`: `audio` (VAMP/librosa), `lyrics` (CMU dictionary for accurate
-singing-face phonemes), `stems` (demucs-mlx, Apple Silicon) or `stems-torch` (PyTorch demucs).
+A plain `uv sync` is enough for the `xlo` CLI and the stages from `groups` through `finalize`
+(brief validation, realize, apply, QA over the instructions, finalize, video planning). The extras
+add: `audio` (VAMP/librosa — `xlo analyze`), `preview` (numpy/zstandard/pillow — `xlo stills` and
+the rendered-coverage QA findings). Further extras on `xlights-core`: `lyrics` (CMU dictionary for
+accurate singing-face phonemes), `stems` (demucs-mlx, Apple Silicon) or `stems-torch` (PyTorch
+demucs). Nothing calls a model API, so there is no API key to set.
 
 System deps:
 - **ffmpeg**: audio patching at finalize, preview clips.
@@ -97,7 +101,7 @@ the song from earlier in the conversation, or ask.
 | `/xlo:review` | `xlo stills` + `xlo qa` (when rendered), then `validate-brief`, `realize`, `apply` | stills PNGs, `qa.json` | Asks what you saw, turns it into brief edits, re-applies the whole show, summarizes what changed. **Waits.** One round per invocation; there is no automatic critique loop. |
 | `/xlo:finalize` | `xlo finalize --name <seq>` | | Reports the `.xsq` path and that audio and timing tracks were patched in. |
 | `/xlo:video` | `xlo video-plan --plan-only`, then `xlo video-plan --matrix-size WxH` | `media_plan.json`, `video_script.md` | Loads `xlo-video`; writes `video_story.json` for the planned media; presents the storyboard. |
-| `/xlo:init-layout [show folder]` | `xlo init-layout --dry-run`, then (on your word) `xlo init-layout` | `layout_review.json` when present | Loads `xlo-layout`; classifies the unresolved props into `layout_overrides.json`; shows the membership diff. **Waits** before the write. |
+| `/xlo:init-layout [show folder]` | `xlo init-layout --dry-run`, then (on your word) `xlo init-layout` | `layout_review.json` | Loads `xlo-layout`; classifies the unresolved props into `layout_overrides.json`; shows the membership diff. **Waits** before the write. |
 | `/xlo:show <mp3>` | the four above in order | | Pauses after the brief and after apply. |
 
 The skills in `.claude/skills/` are the knowledge the commands load:
@@ -164,8 +168,8 @@ stage can be re-run on its own and a session can pick up where the last one stop
 
 Outside the song dir: the targetable-groups probe caches per layout under
 `$XLO_CACHE_DIR/orchestrator/`; stems sit beside the analysis; `layout_semantics.json` and
-`layout_overrides.json` live in the xLights show folder (`layout_review.json` too, when
-`init-layout` writes one). The saved `.xsq` and `.fseq` land in the show folder.
+`layout_overrides.json` live in the xLights show folder, as does `layout_review.json` (written by
+`init-layout --dry-run`). The saved `.xsq` and `.fseq` land in the show folder.
 
 Old caches from before readable names (bare hashes) still resolve; `xlo cache-rename --songs DIR`
 previews the renames and `--apply` performs them. Caches from the earlier agent pipeline keep
@@ -238,17 +242,23 @@ position, written into `xlights_rgbeffects.xml` once.
 Run `/xlo:init-layout /path/to/show` in Claude Code, or by hand:
 
 ```bash
-xlo init-layout --show-folder /path/to/show --dry-run    # preview the membership diff, write nothing
+xlo init-layout --show-folder /path/to/show --dry-run    # membership diff + layout_review.json; layout untouched
 xlo init-layout --show-folder /path/to/show              # write (xLights must be CLOSED)
 ```
 
 1. **Analyze**: every model in the default preview gets a role from DisplayAs, tree pixel count,
    name heuristics and your own group names; then bands, sides, sweep order, mirror pairs and focal
    flags (`--invert-x` if your preview is mirrored).
-2. **Resolve the tail**: props the rules can't place are left for review. In `/xlo:init-layout`,
-   Claude classifies them using the `xlo-layout` skill (asking you about any it can't justify) and
-   writes `layout_overrides.json` in the show folder: `{"Prop Name": {"role": "OUTLINE"}}`. An
-   override is a human decision and always wins. By hand, `--yes` accepts the suggestions instead.
+2. **Resolve the tail**: props the rules can't place are left for review. `--dry-run` lists them
+   in `layout_review.json` in the show folder (name, DisplayAs, node count, position, your group
+   names, the current guess and the candidate roles). In `/xlo:init-layout`, Claude classifies
+   them using the `xlo-layout` skill (asking you about any it can't justify) and writes
+   `layout_overrides.json` in the show folder: `{"Prop Name": {"role": "OUTLINE"}}`. An override is
+   a human decision and always wins; the next run drops it from the review list. By hand, `--yes`
+   accepts the suggestions instead.
+   Exit codes: `--dry-run` exits 0 whether or not props still need review; the write exits 1 when
+   xLights is running, when there is no show folder / `xlights_rgbeffects.xml`, or when it wrote
+   the groups with props still unreviewed (0 otherwise).
 3. **Write**: the `SEM_` groups are created idempotently, your own groups untouched, a timestamped
    `.bak` taken. xLights must be **closed** (it rewrites the file from memory on exit); the command
    refuses while xLights answers its port. `/xlo:init-layout` stops for your go-ahead first.

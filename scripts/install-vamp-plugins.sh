@@ -110,6 +110,7 @@ build segmentino SEG_FLAGS \
 
 mkdir -p "$PREFIX"
 cp out/*.so "$PREFIX/"
+for so in out/*.so; do nm -D --defined-only "$so" | grep -q vampGetPluginDescriptor || { echo "$so exports no vampGetPluginDescriptor" >&2; exit 1; }; done
 for d in qm-vamp-plugins nnls-chroma segmentino; do
   cp "$d"/*.cat "$d"/*.n3 "$PREFIX/" 2>/dev/null || true
 done

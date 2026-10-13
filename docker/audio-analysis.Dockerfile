@@ -49,8 +49,10 @@ ARG STEMS_MODEL=htdemucs_6s
 ARG WHISPER_MODEL=small
 ENV XLO_STEMS_MODEL=${STEMS_MODEL} XLO_WHISPER_MODEL=${WHISPER_MODEL}
 RUN python -c "from demucs.pretrained import get_model; get_model('${STEMS_MODEL}')" \
-    && python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')" \
-    && python -c "from xlights_core.audio.extractors.vamp_host import check_required_plugins; check_required_plugins(); print('vamp plugins OK')"
+    && python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
+# Fail the build (with the dlopen reason) if the host can't see a required plugin.
+COPY docker/check_vamp.py /usr/local/bin/check_vamp.py
+RUN python /usr/local/bin/check_vamp.py
 # Models are baked in: never reach for the Hugging Face hub at run time.
 ENV HF_HUB_OFFLINE=1
 

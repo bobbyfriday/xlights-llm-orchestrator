@@ -1,20 +1,21 @@
-"""Schema-drift guard: frozen agent payloads must keep validating against the CURRENT models.
+"""Schema-drift guard: frozen cache payloads must keep validating against the CURRENT models.
 
-Each fixture in tests/fixtures/agent_payloads/ is a real, frozen artifact (see _harvest_payloads.py)
-representing one agent output_type or a persisted cache file. This test proves two things:
+Each fixture in tests/fixtures/cache_payloads/ is a real, frozen artifact (originally harvested
+from a golden run) of a model the stage commands persist or read back: the analysis, the creative
+brief (`ShowPlan` / `SectionPlan`), a section's effects, and the instructions cache. This test
+proves two things:
 
   1. Every frozen payload still `model_validate_json`s — a field renamed or made required-without-
-     default breaks deserialization of already-cached runs, and fails here.
+     default breaks deserialization of already-cached songs, and fails here.
   2. Each model's REQUIRED field set matches required_fields.json — so an *additive* required field
      fails even though the payload happens to include it (the payload alone can't catch that).
 
 FAILURE PROTOCOL (when this test goes red):
-  * If you renamed/removed/retyped a field: this would break every cached run. Prefer keeping the
+  * If you renamed/removed/retyped a field: this would break every cached song. Prefer keeping the
     old field as a backward-compatible field-with-a-default (additive, optional).
-  * If a new required field is genuinely necessary: it is a breaking cache change. Regenerate the
-    fixtures (`XLO_REGEN_PAYLOADS=1 python tests/_harvest_payloads.py`) AND the manifest (this test
-    rewrites it under XLO_REGEN_PAYLOADS=1), AND bump the cache key so stale caches don't shadow the
-    new shape — the run.py:390 precedent (`creative_brief` key bumped from `show_plan`).
+  * If a new required field is genuinely necessary: it is a breaking cache change. Update the
+    payload fixture by hand AND regenerate the manifest (this test rewrites it under
+    XLO_REGEN_PAYLOADS=1).
 """
 
 from __future__ import annotations
@@ -26,33 +27,19 @@ from pathlib import Path
 import pytest
 
 from xlights_core.audio import SongAnalysis
-from xlights_orchestrator.agents.visual_critic import VisualFindings
-from xlights_orchestrator.music_brief import (
-    HarmonyOut, LyricOut, MusicBrief, RhythmOut, StructureOut,
-)
-from xlights_orchestrator.refine import JudgeVerdict
-from xlights_orchestrator.revision_log import RevisionLogRecord
 from xlights_orchestrator.show_plan import (
     EffectInstruction, SectionEffects, SectionPlan, ShowPlan,
 )
 
-PAYLOADS = Path(__file__).parent / "fixtures" / "agent_payloads"
+PAYLOADS = Path(__file__).parent / "fixtures" / "cache_payloads"
 MANIFEST = PAYLOADS / "required_fields.json"
 
 # fixture file (stem) -> its model. `instructions` is validated item-wise separately.
 CASES = {
     "song_analysis": SongAnalysis,
-    "music_brief": MusicBrief,
     "show_plan": ShowPlan,
     "section_plan": SectionPlan,
     "section_effects": SectionEffects,
-    "structure_out": StructureOut,
-    "rhythm_out": RhythmOut,
-    "harmony_out": HarmonyOut,
-    "lyric_out": LyricOut,
-    "judge_verdict": JudgeVerdict,
-    "visual_findings": VisualFindings,
-    "revision_log_record": RevisionLogRecord,
 }
 
 # for the required-fields manifest, `instructions` maps to the per-item model
@@ -84,12 +71,12 @@ def test_required_fields_match_manifest():
     frozen = json.loads(MANIFEST.read_text())
     assert current == frozen, (
         "model required-fields changed vs the manifest. If intentional and additive-required, "
-        "regenerate: XLO_REGEN_PAYLOADS=1 python tests/_harvest_payloads.py (and bump the cache key)."
+        "regenerate the manifest: XLO_REGEN_PAYLOADS=1 pytest tests/test_schema_drift.py."
     )
 
 
 def test_all_output_types_have_a_payload():
-    """Guard the guard: every agent output_type / cache model in the manifest has a fixture."""
+    """Guard the guard: every cache model in the manifest has a fixture."""
     have = {p.stem for p in PAYLOADS.glob("*.json")} - {"required_fields"}
     expected = set(CASES) | {"instructions"}
     missing = expected - have

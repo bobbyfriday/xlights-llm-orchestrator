@@ -2,7 +2,7 @@
 
 Reads artist/title from the audio file's tags (filename fallback), then fetches the
 lyric TEXT (untimed) from Genius. Any miss — no token, no tags, no match, network
-error, timeout — returns None and the panel simply runs without the lyric analyst.
+error, timeout — returns None and the analysis simply carries no lyrics.
 Word-level timing (forced alignment) is out of scope (a later enrichment).
 
 Retry asymmetry (I2): this module deliberately keeps ``lyricsgenius(retries=1)`` (Genius'
@@ -76,3 +76,29 @@ def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:
         from .degradations import note
         note("audio:lyrics", f"Genius fetch failed for {title!r}: {exc}", stage="analyze")
         return None
+
+
+def timed_lines(lyrics: dict) -> list[tuple[str, int, int]]:
+    """Best-effort (text, start_ms, end_ms) per lyric line from the untyped analysis lyrics dict
+    (`SongAnalysis.lyrics`): the digest, the timing tracks and the matrix captions all read it."""
+    out: list[tuple[str, int, int]] = []
+    if not isinstance(lyrics, dict):
+        return out
+
+    def _ms(v):
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return int(v * 1000) if v < 10000 else int(v)   # seconds vs already-ms heuristic
+
+    lines = lyrics.get("lines") or lyrics.get("synced") or []
+    for ln in lines if isinstance(lines, list) else []:
+        if not isinstance(ln, dict):
+            continue
+        text = ln.get("text") or ln.get("line") or ln.get("words")
+        start = _ms(ln.get("start", ln.get("start_ms", ln.get("time"))))
+        end = _ms(ln.get("end", ln.get("end_ms")))
+        if isinstance(text, str) and start is not None:
+            out.append((text.strip(), start, end if end is not None else start + 2000))
+    return out

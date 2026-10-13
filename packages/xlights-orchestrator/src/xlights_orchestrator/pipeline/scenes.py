@@ -25,8 +25,8 @@ from dataclasses import dataclass, field
 
 from xlights_core.knowledge.value_curves import brightness_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
-from ..agents.guide_extracts import scene_recipe
+from .catalog import candidate_look_ids, placeable_effect_types
+from .cookbook import scene_recipe
 from ..show_plan import BLEND_METHODS, EffectInstruction
 from .beats import effect_palette
 from .semantic_groups import (

@@ -92,7 +92,7 @@ async def apply_instructions(
     `outcomes` is one row per instruction, in order, with `placed: bool` and the skip `reason`
     (the `_SKIPPABLE` exception message, or the layer-budget note) — what `xlo apply` writes to
     `applied.json`. `render=False` skips the trailing `renderAll` (the `xlo apply --render`
-    switch; the default keeps today's behavior for `run`/`regen`).
+    switch; the default renders, as a plain emit always has).
     """
     # Clean slate: explicitly close any open sequence FIRST (quiet+force discards silently).
     # newSequence(force=True) alone is NOT enough — with unsaved changes open it pops a

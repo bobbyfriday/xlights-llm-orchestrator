@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from xlights_core.knowledge.colors import _brighten, _resolve, contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction
 from .beats import _downsample, effect_palette
 # SHOCKWAVE_SETTINGS lives in effect_meta (not here) to break the beats→triggers cycle.
@@ -337,9 +337,8 @@ def _one(spec, ev, idx, sec, si, pool, whole, anchors) -> EffectInstruction | No
     if ev.end_ms is None:
         colors = [_brighten(_resolve(c) or c) or c for c in colors]
         extra.update(brightness_setting(POP_BRIGHTNESS))
-    # section_index=None so the refine loop's replace_section (which strips a section's tagged
-    # instructions) does NOT delete these — triggers are deterministic global accents, not
-    # per-section LLM output to be revised. (Same pattern the old instrument_feature_layer used.)
+    # section_index=None: triggers are deterministic global accents, not a section's own rows
+    # (per-section QA and section splices leave them alone).
     return EffectInstruction(target=target, effect_type=eff, look_id=look,
                              palette_colors=colors, render_style=style, extra_settings=extra,
                              start_ms=int(start), end_ms=int(end), section_index=None,

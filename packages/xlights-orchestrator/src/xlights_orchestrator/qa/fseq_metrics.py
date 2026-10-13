@@ -2,8 +2,7 @@
 
 Given a per-group brightness/lit/motion series (``xlights_core.preview.FseqSeries``, computed from
 the exact channel data — not the projected preview), score each section on five families and emit
-scoped ``Finding``s. This is the *free, deterministic eyes* that run every refine iteration before
-any LLM critique.
+scoped ``Finding``s. These are the *free, deterministic eyes* `xlo qa` runs over a rendered show.
 
 Rollout is ADVISORY-FIRST (Decision 6): every finding ships ``objective=False`` until a calibration
 pass (task 2.6) flips coverage/motion/sync to objective; color/rhyme stay advisory (taste-adjacent).
@@ -25,9 +24,12 @@ from __future__ import annotations
 import logging
 import os
 
-import numpy as np
+from typing import TYPE_CHECKING
 
-from ..refine import Finding
+if TYPE_CHECKING:     # numpy is imported lazily: it only exists with the [preview] extra,
+    import numpy as np  # and only a rendered .fseq series (which needs it) reaches these
+
+from .findings import Finding
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +63,7 @@ def _restrict(sl: dict, keep: list[str] | None) -> dict:
 
 
 def _coverage(series, sections) -> tuple[float | None, list[Finding]]:
+    import numpy as np
     findings: list[Finding] = []
     scores: list[float] = []
     for i, sec in enumerate(sections):
@@ -91,6 +94,7 @@ def _coverage(series, sections) -> tuple[float | None, list[Finding]]:
 
 
 def _motion(series, sections) -> tuple[float | None, list[Finding]]:
+    import numpy as np
     findings: list[Finding] = []
     scores: list[float] = []
     for i, sec in enumerate(sections):
@@ -120,6 +124,7 @@ def _motion(series, sections) -> tuple[float | None, list[Finding]]:
 
 
 def _beat_impulses(analysis, series, n_frames: int) -> np.ndarray | None:
+    import numpy as np
     beats = getattr(analysis, "beats", None) or []
     if not beats or n_frames <= 1:
         return None
@@ -136,6 +141,7 @@ def _beat_impulses(analysis, series, n_frames: int) -> np.ndarray | None:
 
 
 def _sync(series, sections, analysis) -> tuple[float | None, list[Finding]]:
+    import numpy as np
     imp = _beat_impulses(analysis, series, series.frames)
     if imp is None:
         return None, []
@@ -175,6 +181,7 @@ def _sync(series, sections, analysis) -> tuple[float | None, list[Finding]]:
 
 def _section_signature(series, sec) -> np.ndarray | None:
     """A short brightness signature of a section (mean per-group brightness), for rhyme cosine."""
+    import numpy as np
     sl = series.section_slice(sec.start_ms, sec.end_ms)
     if not sl:
         return None
@@ -183,6 +190,7 @@ def _section_signature(series, sec) -> np.ndarray | None:
 
 
 def _rhyme_and_range(series, sections, repetition_map) -> tuple[dict, list[Finding]]:
+    import numpy as np
     subscores: dict[str, float] = {}
     findings: list[Finding] = []
     sigs = {i: _section_signature(series, s) for i, s in enumerate(sections)}

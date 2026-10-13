@@ -193,5 +193,5 @@ def test_back_compat_instruction_without_direct_settings():
 # -- guard rail: direct types never enter the LLM's free-choice menu -----------
 
 def test_direct_types_are_not_placeable():
-    from xlights_orchestrator.agents.catalog import placeable_effect_types
+    from xlights_orchestrator.pipeline.catalog import placeable_effect_types
     assert DIRECT_TYPES.isdisjoint(set(placeable_effect_types()))

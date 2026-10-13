@@ -229,9 +229,9 @@ All offline patches are best-effort and report a degradation rather than failing
 `xlo init-layout` classifies the layout's props deterministically (DisplayAs, node counts, names,
 the user's group names, geometry), applies the human decisions in the show folder's
 `layout_overrides.json`, and writes the `SEM_` groups into `xlights_rgbeffects.xml` (with xLights
-closed) plus the `layout_semantics.json` manifest. Props the rules can't place are left for
-`/xlo:init-layout`, where Claude classifies them under the `xlo-layout` skill into the overrides
-file and re-runs.
+closed) plus the `layout_semantics.json` manifest. Props the rules can't place are listed by
+`--dry-run` in `layout_review.json`; `/xlo:init-layout` has Claude classify them under the
+`xlo-layout` skill into the overrides file and re-run. There is no model fallback.
 
 ### The MCP server
 

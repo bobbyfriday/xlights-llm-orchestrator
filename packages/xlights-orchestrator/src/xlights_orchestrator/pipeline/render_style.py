@@ -1,7 +1,7 @@
 """Resolve an effect's xLights buffer/render style (`B_CHOICE_BufferStyle`).
 
-Render style is a CREATIVE choice — the Generator picks it per effect (it's injected with the
-layering guide). This module only validates that choice and provides a deterministic FALLBACK so an
+Render style is a CREATIVE choice made per effect (a cast scene row or a cell recipe can carry one).
+This module only validates that choice and provides a deterministic FALLBACK so an
 effect is never left on the unset (sparse group-canvas) default that caused the dark choruses.
 """
 

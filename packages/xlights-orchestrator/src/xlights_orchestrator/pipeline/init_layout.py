@@ -1,13 +1,18 @@
 """F-E slice 4 — the guided `xlo init-layout` flow (design decision 13).
 
-Seven steps: locate → analyze → review → plan+diff → write → validate → finish. Runs fully
-deterministically with no LLM key (steps 1–4) and does NOT require xLights running — it requires
-xLights CLOSED for the write step (the closed guard), because xLights rewrites rgbeffects.xml from
-memory on exit and would clobber an offline edit.
+Seven steps: locate → analyze → review → plan+diff → write → validate → finish. Fully
+deterministic, and does NOT require xLights running — it requires xLights CLOSED for the write
+step (the closed guard), because xLights rewrites rgbeffects.xml from memory on exit and would
+clobber an offline edit.
+
+The props the classifier cannot resolve are not guessed: `--dry-run` writes them to
+`layout_review.json` (show folder) with the features the classifier saw, Claude (the xlo-layout
+skill) or the user classifies them into `layout_overrides.json`, and the next run applies those as
+resolved (`_load_overrides` → `apply_overrides`).
 
 The heavy lifting lives in xlights-core (classify/derive/build/write/manifest) + the orchestrator's
-validate/LLM-fallback modules; this is the thin conductor, structured so the whole flow is
-hermetically testable by injecting `prompt`/`out` and stubbing the write/validate steps.
+validate module; this is the thin conductor, structured so the whole flow is hermetically testable
+by injecting `prompt`/`out` and stubbing the write/validate steps.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ import logging
 from pathlib import Path
 
 from xlights_core.knowledge.layout_classify import (
+    CANONICAL_ROLES,
     apply_overrides,
     classify,
     derive_spatial,
@@ -34,6 +40,7 @@ log = logging.getLogger(__name__)
 
 REVIEW_CONF = 0.8              # props below this go to the review queue (spec §3.5/§7.4)
 _OVERRIDES_NAME = "layout_overrides.json"
+REVIEW_NAME = "layout_review.json"
 
 
 # ------------------------------------------------------------------------------------------------
@@ -79,7 +86,7 @@ def _load_overrides(show_folder: Path) -> dict:
 
 def analyze_layout(rgb_path, *, invert_x: bool = False, overrides: dict | None = None) -> LayoutPlan:
     """Steps 1–4 (deterministic): parse → classify → apply overrides → derive spatial → build the
-    SEM_ plan + manifest → diff against the file. No LLM, no xLights."""
+    SEM_ plan + manifest → diff against the file. No xLights."""
     props = parse_props(rgb_path)
     result = classify(props)
     if overrides:
@@ -91,6 +98,48 @@ def analyze_layout(rgb_path, *, invert_x: bool = False, overrides: dict | None =
     diff = plan_diff(read_sem_groups(rgb_path), plan)
     review = list(manifest.review)
     return LayoutPlan(props, result, summary, plan, manifest, diff, review)
+
+
+def review_records(plan: LayoutPlan) -> list[dict]:
+    """One record per prop that still needs review: what the classifier observed (`name`,
+    `display_as`, `nodes`, world `pos` [x, y], the user `groups` it belongs to), its current guess
+    (`role`, `confidence`) and the closed role enum to choose from (`candidate_roles`). A review
+    name with no parsed prop carries its name only."""
+    by_name = {p.name: p for p in plan.props}
+    out: list[dict] = []
+    for name in plan.review:
+        p = by_name.get(name)
+        if p is None:
+            out.append({"name": name, "candidate_roles": list(CANONICAL_ROLES)})
+            continue
+        out.append({
+            "name": p.name,
+            "display_as": p.display_as,
+            "nodes": p.nodes,
+            "pos": [round(p.wx, 1), round(p.wy, 1)],
+            "groups": list(p.groups),
+            "role": p.role,
+            "confidence": p.confidence,
+            "candidate_roles": list(CANONICAL_ROLES),
+        })
+    return out
+
+
+def write_review(plan: LayoutPlan, show_folder: Path) -> Path:
+    """Write `layout_review.json` into the show folder (the cwd when the folder is not writable):
+    `{"overrides_file": ..., "props": [review_records…]}`. Always written by `--dry-run`, with an
+    empty `props` list once nothing is left to review, so a stale file never lingers."""
+    data = {"overrides_file": str(Path(show_folder) / _OVERRIDES_NAME),
+            "props": review_records(plan)}
+    text = json.dumps(data, indent=1, ensure_ascii=False)
+    for folder in (Path(show_folder), Path.cwd()):
+        path = folder / REVIEW_NAME
+        try:
+            path.write_text(text)
+            return path
+        except OSError as exc:
+            log.debug("could not write %s: %s", path, exc)
+    raise OSError(f"could not write {REVIEW_NAME} to {show_folder} or {Path.cwd()}")
 
 
 # ------------------------------------------------------------------------------------------------
@@ -186,7 +235,10 @@ def _terminal_ask(name, cur, choices):
 
 
 async def run_init_layout(args) -> int:
-    """The guided flow. Returns a process exit code (0 ok; 1 needs re-run / warning)."""
+    """The guided flow. Returns a process exit code: 0 = dry run done (whether or not props need
+    review) or groups written with nothing left to review; 1 = no show folder / no
+    rgbeffects.xml, xLights still running at write time, or groups written with props still
+    unreviewed."""
     from .cache import cache_root as _cache_root
 
     out = print
@@ -205,19 +257,6 @@ async def run_init_layout(args) -> int:
     out(f"Classified {len(plan.props)} props into {len(plan.plan)} SEM_ groups "
         f"({len(plan.review)} to review).")
 
-    # 2b. optional LLM fallback for the unresolved tail (skipped in --dry-run — deterministic only)
-    from ..config import has_llm_key
-    if (not getattr(args, "dry_run", False) and not getattr(args, "no_llm", False)
-            and has_llm_key() and plan.result.unresolved):
-        try:
-            from ..agents.layout_classifier import classify_tail
-            await classify_tail(plan.result.unresolved)
-            plan = analyze_layout(rgb, invert_x=getattr(args, "invert_x", False),
-                                  overrides=overrides)   # re-derive with resolved roles
-        except Exception as exc:  # noqa: BLE001 — the fallback is optional
-            log.debug("LLM classify fallback failed: %s", exc)
-            out(f"LLM fallback skipped: {exc}")
-
     # 3. review
     if plan.review and not getattr(args, "dry_run", False):
         review_queue(plan, ask=_terminal_ask, yes=getattr(args, "yes", False))
@@ -225,11 +264,13 @@ async def run_init_layout(args) -> int:
     # 4. plan + diff
     out("Membership diff vs the current file:\n" + format_diff(plan.diff))
 
-    # 5. dry-run stops here
+    # 5. dry-run stops here — the only file it writes is the review list
     if getattr(args, "dry_run", False):
-        out("(dry-run) no files written.")
+        review_path = write_review(plan, show_folder)
+        out(f"(dry-run) layout not written; review list: {review_path}")
         if plan.review:
-            out(f"WARNING: {len(plan.review)} props still need review.")
+            out(f"WARNING: {len(plan.review)} props still need review — classify them into "
+                f"{show_folder / _OVERRIDES_NAME} and re-run.")
         return 0
 
     # 5b. closed guard
@@ -256,7 +297,7 @@ async def run_init_layout(args) -> int:
     # 7. finish
     if plan.review:
         out(f"WARNING: manifest ships with {len(plan.review)} unreviewed props.")
-    out("Restart xLights to load the groups; the first `xlo run` will re-probe targetability.")
+    out("Restart xLights to load the groups; the next `xlo groups` will re-probe targetability.")
     return 1 if plan.review else 0
 
 

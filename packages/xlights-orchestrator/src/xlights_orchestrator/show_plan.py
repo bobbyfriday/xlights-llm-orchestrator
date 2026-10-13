@@ -109,7 +109,7 @@ def normalize_label(label: str) -> str:
 
 def repetition_map_from_labels(sections) -> dict[str, list[int]]:
     """Derive the repetition map (identity → recurring section indices) from the sections' own
-    `label` values — the brief-driven stand-in for the MusicBrief's analyst-written map. Only
+    `label` values — what the realization rhymes recurring sections on. Only
     identities with ≥ 2 occurrences are kept (a one-off has no rhyme partner); blank labels are
     ignored; key order follows first occurrence, so the result is deterministic."""
     by_label: dict[str, list[int]] = {}
@@ -147,7 +147,7 @@ class EffectInstruction(BaseModel):
     layer: int = 0
     start_ms: int
     end_ms: int
-    section_index: int | None = None   # which ShowPlan section produced it (for scoped regen/QA)
+    section_index: int | None = None   # which ShowPlan section produced it (for per-section QA)
     on_top: bool = False               # a punch-through accent (trigger): top layer, opaque,
                                        # exempt from the layer-budget clamp so it always shows
     source: str = Field(default="", exclude=True)   # I7: which realization layer emitted this row
@@ -206,7 +206,8 @@ class CompositeRecipe(BaseModel):
 
 
 class SectionEffects(BaseModel):
-    """Generator output for one section."""
+    """One section's designed effects: base rows (+ an optional weave / composites) that
+    `realize_section_effects` layers the deterministic realization over."""
 
     instructions: list[EffectInstruction]
     weave: SectionWeave | None = None        # cell recipes (additive; None → no woven fabric)

@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import logging
 
-import numpy as np
+from typing import TYPE_CHECKING
 
-from ..refine import Finding
+if TYPE_CHECKING:     # numpy is imported lazily: it only exists with the [preview] extra,
+    import numpy as np  # and only a rendered .fseq series (which needs it) reaches these
+
+from .findings import Finding
 from .fseq_metrics import COVERAGE_EXPECT, COVERAGE_FAIL, _restrict, _section_groups
 
 log = logging.getLogger(__name__)
@@ -50,6 +53,7 @@ class VisualFinding(Finding):
 def coverage_curve(series, sec) -> np.ndarray | None:
     """The section's per-frame lit fraction averaged over its target groups (all series groups
     when none of its targets are in the series). None when the series has nothing for it."""
+    import numpy as np
     sl = _restrict(series.section_slice(sec.start_ms, sec.end_ms), _section_groups(series, sec))
     curves = [d["lit"] for d in sl.values() if d["lit"].size]
     if not curves:

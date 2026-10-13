@@ -218,24 +218,6 @@ def _bytesio(b):
     return io.BytesIO(b)
 
 
-# spec §7.2 vision question + the known offline-confusion failure modes (advisory prompt).
-ROLE_COLOR_QUESTION = (
-    "This is a labeled contact sheet of a Christmas-light layout: each cell lights ONE role's props "
-    "at a distinct color, the rest dark. Does each colored region correspond to its labeled role? "
-    "Watch for known misclassifications: a mega tree confused for a mini tree (or vice versa), an "
-    "outline strand classified as a PATH, a dense Custom mesh that is really a matrix. Report only "
-    "clear mismatches; do not invent issues. Findings are advisory."
-)
-
-
-def build_role_color_critique(sheet_png: bytes, labels: list[str]):
-    """Build the advisory visual-critic payload (contact sheet + the §7.2 question). The CLI sends
-    this to agents/visual_critic when a key is present; findings are printed, never auto-mutating."""
-    from pydantic_ai import BinaryContent
-    return [ROLE_COLOR_QUESTION + "\nRoles shown: " + ", ".join(labels),
-            BinaryContent(data=bytes(sheet_png), media_type="image/png")]
-
-
 def _render_cell(renderer, frame_row, w, h):
     """Render one synthetic frame to a PIL image using the renderer's projection + this frame's
     channel values (bypasses the renderer's own loaded frames)."""

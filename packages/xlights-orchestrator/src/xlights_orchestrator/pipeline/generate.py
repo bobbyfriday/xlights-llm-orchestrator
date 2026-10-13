@@ -1,25 +1,16 @@
 """The generate stage: ShowPlan section directions -> placeable EffectInstruction[].
 
-The LLM generator designs each section (effects + a cell-weave recipe); deterministic
-code here realizes it — energy-gated coverage, palette/brightness/speed settings, the
-ensemble bed / peak fill, the woven cell fabric, beat accents, curated triggers, climax
-flashes and feature-prop contrast. Pulled out of run_pipeline so the orchestration hub
-reads as a stage skeleton; caching stays with the caller.
-
-Two entry points share ONE downstream body (`realize_section_effects`):
-  * `realize_section` / `generate_instructions` — the LLM Generator designs the section.
-  * `realize_section_from_brief` / `generate_instructions_from_brief` — LLM-free
-    (claude-driven-orchestration D3): base rows synthesized from the brief's effect types —
-    or, when the section names a cookbook scene, the scene's cast stack (`pipeline/scenes`) —
-    the weave from `weave_from_brief` (the brief's `fabric` knobs over the fallback fabric).
+Deterministic over the brief + analysis (claude-driven-orchestration D3): each section's base
+rows are synthesized from its effect types — or, when it names a cookbook scene, the scene's cast
+stack (`pipeline/scenes`) — and the weave comes from `weave_from_brief` (the brief's `fabric` knobs
+over the fallback fabric). `realize_section_effects` then layers energy-gated coverage,
+palette/brightness/speed settings, the ensemble bed / peak fill, the woven cell fabric, beat
+accents; `assemble_show` adds curated triggers, climax flashes, feature-prop contrast and the
+matrix narrative. Entry point: `generate_instructions_from_brief` (`xlo realize`).
 """
 
 from __future__ import annotations
 
-from .. import telemetry
-from ..agents import generator as generator_mod
-from ..agents.guide import load_guide
-from ..models.registry import run_agent
 from ..qa.rules import clamp_hard_caps, demote_offpeak_hits
 from ..show_plan import (
     EffectInstruction,
@@ -28,6 +19,8 @@ from ..show_plan import (
     SectionWeave,
     repetition_map_from_labels,
 )
+from .catalog import candidate_look_ids
+from .cookbook import load_guide
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
 
@@ -66,15 +59,12 @@ from .weave import (
     carrier_covers,
     counter_rotate_stacks,
     curated_composite,
-    diversify_carrier,
     expand_composite,
     expand_weave,
-    fallback_weave,
     label_seed,
     section_carrier,
     weave_from_brief,
 )
-from ..agents.catalog import candidate_look_ids
 
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
@@ -111,9 +101,9 @@ def _phrase_brightness(ins, shape: str, wash_b: float, bar_ms: float) -> dict[st
 
 # Treatment → which realization LAYERS are included (withheld, not merely dimmed). See design table.
 #   bed: "full" (energy bed / peak fill) | "dim" (a low ≤2-group bed) | "" (none)
-#   weave: True (the whole fabric) | "solo" (one carrier recipe, gesture) | False (withheld) — but on
-#   the BRIEF path an explicit `fabric.carrier` re-enables it under pulse (carrier + texture) and
-#   feature (the carrier cell alone): see _EXPLICIT_FABRIC_WEAVE. Absent fabric → this table.
+#   weave: True (the whole fabric) | "solo" (one carrier recipe, gesture) | False (withheld) — but
+#   an explicit `fabric.carrier` re-enables it under pulse (carrier + texture) and feature (the
+#   carrier cell alone): see _EXPLICIT_FABRIC_WEAVE. Absent fabric → this table.
 _TREATMENT_LAYERS: dict[str, dict] = {
     "full":    {"bed": "full", "weave": True,  "accents": "full",   "extras": True,  "feature": True,  "phrase": True},
     "pulse":   {"bed": "full", "weave": False, "accents": "full",   "extras": False, "feature": True,  "phrase": True},
@@ -122,7 +112,7 @@ _TREATMENT_LAYERS: dict[str, dict] = {
     "rest":    {"bed": "dim",  "weave": False, "accents": "none",   "extras": False, "feature": False, "phrase": False},
 }
 _SPARSE_TREATMENTS = ("feature", "gesture", "rest")   # not full/pulse → no reliable base bed
-# Brief path: a section whose `fabric.carrier` is set has ASKED for a fabric, so these treatments
+# A section whose `fabric.carrier` is set has ASKED for a fabric, so these treatments
 # weave it anyway — "full" = carrier + texture, "carrier" = the carrier cell only. rest stays off.
 _EXPLICIT_FABRIC_WEAVE = {"pulse": "full", "feature": "carrier"}
 _GESTURE_MAX_GROUPS = 2       # gesture/rest touch at most this many groups
@@ -135,7 +125,6 @@ def _dim_bed(section, available_groups: list[str], existing_targets, pal_offset:
     group is free or the section already beds it."""
     from .beats import effect_palette
     from .semantic_groups import BED_PREFERENCE
-    from ..agents.catalog import candidate_look_ids
     from xlights_core.knowledge.value_curves import brightness_setting
     target = next((g for g in BED_PREFERENCE
                    if g in (available_groups or []) and g not in (existing_targets or set())), None)
@@ -187,7 +176,6 @@ def _final_occurrence_layer(section, intensity: float, available_groups: list[st
     a bright sparkle pop on a dedicated accent prop group, in the section's lightest color, so the
     last chorus reads as the biggest. None when the layout has no accent prop group — the design's
     'when the layout has accent props' guard, keeping non-accent layouts unchanged."""
-    from ..agents.catalog import candidate_look_ids
     from .beats import _lightest_hex
     from xlights_core.knowledge.value_curves import brightness_setting
     from .tuning import FEATURE_PROP_BRIGHTNESS
@@ -295,28 +283,9 @@ def song_end_fade(st: State, instrs: list[EffectInstruction]) -> list[EffectInst
                                final_section_start_ms=final_start)
 
 
-async def realize_section(st: State, si: int, *, agent,
-                          revision=None) -> list[EffectInstruction]:
-    """The deterministic per-section realization — generator design → energy-gated coverage,
-    palette/brightness/speed, bed or peak fill, carrier-rotated weave, composite stacks, VU
-    meter, hard caps, beat accents. SHARED by first-pass generation, the refine loop, and
-    `xlo regen`, so a regenerated section is realized exactly like a first-pass one.
-    Every instruction is tagged with `si`."""
-    plan = require(st.show_plan, "show_plan")
-    section = plan.sections[si]
-    motifs = {g: plan.group_motifs[g]
-              for g in section.target_groups if g in plan.group_motifs}
-    _gen_res = await run_agent(agent, generator_mod.render_input(
-        section, revision=revision, concept=plan.concept, motifs=motifs),
-        role="generator", attempts=3)
-    telemetry.record("generator", _gen_res)
-    out: SectionEffects = _gen_res.output
-    return realize_section_effects(st, si, out)
-
-
 def _brief_base_instructions(section, available_groups: list[str], *,
                              pal_offset: int = 0) -> list[EffectInstruction]:
-    """The LLM-free stand-in for the Generator's base rows.
+    """A section's base rows.
 
     A section that names a cookbook scene gets the scene's STACK (`pipeline/scenes`): its rows cast
     onto real groups via `scene_cast` (else the role default), layered and blended as the cookbook
@@ -324,17 +293,17 @@ def _brief_base_instructions(section, available_groups: list[str], *,
     layers (bed, weave, accents, …) still run over it. An unknown scene, a prose-only scene, or a
     stack nothing in this layout can cast falls back to the generic rows.
 
-    Generic: one section-spanning instruction per target group (brief order = Director priority,
-    which `trim_coverage` keeps first), cycling the section's effect vocabulary (`effect_family`,
+    Generic: one section-spanning instruction per target group (brief order = priority, which
+    `trim_coverage` keeps first), cycling the section's effect vocabulary (`effect_family`,
     then `effect_types`) across the groups. Look = the catalog's first candidate for the type;
     `render_style=""` so the per-effect fallback (`resolve_buffer_style`) applies. Types with no
     catalog looks are skipped."""
     scene_id = getattr(section, "scene_id", "") or ""
     if scene_id:
         stack = parse_scene_stack(scene_id)
-        rows = cast_scene(section, stack, available_groups, pal_offset=pal_offset) if stack else []
-        if rows:
-            return rows
+        cast = cast_scene(section, stack, available_groups, pal_offset=pal_offset) if stack else []
+        if cast:
+            return cast
     types: list[str] = []
     for raw in (section.effect_family, *(section.effect_types or [])):
         t = canon_effect_type(raw)
@@ -354,10 +323,9 @@ def _brief_base_instructions(section, available_groups: list[str], *,
 
 
 def realize_section_from_brief(st: State, si: int) -> list[EffectInstruction]:
-    """`realize_section` WITHOUT the LLM (claude-driven-orchestration D3): the section's base rows
-    come from its effect vocabulary, the weave from `weave_from_brief` (the brief's `fabric` knobs
-    over the deterministic fallback), no LLM composites; then the identical downstream layers.
-    Deterministic: the same brief + analysis yields the same instructions."""
+    """One section's instructions: base rows from its effect vocabulary (or cast scene), then
+    `realize_section_effects`. Deterministic: the same brief + analysis yields the same
+    instructions."""
     plan = require(st.show_plan, "show_plan")
     section = plan.sections[si]
     # the scene rows carry their colors already rotated by the label offset (recurring labels rhyme
@@ -366,35 +334,26 @@ def realize_section_from_brief(st: State, si: int) -> list[EffectInstruction]:
     out = SectionEffects(instructions=_brief_base_instructions(section, st.available_groups,
                                                                pal_offset=pal_offset),
                          weave=None, composites=[])
-    return realize_section_effects(st, si, out, from_brief=True)
+    return realize_section_effects(st, si, out)
 
 
 def repetition_map(st: State) -> dict[str, list[int]] | None:
-    """The repetition map the realization rhymes on: the MusicBrief's (analyst-written) when it is
-    present and non-empty, else one derived from the brief sections' own `label`s
-    (`repetition_map_from_labels`). None when neither yields a recurring identity — every section
-    is then a one-off, exactly as before labels existed."""
-    mb = getattr(st.music_brief, "repetition_map", None) if st.music_brief else None
-    if mb:
-        return mb
+    """The repetition map the realization rhymes on, derived from the brief sections' own `label`s
+    (`repetition_map_from_labels`). None when no label recurs — every section is then a one-off."""
     plan = require(st.show_plan, "show_plan")
     return repetition_map_from_labels(plan.sections) or None
 
 
-def realize_section_effects(st: State, si: int, out: SectionEffects, *,
-                            from_brief: bool = False) -> list[EffectInstruction]:
+def realize_section_effects(st: State, si: int, out: SectionEffects) -> list[EffectInstruction]:
     """The shared downstream body: a section's designed effects (`out`) → energy-gated coverage,
     palette/brightness/speed, bed or peak fill, the weave, phrase gesture, composite stacks, VU,
-    the final-occurrence layer, counter-rotation, hard caps, beat accents.
-
-    `from_brief` selects the weave source: the brief's `fabric` via `weave_from_brief` (a directed
-    carrier is kept, never rotated away) instead of the Generator's recipes-or-fallback (whose
-    plain carrier IS rotated by `diversify_carrier`). Everything else is byte-for-byte the same."""
+    the final-occurrence layer, counter-rotation, hard caps, beat accents. The weave is the brief's
+    `fabric` via `weave_from_brief` (a directed carrier is kept, never rotated away)."""
     plan = require(st.show_plan, "show_plan")
     section = plan.sections[si]
     _peaks = peak_sections(plan)         # the show's payoff section(s)
-    bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
-    _rm = repetition_map(st)                 # MusicBrief's map, else derived from section labels
+    bpb = resolve_beats_per_bar(st.song_analysis)   # the song's meter (default 4/4)
+    _rm = repetition_map(st)                 # derived from the brief sections' labels
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
     _label = section_identity(si, _rm)       # the section's musical identity (chorus/verse/…) or None
     _ordinal, _count = occurrence_ordinal(si, _rm)   # which occurrence this is (0-based) + how many
@@ -412,21 +371,24 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
     # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
     # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
     # a cast scene stack IS the coverage decision (the cookbook's rows, cast by the brief), so its
-    # rows bypass the energy gate; the generic/LLM rows are gated exactly as before.
+    # rows bypass the energy gate; the generic rows are energy-gated.
     _scene_rows = [i for i in out.instructions if i.source == "scene"]
     kept = _scene_rows + trim_coverage([i for i in out.instructions if i.source != "scene"],
                                        _si, _ordinal)   # energy-gated + occurrence bonus
     # sparse treatments withhold coverage: gesture/rest touch ≤2 groups, feature spotlights one hero.
+    # rest's dim bed is one of its two groups, so it keeps a single base row (one brief row per
+    # target group would otherwise light 2 + the bed).
     if _treatment in ("gesture", "rest"):
-        _keep = {i.target for i in kept[:_GESTURE_MAX_GROUPS]}
+        _budget = _GESTURE_MAX_GROUPS - (1 if _layers["bed"] else 0)
+        _keep = {i.target for i in kept[:_budget]}
         kept = [i for i in kept if i.target in _keep]
     for ins in kept:
         ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
     kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
     for j, ins in enumerate(kept):
-        ins.section_index = si              # tag for scoped regen / per-section QA
+        ins.section_index = si              # tag for per-section QA
         ins.source = ins.source or "generator"   # provenance (I7; excluded from dump — report-only)
-        if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
+        if section.palette and not ins.palette_colors:   # a row's explicit color (scene) wins
             ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
         # PHRASE DYNAMICS (Phase 3): a ≥2-bar bed/wash carries a brightness curve shaped by the
         # section's own energy slice (rising swells, falling decays, flat holds); features/accents
@@ -453,25 +415,19 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
         bed.source = "bed"
         kept.append(bed)                 # occlusion order/blend handled by finalize_effects
     # WEAVE, per treatment: full weaves the whole fabric; gesture runs ONE carrier recipe on ≤2
-    # groups (a single held motion); pulse/feature/rest withhold the fabric entirely — except on the
-    # brief path when the section's `fabric.carrier` is explicit: pulse then weaves carrier + texture
-    # and feature the carrier cell alone (the brief asked for that motion; rest stays still).
+    # groups (a single held motion); pulse/feature/rest withhold the fabric entirely — except when
+    # the section's `fabric.carrier` is explicit: pulse then weaves carrier + texture and feature
+    # the carrier cell alone (the brief asked for that motion; rest stays still).
     carrier = section_carrier(si, _label)   # keyed to the repetition identity (rhymes) else the index
-    _explicit_weave = ""
-    if from_brief:
-        carrier = brief_carrier(section, carrier)   # a valid directed `fabric.carrier` wins
-        if getattr(getattr(section, "fabric", None), "carrier", ""):
-            _explicit_weave = _EXPLICIT_FABRIC_WEAVE.get(_treatment, "")
-    if _layers["weave"] is True and from_brief:
+    carrier = brief_carrier(section, carrier)   # a valid directed `fabric.carrier` wins
+    _explicit_weave = (_EXPLICIT_FABRIC_WEAVE.get(_treatment, "")
+                       if getattr(getattr(section, "fabric", None), "carrier", "") else "")
+    if _layers["weave"] is True:
         weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
     elif _explicit_weave:
         weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
         if _explicit_weave == "carrier":
             weave_obj = SectionWeave(cells=[c for c in weave_obj.cells if c.role == "carrier"])
-    elif _layers["weave"] is True:
-        weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
-                                                                  carrier=carrier)
-        diversify_carrier(weave_obj, carrier)    # vary an LLM weave's default carrier too
     elif _layers["weave"] == "solo":
         weave_obj = _gesture_weave(section, st.available_groups, carrier)
     else:
@@ -482,7 +438,7 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
     for ins in woven:
         ins.section_index = si
         ins.source = "weave"
-    kept.extend(woven)                          # the cell fabric (LLM recipes or fallback)
+    kept.extend(woven)                          # the cell fabric
     # PHRASE GESTURE (full/pulse): one bounded Morph/Curtain/Fill that enters at the 2nd bar and
     # spans 4 bars — phrase-class effects that the weave cannot cell, rhymed across recurring labels.
     if _layers.get("phrase"):
@@ -496,7 +452,7 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
             if pg.target in _based:
                 pg.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
             kept.append(pg)
-    # composite stacks + VU: LLM-designed multi-effect blended layers, the curated hero stack at
+    # composite stacks + VU: any designed multi-effect blended layers, the curated hero stack at
     # the peak, and the music-reactive VU feature texture. Composites are extras-only (full); VU
     # also fires for pulse sections (community uses it as an ordinary energetic texture, not a peak
     # garnish — 6.2% pooled in the corpus).
@@ -572,19 +528,8 @@ def finalize_effects(st: State, instrs: list[EffectInstruction]) -> list[EffectI
     return song_end_fade(st, instrs)
 
 
-async def generate_instructions(st: State, *, generator=None) -> list[EffectInstruction]:
-    """Run the generator per section + the deterministic realization layers → instructions."""
-    agent = generator or generator_mod.generator_agent()
-    plan = require(st.show_plan, "show_plan")
-    instrs: list[EffectInstruction] = []
-    for i in range(len(plan.sections)):
-        instrs.extend(await realize_section(st, i, agent=agent))
-    return assemble_show(st, instrs)
-
-
 def generate_instructions_from_brief(st: State) -> list[EffectInstruction]:
-    """`generate_instructions` WITHOUT the LLM: every section via `realize_section_from_brief`,
-    then the same show-level layers (climax key moments, entrances, triggers, flashes,
+    """Every section via `realize_section_from_brief`, then the show-level layers (climax key moments, entrances, triggers, flashes,
     feature-prop contrast, matrix narrative, finalize). Deterministic over the brief + analysis."""
     plan = require(st.show_plan, "show_plan")
     instrs: list[EffectInstruction] = []
@@ -594,7 +539,7 @@ def generate_instructions_from_brief(st: State) -> list[EffectInstruction]:
 
 
 def assemble_show(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
-    """The show-level layers over the per-section rows (shared by both generation paths): synthesize
+    """The show-level layers over the per-section rows: synthesize
     the peak's climax key moment, surface instrument entrances, curated triggers, climax flashes,
     feature-prop contrast, the matrix narrative, then `finalize_effects`."""
     plan = require(st.show_plan, "show_plan")
@@ -631,7 +576,7 @@ def assemble_show(st: State, instrs: list[EffectInstruction]) -> list[EffectInst
 
 def place_matrix_narrative(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
     """Append F-C narrative Text on the matrix model to `instrs` (idempotent: drops any prior
-    matrix-text before re-placing, so refine/regen splices reproduce exactly one copy per moment).
+    matrix-text before re-placing, so a re-run reproduces exactly one copy per moment).
 
     `place_matrix_text` reads/dims the existing matrix background in `st.instructions`, so point
     that at the working list for the duration of the pass. No matrix / no grounded text → no-op."""

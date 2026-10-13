@@ -13,7 +13,7 @@ import logging
 from xlights_core.knowledge.colors import contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import (
     BLEND_METHODS,
     FABRIC_ALTERNATIONS,
@@ -176,11 +176,8 @@ def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
 # Rotate the cell-fabric carrier across sections so a show isn't wall-to-wall SingleStrand.
 # All are cell-able AND chase-family AND direction-supporting, with looks in the catalog.
 # Garlands dropped (4× its community share from deterministic rotation alone); SingleStrand
-# double-weighted (community's 28.5% workhorse). Garlands remains LLM-choosable.
+# double-weighted (community's 28.5% workhorse). Garlands remains choosable via `fabric.carrier`.
 CARRIER_ROTATION = ("SingleStrand", "Bars", "SingleStrand", "Wave")
-# "plain" carriers we rotate; a deliberately distinctive carrier the LLM chose (Spirals,
-# Pinwheel, Ripple, Butterfly, Meteors) is preserved — only the default chase/On gets varied.
-_ROTATABLE_CARRIERS = set(_CHASE_FAMILY) | {"On"}
 
 
 def label_seed(label: str) -> int:
@@ -203,21 +200,11 @@ def section_carrier(seed: int, label: str | None = None) -> str:
     return CARRIER_ROTATION[key % len(CARRIER_ROTATION)]
 
 
-def diversify_carrier(weave: SectionWeave | None, carrier: str) -> None:
-    """Swap each plain carrier recipe to `carrier` in place, so the beat-carrier varies per section.
-
-    A distinctive carrier the LLM picked (e.g. Spirals) is left alone; only the default chase/On
-    carrier is rotated. Clears look_id so the new type picks its own valid look."""
-    for r in (weave.cells if weave else []):
-        if r.role == "carrier" and r.effect_type in _ROTATABLE_CARRIERS and r.effect_type != carrier:
-            r.effect_type, r.look_id = carrier, ""
-
-
 def fallback_weave(section: SectionPlan, available_groups: list[str],
                    *, carrier: str = _FALLBACK_CARRIER) -> SectionWeave:
     """A deterministic default fabric: a chase carrier on the rhythm pool + a sparse texture from
-    the section's own effect vocabulary. Used when the LLM omits the weave — the fabric never
-    depends on perfect LLM output.
+    the section's own effect vocabulary — the base `weave_from_brief` overlays the brief's
+    `fabric` knobs on.
 
     NON-RHYTHMIC sections get NO synthesized fabric: a deliberately quiet/still section the brief
     asked for is not a dead section, and code must not inject a chase the brief didn't want."""
@@ -394,7 +381,7 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
     extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
     _t = _canon_transition(recipe.transition)
-    if _t:                                    # a VALID explicit Generator transition wins
+    if _t:                                    # a VALID explicit recipe transition wins
         extra.update({"T_CHOICE_In_Transition_Type": _t,
                       "T_CHOICE_Out_Transition_Type": _t,
                       "T_SLIDER_In_Transition_Adjust": "50",
@@ -417,8 +404,8 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     # (one gesture traveling the WHOLE yard buffer — a 0.5s cell on one group lights almost
     # nothing). A cell is rhythmic multiplicity: every prop in the group runs it.
     # EXCEPT a directional sweep: per-model confines the motion to each prop — the sweep MUST
-    # travel the GROUP buffer to be seen. This is forced (not a default): the Generator
-    # reflexively sets render_style on every recipe, which silently un-swept the sweeps.
+    # travel the GROUP buffer to be seen. This is forced (not a default): a recipe's render_style
+    # (the old LLM Generator set one on every recipe) would silently un-sweep the sweeps.
     sweep = recipe.direction in _SWEEP_DIRECTIONS and recipe.effect_type in _CHASE_FAMILY
     style = "Default" if sweep else (recipe.render_style or "Per Model Default")
     # LED-contrast floor: rhythm-carrying cells alternate the two most hue-distant anchors

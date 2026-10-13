@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from xlights_orchestrator.pipeline.init_layout import (
+    REVIEW_NAME,
     analyze_layout,
     format_diff,
     review_queue,
@@ -22,7 +23,7 @@ FIX = Path(__file__).parent / "fixtures"
 
 
 def _args(**kw):
-    base = dict(show_folder=None, dry_run=False, yes=False, no_validate=False, no_llm=True,
+    base = dict(show_folder=None, dry_run=False, yes=False, no_validate=False,
                 invert_x=False, review_web=False)
     base.update(kw)
     return SimpleNamespace(**base)
@@ -101,14 +102,38 @@ def test_write_and_emit_produces_groups_view_and_manifest(tmp_path):
 
 
 # -- full flow through run_init_layout (dry-run, no write) --------------------------------------
-def test_dry_run_writes_nothing(tmp_path):
+def test_dry_run_writes_only_the_review_file(tmp_path):
     show = _real_show(tmp_path)
     rgb = show / "xlights_rgbeffects.xml"
     before = rgb.read_bytes()
     code = asyncio.run(run_init_layout(_args(show_folder=str(show), dry_run=True)))
     assert code == 0
-    assert rgb.read_bytes() == before                    # dry-run never writes
+    assert rgb.read_bytes() == before                    # the layout is never touched
     assert not (show / "layout_semantics.json").exists()
+    review = json.loads((show / REVIEW_NAME).read_text())
+    assert review["overrides_file"].endswith("layout_overrides.json")
+    expected = analyze_layout(rgb, overrides=json.loads((show / "layout_overrides.json").read_text()))
+    assert [p["name"] for p in review["props"]] == list(expected.review)
+
+
+def test_dry_run_review_lists_props_with_features_and_overrides_resolve_them(tmp_path, capsys):
+    show = _real_show(tmp_path)
+    (show / "layout_overrides.json").unlink()            # no human decisions yet
+    code = asyncio.run(run_init_layout(_args(show_folder=str(show), dry_run=True)))
+    assert code == 0                                     # props needing review is the job, not a failure
+    assert "props still need review" in capsys.readouterr().out
+    props = json.loads((show / REVIEW_NAME).read_text())["props"]
+    assert props
+    rec = next(p for p in props if "display_as" in p)
+    assert {"name", "display_as", "nodes", "pos", "groups", "role", "confidence",
+            "candidate_roles"} <= set(rec)
+    assert len(rec["pos"]) == 2 and isinstance(rec["nodes"], int) and isinstance(rec["groups"], list)
+    assert "CUSTOM_PROP" in rec["candidate_roles"] and "SNOWFLAKE" in rec["candidate_roles"]
+    # an override is a human decision: the classified prop leaves the review list on the next run
+    (show / "layout_overrides.json").write_text(json.dumps({rec["name"]: {"role": "CUSTOM_PROP"}}))
+    asyncio.run(run_init_layout(_args(show_folder=str(show), dry_run=True)))
+    after = {p["name"] for p in json.loads((show / REVIEW_NAME).read_text())["props"]}
+    assert rec["name"] not in after and len(after) == len(props) - 1
 
 
 def test_missing_show_folder_returns_error():
@@ -117,12 +142,11 @@ def test_missing_show_folder_returns_error():
 
 
 # -- CLI wiring ---------------------------------------------------------------------------------
-def test_cli_init_layout_no_llm_key_required(tmp_path, monkeypatch):
-    """init-layout must NOT require an LLM key and must NOT require xLights running."""
+def test_cli_init_layout_needs_no_key_and_no_xlights(tmp_path, monkeypatch):
+    """init-layout needs no API key and does NOT require xLights running."""
     from xlights_orchestrator import cli
     show = _real_show(tmp_path)
-    # ensure no key is set — and stub load_env so the repo .env doesn't re-inject one (or leak
-    # XLO_PROVIDER into later tests). The command itself never checks has_llm_key.
+    # ensure no key is set — and stub load_env so the repo .env doesn't re-inject one.
     monkeypatch.setattr(cli, "load_env", lambda: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)

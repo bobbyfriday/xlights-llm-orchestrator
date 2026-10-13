@@ -1,7 +1,2 @@
-"""xlights-orchestrator: LLM pipeline that generates xLights sequences from songs."""
-
-from __future__ import annotations
-
-from .pipeline import State, run_pipeline
-
-__all__ = ["run_pipeline", "State"]
+"""xlights-orchestrator: the deterministic `xlo` stage commands that turn a song and a
+Claude-authored creative brief into an xLights sequence (no model API calls)."""

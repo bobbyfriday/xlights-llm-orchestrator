@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 
@@ -21,6 +20,3 @@ def load_env() -> None:
             return
     load_dotenv()  # fallback to default search
 
-
-def has_llm_key() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("GEMINI_API_KEY"))

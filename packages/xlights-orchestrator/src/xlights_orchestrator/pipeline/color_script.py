@@ -1,8 +1,8 @@
 """Show-level color script (Phase 3): a deterministic plan post-pass giving the whole show one
 palette thread instead of independent per-section color choices.
 
-Four deterministic moves, no LLM call, run right after the Director produces the plan and after any
-section redesign:
+Four deterministic moves over a plan (not currently wired into `xlo realize`: the brief's author
+owns the palettes):
 - ANCHOR: the most frequent resolvable color across section palettes becomes a persistent thread —
   injected into any section missing it.
 - CHORUS SIGNATURE: the chorus label's sections share one signature pair (their two most hue-distant

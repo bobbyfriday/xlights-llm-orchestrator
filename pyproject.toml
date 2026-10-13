@@ -5,7 +5,7 @@
 members = ["packages/*"]
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-PyYAML"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

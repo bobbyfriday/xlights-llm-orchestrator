@@ -139,14 +139,6 @@ def test_worked_example_carol_of_the_bells():
             assert round(s.start, 3) in grid
 
 
-def test_panel_render_marks_subsegments_evolving():
-    from xlights_orchestrator.agents.panel import _structure_render
-    sa = _sa(duration=60.0, segments=[Segment(start=0, end=30, segment_id="A1"),
-                                      Segment(start=30, end=60, segment_id="A2")])
-    out = _structure_render(sa, None)
-    assert "EVOLVING" in out and "A1/A2" in out
-
-
 # -- the fix: long sections are capped even in a LYRIC song (the 100s-intro bug) ----------------
 
 def test_cap_runs_even_with_lyrics():

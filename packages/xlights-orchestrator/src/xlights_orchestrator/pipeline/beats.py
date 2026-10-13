@@ -13,7 +13,7 @@ from typing import NamedTuple
 from xlights_core.knowledge.colors import _luminance, _resolve, contrast_anchors, expand_palette
 from xlights_core.knowledge.value_curves import brightness_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction, SectionPlan
 
 # SEM_ semantic groups (xlights-layout-semantics-spec): the beat chase sweeps L→C→R spatially,
@@ -172,7 +172,7 @@ def coverage_cap(intensity: float, n_groups: int, extra: int = 0) -> int:
 
 
 def trim_coverage(instructions: list, intensity: float, extra: int = 0) -> list:
-    """Keep the wash on the first `cap` distinct targets (Director priority); leave the rest dark.
+    """Keep the wash on the first `cap` distinct targets (brief priority); leave the rest dark.
 
     `extra` widens the cap structurally for later occurrences of a recurring section (Phase 1
     escalation) — bounded by the number of distinct targets, so it never invents coverage."""
@@ -518,14 +518,14 @@ TREATMENTS = ("full", "feature", "pulse", "gesture", "rest")
 
 
 def resolve_treatment(section, is_peak: bool, has_focal: bool) -> str:
-    """The section's realization treatment: the Director's explicit choice when valid, else the
+    """The section's realization treatment: the brief's explicit choice when valid, else the
     deterministic energy-based fallback (design table).
 
     Fallback by effective intent (using the section's OWN intensity, not the escalated one — a quiet
     verse should read sparse regardless of escalation):
       peak band → full · < 0.1 → rest · ≥ 0.5 → pulse · ≥ 0.25 → feature (if the layout has a focal
       prop, else pulse) · else → gesture.
-    An explicit near-zero (< 0.1) always yields `rest` so the Director can't accidentally over-light
+    An explicit near-zero (< 0.1) always yields `rest` so a brief can't accidentally over-light
     a silent moment; otherwise a valid explicit treatment wins verbatim."""
     explicit = (getattr(section, "treatment", "") or "").strip().lower()
     i = max(0.0, min(1.0, getattr(section, "intensity", 0.0) or 0.0))

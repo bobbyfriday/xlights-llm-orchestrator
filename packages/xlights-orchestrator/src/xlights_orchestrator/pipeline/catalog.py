@@ -20,7 +20,3 @@ def placeable_effect_types() -> list[str]:
 def candidate_look_ids(effect_type: str, *, limit: int = 12) -> list[str]:
     return [lk.look_id for lk in get_library().get_looks(effect_type, limit=limit)]
 
-
-def palette_menu(*, limit: int = 12) -> list[dict]:
-    return [{"palette_id": p.palette_id, "tags": p.tags}
-            for p in get_library().get_palettes(limit=limit)]

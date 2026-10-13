@@ -6,7 +6,7 @@ from collections import Counter
 
 from ..pipeline.matrix_text import MATRIX_TEXT_MARKER
 from ..pipeline.tuning import MAX_TEXT_MOMENTS
-from ..refine import Finding
+from .findings import Finding
 
 DOMINANCE = 0.7      # one effect type covering >70% of effects reads as monotone
 COVERAGE = 0.3       # using <30% of groups reads as thin
@@ -27,7 +27,7 @@ def evaluate(instructions, groups) -> tuple[int, list[Finding]]:
         score -= 30
 
     # Reward breadth: too few DISTINCT effect types across the show reads as monotone even when
-    # no single type dominates. Graduated so the Judge sees how far short it falls.
+    # no single type dominates. Graduated so the finding shows how far short it falls.
     distinct = len(counts)
     if distinct < MIN_DISTINCT_TYPES:
         findings.append(Finding(

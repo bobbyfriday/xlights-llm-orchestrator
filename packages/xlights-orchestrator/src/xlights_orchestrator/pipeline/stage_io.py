@@ -122,7 +122,7 @@ def load_instructions(song_dir) -> list[EffectInstruction]:
 
 
 def write_instructions(song_dir, instrs: list[EffectInstruction]) -> Path:
-    """`instructions.json`: one dump per instruction, indent 1 — the same shape `xlo run` cached."""
+    """`instructions.json`: one dump per instruction, indent 1 — the same shape the pre-stage pipeline cached."""
     out = Path(song_dir)
     out.mkdir(parents=True, exist_ok=True)
     path = out / INSTRUCTIONS_NAME

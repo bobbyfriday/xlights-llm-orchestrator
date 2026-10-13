@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..refine import Finding
+from .findings import Finding
 
 
 def evaluate(plan, applied) -> tuple[int, list[Finding]]:

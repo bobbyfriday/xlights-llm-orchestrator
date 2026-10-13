@@ -3,7 +3,7 @@ no model (``xlo stills``, design D8/D9).
 
 One PNG per brief section into ``out_dir``, named ``NN-<label-slug>.png`` (``NN`` = section index),
 at the section's lit-coverage peak when a ``FseqSeries`` is given, else at its midpoint. Reuses
-``xlights_core.preview.PreviewRenderer`` (the renderer the visual critique already used) — needs the
+``xlights_core.preview.PreviewRenderer`` (the offline preview renderer) — needs the
 ``[preview]`` extra. A missing ``.fseq`` returns ``[]`` so the caller can print how to produce one
 (``xlo apply --render``). Stale ``NN-*.png`` files in ``out_dir`` are removed first, so the folder
 always holds exactly the current brief's sections.

@@ -1,7 +1,7 @@
 """The analysis digest (`pipeline/digest.py`): deterministic, bounded Markdown from a cached
 `SongAnalysis`, with no model call.
 
-The instrumental case is the real cached golden analysis (`fixtures/agent_payloads/
+The instrumental case is the real cached golden analysis (`fixtures/cache_payloads/
 song_analysis.json`); the vocal case is that analysis with lyric-aligner-shaped lyrics attached
 (timed lines, [Verse]/[Chorus] markers, repeated lines) and the segments relabeled the way
 `refine_segments_with_lyrics` would.
@@ -25,7 +25,7 @@ from xlights_orchestrator.pipeline.digest import (
     write_digest,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "agent_payloads" / "song_analysis.json"
+FIXTURE = Path(__file__).parent / "fixtures" / "cache_payloads" / "song_analysis.json"
 
 
 # -- fixtures -------------------------------------------------------------------------

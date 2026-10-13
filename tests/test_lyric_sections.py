@@ -80,11 +80,3 @@ def test_idempotent():
     first = [s.model_dump() for s in sa.segments]
     refine_segments_with_lyrics(sa)
     assert [s.model_dump() for s in sa.segments] == first
-
-
-def test_panel_render_marks_lyric_labels_ground_truth():
-    from xlights_orchestrator.agents.panel import _structure_render
-    sa = _sa(segments=[Segment(start=0, end=30, segment_id="Chorus")],
-             lyrics={"sections": [{"label": "Chorus", "start": 0.0}], "lines": [], "repeated": []})
-    out = _structure_render(sa, None)
-    assert "GROUND TRUTH" in out and "Chorus" in out

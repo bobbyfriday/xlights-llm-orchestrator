@@ -7,7 +7,6 @@ from typing import Any, TypeVar
 
 from xlights_core.audio import SongAnalysis
 
-from ..music_brief import MusicBrief
 from ..show_plan import EffectInstruction, ShowPlan
 
 T = TypeVar("T")
@@ -34,7 +33,6 @@ class State:
     available_groups: list[str] = field(default_factory=list)
     model_names: list[str] = field(default_factory=list)   # real MODEL names (F-C matrix-text discovery)
     placeable_types: list[str] = field(default_factory=list)
-    music_brief: MusicBrief | None = None
     show_plan: ShowPlan | None = None
     instructions: list[EffectInstruction] = field(default_factory=list)
     applied: dict[str, Any] | None = None

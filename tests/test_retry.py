@@ -1,4 +1,4 @@
-"""Unit tests for the shared retry primitive + the two transient predicates (I2).
+"""Unit tests for the shared retry primitive + the xLights transient predicate (I2).
 
 Hermetic and fast: retry tests use ``base_delay=0`` and patch ``random.uniform`` /
 ``asyncio.sleep`` so there is no real backoff wall time.
@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-import httpx
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
 
 from xlights_core.exceptions import (
     XLightsConnectionError,
@@ -22,7 +20,6 @@ from xlights_core.exceptions import (
     XLightsUnsavedChanges,
 )
 from xlights_core.retry import with_retry, xlights_transient
-from xlights_orchestrator.models.registry import llm_transient
 
 
 def run(coro):
@@ -117,26 +114,6 @@ def test_attempts_one_disables(monkeypatch):
 
 
 # -- predicates ---------------------------------------------------------------
-
-def test_llm_transient_true_on_overload_and_ratelimit():
-    for code in (408, 429, 500, 502, 503, 529):
-        assert llm_transient(ModelHTTPError(code, "m")) is True
-
-
-def test_llm_transient_false_on_client_errors():
-    for code in (400, 401, 403, 404, 413, 422):
-        assert llm_transient(ModelHTTPError(code, "m")) is False
-
-
-def test_llm_transient_false_on_validation():
-    assert llm_transient(UnexpectedModelBehavior("schema")) is False
-
-
-def test_llm_transient_true_on_escaping_transport():
-    req = httpx.Request("POST", "http://x")
-    assert llm_transient(httpx.ReadTimeout("slow", request=req)) is True
-    assert llm_transient(httpx.ConnectError("refused", request=req)) is True
-
 
 def test_xlights_transient_over_taxonomy():
     assert xlights_transient(XLightsConnectionError("x")) is True

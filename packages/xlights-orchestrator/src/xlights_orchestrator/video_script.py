@@ -1,9 +1,9 @@
 """Video script for the centerpiece matrix: a storyboard that tells the song's story.
 
-The Videographer agent writes the STORY (logline, recurring motifs, one beat per section) from the
-song's story material — timed lyrics, narrative, themes, sentiment, mood, featured lines. It is
-deliberately never shown the lights' per-section look/motion/effects, so the film cannot replicate
-the house; it gets the show palette and energy arc so the two still read as one show.
+Claude writes the STORY as `video_story.json` (logline, recurring motifs, one beat per brief
+section — the `VideoStory` model; see the xlo-video skill) from the song's story material. The story
+describes the film, never the lights, so it cannot replicate the house; the show palette and energy
+arc are what tie the two together.
 
 CODE owns every timestamp: beats are keyed by section index and resolved here against the cached
 section boundaries (already downbeat-aligned), so a cut in the film lands where the lights change.
@@ -13,11 +13,13 @@ section boundaries (already downbeat-aligned), so a cut in the film lands where 
 from __future__ import annotations
 
 import math
+import re
+from collections.abc import Mapping
 
 from pydantic import BaseModel, Field, ValidationError
 
 
-# -- what the agent fills (no time fields: a timestamp is unrepresentable) -----
+# -- video_story.json (no time fields: a timestamp is unrepresentable) ---------
 
 class Beat(BaseModel):
     section_index: int = Field(description="index of the section this beat covers (given in the input)")
@@ -35,10 +37,14 @@ class Beat(BaseModel):
                     "(snow, light, geometry, silhouettes of objects — no people, faces, hands or animals)")
 
 
-class VideographerOut(BaseModel):
+class VideoStory(BaseModel):
+    """The written story (`video_story.json`): what `xlo video-plan` times into the script."""
     logline: str = Field(description="the film's story in one or two sentences")
     motifs: list[str] = Field(description="recurring visual elements that carry the story across beats")
     beats: list[Beat]
+
+
+VideographerOut = VideoStory     # the pre-claude-driven name, kept as an alias
 
 
 # -- the resolved script -------------------------------------------------------
@@ -64,7 +70,7 @@ class Shot(BaseModel):
     end_ms: int
     frames: int
     energy: float = 0.0
-    inherited: bool = False          # the agent gave no beat for this section; previous beat held
+    inherited: bool = False          # the story gave no beat for this section; previous beat held
     lyrics: list[str] = []
     medium: str = "filmed"           # "filmed" (Veo) | "procedural" (code); pre-plan scripts were all filmed
     asset: str = ""                  # media-plan asset id this shot renders (shared by repeated sections)
@@ -119,23 +125,6 @@ def constraints_for(width: int, height: int, frame_ms: int, total_ms: int) -> Sc
                              total_frames=frames_for(total_ms, frame_ms), notes=list(CONTRACT_NOTES))
 
 
-def labels_by_overlap(sections: list[tuple[int, int]], brief_sections: list[dict]) -> list[str]:
-    """Label each plan section by the MusicBrief section it overlaps most.
-
-    The two lists are not 1:1 — the Director consolidates (christmas canon: 8 plan sections vs 16
-    brief sections) — so positional indexing would mislabel.
-    """
-    out = []
-    for s, e in sections:
-        best, best_ov = "", 0
-        for b in brief_sections:
-            ov = min(e, int(b.get("end_ms", 0))) - max(s, int(b.get("start_ms", 0)))
-            if ov > best_ov:
-                best, best_ov = str(b.get("label") or ""), ov
-        out.append(best)
-    return out
-
-
 def lyric_lines(lines: list[dict]) -> list[tuple[int, str]]:
     """(start_ms, text) for each aligned lyric line, de-duplicated and sorted.
 
@@ -154,7 +143,7 @@ def lyric_lines(lines: list[dict]) -> list[tuple[int, str]]:
     return sorted(out)
 
 
-def resolve_beats(out: VideographerOut, sections: list[tuple[int, int]], *, frame_ms: int,
+def resolve_beats(out: VideoStory, sections: list[tuple[int, int]], *, frame_ms: int,
                   labels: list[str] | None = None, energies: list[float] | None = None,
                   lyrics: list[tuple[int, str]] | None = None) -> list[Shot]:
     """One shot per section, timed from the cached boundaries.
@@ -168,7 +157,7 @@ def resolve_beats(out: VideographerOut, sections: list[tuple[int, int]], *, fram
         if 0 <= b.section_index < n and b.section_index not in by_idx:
             by_idx[b.section_index] = b
     if not by_idx:
-        raise ValueError("the agent returned no beats for any given section")
+        raise ValueError("the story has no beats for any given section")
     first = by_idx[min(by_idx)]
     shots: list[Shot] = []
     prev: Beat | None = None
@@ -242,7 +231,7 @@ TIME_KEYS = frozenset({"start_ms", "end_ms", "start", "end", "at_ms", "time", "t
 
 def validate_story(raw: dict, n_sections: int, *, allow_inherit: bool = False) -> list[str]:
     """Why a `video_story.json` can't be planned, as plain messages (empty = valid): it must parse
-    as `VideographerOut`, carry no time fields anywhere, and give exactly one beat per brief
+    as `VideoStory`, carry no time fields anywhere, and give exactly one beat per brief
     section (`section_index` 0..n-1, each once). Strict by default — a section without a beat is
     an error naming it; `allow_inherit=True` accepts gaps (`resolve_beats` then holds the previous
     beat, the old behavior). Mirrors `xlo validate-brief`'s posture — every problem in one pass,
@@ -263,9 +252,9 @@ def validate_story(raw: dict, n_sections: int, *, allow_inherit: bool = False) -
         for k in sorted(set(b) & TIME_KEYS):
             problems.append(f"beats[{j}] carries a time field {k!r}; timestamps are code-owned, remove it")
     try:
-        story = VideographerOut.model_validate(raw)
+        story = VideoStory.model_validate(raw)
     except ValidationError as exc:              # pydantic's message names the path
-        problems.append(f"story does not parse as VideographerOut: {exc}")
+        problems.append(f"story does not parse as VideoStory: {exc}")
         return problems
     seen: dict[int, int] = {}
     for j, b in enumerate(story.beats):
@@ -282,6 +271,51 @@ def validate_story(raw: dict, n_sections: int, *, allow_inherit: bool = False) -
         problems.append("no beat for section" + ("s " if len(missing) > 1 else " ")
                         + ", ".join(str(i) for i in missing) + " (one beat per brief section; "
                         "pass --allow-inherit to hold the previous beat instead)")
+    return problems
+
+
+# -- the medium contract (what procedural rendering cannot draw) ------------------------------
+
+# Things procedural rendering cannot draw. A word list in ONE place (a false positive is a one-line
+# fix). Matched on word boundaries, case-insensitive, singular/plural where it matters.
+PERSON_TERMS = (
+    "person", "people", "man", "men", "woman", "women", "child", "children", "kid", "kids", "boy",
+    "girl", "baby", "mother", "father", "grandmother", "grandfather", "family", "crowd", "dancer",
+    "dancers", "traveler", "traveller", "figure", "figures", "silhouette of a person", "stranger",
+    "investigator", "soldier", "singer", "couple", "lovers",
+    "face", "faces", "eyes", "hand", "hands", "fingers", "arm", "arms", "feet", "footsteps",
+    "animal", "animals", "dog", "cat", "horse", "deer", "reindeer", "bird", "birds", "wolf", "owl",
+)
+_TERM_RE = re.compile(r"\b(" + "|".join(re.escape(t) for t in sorted(PERSON_TERMS, key=len, reverse=True))
+                      + r")\b", re.IGNORECASE)
+
+
+def lint_media(story: VideoStory, media: Mapping[int, str]) -> list[str]:
+    """Violations of the medium contract, as messages the story's author can act on: procedural
+    beats' imagery/action and EVERY stand-in must be free of PERSON_TERMS; filmed beats need a
+    stand-in. `media` maps section index → "filmed" | "procedural" (the media plan)."""
+    problems: list[str] = []
+    for b in story.beats:
+        med = media.get(b.section_index)
+        if med is None:
+            continue
+        if med == "procedural":
+            hit = _TERM_RE.search(f"{b.imagery} {b.action}")
+            if hit:
+                problems.append(f"beat for section {b.section_index} is PROCEDURAL but depicts "
+                                f"'{hit.group(0)}' — rewrite it with the procedural vocabulary "
+                                f"(no people, faces, hands or animals); carry any character with a "
+                                f"proxy object motif")
+        else:
+            if not b.procedural_stand_in.strip():
+                problems.append(f"beat for section {b.section_index} is FILMED but has no "
+                                f"procedural_stand_in — add one sentence in the procedural vocabulary")
+            else:
+                hit = _TERM_RE.search(b.procedural_stand_in)
+                if hit:
+                    problems.append(f"the procedural_stand_in for section {b.section_index} depicts "
+                                    f"'{hit.group(0)}' — a stand-in must use only the procedural "
+                                    f"vocabulary")
     return problems
 
 
@@ -329,7 +363,7 @@ def plan_media_for(*, sections: list[tuple[int, int]], labels: list[str], energi
                       budget, remaining, per_second_usd=per_second_usd)
 
 
-def plan_story(story: VideographerOut, *, song: str, sections: list[tuple[int, int]],
+def plan_story(story: VideoStory, *, song: str, sections: list[tuple[int, int]],
                labels: list[str], energies: list[float], lyrics: list[tuple[int, str]],
                downbeats_ms: list[int], width: int, height: int, frame_ms: int = 50,
                max_shot_s: float | None = None, budget=None, ledger_remaining: int | None = None,

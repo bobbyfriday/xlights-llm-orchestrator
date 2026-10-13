@@ -1,6 +1,6 @@
 """Mood phrasing → soft-edge realization, shared by the cell weaver and the beat-accent layer.
 
-`legato` (calm/introspective) softens edges; `staccato` (energetic) keeps them crisp. The Director
+`legato` (calm/introspective) softens edges; `staccato` (energetic) keeps them crisp. The brief
 directs it per section (`SectionPlan.phrasing`); left blank it resolves from the section's intensity.
 Kept in its own module so both `weave` and `beats` can use it without an import cycle.
 """
@@ -16,10 +16,10 @@ _DISSOLVE_FAMILY = {"Plasma", "Color Wash", "Fill", "Shimmer", "Fire", "Liquid",
 
 
 def resolve_phrasing(phrasing: str, intensity: float) -> str:
-    """A section's effective phrasing: the Director's value when given, else inferred from energy
+    """A section's effective phrasing: the brief's value when given, else inferred from energy
     (low intensity → legato/soft, energetic → staccato/crisp). Always returns 'legato'|'staccato'.
 
-    The Director sometimes answers with a descriptive phrase ('legato and sweeping') rather than the
+    A brief sometimes carries a descriptive phrase ('legato and sweeping') rather than the
     bare enum, so match the keyword anywhere in the value before falling back to the energy default —
     its explicit intent shouldn't be lost to a stray adjective."""
     p = (phrasing or "").strip().lower()

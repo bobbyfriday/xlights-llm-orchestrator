@@ -1,9 +1,8 @@
 """Boundary transitions: compose the joins between sections (Phase 3).
 
 Hand shows live on the connective tissue — a riser into a chorus, a one-beat blackout before the
-drop, a sweep handoff on a lateral move. Nothing downstream consumed the analyst's boundary cues,
-so section joins were butt joints. This pass reads pure signal math (the energy arc, the downbeat
-grid, the brief's `transition_cues_ms`) and PLACES those transitions.
+drop. Section joins used to be butt joints. This pass reads pure signal math (the energy arc and the
+downbeat grid) and PLACES those transitions.
 
 Contract:
 - Transition instructions carry the OUTGOING section's `section_index` (they occupy its final
@@ -11,13 +10,12 @@ Contract:
 - The pass is IDEMPOTENT via an `extra_settings` marker: a re-run after a section splice strips its
   own prior output and re-derives, so it replaces rather than stacks. Blackout gating trims end
   times only (never reorders), so occlusion logic still sees final geometry.
-- Runs in `generate_instructions` and after refine-loop / `xlo regen` splices, BEFORE
-  `finalize_effects`.
+- Runs inside `finalize_effects` (every realization), before the occlusion guard.
 """
 
 from __future__ import annotations
 
-from ..agents.catalog import candidate_look_ids
+from .catalog import candidate_look_ids
 from ..show_plan import EffectInstruction
 from .semantic_groups import PEAK_BROAD_GROUPS
 from .meter import DEFAULT_BEATS_PER_BAR
@@ -121,26 +119,10 @@ def _riser(section_index: int, boundary_ms: int, bar_ms: float, palette: list[st
     return ins
 
 
-def _sweep(section_index: int, boundary_ms: int, bar_ms: float, palette: list[str]
-           ) -> EffectInstruction | None:
-    """A one-bar lateral sweep spanning the boundary — a handoff between adjacent sections."""
-    looks = candidate_look_ids("SingleStrand")
-    if not looks:
-        return None
-    ins = EffectInstruction(
-        target=PEAK_BROAD_GROUPS[0], effect_type="SingleStrand", look_id=looks[0],
-        render_style="Default", palette_colors=list(palette or [])[:2],
-        start_ms=int(max(0, boundary_ms - bar_ms // 2)), end_ms=int(boundary_ms + bar_ms // 2))
-    ins.extra_settings["E_CHOICE_Chase_Type1"] = "Left-Right"
-    ins.extra_settings[_MARKER] = "sweep"
-    ins.section_index = section_index
-    return ins
-
-
 def place_transitions(st, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
-    """Compose section-boundary transitions from the energy arc + downbeat grid + transition cues.
+    """Compose section-boundary transitions from the energy arc + downbeat grid.
 
-    Idempotent: strips its own prior output first. Returns a new list (adds risers/sweeps, gates the
+    Idempotent: strips its own prior output first. Returns a new list (adds risers, gates the
     pre-drop beat in place)."""
     sa = getattr(st, "song_analysis", None)
     plan = getattr(st, "show_plan", None)
@@ -153,7 +135,6 @@ def place_transitions(st, instrs: list[EffectInstruction]) -> list[EffectInstruc
     bar_ms = _bar_ms(sa)
     downbeats = _downbeat_times_ms(sa)
     beats = _beats_ms(sa)
-    cues = set(getattr(getattr(st, "music_brief", None), "transition_cues_ms", None) or [])
 
     for i in range(len(sections) - 1):
         outgoing, incoming = sections[i], sections[i + 1]
@@ -167,14 +148,12 @@ def place_transitions(st, instrs: list[EffectInstruction]) -> list[EffectInstruc
         after = _window_rms(energy, boundary / 1000.0, (boundary + bar_ms) / 1000.0)
         delta = after - before
         approach = before - far                       # >0 → energy already climbing into the boundary
-        near_cue = any(abs(boundary - c) <= bar_ms for c in cues)
         on_downbeat = _near(boundary, downbeats, bar_ms * 0.5) is not None
 
         # DROP: a big upward STEP out of a flat/low approach, landing on a downbeat → gate the final
         # beat before the boundary (the display goes dark for that beat and RELIGHTS at the drop).
         # `approach < RISER_DELTA` keeps a smooth BUILD (rising approach) out of the drop branch.
-        is_drop = (delta >= DROP_DELTA and approach < RISER_DELTA and on_downbeat) \
-            or (near_cue and delta >= DROP_DELTA and on_downbeat)
+        is_drop = delta >= DROP_DELTA and approach < RISER_DELTA and on_downbeat
         if is_drop:
             gate_from = _near(boundary, beats, bar_ms) or int(boundary - bar_ms / DEFAULT_BEATS_PER_BAR)
             beat_start = gate_from - int(bar_ms / DEFAULT_BEATS_PER_BAR)
@@ -190,13 +169,5 @@ def place_transitions(st, instrs: list[EffectInstruction]) -> list[EffectInstruc
             r = _riser(i, boundary, bar_ms, palette)
             if r is not None:
                 out.append(r)
-            continue
-
-        # LATERAL: a cued boundary with FLAT energy (neither a build nor a drop) → a sweep handoff.
-        # Only on a marked cue, so we don't sweep every quiet join.
-        if near_cue:
-            s = _sweep(i, boundary, bar_ms, palette)
-            if s is not None:
-                out.append(s)
 
     return out

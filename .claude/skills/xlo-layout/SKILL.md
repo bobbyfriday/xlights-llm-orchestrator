@@ -49,7 +49,6 @@ disables that sublayer.
 ## Reading the manifest (scale, geometry, symmetry)
 
 `layout_semantics.json` lives in the show folder (and a copy under the cache root's `layout/`).
-It is what the old Director was shown as "LAYOUT TRAITS" (`agents/director.py:render_layout_block`).
 Plan to it:
 
 - `display`: `width_units`, `focal_x` (0–1, where the hero sits), `symmetric`. A symmetric display
@@ -66,10 +65,13 @@ media. Radial effects want `2D_RADIAL`; chases want `LINEAR_*`; floods (`POINT`)
 
 ## Classifying the unresolved tail (`/xlo:init-layout`)
 
-1. Run `xlo init-layout --show-folder <dir> --dry-run`. The deterministic pass (spec §3 steps 1–4)
-   resolves most props; the rest are `CUSTOM_PROP` at confidence 0.5 and land in
-   `layout_review.json` with what the classifier saw per prop: `name`, `display_as`, `nodes`,
-   `pos` [x, y], `groups` (the user's group names it belongs to), plus candidate roles.
+1. Run `xlo init-layout --show-folder <dir> --dry-run` (exit 0 whether or not props need review;
+   the layout file is untouched). The deterministic pass (spec §3 steps 1–4) resolves most props;
+   every prop still needing review (the unresolved `CUSTOM_PROP` @ 0.5 tail, low-confidence
+   guesses) is listed in `<show folder>/layout_review.json` under `props`, with
+   what the classifier saw: `name`, `display_as`, `nodes`, `pos` [x, y], `groups` (the user's
+   group names it belongs to), its current `role` + `confidence`, and `candidate_roles` (the enum
+   below). A rare name-only entry has no parsed model behind it.
 2. For each unresolved prop pick ONE role from the closed enum — `MEGA_TREE`, `MINI_TREE`, `ARCH`,
    `CANE`, `ICICLES`, `STAR`, `SPINNER`, `MATRIX`, `WINDOW`, `OUTLINE`, `FLOOD`, `SINGING_FACE`,
    `SIGN`, `PATH`, `SNOWFLAKE`, `CUSTOM_PROP`. Use the name and the user-group names as the
@@ -91,11 +93,13 @@ media. Radial effects want `2D_RADIAL`; chases want `LINEAR_*`; floods (`POINT`)
 
    An override is a human decision: confidence 1.0, out of the review queue. Roles outside the enum
    are ignored silently, so spell them exactly.
-4. Re-run `xlo init-layout --show-folder <dir> --dry-run` and confirm "0 to review" and read the
-   membership diff. Then run without `--dry-run` with **xLights closed** (it rewrites
-   `xlights_rgbeffects.xml` from memory on exit and would clobber the edit). A backup is taken; only
-   `SEM_` groups are regenerated — user groups are never touched. Restart xLights afterwards; the
-   next `xlo groups` re-probes targetability.
+4. Re-run `xlo init-layout --show-folder <dir> --dry-run` and confirm "0 to review" (an empty
+   `props` list) and read the membership diff. Then run without `--dry-run` with **xLights closed**
+   (it rewrites `xlights_rgbeffects.xml` from memory on exit and would clobber the edit; it exits 1
+   without writing while xLights answers its port). A backup is taken; only `SEM_` groups are
+   regenerated — user groups are never touched. The write exits 1 if props were still unreviewed
+   (they ship in the manifest's `review`), else 0. Restart xLights afterwards; the next
+   `xlo groups` re-probes targetability.
 
 Flags: `--invert-x` when the sweep test runs right-to-left (mirrored preview); `--yes` keeps every
 suggestion unattended (they stay listed in the manifest's `review`).

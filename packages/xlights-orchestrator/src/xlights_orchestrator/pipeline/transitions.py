@@ -17,7 +17,7 @@ Contract:
 
 from __future__ import annotations
 
-from ..agents.catalog import candidate_look_ids
+from .catalog import candidate_look_ids
 from ..show_plan import EffectInstruction
 from .semantic_groups import PEAK_BROAD_GROUPS
 from .meter import DEFAULT_BEATS_PER_BAR

@@ -19,7 +19,7 @@ from xlights_core.editing import place_preset
 from xlights_core.exceptions import XLightsTargetMissing
 
 from .. import degradations
-from ..agents.generator import candidate_look_ids
+from .catalog import candidate_look_ids
 
 log = logging.getLogger(__name__)
 

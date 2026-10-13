@@ -18,7 +18,7 @@ from xlights_core.audio import SongAnalysis
 from .. import degradations, telemetry
 from .._fmt import mmss
 from ..effect_emitter import apply_instructions, clamp_layer_budget
-from ..agents.catalog import placeable_effect_types
+from .catalog import placeable_effect_types
 from ..agents import director as director_mod
 from ..agents import generator as generator_mod
 from ..music_brief import MusicBrief

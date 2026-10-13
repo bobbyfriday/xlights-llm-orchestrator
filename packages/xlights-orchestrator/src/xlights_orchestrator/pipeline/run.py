@@ -20,7 +20,7 @@ import logging
 from .. import degradations, telemetry
 from ..agents import director as director_mod
 from ..agents import panel as panel_mod
-from ..agents.catalog import placeable_effect_types
+from .catalog import placeable_effect_types
 from ..effect_emitter import apply_instructions, clamp_layer_budget
 from ..lyrics import fetch_lyrics
 from ..music_brief import MusicBrief
@@ -35,7 +35,7 @@ from ..revision_log import (
 from ..show_plan import EffectInstruction, ShowPlan
 from ..creative_brief import render_creative_brief
 from ..brief_schema import write_editable_brief
-from ..agents.guide_extracts import scene_ids as _scene_ids
+from .cookbook import scene_ids as _scene_ids
 from xlights_core.knowledge.colors import NAMED_COLORS
 from ..song_description import render_description
 

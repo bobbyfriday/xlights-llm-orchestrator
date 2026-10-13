@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from . import catalog, director, generator
+from . import director, generator
 
-__all__ = ["director", "generator", "catalog"]
+__all__ = ["director", "generator"]

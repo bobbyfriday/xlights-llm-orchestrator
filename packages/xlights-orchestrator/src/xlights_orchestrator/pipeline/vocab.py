@@ -6,8 +6,8 @@ types, the cellable carrier types (for `fabric.carrier`), the cookbook scene ids
 stems, the named colors, and the layer blend methods (for `fabric.blend`). This module takes
 those lists as arguments — it never calls xLights or the preset library itself — so it is
 hermetic and the values are the caller's to source (`pipeline.groups.targetable_groups`,
-`agents.catalog.placeable_effect_types`, `pipeline.effect_meta.DURATION_CELLABLE`,
-`agents.guide_extracts.scene_ids`, the analysis' stems,
+`pipeline.catalog.placeable_effect_types`, `pipeline.effect_meta.DURATION_CELLABLE`,
+`pipeline.cookbook.scene_ids`, the analysis' stems,
 `xlights_core.knowledge.colors.NAMED_COLORS`, `show_plan.BLEND_METHODS`).
 """
 

@@ -192,7 +192,7 @@ def demote_offpeak_hits(instructions: list, *, is_peak: bool) -> int:
 
     Returns the number of instructions changed or removed.
     In-place mutation of `instructions`; does NOT add/reorder rows."""
-    from ..agents.catalog import candidate_look_ids
+    from ..pipeline.catalog import candidate_look_ids
     if is_peak:
         return 0
     sw_looks = candidate_look_ids("Shockwave")

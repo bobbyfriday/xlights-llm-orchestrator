@@ -279,8 +279,8 @@ async def _groups_live(sa) -> tuple[list[str], list[str], str | None]:
 
 def _stage_groups(args) -> int:
     from xlights_core.knowledge.colors import NAMED_COLORS
-    from .agents.catalog import placeable_effect_types
-    from .agents.guide_extracts import scene_ids
+    from .pipeline.catalog import placeable_effect_types
+    from .pipeline.cookbook import scene_ids
     from .pipeline.effect_meta import DURATION_CELLABLE
     from .pipeline.stage_io import load_analysis, write_layout
     from .pipeline.vocab import build_vocab, write_vocab_and_schema

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from .. import telemetry
 from ..agents import generator as generator_mod
-from ..agents.guide import load_guide
+from .cookbook import load_guide
 from ..models.registry import run_agent
 from ..qa.rules import clamp_hard_caps, demote_offpeak_hits
 from ..show_plan import (
@@ -74,7 +74,7 @@ from .weave import (
     section_carrier,
     weave_from_brief,
 )
-from ..agents.catalog import candidate_look_ids
+from .catalog import candidate_look_ids
 
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
@@ -135,7 +135,7 @@ def _dim_bed(section, available_groups: list[str], existing_targets, pal_offset:
     group is free or the section already beds it."""
     from .beats import effect_palette
     from .semantic_groups import BED_PREFERENCE
-    from ..agents.catalog import candidate_look_ids
+    from .catalog import candidate_look_ids
     from xlights_core.knowledge.value_curves import brightness_setting
     target = next((g for g in BED_PREFERENCE
                    if g in (available_groups or []) and g not in (existing_targets or set())), None)
@@ -187,7 +187,7 @@ def _final_occurrence_layer(section, intensity: float, available_groups: list[st
     a bright sparkle pop on a dedicated accent prop group, in the section's lightest color, so the
     last chorus reads as the biggest. None when the layout has no accent prop group — the design's
     'when the layout has accent props' guard, keeping non-accent layouts unchanged."""
-    from ..agents.catalog import candidate_look_ids
+    from .catalog import candidate_look_ids
     from .beats import _lightest_hex
     from xlights_core.knowledge.value_curves import brightness_setting
     from .tuning import FEATURE_PROP_BRIGHTNESS

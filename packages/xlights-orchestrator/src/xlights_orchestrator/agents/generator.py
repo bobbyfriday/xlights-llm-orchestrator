@@ -13,7 +13,7 @@ from .guide_extracts import (
     sequencing_essentials,
 )
 from ..show_plan import SectionEffects, SectionPlan
-from .catalog import candidate_look_ids, palette_menu
+from ..pipeline.catalog import candidate_look_ids, palette_menu
 
 _PROMPT = (Path(__file__).parent / "prompts" / "generator.md").read_text()
 

@@ -13,7 +13,7 @@ import logging
 from xlights_core.knowledge.colors import contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import (
     BLEND_METHODS,
     FABRIC_ALTERNATIONS,

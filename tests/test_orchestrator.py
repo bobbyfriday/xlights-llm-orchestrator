@@ -12,7 +12,7 @@ import os
 import httpx
 import pytest
 
-from xlights_orchestrator.agents.catalog import KNOWN_REJECTED_TYPES, placeable_effect_types
+from xlights_orchestrator.pipeline.catalog import KNOWN_REJECTED_TYPES, placeable_effect_types
 from xlights_orchestrator.effect_emitter import apply_instructions
 from xlights_orchestrator.models import registry
 from xlights_orchestrator.music_brief import LabeledSection, MusicBrief

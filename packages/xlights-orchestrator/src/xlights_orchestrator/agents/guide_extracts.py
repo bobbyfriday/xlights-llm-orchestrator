@@ -5,30 +5,9 @@ prompt is a valid state; never raise)."""
 
 from __future__ import annotations
 
-import re
 
+from ..pipeline.cookbook import _cut, scene_ids, scene_recipe  # noqa: F401 — re-exported
 from .guide import load_guide
-
-_HEADING = re.compile(r"^(#{1,4})\s+(.*)$", re.MULTILINE)
-
-
-def _cut(text: str, want) -> str:
-    """Concatenated sections whose heading title satisfies `want(title)`; each section runs
-    from its heading to the next heading of the same-or-higher level. '' when none match.
-    Level-1 headings are document titles, never sections — they'd swallow the whole guide."""
-    heads = [(m.start(), len(m.group(1)), m.group(2)) for m in _HEADING.finditer(text)]
-    out: list[str] = []
-    for i, (start, level, title) in enumerate(heads):
-        if level == 1 or not want(title):
-            continue
-        end = len(text)
-        for s2, l2, _ in heads[i + 1:]:
-            if l2 <= level:
-                end = s2
-                break
-        out.append(re.sub(r"\n+-{3,}\s*$", "", text[start:end].rstrip()))  # drop trailing hr
-    return "\n\n".join(out)
-
 
 def catalog_essentials() -> str:
     """Quick Reference Table (incl. duration classes) + Placement Decision Rules — the parts
@@ -45,20 +24,6 @@ def layering_essentials() -> str:
     if not out:
         out = _cut(text, lambda t: "Render" in t or "Buffer" in t)
     return out or text[:4096]
-
-
-def scene_recipe(scene_id: str) -> str:
-    """ONLY the named scene's block from the cookbook (heading contains the id, e.g. 'SC-09');
-    '' when scene_id is empty or unknown."""
-    if not scene_id:
-        return ""
-    return _cut(load_guide("scenes"), lambda t: scene_id in t)
-
-
-def scene_ids() -> list[str]:
-    """Every `SC-NN` scene id defined in the scene cookbook (sorted, unique) — the source for the
-    brief schema's `scene_id` dropdown. Empty when the cookbook is absent."""
-    return sorted(set(re.findall(r"SC-\d+", load_guide("scenes") or "")))
 
 
 def sequencing_essentials() -> str:

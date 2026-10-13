@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from xlights_core.knowledge.colors import _brighten, _resolve, contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction
 from .beats import _downsample, effect_palette
 # SHOCKWAVE_SETTINGS lives in effect_meta (not here) to break the beats→triggers cycle.

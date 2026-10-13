@@ -13,7 +13,7 @@ from typing import NamedTuple
 from xlights_core.knowledge.colors import _luminance, _resolve, contrast_anchors, expand_palette
 from xlights_core.knowledge.value_curves import brightness_setting
 
-from ..agents.catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import EffectInstruction, SectionPlan
 
 # SEM_ semantic groups (xlights-layout-semantics-spec): the beat chase sweeps L→C→R spatially,

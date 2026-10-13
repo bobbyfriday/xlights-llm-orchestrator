@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
 
 # The realization-layer provenance vocabulary for EffectInstruction.source (I7 attribution,
@@ -55,6 +57,9 @@ class SectionPlan(BaseModel):
 
     start_ms: int
     end_ms: int
+    label: str = ""                          # the section's musical label ("verse 1", "chorus", "bridge");
+                                             #   blank allowed. Recurring labels (chorus 1/2) rhyme: see
+                                             #   repetition_map_from_labels.
     target_groups: list[str] = Field(description="prop GROUP names to light in this section")
     effect_family: str = Field(description="an effect type to use (must be a placeable type)")
     intensity: float = Field(ge=0, le=1, description="0=calm .. 1=peak")
@@ -84,6 +89,28 @@ class SectionPlan(BaseModel):
     pulse_on: str = ""                       # "beat" | "onset" (default beat)
     # -- fabric intent (claude-driven-orchestration D3; additive, None → code chooses) --
     fabric: SectionFabric | None = None      # carrier / alternation / cell_beats / blend knobs
+
+
+_LABEL_TAIL = re.compile(r"[\s\d#_-]+$")   # "chorus 2" / "verse-1" / "chorus #3" → the bare label
+
+
+def normalize_label(label: str) -> str:
+    """A section label's musical IDENTITY: lowercase, trimmed, trailing digits/separators dropped
+    ("Chorus 1" and "chorus 2" → "chorus"). "" for a blank label."""
+    return _LABEL_TAIL.sub("", (label or "").strip().lower()).strip()
+
+
+def repetition_map_from_labels(sections) -> dict[str, list[int]]:
+    """Derive the repetition map (identity → recurring section indices) from the sections' own
+    `label` values — the brief-driven stand-in for the MusicBrief's analyst-written map. Only
+    identities with ≥ 2 occurrences are kept (a one-off has no rhyme partner); blank labels are
+    ignored; key order follows first occurrence, so the result is deterministic."""
+    by_label: dict[str, list[int]] = {}
+    for i, sec in enumerate(sections or []):
+        key = normalize_label(getattr(sec, "label", "") or "")
+        if key:
+            by_label.setdefault(key, []).append(i)
+    return {k: v for k, v in by_label.items() if len(v) >= 2}
 
 
 class ShowPlan(BaseModel):

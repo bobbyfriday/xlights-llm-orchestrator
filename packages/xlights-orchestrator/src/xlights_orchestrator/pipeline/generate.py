@@ -20,7 +20,7 @@ from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
 from ..models.registry import run_agent
 from ..qa.rules import clamp_hard_caps, demote_offpeak_hits
-from ..show_plan import EffectInstruction, KeyMoment, SectionEffects
+from ..show_plan import EffectInstruction, KeyMoment, SectionEffects, repetition_map_from_labels
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
 
@@ -326,6 +326,18 @@ def realize_section_from_brief(st: State, si: int) -> list[EffectInstruction]:
     return realize_section_effects(st, si, out, from_brief=True)
 
 
+def repetition_map(st: State) -> dict[str, list[int]] | None:
+    """The repetition map the realization rhymes on: the MusicBrief's (analyst-written) when it is
+    present and non-empty, else one derived from the brief sections' own `label`s
+    (`repetition_map_from_labels`). None when neither yields a recurring identity — every section
+    is then a one-off, exactly as before labels existed."""
+    mb = getattr(st.music_brief, "repetition_map", None) if st.music_brief else None
+    if mb:
+        return mb
+    plan = require(st.show_plan, "show_plan")
+    return repetition_map_from_labels(plan.sections) or None
+
+
 def realize_section_effects(st: State, si: int, out: SectionEffects, *,
                             from_brief: bool = False) -> list[EffectInstruction]:
     """The shared downstream body: a section's designed effects (`out`) → energy-gated coverage,
@@ -339,7 +351,7 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
     section = plan.sections[si]
     _peaks = peak_sections(plan)         # the show's payoff section(s)
     bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
-    _rm = st.music_brief.repetition_map if st.music_brief else None
+    _rm = repetition_map(st)                 # MusicBrief's map, else derived from section labels
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
     _label = section_identity(si, _rm)       # the section's musical identity (chorus/verse/…) or None
     _ordinal, _count = occurrence_ordinal(si, _rm)   # which occurrence this is (0-based) + how many

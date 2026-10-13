@@ -1,0 +1,38 @@
+## 1. PR 1 — Stage commands and the brief contract (additive; `xlo run` still works)
+
+- [ ] 1.1 Add `fabric` (carrier, alternation, cell_beats, blend; all optional) to `SectionPlan` in `show_plan.py`; extend `brief_schema.build_brief_schema` with a `cellable` enum for `fabric.carrier` and the alternation/blend enums
+- [ ] 1.2 In `pipeline/weave.py`, add `weave_from_brief(section, available_groups)` that builds the `SectionWeave` from the fabric fields over `fallback_weave`'s structure; unit-test directed carrier/alternation/cell_beats/blend and the absent-fabric path (byte-identical to `fallback_weave`)
+- [ ] 1.3 In `pipeline/generate.py`, add a `realize_section_from_brief(st, si)` path that uses `weave_from_brief`, `candidate_look_ids(type)[0]` with the existing label-seeded rotation, and `fallback_style` for render styles, then runs the unchanged downstream layers; keep the agent path untouched for now
+- [ ] 1.4 Add `pipeline/digest.py`: `render_digest(analysis) -> str` (duration/tempo/meter, downbeat-snapped sections with normalized energy, dominant stems, chord density, timed + repeated lyric lines, entrances, key/mood); port the deterministic parts of `song_description.py` and the panel slices; test against the golden fixture for determinism and a size bound
+- [ ] 1.5 Add `pipeline/vocab.py`: `build_vocab(groups, placeable_types, scene_ids, stems, colors) -> dict` and `write_vocab_and_schema(song_dir, ...)`; test that the schema enums match `vocab.json`
+- [ ] 1.6 Add `pipeline/validate_brief.py`: load as `ShowPlan`; check ordering/overlap/coverage (tolerance), group/effect/scene/stem/pulse/palette membership against `vocab.json`, `fabric.carrier` cellable, intensity range; downbeat-alignment as warnings; write `validation.json` `{ok, errors[{path,message,allowed}], warnings}`; tests for each error class and the warning path
+- [ ] 1.7 Add the dark-mid-energy and static-section findings to `qa` (over the `.fseq` series via `fseq_metrics`; neutral when no series); write `qa.json` with `section_index` + plain-language fix per finding; tests on a synthetic series
+- [ ] 1.8 Add `pipeline/stills.py`: per-section PNG from the compiled `.fseq` + layout geometry (reuse `xlights_core.preview`), at the section's energy peak or midpoint; skip with a message when no `.fseq`; test with the preview fixture
+- [ ] 1.9 Remove the `models=` namespace from `cache.cache_path`; delete `models_fingerprint`/`FINGERPRINT_EXEMPT_ROLES`; point brief/instructions/stills/video paths at the flat song dir; test that old namespaced dirs are not read
+- [ ] 1.10 Rewrite `cli.py` with subcommands `analyze` (analysis + lyrics + digest), `groups` (vocab + schema), `validate-brief`, `realize`, `apply` (`--render`, writes `applied.json`), `qa`, `stills`, `finalize --name`, `video-plan`, `cache-rename`; each takes `--song`/`--cache`, exits non-zero naming a missing prerequisite; keep `run`/`regen`/`report`/`ab`/`edit-brief`/`init-layout` registered for PR 3
+- [ ] 1.11 Thread `apply` through the existing `effect_emitter.apply_instructions` (clean slate + additive emit) and record per-instruction outcomes in `applied.json`
+- [ ] 1.12 Make `build_timing_tracks` and `resolve_beats_per_bar` accept the brief's sections directly (brief=None path) so `finalize` works without a `MusicBrief`; test the no-MusicBrief path
+- [ ] 1.13 Add `tests/test_cli_stages.py` exercising each stage command with a fake client over the golden fixture dir (missing-prerequisite exits, file outputs, byte-identical `realize`)
+- [ ] 1.14 Verify on an existing cached song: `xlo groups && xlo validate-brief && xlo realize` over the cached brief reproduces the golden properties; run `scripts/measure_fabric.py` before/after and record the fabric stats in the PR
+
+## 2. PR 2 — Skills, commands, and docs (used on at least one real song)
+
+- [ ] 2.1 Write `.claude/skills/xlo-sequencing/SKILL.md` pointing at the sequencing guide, effects catalog, and layering guide, stating which to read for which decision (vocabulary, placement rules, render styles)
+- [ ] 2.2 Write `.claude/skills/xlo-scenes/SKILL.md` for the scene and trigger cookbooks (when to cast a scene, how `scene_adaptation` maps archetypes to groups)
+- [ ] 2.3 Write `.claude/skills/xlo-layout/SKILL.md` for the layout semantics spec, the manifest, SEM_ groups, and `layout_overrides.json`
+- [ ] 2.4 Write `.claude/skills/xlo-brief/SKILL.md`: every `ShowPlan`/`SectionPlan` field in plain terms, the treatment table, the fabric knobs and their defaults, a complete worked section, the validate-fix loop, and how to split a section for time-range feedback
+- [ ] 2.5 Write `.claude/skills/xlo-video/SKILL.md` from the videographer prompt (story rules, no time fields, `video_story.json` shape)
+- [ ] 2.6 Write `.claude/commands/xlo/analyze.md`, `design.md`, `realize.md`, `apply.md`, `review.md`, `finalize.md`, `video.md`, `init-layout.md`, `show.md` per design D8 (which skills to load, which `xlo` commands to run, which files to read, what to present, where to pause)
+- [ ] 2.7 Make one real show end-to-end in a Claude Code session on the branch; capture what the skills got wrong and fix the skill/command text
+- [ ] 2.8 Rewrite `README.md` and `docs/usage.md` around the command flow; update `docs/architecture/` and its diagrams; update `.env.example` (drop LLM keys, keep `GENIUS_ACCESS_TOKEN`, `XLO_CACHE_DIR`)
+
+## 3. PR 3 — Remove the agent harness
+
+- [ ] 3.1 Move `agents/catalog.py` to `pipeline/catalog.py`; update imports
+- [ ] 3.2 Delete `agents/` (director, generator, panel, synthesizer, judge, visual_critic, videographer, layout_classifier, guide, guide_extracts, prompts/), `models/` (registry, config.yaml), `music_brief.py`, `song_description.py`, `refine.py`, `revision_log.py`, `telemetry.py`, `reporting.py`, `live_server.py`, `brief_editor.py`, `progress.py`, `veo_ledger.py` (if only telemetry uses it), `pipeline/{run,regen,refine_loop,ab,visual}.py`
+- [ ] 3.3 Strip the agent call from `video_script.py` (keep `resolve_beats`, `split_long_shots`, `assign_lyrics`, `render_markdown`; `VideographerOut` becomes the `video_story.json` model) and from `init_layout.py` (write `layout_review.json` in dry-run; remove `classify_tail` and `has_llm_key`)
+- [ ] 3.4 Remove the `run`, `regen`, `report`, `ab`, `edit-brief` subcommands and the `--refine/--auto/--no-browser/--max-iterations/--no-log` flags; make `init-layout` write the review file
+- [ ] 3.5 Remove `pydantic-ai` from `packages/xlights-orchestrator/pyproject.toml`; `uv lock`; confirm `uv sync` installs no model client
+- [ ] 3.6 Delete tests for removed modules (`test_ab`, `test_brief_editor*`, `test_live_server`, `test_orchestrator` agent paths, `test_layout_classifier_llm`, refine/judge/critic/telemetry/report/revision-log tests, `test_guide_extracts`, `test_guide_injection`); rewrite `test_golden_pipeline.py` on a fixture `creative_brief.json` (with a `fabric` block on one section) asserting the same instruction properties and the fabric canary
+- [ ] 3.7 Grep for `telemetry`, `degradations.start_run`, `models.registry`, `run_agent`, `MusicBrief` and remove dead references; run `pytest` hermetic suite green
+- [ ] 3.8 Update the memory notes that reference the removed pieces (LLM auth, PR workflow unchanged) and the CLAUDE.md/usage pointers

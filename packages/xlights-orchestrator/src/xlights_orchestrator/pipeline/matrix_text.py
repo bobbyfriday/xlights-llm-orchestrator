@@ -151,8 +151,9 @@ def _title_moment(brief, sections) -> TextMoment | None:
 
 
 def _lyric_key(km) -> str:
-    """Forward-compat escape hatch (D1): a KeyMoment of kind 'lyric' with a future `text` field
-    lets the Director hand-pick a caption; the pass prefers it. Absent today → empty string."""
+    """The caption a brief's `key_moments[]` entry of kind 'lyric' hand-picks via its `text`
+    field (the brief-only path's source of lyric captions, beside the MusicBrief's
+    `featured_lyric_moments`). "" for any other kind or an empty text."""
     return (getattr(km, "text", "") or "").strip() if "lyric" in (getattr(km, "kind", "") or "").lower() else ""
 
 

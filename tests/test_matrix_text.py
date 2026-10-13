@@ -245,3 +245,46 @@ def test_clean_display_text_strips_time_range_keeps_parentheticals():
     # a real lyric parenthetical (letters) is NOT a time range → left intact
     assert c("Who you gon' call? (Ghostbusters!)") == "Who you gon' call? (Ghostbusters!)"
     assert c("GHOSTBUSTERS") == "GHOSTBUSTERS"
+
+
+# -- the brief's own lyric captions: key_moments[].text (no MusicBrief) ----------------------
+
+def test_lyric_key_moment_text_is_the_brief_only_caption_source():
+    from xlights_orchestrator.show_plan import KeyMoment
+    plan = _plan(_sections((0, 12000, 0.3), (12000, 40000, 0.4)))
+    plan.key_moments = [KeyMoment(at_ms=13000, kind="lyric", text="shine the light bright",
+                                  treatment="the title line on the matrix"),
+                        KeyMoment(at_ms=13000, kind="climax", text="not a caption")]
+    sa = SimpleNamespace(lyrics=_lyrics(("shine the light bright", 13000, 17000)))
+    st = State(song_path="s.mp3")
+    st.song_analysis, st.music_brief, st.show_plan = sa, None, plan      # brief-only: no MusicBrief
+    st.model_names = ["Arches", "Matrix", "Mega Tree"]
+    out = place_matrix_text(st, "Matrix")
+    assert len(out) == 1 and out[0].effect_type == "Text" and out[0].target == "Matrix"
+    assert dict(parse_settings(out[0].direct_settings))["E_TEXTCTRL_Text"] == "shine the light bright"
+    assert (out[0].start_ms, out[0].end_ms) == (13000, 17000)            # snapped to the aligned line
+    # the same caption through the MusicBrief source yields the same instruction (both coexist)
+    st.music_brief = _brief(title="", moments=[
+        FeaturedLyricMoment(line="shine the light bright", start_ms=13000, end_ms=17000)])
+    both = place_matrix_text(st, "Matrix")
+    assert [(i.start_ms, i.end_ms, i.direct_settings) for i in both] == \
+        [(i.start_ms, i.end_ms, i.direct_settings) for i in out]
+    # an unaligned lyric key moment is dropped, never shown at a guessed time
+    plan.key_moments = [KeyMoment(at_ms=13000, kind="lyric", text="totally unrelated words")]
+    st.music_brief = None
+    assert place_matrix_text(st, "Matrix") == []
+
+
+def test_lyric_key_moment_runs_through_the_brief_only_show_assembly():
+    from test_realize_from_brief import _plan as _brief_plan, _state as _brief_state
+    from xlights_orchestrator.pipeline.generate import generate_instructions_from_brief
+    from xlights_orchestrator.show_plan import KeyMoment
+    plan = _brief_plan()
+    plan.key_moments.append(KeyMoment(at_ms=2000, kind="lyric", text="hello verse line"))
+    st = _brief_state(plan)
+    st.song_analysis.lyrics = _lyrics(("hello verse line", 2000, 5000))
+    st.model_names = ["Arches", "Matrix", "Mega Tree"]
+    instrs = generate_instructions_from_brief(st)
+    texts = [i for i in instrs if i.effect_type == "Text" and i.target == "Matrix"]
+    assert len(texts) == 1 and texts[0].section_index == 0
+    assert dict(parse_settings(texts[0].direct_settings))["E_TEXTCTRL_Text"] == "hello verse line"

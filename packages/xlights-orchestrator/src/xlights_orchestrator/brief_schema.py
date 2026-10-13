@@ -29,6 +29,13 @@ def _set_scalar_enum(props: dict, field: str, values: list[str]) -> None:
         p["enum"] = list(values)
 
 
+def _set_map_value_enum(props: dict, field: str, values: list[str]) -> None:
+    """A `dict[str, str]` field's VALUES (`additionalProperties`) → an enum; keys stay free text."""
+    p = props.get(field)
+    if isinstance(p, dict) and isinstance(p.get("additionalProperties"), dict):
+        p["additionalProperties"]["enum"] = list(values)
+
+
 def build_brief_schema(*, groups: list[str], effect_types: list[str], scene_ids: list[str],
                        stems: list[str], colors: list[str], cellable: list[str] | None = None) -> dict:
     """`ShowPlan`'s JSON Schema, enriched with the run's vocabulary as field `enum`s.
@@ -47,6 +54,7 @@ def build_brief_schema(*, groups: list[str], effect_types: list[str], scene_ids:
     # group fields → the live layout groups
     _set_array_enum(sp, "target_groups", groups)
     _set_array_enum(sp, "pulse_groups", groups)
+    _set_map_value_enum(sp, "scene_cast", groups)      # archetype → one of the live groups
     # effect fields → placeable effect types
     _set_array_enum(sp, "effect_types", effect_types)
     _set_scalar_enum(sp, "effect_family", effect_types)

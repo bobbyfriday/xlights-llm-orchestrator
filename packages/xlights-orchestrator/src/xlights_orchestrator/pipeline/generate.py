@@ -9,7 +9,8 @@ reads as a stage skeleton; caching stays with the caller.
 Two entry points share ONE downstream body (`realize_section_effects`):
   * `realize_section` / `generate_instructions` — the LLM Generator designs the section.
   * `realize_section_from_brief` / `generate_instructions_from_brief` — LLM-free
-    (claude-driven-orchestration D3): base rows synthesized from the brief's effect types,
+    (claude-driven-orchestration D3): base rows synthesized from the brief's effect types —
+    or, when the section names a cookbook scene, the scene's cast stack (`pipeline/scenes`) —
     the weave from `weave_from_brief` (the brief's `fabric` knobs over the fallback fabric).
 """
 
@@ -20,7 +21,13 @@ from ..agents import generator as generator_mod
 from ..agents.guide import load_guide
 from ..models.registry import run_agent
 from ..qa.rules import clamp_hard_caps, demote_offpeak_hits
-from ..show_plan import EffectInstruction, KeyMoment, SectionEffects, repetition_map_from_labels
+from ..show_plan import (
+    EffectInstruction,
+    KeyMoment,
+    SectionEffects,
+    SectionWeave,
+    repetition_map_from_labels,
+)
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
 
@@ -49,6 +56,7 @@ from .beats import (
 )
 from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
+from .scenes import cast_scene, parse_scene_stack
 from .state import State, require
 from .triggers import place_triggers
 from .semantic_groups import ACCENT_GROUPS, DEFAULT_VOCAB, HERO_GROUP
@@ -76,6 +84,16 @@ _BED_WASH_EFFECTS = {"On", "Color Wash", "Fill", "Plasma"}   # sustained bases t
 _PHRASE_MIN_BARS = 2                  # only beds/washes ≥ this many bars get an energy-shaped curve
 
 
+def _scene_level(ins) -> float | None:
+    """A cast scene row's cookbook brightness (`C_SLIDER_Brightness` set by `cast_scene`), or
+    None when the row carries none — the level the phrase curve then shapes around."""
+    raw = ins.extra_settings.get("C_SLIDER_Brightness")
+    try:
+        return float(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _phrase_brightness(ins, shape: str, wash_b: float, bar_ms: float) -> dict[str, str]:
     """The brightness setting for a bed/wash, shaped by the section's energy slice (Phase 3):
     rising → an upward ramp (swell), falling → a downward ramp (decay), flat → a constant level
@@ -93,6 +111,9 @@ def _phrase_brightness(ins, shape: str, wash_b: float, bar_ms: float) -> dict[st
 
 # Treatment → which realization LAYERS are included (withheld, not merely dimmed). See design table.
 #   bed: "full" (energy bed / peak fill) | "dim" (a low ≤2-group bed) | "" (none)
+#   weave: True (the whole fabric) | "solo" (one carrier recipe, gesture) | False (withheld) — but on
+#   the BRIEF path an explicit `fabric.carrier` re-enables it under pulse (carrier + texture) and
+#   feature (the carrier cell alone): see _EXPLICIT_FABRIC_WEAVE. Absent fabric → this table.
 _TREATMENT_LAYERS: dict[str, dict] = {
     "full":    {"bed": "full", "weave": True,  "accents": "full",   "extras": True,  "feature": True,  "phrase": True},
     "pulse":   {"bed": "full", "weave": False, "accents": "full",   "extras": False, "feature": True,  "phrase": True},
@@ -101,6 +122,9 @@ _TREATMENT_LAYERS: dict[str, dict] = {
     "rest":    {"bed": "dim",  "weave": False, "accents": "none",   "extras": False, "feature": False, "phrase": False},
 }
 _SPARSE_TREATMENTS = ("feature", "gesture", "rest")   # not full/pulse → no reliable base bed
+# Brief path: a section whose `fabric.carrier` is set has ASKED for a fabric, so these treatments
+# weave it anyway — "full" = carrier + texture, "carrier" = the carrier cell only. rest stays off.
+_EXPLICIT_FABRIC_WEAVE = {"pulse": "full", "feature": "carrier"}
 _GESTURE_MAX_GROUPS = 2       # gesture/rest touch at most this many groups
 _DIM_BED_BRIGHTNESS = 55.0    # the injected minimal bed for rest / the bed floor (dim, present)
 
@@ -290,12 +314,27 @@ async def realize_section(st: State, si: int, *, agent,
     return realize_section_effects(st, si, out)
 
 
-def _brief_base_instructions(section, available_groups: list[str]) -> list[EffectInstruction]:
-    """The LLM-free stand-in for the Generator's base rows: one section-spanning instruction per
-    target group (brief order = Director priority, which `trim_coverage` keeps first), cycling the
-    section's effect vocabulary (`effect_family`, then `effect_types`) across the groups. Look =
-    the catalog's first candidate for the type; `render_style=""` so the per-effect fallback
-    (`resolve_buffer_style`) applies. Types with no catalog looks are skipped."""
+def _brief_base_instructions(section, available_groups: list[str], *,
+                             pal_offset: int = 0) -> list[EffectInstruction]:
+    """The LLM-free stand-in for the Generator's base rows.
+
+    A section that names a cookbook scene gets the scene's STACK (`pipeline/scenes`): its rows cast
+    onto real groups via `scene_cast` (else the role default), layered and blended as the cookbook
+    writes them, `source="scene"`. That stack REPLACES the generic base layer below; the downstream
+    layers (bed, weave, accents, …) still run over it. An unknown scene, a prose-only scene, or a
+    stack nothing in this layout can cast falls back to the generic rows.
+
+    Generic: one section-spanning instruction per target group (brief order = Director priority,
+    which `trim_coverage` keeps first), cycling the section's effect vocabulary (`effect_family`,
+    then `effect_types`) across the groups. Look = the catalog's first candidate for the type;
+    `render_style=""` so the per-effect fallback (`resolve_buffer_style`) applies. Types with no
+    catalog looks are skipped."""
+    scene_id = getattr(section, "scene_id", "") or ""
+    if scene_id:
+        stack = parse_scene_stack(scene_id)
+        rows = cast_scene(section, stack, available_groups, pal_offset=pal_offset) if stack else []
+        if rows:
+            return rows
     types: list[str] = []
     for raw in (section.effect_family, *(section.effect_types or [])):
         t = canon_effect_type(raw)
@@ -321,7 +360,11 @@ def realize_section_from_brief(st: State, si: int) -> list[EffectInstruction]:
     Deterministic: the same brief + analysis yields the same instructions."""
     plan = require(st.show_plan, "show_plan")
     section = plan.sections[si]
-    out = SectionEffects(instructions=_brief_base_instructions(section, st.available_groups),
+    # the scene rows carry their colors already rotated by the label offset (recurring labels rhyme
+    # their palette order), the same offset realize_section_effects applies to the generic rows.
+    pal_offset = label_palette_offset(section_identity(si, repetition_map(st)))
+    out = SectionEffects(instructions=_brief_base_instructions(section, st.available_groups,
+                                                               pal_offset=pal_offset),
                          weave=None, composites=[])
     return realize_section_effects(st, si, out, from_brief=True)
 
@@ -368,7 +411,11 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
     _bar_ms = _bar_ms_fn(rhythm)
     # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
     # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
-    kept = trim_coverage(list(out.instructions), _si, _ordinal)   # energy-gated + occurrence bonus
+    # a cast scene stack IS the coverage decision (the cookbook's rows, cast by the brief), so its
+    # rows bypass the energy gate; the generic/LLM rows are gated exactly as before.
+    _scene_rows = [i for i in out.instructions if i.source == "scene"]
+    kept = _scene_rows + trim_coverage([i for i in out.instructions if i.source != "scene"],
+                                       _si, _ordinal)   # energy-gated + occurrence bonus
     # sparse treatments withhold coverage: gesture/rest touch ≤2 groups, feature spotlights one hero.
     if _treatment in ("gesture", "rest"):
         _keep = {i.target for i in kept[:_GESTURE_MAX_GROUPS]}
@@ -378,13 +425,15 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
     kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
     for j, ins in enumerate(kept):
         ins.section_index = si              # tag for scoped regen / per-section QA
-        ins.source = "generator"            # provenance (I7; excluded from dump — report-only)
+        ins.source = ins.source or "generator"   # provenance (I7; excluded from dump — report-only)
         if section.palette and not ins.palette_colors:   # LLM's explicit color (feature props) wins
             ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
         # PHRASE DYNAMICS (Phase 3): a ≥2-bar bed/wash carries a brightness curve shaped by the
         # section's own energy slice (rising swells, falling decays, flat holds); features/accents
         # keep crisp constant levels. Supersedes the old ">15s energetic wash builds" special case.
-        ins.extra_settings.update(_phrase_brightness(ins, _shape, wash_b, _bar_ms))
+        # A scene row's cookbook level ("Color Wash 30–40%") is the level the curve shapes around.
+        _level = _scene_level(ins) if ins.source == "scene" else None
+        ins.extra_settings.update(_phrase_brightness(ins, _shape, _level or wash_b, _bar_ms))
         ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
     # BED, per treatment: full/pulse get the energy bed (or peak fill at the peak); feature/rest get
     # a dim ≤2-group bed; gesture gets none — UNLESS the bed floor trips (>2 consecutive bedless
@@ -404,12 +453,21 @@ def realize_section_effects(st: State, si: int, out: SectionEffects, *,
         bed.source = "bed"
         kept.append(bed)                 # occlusion order/blend handled by finalize_effects
     # WEAVE, per treatment: full weaves the whole fabric; gesture runs ONE carrier recipe on ≤2
-    # groups (a single held motion); pulse/feature/rest withhold the fabric entirely.
+    # groups (a single held motion); pulse/feature/rest withhold the fabric entirely — except on the
+    # brief path when the section's `fabric.carrier` is explicit: pulse then weaves carrier + texture
+    # and feature the carrier cell alone (the brief asked for that motion; rest stays still).
     carrier = section_carrier(si, _label)   # keyed to the repetition identity (rhymes) else the index
+    _explicit_weave = ""
     if from_brief:
         carrier = brief_carrier(section, carrier)   # a valid directed `fabric.carrier` wins
+        if getattr(getattr(section, "fabric", None), "carrier", ""):
+            _explicit_weave = _EXPLICIT_FABRIC_WEAVE.get(_treatment, "")
     if _layers["weave"] is True and from_brief:
         weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
+    elif _explicit_weave:
+        weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
+        if _explicit_weave == "carrier":
+            weave_obj = SectionWeave(cells=[c for c in weave_obj.cells if c.role == "carrier"])
     elif _layers["weave"] is True:
         weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
                                                                   carrier=carrier)

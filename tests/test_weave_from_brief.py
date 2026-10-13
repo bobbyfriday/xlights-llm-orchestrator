@@ -159,3 +159,45 @@ def test_brief_loads_a_fabric_block_from_json():
                                        cell_beats=2, blend="Max")
     assert SectionPlan.model_validate({"start_ms": 0, "end_ms": 1, "target_groups": [],
                                        "effect_family": "On", "intensity": 0.5}).fabric is None
+
+
+# -- an explicit carrier re-enables the fabric under pulse / feature (wave 2, lane H) -----------
+
+def _realized(fabric: SectionFabric | None, treatment: str, **kw):
+    from xlights_orchestrator.pipeline.generate import realize_section_from_brief
+    from xlights_orchestrator.pipeline.state import State
+    from xlights_orchestrator.show_plan import ShowPlan
+    st = State(song_path="song.mp3")
+    st.song_analysis = _analysis()
+    st.available_groups = list(GROUPS)
+    st.show_plan = ShowPlan(sections=[_section(fabric, treatment=treatment, **kw)])
+    return realize_section_from_brief(st, 0)
+
+
+def _woven_types(rows) -> set[str]:
+    return {r.effect_type for r in rows if r.source == "weave"}
+
+
+def test_explicit_carrier_weaves_under_pulse_and_feature():
+    explicit = SectionFabric(carrier="Bars", alternation="pingpong", cell_beats=2, blend="Max")
+    pulse = _realized(explicit, "pulse")
+    assert "Bars" in _woven_types(pulse)                                 # the carrier cells
+    assert _woven_types(pulse) - {"Bars"}                                # + the texture cell
+    cells = [r for r in pulse if r.source == "weave" and r.effect_type == "Bars"]
+    assert {r.end_ms - r.start_ms for r in cells} == {1000}             # the knobs still apply
+    feature = _realized(explicit, "feature")
+    assert _woven_types(feature) == {"Bars"}                             # the carrier cell ONLY
+    rest = _realized(explicit, "rest")
+    assert rest and _woven_types(rest) == set()                          # rest stays still
+
+
+def test_absent_or_carrierless_fabric_keeps_the_treatment_table():
+    for fabric in (None, SectionFabric(), SectionFabric(alternation="pingpong", cell_beats=2)):
+        assert _woven_types(_realized(fabric, "pulse")) == set()
+        assert _woven_types(_realized(fabric, "feature")) == set()
+    # full / gesture are unchanged by an explicit carrier: full weaves everything either way,
+    # gesture keeps its single held carrier
+    explicit = SectionFabric(carrier="Bars")
+    full = _woven_types(_realized(explicit, "full"))
+    assert "Bars" in full and full - {"Bars"}
+    assert _woven_types(_realized(explicit, "gesture")) == {"Bars"}

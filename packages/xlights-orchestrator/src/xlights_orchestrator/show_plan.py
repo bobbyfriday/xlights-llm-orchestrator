@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field
 
 # The realization-layer provenance vocabulary for EffectInstruction.source (I7 attribution,
 # report-only; excluded from model_dump so cache/golden formats stay byte-identical).
-EFFECT_SOURCES = ("weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite")
+EFFECT_SOURCES = ("weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite",
+                  "scene")
 
 # The brief's fabric vocabulary (claude-driven-orchestration D3). Kept here, beside the contract,
 # so the schema (brief_schema) and the weaver (pipeline/weave) enumerate the SAME values.
@@ -39,6 +40,9 @@ class KeyMoment(BaseModel):
     at_ms: int
     kind: str = ""                           # accent | climax | lyric
     treatment: str = ""                      # the deliberate visual punctuation
+    text: str = ""                           # kind "lyric": the lyric line/word this moment refers to —
+                                             #   the matrix caption (snapped to the aligned lyric line;
+                                             #   dropped when no aligned line matches). "" otherwise.
 
 
 class SectionFabric(BaseModel):
@@ -81,7 +85,10 @@ class SectionPlan(BaseModel):
                                              #   Defaulted "" so old cached plans validate (back-compat).
     # -- scene intent (cookbook; additive) --
     scene_id: str = ""                       # cookbook scene this section realizes (e.g. "SC-01"); "" = freeform
-    scene_adaptation: str = ""               # which real groups play the scene's archetype rows (hero/rhythm/...)
+    scene_adaptation: str = ""               # prose: which real groups play the scene's archetype rows
+    scene_cast: dict[str, str] = {}          # the machine cast: archetype row id → real group name
+                                             #   ({"G2-HERO": "SEM_FOCAL", "G2-RHYTHM": "SEM_ARCHES"});
+                                             #   {} with a scene_id → pipeline/scenes.default_cast by role
     # -- rhythmic intent (beat layer; all defaulted/back-compat) --
     pulse_groups: list[str] = []             # groups that punctuate the beat (default 04_BEAT_*)
     follow_stem: str = ""                    # whose rhythm to ride (default the prominent stem)

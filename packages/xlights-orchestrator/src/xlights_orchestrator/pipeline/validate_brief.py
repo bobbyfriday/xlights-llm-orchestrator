@@ -11,10 +11,13 @@ Errors (block realization):
     after the last against the song duration)
   - group / effect / scene / stem / pulse_on / palette names outside the vocabulary
   - `fabric.carrier` not cellable, `fabric.alternation` unknown, `fabric.cell_beats` outside 1–8
+  - a `scene_cast` value that is not a targetable group (or a non-object `scene_cast`)
 Warnings (reported, never block):
   - a section boundary not within tolerance of a downbeat (when downbeats are given)
   - a section longer than ~32 s
   - the same `effect_family` on two adjacent sections
+  - a `scene_cast` key that is not one of the named scene's archetype rows, or a `scene_cast`
+    with no `scene_id` (ignored at realization)
 
 All checks run over the RAW dict (not only the parsed model) so one pass reports everything —
 including the optional `fabric` block whether or not `SectionPlan` declares it yet.
@@ -228,6 +231,7 @@ def _membership(sections: list, model_sections: list, vocab: dict, errors: list[
             effects_opt.check(s.get("accent_effect"), f"{p}.accent_effect", errors)
         if "scene_id" in s:
             scenes.check(s.get("scene_id"), f"{p}.scene_id", errors)
+        _scene_cast_values(s, p, groups, errors)
         if "follow_stem" in s:
             stems.check(s.get("follow_stem"), f"{p}.follow_stem", errors)
         if "pulse_on" in s:
@@ -251,6 +255,48 @@ def _membership(sections: list, model_sections: list, vocab: dict, errors: list[
                 errors.append(Issue(path=f"{p}.fabric.cell_beats",
                                     message=f"cell_beats must be an integer {lo}–{hi} or null, got {cb!r}",
                                     allowed=[str(n) for n in range(lo, hi + 1)]))
+
+
+def _scene_cast_values(section: dict, p: str, groups: _Membership, errors: list[Issue]) -> None:
+    """`scene_cast` must be an object whose VALUES are targetable groups (keys are checked against
+    the scene's archetype rows as warnings — see `_scene_cast_warnings`)."""
+    cast = section.get("scene_cast")
+    if cast is None:
+        return
+    if not isinstance(cast, dict):
+        errors.append(Issue(path=f"{p}.scene_cast",
+                            message="scene_cast must be an object mapping archetype rows to groups"))
+        return
+    for key, val in cast.items():
+        groups.check(val, f"{p}.scene_cast.{key}", errors)
+
+
+def _scene_cast_warnings(sections: list) -> list[Issue]:
+    """A `scene_cast` key that is not one of the named scene's archetype rows (or a cast with no
+    scene) is ignored at realization — say so, with the rows the scene actually has."""
+    from .scenes import scene_archetypes
+    out: list[Issue] = []
+    for i, s in enumerate(sections):
+        if not isinstance(s, dict):
+            continue
+        cast = s.get("scene_cast")
+        if not isinstance(cast, dict) or not cast:
+            continue
+        p = f"sections[{i}]"
+        scene = s.get("scene_id")
+        if not isinstance(scene, str) or not scene:
+            out.append(Issue(path=f"{p}.scene_cast",
+                             message="scene_cast is ignored without a scene_id"))
+            continue
+        rows = scene_archetypes(scene)
+        if not rows:
+            continue                       # unknown id (already an error) or a prose-only scene
+        for key in cast:
+            if key not in rows:
+                out.append(Issue(path=f"{p}.scene_cast.{key}",
+                                 message=f"{key!r} is not an archetype row of {scene}; ignored",
+                                 allowed=list(rows)))
+    return out
 
 
 def _show_palette(brief: dict, vocab: dict, errors: list[Issue]) -> None:
@@ -321,7 +367,7 @@ def validate_brief(brief_json: dict | str, vocab: dict, *, duration_ms: int,
     _coverage(sections, duration_ms, tolerance_ms, errors)
     _membership(sections, model_sections, vocab, errors)
     _show_palette(brief, vocab, errors)
-    warnings = _warnings(sections, downbeats_ms, tolerance_ms)
+    warnings = _warnings(sections, downbeats_ms, tolerance_ms) + _scene_cast_warnings(sections)
     return ValidationResult(ok=not errors, errors=errors, warnings=warnings)
 
 

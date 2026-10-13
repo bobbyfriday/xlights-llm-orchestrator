@@ -1,6 +1,6 @@
 ---
 name: xlo-brief
-description: How to author, validate and revise creative_brief.json — the single judgment artifact of an xLights show. Every ShowPlan / SectionPlan field in plain terms with its default and what code does with it; the treatment table (full|pulse|feature|gesture|rest); the fabric knobs (carrier, alternation, cell_beats, blend); label conventions; key moments; song coverage and downbeat alignment; a complete worked section; the validate-fix loop over validation.json; presenting the brief in viewer language; applying review feedback by section or by time range (splitting a section). Load for /xlo:design, /xlo:realize, /xlo:review and whenever you edit a brief.
+description: How to author, validate and revise creative_brief.json — the single judgment artifact of an xLights show. Every ShowPlan / SectionPlan field in plain terms with its default and what code does with it; the treatment table (full|pulse|feature|gesture|rest) and how an explicit fabric carrier re-enables the weave under pulse/feature; the fabric knobs (carrier, alternation, cell_beats, blend); scene_id + scene_cast; label conventions; key moments (incl. lyric captions via text); song coverage and downbeat alignment; a complete worked section; the validate-fix loop over validation.json; presenting the brief in viewer language; applying review feedback by section or by time range (splitting a section). Load for /xlo:design, /xlo:realize, /xlo:review and whenever you edit a brief.
 ---
 
 # xlo-brief
@@ -48,7 +48,7 @@ Craft lives in the companion skills: `xlo-sequencing` (effects, energy, palette)
 | `concept` | the artistic idea in a paragraph | `""` | no |
 | `palette` | `{name, colors[], mapping}`: the show's named colors and how color follows the song | `null` | `colors` are validated; video-plan uses them as the film's color world |
 | `group_motifs` | `{"<group>": {role, style, color}}`: each group's job across the show | `{}` | no (coherence notes for you) |
-| `key_moments` | `[{at_ms, kind, treatment}]` — see Key moments | `[]` | yes |
+| `key_moments` | `[{at_ms, kind, treatment, text}]` — see Key moments | `[]` | yes |
 
 ## Section fields (`SectionPlan`)
 
@@ -67,8 +67,9 @@ Craft lives in the companion skills: `xlo-sequencing` (effects, energy, palette)
 | `transition` | how it flows into the next section, in words | `""` | no (cell transitions are code-chosen) |
 | `phrasing` | `"legato"` (soft evolving edges) or `"staccato"` (crisp on/off) | `""` → legato below 0.5, staccato at/above | soft-edge fades on cells and accents; legato lengthens short cells |
 | `treatment` | which layers run — see the table | `""` → by energy | withholds layers, not just dims them |
-| `scene_id` | a cookbook scene (`SC-NN` from `vocab.json` `scene_ids`) or `""` | `""` | validated; see `xlo-scenes` |
-| `scene_adaptation` | `ARCHETYPE→GROUP; …` casting of the scene's rows | `""` | documents the cast; cast groups must be in `target_groups` |
+| `scene_id` | a cookbook scene (`SC-NN` from `vocab.json` `scene_ids`) or `""` | `""` | validated; the scene's stack table **replaces** the generic base rows (see `xlo-scenes`) |
+| `scene_cast` | `{"G2-HERO": "SEM_FOCAL", "G2-RHYTHM": "SEM_ARCHES", …}`: one real group per archetype row of the scene | `{}` → cast by role (`xlo-scenes` table) | the groups the scene rows are placed on; values must be `vocab.json` `groups` (error), unknown rows warn |
+| `scene_adaptation` | the cast in words, plus what this layout cannot cast | `""` | no (the reader's note) |
 | `pulse_groups` | 2–4 groups that walk the beat | `[]` → arches, canes, minis, snowflakes | overrides the metric ring; also opts a quiet section into rhythm |
 | `follow_stem` | the stem the hero prop follows (`vocab.json` `stems`) | `""` → the melodic stem with most onsets | the hero's onset layer |
 | `accent_effect` | the per-beat punctuation effect | `""` → `On` | the ring's accent cells |
@@ -80,14 +81,19 @@ Craft lives in the companion skills: `xlo-sequencing` (effects, energy, palette)
 | `treatment` | bed | woven fabric (carrier + texture) | beat accents | composites / VU / extras | feature pop (hero / sparkle props) | phrase curves | groups |
 |---|---|---|---|---|---|---|---|
 | `full` | full | yes | full | yes | yes | yes | all kept by coverage |
-| `pulse` | full | no | full | no | yes | yes | all kept by coverage |
-| `feature` | dim | no | sparse | no | yes | no | one hero spotlight over a dim bed |
+| `pulse` | full | no — **yes (carrier + texture) when `fabric.carrier` is set** | full | no | yes | yes | all kept by coverage |
+| `feature` | dim | no — **the carrier cell alone when `fabric.carrier` is set** | sparse | no | yes | no | one hero spotlight over a dim bed |
 | `gesture` | none | the carrier alone | none | no | no | no | ≤ 2 |
-| `rest` | dim | no | none | no | no | no | ≤ 2 |
+| `rest` | dim | no (even with a carrier) | none | no | no | no | ≤ 2 |
 
 Blank → by the section's own intensity: the peak → `full`; < 0.1 → `rest` (an explicit < 0.1 is
 always `rest`); ≥ 0.5 → `pulse`; ≥ 0.25 → `feature` if the layout has `SEM_FOCAL` else `pulse`;
 otherwise `gesture`. `full` is for the peak and the biggest choruses; `pulse` is the workhorse.
+
+The fabric rule: naming a `fabric.carrier` is asking for that motion, so `pulse` and `feature`
+weave it (the other fabric knobs apply too; a carrier that is not cellable is a validation error).
+A `fabric` with no `carrier` (or no `fabric` at all) leaves the table as written. When the carrier
+weaves, the beat accents drop their every-beat chase on the pool (the carrier is the beat).
 
 ### Fabric: the beat carrier's four knobs
 
@@ -106,7 +112,8 @@ fabric at all, whatever `fabric` says. Treatments `pulse`, `feature`, `rest` wit
 
 The pool the carrier walks is `pulse_groups` when given, else the rhythm props among
 `target_groups` (`SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES`, `SEM_SIDE_*`). Omit the whole block
-(or leave fields `""`/`null`) and the section realizes exactly as the deterministic fallback.
+(or leave fields `""`/`null`) and the section realizes exactly as the deterministic fallback —
+and, under `pulse` / `feature`, with no fabric at all. Set `carrier` to get the weave there.
 
 ### Labels
 
@@ -125,9 +132,14 @@ The pool the carrier walks is `pulse_groups` when given, else the rhythm props a
 
 `{"at_ms": 98000, "kind": "climax", "treatment": "a full-display shockwave into an all-on explosion"}`.
 `kind` `climax` / `accent` / `drop` / `hit` → a short white flash on `SEM_ALL` at `at_ms` (at
-most 8 are used; put the biggest hits first). Any other `kind` is descriptive. Code adds a
-`climax` at the peak section's downbeat when you give none inside it, and an `entrance` per
-detected instrument entrance. `treatment` is free text for the reader.
+most 8 are used; put the biggest hits first). `kind` `lyric` with a `text` → that lyric line as
+a caption on the matrix model (`{"at_ms": 61000, "kind": "lyric", "text": "ring the bells",
+"treatment": "the hook on the matrix"}`): code snaps it to the aligned lyric line that matches
+the text and drops it when none matches (never a guessed time); at most 4 captions, ≥ 20 s
+apart, one per section, never in the peak section, and only when the layout has a matrix. Take
+the lines from `analysis_digest.md`; no comma or `=` in `text`. Any other `kind` is descriptive.
+Code adds a `climax` at the peak section's downbeat when you give none inside it, and an
+`entrance` per detected instrument entrance. `treatment` is free text for the reader.
 
 ### Coverage and boundaries (validator errors vs warnings)
 
@@ -158,7 +170,8 @@ nearest one — move to it); a section longer than 32 s (split it so the look ca
   "phrasing": "staccato",
   "treatment": "pulse",
   "scene_id": "SC-01",
-  "scene_adaptation": "G2-HERO→SEM_FOCAL; G2-RHYTHM→SEM_ARCHES+SEM_CANES; G0-ALL-LESS-HERO→SEM_ALL_LESS_FOCAL; G2-ACCENT→SEM_SNOWFLAKES",
+  "scene_cast": {"G2-HERO": "SEM_FOCAL", "G2-RHYTHM": "SEM_ARCHES", "G0-ALL-LESS-HERO": "SEM_ALL_LESS_FOCAL"},
+  "scene_adaptation": "hero stack on the mega tree, arches drum (canes join through pulse_groups), the rest of the yard glows under it; snowflakes sparkle from the beat layer",
   "pulse_groups": ["SEM_ARCHES", "SEM_CANES"],
   "follow_stem": "drums",
   "accent_effect": "On",
@@ -172,9 +185,12 @@ nearest one — move to it); a section longer than 32 s (split it so the look ca
 }
 ```
 
-Note: with `treatment: "pulse"` the fabric is withheld; it is written here so the realized weave
-returns when the final chorus is `"full"`. Copy this section for `chorus 2` / `chorus 3`, raise
-`intensity`, set the last one `"treatment": "full"`, and let the label escalation do the rest.
+Note: with `treatment: "pulse"` the fabric weaves here because `fabric.carrier` is set (drop the
+`carrier` to keep a pulse section fabric-free). The SC-01 stack replaces the generic base rows:
+`Bars` (the `effect_family`) is the hero's feature layer over its dim wash and Max-blended
+Twinkle, `SEM_ALL_LESS_FOCAL` carries the 35 % wash, `SEM_ARCHES` the Single Strand chase. Copy
+this section for `chorus 2` / `chorus 3`, raise `intensity`, set the last one
+`"treatment": "full"`, and let the label escalation do the rest.
 
 ## Applying review feedback
 

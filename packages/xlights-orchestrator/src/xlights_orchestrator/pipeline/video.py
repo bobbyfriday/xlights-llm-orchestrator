@@ -26,7 +26,7 @@ from ..video_script import (
     resolve_beats,
     split_long_shots,
 )
-from .cache import cache_root, models_fingerprint, song_key
+from .cache import cache_root, song_key
 
 log = logging.getLogger(__name__)
 
@@ -41,14 +41,10 @@ def parse_size(text: str) -> tuple[int, int]:
 
 
 def find_llm_artifact(song_dir: Path, stage: str) -> Path | None:
-    """A cached LLM-stage artifact: the current model namespace, else the newest other namespace,
-    else the legacy un-namespaced path. Read-only consumer, so any honest copy will do — the
-    caller records which one was used."""
-    candidates = [song_dir / models_fingerprint() / f"{stage}.json"]
-    others = sorted((p for p in song_dir.glob(f"m-*/{stage}.json") if p not in candidates),
-                    key=lambda p: p.stat().st_mtime, reverse=True)
-    candidates += others + [song_dir / f"{stage}.json"]
-    return next((p for p in candidates if p.exists()), None)
+    """A cached stage artifact at its flat per-song path, or None. Artifacts left under a former
+    model-routing namespace (`m-xxxxxxxx/`) are deliberately NOT read (cache.py)."""
+    p = song_dir / f"{stage}.json"
+    return p if p.exists() else None
 
 
 def downbeats_ms(analysis: dict) -> list[int]:

@@ -258,7 +258,7 @@ async def run_pipeline(
     # 2. interpret -> rich SongDescription (panel of analysts + synthesizer; cached).
     #    Cache key bumped from "music_brief" so old flat briefs don't shadow the richer one.
     progress.emit("stage", stage="interpret", payload={"phase": "start"})
-    mb_cache = _cache_path(key, "song_description", models=True)
+    mb_cache = _cache_path(key, "song_description")
     if use_cache and mb_cache.exists():
         try:
             st.music_brief = MusicBrief.model_validate_json(mb_cache.read_text())
@@ -281,7 +281,7 @@ async def run_pipeline(
     # 3. design -> creative brief (ShowPlan; cached). Key bumped from "show_plan" so old thin
     #    plans don't shadow the rich brief.
     progress.emit("stage", stage="design", payload={"phase": "start"})
-    sp_cache = _cache_path(key, "creative_brief", models=True)
+    sp_cache = _cache_path(key, "creative_brief")
     if use_cache and sp_cache.exists():
         st.show_plan = ShowPlan.model_validate_json(sp_cache.read_text())
     else:
@@ -317,7 +317,7 @@ async def run_pipeline(
     # 3. generate -> EffectInstruction[] (cached) — each section FOLLOWS the brief
     progress.emit("stage", stage="generate", payload={"phase": "start",
                                                       "sections": len(st.show_plan.sections)})
-    ins_cache = _cache_path(key, "instructions", models=True)
+    ins_cache = _cache_path(key, "instructions")
     if use_cache and ins_cache.exists():
         st.instructions = [EffectInstruction.model_validate(x)
                            for x in json.loads(ins_cache.read_text())]
@@ -353,13 +353,12 @@ async def run_pipeline(
 
     # 5. refine (opt-in): test -> decide -> regenerate flagged sections -> rebuild
     if refine:
-        mdir = ins_cache.parent                     # the model-namespaced LLM-stage dir for this routing
+        song_dir = ins_cache.parent                 # the flat per-song cache dir (cache.py)
         real = RealRender(save_as, st.song_analysis.duration_s) if save_as else None
         vc = visual_critique
         if vc is None:
-            # visual_review bundles are LLM-stage artifacts → namespace them under the routing
-            vc = make_visual_critique(client, save_as=save_as, song_key=str(mdir.name),
-                                      cache_root=mdir.parent, real=real)
+            vc = make_visual_critique(client, save_as=save_as, song_key=key,
+                                      cache_root=_cache_root(), real=real)
         revlog: RevisionSink = NullRevisionLog()
         run_id = "run"
         if log_revisions:                           # the revision log stays SHARED (all arms in one file)
@@ -379,15 +378,15 @@ async def run_pipeline(
                            visual_critique=vc, revlog=revlog, run_id=run_id, song_key=key,
                            models=model_snapshot(),
                            clock=lambda: datetime.now(timezone.utc).isoformat(),
-                           review_base=mdir / "visual_review",
+                           review_base=song_dir / "visual_review",
                            sampler=sampler, save_as=save_as, real_render=real,
                            skip_objective=_refine_skip_objective(),
                            fseq_series_provider=fseq_provider, progress=progress)
         progress.emit("stage", stage="refine", payload={"phase": "end"})
         try:    # persist design escalations AND the refined instructions (not the pre-refine cache)
-            _emit_editable_brief(st, mdir)          # keep the brief schema-backed after refine
-            (mdir / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
-            _cache_path(key, "instructions", models=True).write_text(
+            _emit_editable_brief(st, song_dir)      # keep the brief schema-backed after refine
+            (song_dir / "creative_brief.md").write_text(render_creative_brief(st.show_plan))
+            _cache_path(key, "instructions").write_text(
                 json.dumps([i.model_dump() for i in st.instructions], indent=1))
         except Exception as exc:  # noqa: BLE001 — persisting the refined design is best-effort
             degradations.note("cache:post-refine", exc, stage="refine")

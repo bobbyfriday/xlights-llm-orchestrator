@@ -1,20 +1,30 @@
 """Per-song stage cache paths. Resume = cached stage artifacts keyed by song content hash, in a
 readable `<song-slug>--<hash>` dir (see `xlights_core.cache_names`).
 
-LLM-stage artifacts (song_description, creative_brief, instructions, visual_review) are
-additionally namespaced under a fingerprint of the active per-role model routing (`models=True`),
-so two provider routings never read each other's artifacts — this turns
-`XLO_PROVIDER=gemini xlo run` from silently-wrong into correct, and lets an A/B keep two arms'
-caches apart. Deterministic, provider-independent artifacts (song_analysis, the
-layout-fingerprinted targetable-groups probe, the revision log) stay shared. There is NO
-legacy-path read fallback (it would re-open the cross-provider reuse bug); pre-change caches go
-cold once and regenerate on the next run.
+The layout is FLAT and provider-independent — every stage artifact sits directly in the song dir:
+
+    data/analyses/orchestrator/<song-slug>--<hash>/
+      song_analysis.json        (deterministic audio analysis; shared by every stage)
+      analysis_digest.md
+      vocab.json                (targetable groups, placeable types, scene ids, stems, colors)
+      creative_brief.json       (+ creative_brief.schema.json)
+      validation.json
+      instructions.json
+      applied.json
+      qa.json
+      stills/<section>.png
+      video_story.json          → video_script.json + .md
+      layout_review.json
+
+There is no model-routing namespace: the brief is authored in conversation, not by a routed
+model, so there is nothing to keep apart. Older caches carry `m-xxxxxxxx/` subdirs from the
+former per-routing namespace; those are simply never read (the shared `song_analysis.json` and
+targetable-groups probe at the song root are reused as before).
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from pathlib import Path
 
@@ -40,26 +50,11 @@ def song_key(path: str) -> str:
     return cache_names.resolve(cache_root(), path, digest, legacy=(digest,))
 
 
-# Roles that only READ cached pipeline artifacts and produce none the pipeline consumes. Re-pointing
-# (or adding) one must not re-namespace every LLM stage, or it would cold-start every song's cache.
-FINGERPRINT_EXEMPT_ROLES = frozenset({"videographer"})
-
-
-def models_fingerprint() -> str:
-    """A stable 8-hex fingerprint of the whole per-role model snapshot. Over-invalidates slightly
-    (any role change re-namespaces all LLM stages) but is impossible to get wrong, and the stage
-    inputs are transitively coupled anyway."""
-    from ..models.registry import model_snapshot
-    snap = {r: m for r, m in model_snapshot().items() if r not in FINGERPRINT_EXEMPT_ROLES}
-    blob = json.dumps(snap, sort_keys=True).encode()
-    return "m-" + hashlib.sha1(blob).hexdigest()[:8]
-
-
 def cache_path(key: str, stage: str, *, models: bool = False) -> Path:
-    """Path for a per-song stage artifact. `models=True` namespaces it under the active model
-    routing's fingerprint (LLM stages); `models=False` (default) is the shared, un-namespaced
-    location (deterministic stages, the revision log)."""
-    base = cache_root() / key
-    if models:
-        base = base / models_fingerprint()
-    return base / f"{stage}.json"
+    """Path for a per-song stage artifact: always the flat `<root>/<key>/<stage>.json`.
+
+    `models` is accepted for call-site compatibility and IGNORED — the former `models=True`
+    routing namespace (`<key>/m-xxxxxxxx/<stage>.json`) is gone; see the module docstring.
+    """
+    del models   # compatibility only; the layout is flat
+    return cache_root() / key / f"{stage}.json"

@@ -220,14 +220,16 @@ def test_videographer_role_is_priced_for_every_provider():
         assert price_for(row["model"]) is not None, f"{provider}: {row['model']} has no price row"
 
 
-def test_videographer_does_not_change_the_cache_fingerprint(monkeypatch):
-    from xlights_orchestrator.models import registry
-    snap = registry.model_snapshot()
-    assert "videographer" in snap
-    with_role = cache_mod.models_fingerprint()
-    monkeypatch.setattr(registry, "model_snapshot",
-                        lambda: {r: m for r, m in snap.items() if r != "videographer"})
-    assert cache_mod.models_fingerprint() == with_role
+def test_find_llm_artifact_reads_only_the_flat_song_dir(tmp_path):
+    """The stage cache is flat (design D6): a brief left under a former model-routing namespace
+    is never read, even when it is the only copy."""
+    from xlights_orchestrator.pipeline.video import find_llm_artifact
+    d = tmp_path / "song--0123456789abcdef"
+    (d / "m-deadbeef").mkdir(parents=True)
+    (d / "m-deadbeef" / "creative_brief.json").write_text("{}")
+    assert find_llm_artifact(d, "creative_brief") is None
+    (d / "creative_brief.json").write_text("{}")
+    assert find_llm_artifact(d, "creative_brief") == d / "creative_brief.json"
 
 
 def test_role_resolves_to_a_provider():

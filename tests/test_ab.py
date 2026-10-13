@@ -1,9 +1,9 @@
-"""Tests for F-H — provider A/B harness + model-fingerprinted cache isolation.
+"""Tests for F-H — provider A/B harness + the flat, provider-independent stage cache.
 
 Hermetic, over the golden-test fakes (TestModel agents, a fake client + emitter, injected
-analysis). The cache-isolation regression is the most important test in the change: two
-provider routings must never read each other's LLM-stage artifacts, while the deterministic
-artifacts (song analysis, targetable groups) stay shared.
+analysis). The cache tests pin the flat layout (design D6): every stage artifact sits directly in
+the song dir regardless of provider, and artifacts left under the former model-routing namespace
+(`m-xxxxxxxx/`) are never read.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import os
 import pytest
 
 from xlights_orchestrator.pipeline import run_pipeline
-from xlights_orchestrator.pipeline.cache import cache_path, cache_root, models_fingerprint, song_key
+from xlights_orchestrator.pipeline.cache import cache_path, cache_root, song_key
 from xlights_orchestrator.show_plan import EffectInstruction, SectionEffects, ShowPlan
 from xlights_core.audio import EnergyPoint, Segment, SongAnalysis
 
@@ -81,58 +81,62 @@ def _run_once(song, groups):
                             emitter=_emit, use_cache=True, stems=False, timing_tracks=False))
 
 
-# -- cache isolation (the most important test) --------------------------------
+# -- flat cache layout (design D6) --------------------------------------------
 
-def test_provider_switch_does_not_reuse_briefs(tmp_path, monkeypatch):
+def test_stage_artifacts_land_in_the_flat_song_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
     song = tmp_path / "song.mp3"; song.write_bytes(b"fake-audio-bytes")
     key = song_key(str(song))
+    base = cache_root() / key
 
-    # arm A: anthropic (config default)
     monkeypatch.setenv("XLO_PROVIDER", "anthropic")
-    fp_a = models_fingerprint()
     _run_once(song, ["G1", "G2"])
-    brief_a = cache_path(key, "creative_brief", models=True)
-    assert brief_a.exists() and brief_a.parent.name == fp_a
+    for stage in ("song_analysis", "song_description", "creative_brief", "instructions"):
+        assert cache_path(key, stage) == base / f"{stage}.json"
+        assert (base / f"{stage}.json").exists()
+    assert not list(base.glob("m-*"))                         # no routing subdirs are created
+    # `models=` is accepted for compatibility and ignored: same flat path either way
+    assert cache_path(key, "creative_brief", models=True) == cache_path(key, "creative_brief")
 
-    # arm B: gemini — a DIFFERENT routing
+    # the layout is provider-independent: another routing resolves (and reuses) the SAME files
     monkeypatch.setenv("XLO_PROVIDER", "gemini")
-    fp_b = models_fingerprint()
-    assert fp_b != fp_a
+    assert cache_path(key, "creative_brief") == base / "creative_brief.json"
+    before = (base / "creative_brief.json").read_bytes()
     _run_once(song, ["G1", "G2"])
-    brief_b = cache_path(key, "creative_brief", models=True)
-    assert brief_b.exists() and brief_b.parent.name == fp_b
-
-    # the two arms' LLM-stage artifacts live in DISTINCT fingerprint dirs
-    assert brief_a.resolve() != brief_b.resolve()
-    for stage in ("song_description", "creative_brief", "instructions"):
-        assert cache_path(key, stage, models=True).parent.name == fp_b   # B under its own fp
-        assert (cache_root() / key / fp_a / f"{stage}.json").exists()     # A's still separate
-
-    # shared artifacts are NOT namespaced: song_analysis sits at the per-song base, and there is
-    # exactly ONE song_analysis (both arms reused it) — never one per fingerprint dir.
-    assert (cache_root() / key / "song_analysis.json").exists()
-    assert not (cache_root() / key / fp_a / "song_analysis.json").exists()
-    assert not (cache_root() / key / fp_b / "song_analysis.json").exists()
-    # targetable_groups (when cached) lives at the shared top-level, never under a fingerprint
-    assert not list((cache_root() / key / fp_a).glob("targetable_groups_*.json"))
+    assert (base / "creative_brief.json").read_bytes() == before
+    assert not list(base.glob("m-*"))
 
 
-def test_regen_finds_namespaced_and_misses_under_other_routing(tmp_path, monkeypatch):
+def test_old_namespaced_artifacts_are_never_read(tmp_path, monkeypatch):
+    """A pre-change cache carries `m-xxxxxxxx/` subdirs; they must not shadow or feed a run."""
     from xlights_orchestrator.pipeline.regen import load_cached_state
     monkeypatch.setenv("XLO_CACHE_DIR", str(tmp_path))
     song = tmp_path / "song.mp3"; song.write_bytes(b"fake-audio-bytes")
+    key = song_key(str(song))
+    stale_dir = cache_root() / key / "m-deadbeef"
+    stale_dir.mkdir(parents=True)
+    stale_plan = ShowPlan(sections=[{"start_ms": 0, "end_ms": 12000, "target_groups": ["STALE"],
+                                     "effect_family": "On", "intensity": 0.1}])
+    (stale_dir / "creative_brief.json").write_text(stale_plan.model_dump_json())
+    (stale_dir / "instructions.json").write_text("[]")
+    (stale_dir / "song_description.json").write_text("{}")
 
-    monkeypatch.setenv("XLO_PROVIDER", "anthropic")
-    _run_once(song, ["G1", "G2"])
-    # same routing → rehydrates fine
-    key, st = load_cached_state(str(song))
-    assert st.show_plan and st.instructions
-
-    # a DIFFERENT routing has no artifacts under its fingerprint → the existing error
-    monkeypatch.setenv("XLO_PROVIDER", "gemini")
+    # only namespaced artifacts exist → regen sees no cached show at all
     with pytest.raises(FileNotFoundError):
         load_cached_state(str(song))
+
+    # a run ignores the stale brief (the director's fresh plan wins) and writes flat files
+    st = _run_once(song, ["G1", "G2"])
+    assert [s.target_groups for s in st.show_plan.sections] == [["G1"], ["G2"]]
+    plan = ShowPlan.model_validate_json(cache_path(key, "creative_brief").read_text())
+    assert [s.target_groups for s in plan.sections] == [["G1"], ["G2"]]
+    assert (stale_dir / "creative_brief.json").read_text() == stale_plan.model_dump_json()  # untouched
+
+    # regen now rehydrates from the flat files, whatever the provider
+    monkeypatch.setenv("XLO_PROVIDER", "gemini")
+    _key, st2 = load_cached_state(str(song))
+    assert _key == key and st2.show_plan and st2.instructions
+    assert [s.target_groups for s in st2.show_plan.sections] == [["G1"], ["G2"]]
 
 
 # -- arm-spec parsing ---------------------------------------------------------

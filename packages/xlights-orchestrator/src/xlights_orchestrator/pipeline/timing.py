@@ -1,6 +1,12 @@
 """Reference timing tracks (Section/Beat/Bar/per-stem-Onset/Chords/Lyrics) patched into the
 finished `.xsq` OFFLINE — a grid for the human editing the sequence. Mirrors the corpus `.xsq`
-timing-track XML exactly; never blocks finalize. See [[timing-tracks-plan]]."""
+timing-track XML exactly; never blocks finalize. See [[timing-tracks-plan]].
+
+Inputs: the audio analysis (beats, stems, chords, lyrics) and the sections. Sections come from
+the creative brief's `SectionPlan`s (`fallback_sections`) — `brief=None` is the normal path now
+that interpretation happens in conversation; a legacy `MusicBrief` (`brief.sections`,
+`brief.identity.time_signature`) is still honoured when one is passed.
+"""
 
 from __future__ import annotations
 
@@ -77,15 +83,21 @@ def _frame_safe(marks: list[TimingMark], frame: int = FRAME_MS) -> list[TimingMa
 
 # -- builders -----------------------------------------------------------------
 
+def _section_label(section, index: int) -> str:
+    """A section's mark label: its own `label` when it carries one, else an index label."""
+    label = getattr(section, "label", None)
+    return str(label).strip() if label and str(label).strip() else f"Section {index + 1}"
+
+
 def _section_track(brief, fallback_sections) -> TimingTrack | None:
-    secs = getattr(brief, "sections", None) or None
-    if secs:
-        marks = [TimingMark(s.label, s.start_ms, s.end_ms) for s in secs]
-    elif fallback_sections:                       # SectionPlan has no label → index labels
-        marks = [TimingMark(f"Section {i + 1}", s.start_ms, s.end_ms)
-                 for i, s in enumerate(fallback_sections)]
-    else:
+    """One mark per section. Sections come from `brief.sections` when a brief is given, else from
+    `fallback_sections` (the creative brief's `SectionPlan`s). Either way a section without a
+    `label` gets an index label, so plan sections and legacy brief sections both work."""
+    secs = (getattr(brief, "sections", None) if brief is not None else None) or fallback_sections
+    if not secs:
         return None
+    marks = [TimingMark(_section_label(s, i), int(s.start_ms), int(s.end_ms))
+             for i, s in enumerate(secs)]
     return TimingTrack("Sections", marks)
 
 
@@ -218,8 +230,15 @@ def _phoneme_track(sa, end_ms, name: str = "Faces") -> TimingTrack | None:
     return TimingTrack(name, layers=[phrases, word_marks, phoneme_marks])
 
 
-def build_timing_tracks(sa, brief, *, fallback_sections=None, onset_stems=None) -> list[TimingTrack]:
-    """Assemble all reference tracks from the analysis + brief (skips any with no data)."""
+def build_timing_tracks(sa, brief=None, *, fallback_sections=None,
+                        onset_stems=None) -> list[TimingTrack]:
+    """Assemble all reference tracks from the analysis + sections (skips any with no data).
+
+    `brief=None` is first-class: the section track comes from `fallback_sections` (the creative
+    brief's `SectionPlan`s, labelled by `label` or index) and everything else — beat/bar grid at
+    the detected meter, onsets, chords, lyrics, phonemes — from the analysis alone. A legacy
+    `MusicBrief` only adds its own sections and a time-signature override.
+    """
     end_ms = int(getattr(sa, "duration_s", 0) * 1000) or None
     bpb = resolve_beats_per_bar(sa, brief)        # label/stride the beat+bar grid at the real meter
     onset_tracks = _onset_tracks(sa, end_ms, onset_stems)

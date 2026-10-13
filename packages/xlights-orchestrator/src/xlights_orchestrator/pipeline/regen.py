@@ -45,7 +45,7 @@ def _section_label(section) -> str:
 
 def list_sections(song: str) -> list[tuple[int, str, int, int]]:
     """`(index, label, start_ms, end_ms)` per section from the cached plan (for `--list`)."""
-    sp_path = cache_path(song_key(song), "creative_brief", models=True)
+    sp_path = cache_path(song_key(song), "creative_brief")
     if not sp_path.exists():
         raise FileNotFoundError("no cached show for this song — run `xlo run` first")
     plan = ShowPlan.model_validate_json(sp_path.read_text())
@@ -60,15 +60,15 @@ def format_sections(song: str) -> str:
 def load_cached_state(song: str) -> tuple[str, State]:
     """Rehydrate a `State` from the per-song stage cache. Raises if the show was never generated."""
     key = song_key(song)
-    ins_path = cache_path(key, "instructions", models=True)
-    sp_path = cache_path(key, "creative_brief", models=True)
+    ins_path = cache_path(key, "instructions")
+    sp_path = cache_path(key, "creative_brief")
     if not ins_path.exists() or not sp_path.exists():
         raise FileNotFoundError("no cached show for this song — run `xlo run` first")
     st = State(song_path=song)
     st.instructions = [EffectInstruction.model_validate(x)
                        for x in json.loads(ins_path.read_text())]
     st.show_plan = ShowPlan.model_validate_json(sp_path.read_text())
-    mb_path = cache_path(key, "song_description", models=True)
+    mb_path = cache_path(key, "song_description")
     st.music_brief = MusicBrief.model_validate_json(mb_path.read_text()) if mb_path.exists() else None
     sa_path = cache_path(key, "song_analysis")           # shared: deterministic audio analysis
     if sa_path.exists():
@@ -136,7 +136,7 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
     before = sum(1 for i in st.instructions if i.section_index == section_index)
     await regenerate_into(st, section_index, note, gen_agent=gen_agent, redesign=rd_agent)
     if redesign:                    # persist the re-planned section so a later load/regen keeps it
-        cache_path(key, "creative_brief", models=True).write_text(
+        cache_path(key, "creative_brief").write_text(
             require(st.show_plan, "show_plan").model_dump_json(indent=1))
     # whole-list passes after the splice (idempotent): occlusion guard, sub-frame stretch,
     # and the song-end stop+fade (a regenerated FINAL section runs out to the section end).
@@ -147,7 +147,7 @@ async def regen_section(song: str, *, client, section_index: int, note: str = ""
     emit = emitter or apply_instructions
     dur = max(1, math.ceil(getattr(st.song_analysis, "duration_s", 0) or 1))
     st.applied = await emit(client, st.instructions, duration_secs=dur)
-    cache_path(key, "instructions", models=True).write_text(
+    cache_path(key, "instructions").write_text(
         json.dumps([i.model_dump() for i in st.instructions], indent=1))
 
     if save_as:

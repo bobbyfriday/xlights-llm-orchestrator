@@ -63,8 +63,8 @@ def harvest() -> None:
         from xlights_orchestrator.pipeline.cache import cache_path, song_key
         key = song_key(str(song))
         _write("song_analysis.json", cache_path(key, "song_analysis").read_text())
-        _write("music_brief.json", cache_path(key, "song_description", models=True).read_text())
-        _write("show_plan.json", cache_path(key, "creative_brief", models=True).read_text())
+        _write("music_brief.json", cache_path(key, "song_description").read_text())
+        _write("show_plan.json", cache_path(key, "creative_brief").read_text())
         # instructions: the whole realized list (a real EffectInstruction[] cache)
         _write("instructions.json", json.dumps([i.model_dump() for i in st.instructions]))
 

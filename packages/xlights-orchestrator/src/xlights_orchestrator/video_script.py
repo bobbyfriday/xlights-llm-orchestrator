@@ -13,6 +13,8 @@ section boundaries (already downbeat-aligned), so a cut in the film lands where 
 from __future__ import annotations
 
 import math
+import re
+from collections.abc import Mapping
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -269,6 +271,51 @@ def validate_story(raw: dict, n_sections: int, *, allow_inherit: bool = False) -
         problems.append("no beat for section" + ("s " if len(missing) > 1 else " ")
                         + ", ".join(str(i) for i in missing) + " (one beat per brief section; "
                         "pass --allow-inherit to hold the previous beat instead)")
+    return problems
+
+
+# -- the medium contract (what procedural rendering cannot draw) ------------------------------
+
+# Things procedural rendering cannot draw. A word list in ONE place (a false positive is a one-line
+# fix). Matched on word boundaries, case-insensitive, singular/plural where it matters.
+PERSON_TERMS = (
+    "person", "people", "man", "men", "woman", "women", "child", "children", "kid", "kids", "boy",
+    "girl", "baby", "mother", "father", "grandmother", "grandfather", "family", "crowd", "dancer",
+    "dancers", "traveler", "traveller", "figure", "figures", "silhouette of a person", "stranger",
+    "investigator", "soldier", "singer", "couple", "lovers",
+    "face", "faces", "eyes", "hand", "hands", "fingers", "arm", "arms", "feet", "footsteps",
+    "animal", "animals", "dog", "cat", "horse", "deer", "reindeer", "bird", "birds", "wolf", "owl",
+)
+_TERM_RE = re.compile(r"\b(" + "|".join(re.escape(t) for t in sorted(PERSON_TERMS, key=len, reverse=True))
+                      + r")\b", re.IGNORECASE)
+
+
+def lint_media(story: VideoStory, media: Mapping[int, str]) -> list[str]:
+    """Violations of the medium contract, as messages the story's author can act on: procedural
+    beats' imagery/action and EVERY stand-in must be free of PERSON_TERMS; filmed beats need a
+    stand-in. `media` maps section index → "filmed" | "procedural" (the media plan)."""
+    problems: list[str] = []
+    for b in story.beats:
+        med = media.get(b.section_index)
+        if med is None:
+            continue
+        if med == "procedural":
+            hit = _TERM_RE.search(f"{b.imagery} {b.action}")
+            if hit:
+                problems.append(f"beat for section {b.section_index} is PROCEDURAL but depicts "
+                                f"'{hit.group(0)}' — rewrite it with the procedural vocabulary "
+                                f"(no people, faces, hands or animals); carry any character with a "
+                                f"proxy object motif")
+        else:
+            if not b.procedural_stand_in.strip():
+                problems.append(f"beat for section {b.section_index} is FILMED but has no "
+                                f"procedural_stand_in — add one sentence in the procedural vocabulary")
+            else:
+                hit = _TERM_RE.search(b.procedural_stand_in)
+                if hit:
+                    problems.append(f"the procedural_stand_in for section {b.section_index} depicts "
+                                    f"'{hit.group(0)}' — a stand-in must use only the procedural "
+                                    f"vocabulary")
     return problems
 
 

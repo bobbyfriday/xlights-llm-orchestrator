@@ -7,20 +7,7 @@ analysis (`detect_beats_per_bar`) and falls back to 4/4.
 
 from __future__ import annotations
 
-import re
-
 DEFAULT_BEATS_PER_BAR = 4
-
-
-def parse_time_signature(ts: str | None) -> int | None:
-    """Beats-per-bar (the numerator) from a time-signature string like '3/4', '6/8', '5'."""
-    if not ts:
-        return None
-    m = re.match(r"\s*(\d{1,2})", ts)
-    if not m:
-        return None
-    n = int(m.group(1))
-    return n if 2 <= n <= 12 else None
 
 
 def detect_beats_per_bar(sa) -> int | None:

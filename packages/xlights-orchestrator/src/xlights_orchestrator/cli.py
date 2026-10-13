@@ -400,8 +400,8 @@ def _stage_video_plan(args) -> int:
     from .pipeline.stage_io import (STORY_NAME, VIDEO_SCRIPT_NAME, downbeats_ms, load_analysis,
                                     load_brief, load_story_json, song_path_of)
     from .pipeline.video import parse_size, song_title
-    from .video_script import (VideographerOut, featured_lines_for, lyric_lines, plan_media_for,
-                               plan_story, render_markdown, validate_story)
+    from .video_script import (VideoStory, featured_lines_for, lint_media, lyric_lines,
+                               plan_media_for, plan_story, render_markdown, validate_story)
     if not args.plan_only and not args.matrix_size:
         _err("--matrix-size is required (e.g. 1024x768); the script will not guess the video "
              "matrix's resolution")
@@ -442,7 +442,15 @@ def _stage_video_plan(args) -> int:
         for p in problems:
             _err(f"  - {p}")
         return EXIT_FAILED
-    story = VideographerOut.model_validate(raw)
+    story = VideoStory.model_validate(raw)
+    # 3. the medium contract: procedural beats can't show people/animals; filmed beats need a stand-in
+    problems = lint_media(story, {s.index: s.medium for s in media.sections})
+    if problems:
+        _err(f"{STORY_NAME} breaks the medium contract ({len(problems)} problem"
+             f"{'s' if len(problems) != 1 else ''}):")
+        for p in problems:
+            _err(f"  - {p}")
+        return EXIT_FAILED
     width, height = parse_size(args.matrix_size)
     palette = list((plan.palette.colors if plan.palette else []) or [])
     title = song_title(json.loads(sa.model_dump_json()), song_path_of(args.song, sa))

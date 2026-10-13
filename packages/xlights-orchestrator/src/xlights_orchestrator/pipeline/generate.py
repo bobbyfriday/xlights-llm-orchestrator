@@ -376,8 +376,11 @@ def realize_section_effects(st: State, si: int, out: SectionEffects) -> list[Eff
     kept = _scene_rows + trim_coverage([i for i in out.instructions if i.source != "scene"],
                                        _si, _ordinal)   # energy-gated + occurrence bonus
     # sparse treatments withhold coverage: gesture/rest touch ≤2 groups, feature spotlights one hero.
+    # rest's dim bed is one of its two groups, so it keeps a single base row (one brief row per
+    # target group would otherwise light 2 + the bed).
     if _treatment in ("gesture", "rest"):
-        _keep = {i.target for i in kept[:_GESTURE_MAX_GROUPS]}
+        _budget = _GESTURE_MAX_GROUPS - (1 if _layers["bed"] else 0)
+        _keep = {i.target for i in kept[:_budget]}
         kept = [i for i in kept if i.target in _keep]
     for ins in kept:
         ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable

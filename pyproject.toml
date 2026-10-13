@@ -6,6 +6,21 @@ members = ["packages/*"]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+# The full `xlo analyze` stack (vamp/librosa, demucs-mlx stems, Genius + whisper-aligned lyrics)
+# and the stills renderer, so a plain `uv sync` keeps them: syncing with only some extras used to
+# strip stems and lyrics from the venv, and analysis silently degraded to "no stems, instrumental".
+# Apple Silicon only (MLX backends; vamp builds from source), so Linux CI's sync is unchanged.
+show = [
+    "xlights-core[audio,lyrics,stems]; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "xlights-orchestrator[preview]; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+
+[tool.uv]
+default-groups = ["dev", "show"]
+
+[tool.uv.sources]
+xlights-core = { workspace = true }
+xlights-orchestrator = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

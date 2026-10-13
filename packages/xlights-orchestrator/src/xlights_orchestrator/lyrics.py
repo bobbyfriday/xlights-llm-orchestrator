@@ -51,6 +51,20 @@ def _tags(song_path: str) -> tuple[str | None, str | None]:
     return artist, (stem or None)
 
 
+# Release-edition suffixes Genius never carries: "(2015 Remaster)", "[Remastered 2011]",
+# "- Remastered", "(Radio Edit)", "(Live)", "(Mono Version)", "(feat. X)".
+_EDITION = re.compile(
+    r"\s*(?:[(\[][^)\]]*\b(?:remaster(?:ed)?|edit|live|version|mono|stereo|mix|feat\.?|ft\.?)\b[^)\]]*[)\]]"
+    r"|-\s*(?:\d{4}\s+)?remaster(?:ed)?\b.*)",
+    re.IGNORECASE)
+
+
+def _search_titles(title: str) -> list[str]:
+    """The tagged title, then (when different) the title without its edition suffixes."""
+    bare = _EDITION.sub("", title).strip()
+    return [title] + ([bare] if bare and bare != title else [])
+
+
 def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:
     token = os.environ.get("GENIUS_ACCESS_TOKEN")
     if not token:
@@ -66,7 +80,11 @@ def fetch_lyrics(song_path: str, *, timeout: int = 8) -> LyricData | None:
         genius = lyricsgenius.Genius(
             token, timeout=timeout, retries=1, remove_section_headers=False,
         )  # keep [Verse]/[Chorus] markers — they become timed section boundaries
-        song = genius.search_song(title, artist or "")
+        song = None
+        for t in _search_titles(title):
+            song = genius.search_song(t, artist or "")
+            if song and getattr(song, "lyrics", None):
+                break
         if not song or not getattr(song, "lyrics", None):
             log.info("no Genius match for %r / %r", title, artist)
             return None

@@ -21,8 +21,12 @@ audio = [
 ]
 # Phoneme accuracy for singing faces: the CMU Pronouncing Dictionary (word→ARPABET). Pure data,
 # offline; absent it, phoneme generation falls back to a letter-based heuristic.
+# mlx-whisper times the fetched lyric text against the vocal stem (lyrics_align.py); without
+# it alignment fails silently and every song analyzes as "instrumental". Apple Silicon only
+# (MLX); the first run downloads the whisper-large-v3-turbo weights (~1.6 GB) from Hugging Face.
 lyrics = [
     "cmudict>=1.0",
+    "mlx-whisper; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 # Optional stem separation (off by default; enable per-run via stems=True / XLO_STEMS=1).
 # Default backend is demucs-mlx (Apple-Silicon, MLX). Inference is torch-free, BUT the

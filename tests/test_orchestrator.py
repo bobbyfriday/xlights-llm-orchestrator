@@ -146,3 +146,36 @@ def test_fetch_lyrics_graceful_on_error(monkeypatch, tmp_path):
     monkeypatch.setattr(lyricsgenius, "Genius", _boom)
     f = tmp_path / "s.mp3"; f.write_bytes(b"x")
     assert lyrics.fetch_lyrics(str(f)) is None  # degrades, no raise
+
+
+def test_search_titles_strips_edition_suffixes():
+    from xlights_orchestrator.lyrics import _search_titles
+    assert _search_titles("Hallowed Be Thy Name (2015 Remaster)") == [
+        "Hallowed Be Thy Name (2015 Remaster)", "Hallowed Be Thy Name"]
+    assert _search_titles("Paint It Black - Remastered 2011")[-1] == "Paint It Black"
+    assert _search_titles("Uptown Funk (Radio Edit)")[-1] == "Uptown Funk"
+    assert _search_titles("Light Of Christmas [feat. Owl City]")[-1] == "Light Of Christmas"
+    assert _search_titles("Carol Of The Bells") == ["Carol Of The Bells"]
+    assert _search_titles("Danger Zone (From Top Gun)") == ["Danger Zone (From Top Gun)"]
+
+
+def test_fetch_lyrics_retries_without_edition_suffix(monkeypatch, tmp_path):
+    monkeypatch.setenv("GENIUS_ACCESS_TOKEN", "x")
+    from xlights_orchestrator import lyrics
+    monkeypatch.setattr(lyrics, "_tags", lambda p: ("Iron Maiden", "Hallowed Be Thy Name (2015 Remaster)"))
+    searched = []
+
+    class _Song:
+        title, artist, lyrics = "Hallowed Be Thy Name", "Iron Maiden", "[Verse 1]\nI'm waiting"
+
+    class _Genius:
+        def __init__(self, *a, **k): pass
+        def search_song(self, title, artist):
+            searched.append(title)
+            return _Song() if "Remaster" not in title else None
+
+    import lyricsgenius
+    monkeypatch.setattr(lyricsgenius, "Genius", _Genius)
+    ld = lyrics.fetch_lyrics(str(tmp_path / "s.mp3"))
+    assert searched == ["Hallowed Be Thy Name (2015 Remaster)", "Hallowed Be Thy Name"]
+    assert ld is not None and ld.text.startswith("[Verse 1]")

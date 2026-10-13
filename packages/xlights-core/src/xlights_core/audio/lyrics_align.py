@@ -9,12 +9,15 @@ any failure returns None and analysis proceeds without timed lyrics.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from difflib import SequenceMatcher
 
 log = logging.getLogger(__name__)
 
-_MODEL = "mlx-community/whisper-small-mlx"
+# large-v3-turbo: on a distorted metal vocal it matched 27/34 lines where small matched 15 (several
+# misplaced); ~40 s per song vs ~4 s, once — the timed lyrics are cached. XLO_LYRICS_MODEL overrides.
+_MODEL = "mlx-community/whisper-large-v3-turbo"
 _MARKER = re.compile(r"^\[([^\]]+)\]\s*$")
 _WORD = re.compile(r"[a-z0-9']+")
 
@@ -42,7 +45,7 @@ def _parse_text(text: str) -> tuple[list[str], dict[int, str]]:
 def _transcribe(vocal_path: str) -> list[tuple[str, float, float]]:
     import mlx_whisper  # heavy import deferred
 
-    out = mlx_whisper.transcribe(str(vocal_path), path_or_hf_repo=_MODEL,
+    out = mlx_whisper.transcribe(str(vocal_path), path_or_hf_repo=os.environ.get("XLO_LYRICS_MODEL", _MODEL),
                                  word_timestamps=True, language="en")
     words: list[tuple[str, float, float]] = []
     for seg in out.get("segments", []):

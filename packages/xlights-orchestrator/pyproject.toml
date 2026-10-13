@@ -1,19 +1,18 @@
 [project]
 name = "xlights-orchestrator"
 version = "0.1.0"
-description = "LLM orchestration: turn a SongAnalysis into a placed, rendered xLights sequence."
+description = "The xlo stage commands: turn a song + a Claude-authored creative brief into a placed, rendered xLights sequence."
 requires-python = ">=3.11"
 dependencies = [
     "xlights-core",
     "pydantic>=2.7",
-    "pydantic-ai>=1.0",
     "python-dotenv>=1.0",
-    "pyyaml>=6",
     "lyricsgenius>=3",
     "mutagen>=1.47",
 ]
 
-# The visual-critique/preview path degrades gracefully without these; opt in to enable it.
+# The rendered-preview path (`xlo stills`, layout sweep validation) degrades gracefully without
+# these; opt in to enable it.
 [project.optional-dependencies]
 preview = ["xlights-core[preview]"]
 

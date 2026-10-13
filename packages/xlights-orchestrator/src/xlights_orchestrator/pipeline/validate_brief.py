@@ -10,7 +10,8 @@ Errors (block realization):
   - sections out of order, overlapping, or leaving a gap > tolerance (incl. before the first /
     after the last against the song duration)
   - group / effect / scene / stem / pulse_on / palette names outside the vocabulary
-  - `fabric.carrier` not cellable, `fabric.alternation` unknown, `fabric.cell_beats` outside 1–8
+  - `fabric.carrier` not cellable, `fabric.alternation` unknown, `fabric.cell_beats` outside 1–8,
+    `fabric.blend` not a known layer method (`vocab.blends`)
 Warnings (reported, never block):
   - a section boundary not within tolerance of a downbeat (when downbeats are given)
   - a section longer than ~32 s
@@ -212,6 +213,8 @@ def _membership(sections: list, model_sections: list, vocab: dict, errors: list[
     pulse = _Membership("pulse_on value", PULSE_ON)
     cellable = _Membership("cellable effect type", vocab.get("cellable", []), match="effect", blank_ok=True)
     alternation = _Membership("alternation", ALTERNATIONS, blank_ok=True)
+    blends = (_Membership("layer blend method", vocab.get("blends", []), blank_ok=True)
+              if vocab.get("blends") else None)
     colors = _Membership("named color", vocab.get("colors", []), match="color") if vocab.get("colors") else None
 
     for i, s in enumerate(sections):
@@ -244,6 +247,8 @@ def _membership(sections: list, model_sections: list, vocab: dict, errors: list[
             cellable.check(fab["carrier"], f"{p}.fabric.carrier", errors)
         if "alternation" in fab and fab["alternation"] is not None:
             alternation.check(fab["alternation"], f"{p}.fabric.alternation", errors)
+        if blends is not None and "blend" in fab and fab["blend"] is not None:
+            blends.check(fab["blend"], f"{p}.fabric.blend", errors)
         cb = fab.get("cell_beats")
         if cb is not None:
             lo, hi = CELL_BEATS_RANGE

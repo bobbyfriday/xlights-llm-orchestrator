@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 
 # -- what the agent fills (no time fields: a timestamp is unrepresentable) -----
@@ -230,6 +230,136 @@ def assign_lyrics(shots: list[Shot], lyrics: list[tuple[int, str]]) -> None:
     """(Re)attach lyric lines by start time — used after a split so lines land in their part."""
     for sh in shots:
         sh.lyrics = [t for (ms, t) in lyrics if sh.start_ms <= ms < sh.end_ms]
+
+
+# -- the written story (video_story.json) → a timed, media-planned script ---------
+
+# Keys a story beat must NOT carry: every timestamp is code-owned (resolved from the brief's
+# section cuts), so a time field in the story is a contract violation, not a hint.
+TIME_KEYS = frozenset({"start_ms", "end_ms", "start", "end", "at_ms", "time", "time_ms",
+                       "duration", "duration_ms", "frames"})
+
+
+def validate_story(raw: dict, n_sections: int, *, allow_inherit: bool = False) -> list[str]:
+    """Why a `video_story.json` can't be planned, as plain messages (empty = valid): it must parse
+    as `VideographerOut`, carry no time fields anywhere, and give exactly one beat per brief
+    section (`section_index` 0..n-1, each once). Strict by default — a section without a beat is
+    an error naming it; `allow_inherit=True` accepts gaps (`resolve_beats` then holds the previous
+    beat, the old behavior). Mirrors `xlo validate-brief`'s posture — every problem in one pass,
+    each naming the section or path."""
+    problems: list[str] = []
+    if not isinstance(raw, dict):
+        return ["the story must be a JSON object"]
+    for k in sorted(set(raw) & TIME_KEYS):
+        problems.append(f"story carries a time field {k!r}; timestamps are code-owned, remove it")
+    beats = raw.get("beats")
+    if not isinstance(beats, list):
+        problems.append("beats must be a list (one per brief section)")
+        beats = []
+    for j, b in enumerate(beats):
+        if not isinstance(b, dict):
+            problems.append(f"beats[{j}] must be an object")
+            continue
+        for k in sorted(set(b) & TIME_KEYS):
+            problems.append(f"beats[{j}] carries a time field {k!r}; timestamps are code-owned, remove it")
+    try:
+        story = VideographerOut.model_validate(raw)
+    except ValidationError as exc:              # pydantic's message names the path
+        problems.append(f"story does not parse as VideographerOut: {exc}")
+        return problems
+    seen: dict[int, int] = {}
+    for j, b in enumerate(story.beats):
+        if not 0 <= b.section_index < n_sections:
+            problems.append(f"beats[{j}].section_index {b.section_index} is out of range "
+                            f"(the brief has sections 0..{n_sections - 1})")
+        elif b.section_index in seen:
+            problems.append(f"beats[{j}] repeats section {b.section_index} "
+                            f"(already given by beats[{seen[b.section_index]}])")
+        else:
+            seen[b.section_index] = j
+    missing = [i for i in range(n_sections) if i not in seen]
+    if missing and not allow_inherit:
+        problems.append("no beat for section" + ("s " if len(missing) > 1 else " ")
+                        + ", ".join(str(i) for i in missing) + " (one beat per brief section; "
+                        "pass --allow-inherit to hold the previous beat instead)")
+    return problems
+
+
+def featured_lines_for(plan, sa) -> list[str]:
+    """The lyric lines the media plan values as 'featured' hits: the brief's `key_moments` of
+    kind `lyric` that carry a `text` (read via getattr — the field is additive), else the
+    analysis's repeated lyric lines (`sa.lyrics["repeated"]`). Order preserved, blanks dropped."""
+    out: list[str] = []
+    for km in getattr(plan, "key_moments", None) or []:
+        if (getattr(km, "kind", "") or "").strip().lower() == "lyric":
+            text = (getattr(km, "text", "") or "").strip()
+            if text:
+                out.append(text)
+    if out:
+        return out
+    lyrics = getattr(sa, "lyrics", None)
+    for rep in (lyrics.get("repeated") if isinstance(lyrics, dict) else None) or []:
+        text = (rep.get("text") if isinstance(rep, dict) else rep) if rep else ""
+        if isinstance(text, str) and text.strip():
+            out.append(text.strip())
+    return out
+
+
+def _pad(values: list, n: int, fill) -> list:
+    values = list(values)
+    return values + [fill] * (n - len(values)) if len(values) < n else values[:n]
+
+
+def plan_media_for(*, sections: list[tuple[int, int]], labels: list[str], energies: list[float],
+                   featured: dict[int, int] | None = None, budget=None,
+                   ledger_remaining: int | None = None, per_second_usd: float | None = None):
+    """The media plan BEFORE any story exists (`xlo video-plan --plan-only`): which sections are
+    filmed vs procedural, from structure + energy + the clip budget — so the story can be written
+    for each section's medium. Returns a `media_plan.MediaPlan`. `budget` is a
+    `media_plan.MediaBudget` (default: an 8 s-clip, 10-clip campaign, nothing pinned);
+    `ledger_remaining` defaults to the whole campaign. Imports `media_plan` lazily (it imports
+    this module's `Shot`)."""
+    from .media_plan import MediaBudget, plan as plan_media
+    n = len(sections)
+    if n == 0:
+        raise ValueError("the brief has no sections to plan over")
+    budget = budget or MediaBudget(campaign_clips=10, clip_s=8.0, max_stretch=1.2, pinned=[])
+    remaining = budget.campaign_clips if ledger_remaining is None else int(ledger_remaining)
+    return plan_media(sections, _pad(labels, n, ""), _pad(energies, n, 0.0), dict(featured or {}),
+                      budget, remaining, per_second_usd=per_second_usd)
+
+
+def plan_story(story: VideographerOut, *, song: str, sections: list[tuple[int, int]],
+               labels: list[str], energies: list[float], lyrics: list[tuple[int, str]],
+               downbeats_ms: list[int], width: int, height: int, frame_ms: int = 50,
+               max_shot_s: float | None = None, budget=None, ledger_remaining: int | None = None,
+               per_second_usd: float | None = None, palette: list[str] | None = None,
+               featured: dict[int, int] | None = None, source: str = "", media=None):
+    """The deterministic tail after the story is written: the media plan (`media` when the
+    `--plan-only` pass already wrote one, else computed now from structure + budget), beats
+    resolved to the brief's section cuts, long filmed shots split on downbeats, lyrics assigned,
+    the renderer hand-off composed. Returns `(VideoScript, MediaPlan)`."""
+    from .media_plan import apply_media, build_handoff, summary
+    n = len(sections)
+    if n == 0:
+        raise ValueError("the brief has no sections to plan a story over")
+    labels, energies = _pad(labels, n, ""), _pad(energies, n, 0.0)
+    if media is None or len(media.sections) != n:
+        media = plan_media_for(sections=sections, labels=labels, energies=energies,
+                               featured=featured, budget=budget, ledger_remaining=ledger_remaining,
+                               per_second_usd=per_second_usd)
+    budget = media.budget
+    constraints = constraints_for(width, height, frame_ms, sections[-1][1])
+    shots = resolve_beats(story, sections, frame_ms=frame_ms, labels=labels,
+                          energies=energies, lyrics=lyrics)
+    apply_media(shots, media)
+    shots = split_long_shots(shots, max_shot_s=max_shot_s or budget.effective_clip_s,
+                             downbeats_ms=list(downbeats_ms), frame_ms=frame_ms)
+    assign_lyrics(shots, lyrics)
+    media.handoff = build_handoff(shots, list(palette or []), constraints)
+    vs = VideoScript(song=song, source=source, logline=story.logline, motifs=list(story.motifs),
+                     constraints=constraints, shots=shots, media=summary(media))
+    return vs, media
 
 
 # -- rendering -----------------------------------------------------------------

@@ -66,16 +66,33 @@ def clamp_layer_budget(instructions: list[EffectInstruction], max_layers: int = 
     return kept, dropped
 
 
+def _outcome(index: int, ins: EffectInstruction, *, placed: bool, layer: int | None,
+             reason: str = "") -> dict:
+    """One `applied.json` outcome row: the instruction's index in the emitted list plus what
+    happened to it (`placed`, the layer it landed on, or the skip `reason`)."""
+    return {"index": index, "placed": placed, "reason": reason, "layer": layer,
+            "target": ins.target, "effect": ins.effect_type, "section_index": ins.section_index,
+            "start_ms": ins.start_ms, "end_ms": ins.end_ms}
+
+
 async def apply_instructions(
     client: XLightsClient,
     instructions: list[EffectInstruction],
     *,
     duration_secs: int,
     settle_secs: float = 0.6,
+    render: bool = True,
 ) -> dict[str, Any]:
     """Create a clean-slate ANIMATION sequence (replacing any open one) and additively place
     the instructions. Audio is NOT attached here — `newSequence(mediaFile)` crashes xLights
     (LoadAudioData modal); the song is attached by an offline `.xsq` patch at finalize instead.
+
+    Returns `{placed, skipped, rendered, outcomes}`: `placed`/`skipped` are the per-placement
+    rows callers have always read (now each carrying its `index` into `instructions`);
+    `outcomes` is one row per instruction, in order, with `placed: bool` and the skip `reason`
+    (the `_SKIPPABLE` exception message, or the layer-budget note) — what `xlo apply` writes to
+    `applied.json`. `render=False` skips the trailing `renderAll` (the `xlo apply --render`
+    switch; the default keeps today's behavior for `run`/`regen`).
     """
     # Clean slate: explicitly close any open sequence FIRST (quiet+force discards silently).
     # newSequence(force=True) alone is NOT enough — with unsaved changes open it pops a
@@ -114,8 +131,9 @@ async def apply_instructions(
     occupancy: dict[tuple[str, int], list[tuple[int, int]]] = {}
     placed: list[dict] = []
     skipped: list[dict] = []
+    outcomes: list[dict] = []
 
-    for ins in instructions:
+    for index, ins in enumerate(instructions):
         # on_top accents punch through: placed ABOVE every overlapping layer (not in the lowest
         # free gap, which would bury them under a longer spanning layer). Never budget-skipped.
         if getattr(ins, "on_top", False):
@@ -123,10 +141,11 @@ async def apply_instructions(
         else:
             layer = _free_layer(occupancy, ins.target, ins.start_ms, ins.end_ms, ins.layer)
         if layer >= MAX_LAYERS and not getattr(ins, "on_top", False):
-            skipped.append({"target": ins.target, "effect": ins.effect_type,
+            reason = f"layer budget: would need layer {layer}"
+            skipped.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                             "start_ms": ins.start_ms, "end_ms": ins.end_ms,
-                            "section_index": ins.section_index,
-                            "reason": f"layer budget: would need layer {layer}"})
+                            "section_index": ins.section_index, "reason": reason})
+            outcomes.append(_outcome(index, ins, placed=False, layer=None, reason=reason))
             continue
         # Asset-bound effects (Faces): place from explicit settings, skip the preset library.
         if ins.effect_type in _ASSET_BOUND:
@@ -136,14 +155,16 @@ async def apply_instructions(
                                                layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms):
                     raise PresetPlacementError("addEffect returned worked=false")
                 occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
-                placed.append({"target": ins.target, "effect": ins.effect_type, "look": "",
-                               "layer": layer, "start_ms": ins.start_ms, "end_ms": ins.end_ms,
-                               "section_index": ins.section_index})
+                placed.append({"index": index, "target": ins.target, "effect": ins.effect_type,
+                               "look": "", "layer": layer, "start_ms": ins.start_ms,
+                               "end_ms": ins.end_ms, "section_index": ins.section_index})
+                outcomes.append(_outcome(index, ins, placed=True, layer=layer))
             except _SKIPPABLE as exc:
-                skipped.append({"target": ins.target, "effect": ins.effect_type,
+                reason = f"{type(exc).__name__}: {exc}"
+                skipped.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                                 "start_ms": ins.start_ms, "end_ms": ins.end_ms,
-                                "section_index": ins.section_index,
-                                "reason": f"{type(exc).__name__}: {exc}"})
+                                "section_index": ins.section_index, "reason": reason})
+                outcomes.append(_outcome(index, ins, placed=False, layer=None, reason=reason))
             continue
 
         # LLM's render style if valid, else a fallback — never the sparse unset default.
@@ -170,15 +191,18 @@ async def apply_instructions(
                     known_targets=known_targets,
                 )
             occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
-            placed.append({"target": ins.target, "effect": ins.effect_type,
+            placed.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                            "look": ins.look_id, "layer": layer,
                            "start_ms": ins.start_ms, "end_ms": ins.end_ms,
                            "section_index": ins.section_index})
+            outcomes.append(_outcome(index, ins, placed=True, layer=layer))
         except _SKIPPABLE as exc:
-            skipped.append({"target": ins.target, "effect": ins.effect_type,
+            reason = f"{type(exc).__name__}: {exc}"
+            skipped.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                             "start_ms": ins.start_ms, "end_ms": ins.end_ms,
-                            "section_index": ins.section_index,
-                            "reason": f"{type(exc).__name__}: {exc}"})
+                            "section_index": ins.section_index, "reason": reason})
+            outcomes.append(_outcome(index, ins, placed=False, layer=None, reason=reason))
 
-    await client.render_all()
-    return {"placed": placed, "skipped": skipped, "rendered": True}
+    if render:
+        await client.render_all()
+    return {"placed": placed, "skipped": skipped, "rendered": bool(render), "outcomes": outcomes}

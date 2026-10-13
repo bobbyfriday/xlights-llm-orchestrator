@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .show_plan import ShowPlan
+from .show_plan import BLEND_METHODS, FABRIC_ALTERNATIONS, ShowPlan
 
 SCHEMA_NAME = "creative_brief.schema.json"
 
@@ -30,11 +30,20 @@ def _set_scalar_enum(props: dict, field: str, values: list[str]) -> None:
 
 
 def build_brief_schema(*, groups: list[str], effect_types: list[str], scene_ids: list[str],
-                       stems: list[str], colors: list[str]) -> dict:
-    """`ShowPlan`'s JSON Schema, enriched with the run's vocabulary as field `enum`s."""
+                       stems: list[str], colors: list[str], cellable: list[str] | None = None) -> dict:
+    """`ShowPlan`'s JSON Schema, enriched with the run's vocabulary as field `enum`s.
+
+    `cellable` (the carrier-capable effect types) enumerates `fabric.carrier`; the alternation and
+    blend enums are the fixed vocabularies beside the contract (`FABRIC_ALTERNATIONS`,
+    `BLEND_METHODS`). Each fabric enum keeps "" so "code chooses" stays a valid choice."""
     schema = ShowPlan.model_json_schema()
     defs = schema.get("$defs", {})
     sp = defs.get("SectionPlan", {}).get("properties", {})
+    # fabric knobs (D3) → cellable carriers, the four alternations, the xLights layer methods
+    fab = defs.get("SectionFabric", {}).get("properties", {})
+    _set_scalar_enum(fab, "carrier", [""] + list(cellable or []))
+    _set_scalar_enum(fab, "alternation", [""] + list(FABRIC_ALTERNATIONS))
+    _set_scalar_enum(fab, "blend", [""] + list(BLEND_METHODS))
     # group fields → the live layout groups
     _set_array_enum(sp, "target_groups", groups)
     _set_array_enum(sp, "pulse_groups", groups)
@@ -54,14 +63,15 @@ def build_brief_schema(*, groups: list[str], effect_types: list[str], scene_ids:
 
 
 def write_editable_brief(show_plan: ShowPlan, out_dir, *, groups: list[str], effect_types: list[str],
-                         scene_ids: list[str], stems: list[str], colors: list[str]) -> Path:
+                         scene_ids: list[str], stems: list[str], colors: list[str],
+                         cellable: list[str] | None = None) -> Path:
     """Write `creative_brief.schema.json` + `creative_brief.json` (with a relative `$schema` ref) to
     `out_dir`. Returns the brief path. The `$schema` key is ignored by `ShowPlan.model_validate_json`
     on read (pydantic `extra='ignore'`), so the edited file feeds straight back into the run."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     schema = build_brief_schema(groups=groups, effect_types=effect_types, scene_ids=scene_ids,
-                                stems=stems, colors=colors)
+                                stems=stems, colors=colors, cellable=cellable)
     (out / SCHEMA_NAME).write_text(json.dumps(schema, indent=1))
     brief = json.loads(show_plan.model_dump_json())
     brief = {"$schema": SCHEMA_NAME, **brief}            # relative ref; VS Code resolves it sibling

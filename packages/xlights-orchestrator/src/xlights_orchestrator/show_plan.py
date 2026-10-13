@@ -8,6 +8,18 @@ from pydantic import BaseModel, Field
 # report-only; excluded from model_dump so cache/golden formats stay byte-identical).
 EFFECT_SOURCES = ("weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite")
 
+# The brief's fabric vocabulary (claude-driven-orchestration D3). Kept here, beside the contract,
+# so the schema (brief_schema) and the weaver (pipeline/weave) enumerate the SAME values.
+FABRIC_ALTERNATIONS = ("chase", "pingpong", "all", "sparse")   # CellRecipe.alternation
+# xLights `T_CHOICE_LayerMethod` values (the layer blend/mix types), community-corpus-ordered:
+# the ones our looks/composites actually carry first, then the rest of xLights' menu.
+BLEND_METHODS = (
+    "Normal", "Max", "Brightness", "Layered", "Average", "Additive", "Subtractive",
+    "1 is Mask", "1 is Unmask", "1 is True Unmask", "2 is Mask", "2 is Unmask", "2 is True Unmask",
+    "1 reveals 2", "2 reveals 1", "Effect 1", "Effect 2", "Shadow 1 on 2", "Shadow 2 on 1",
+    "Bottom-Top", "Left-Right", "Min", "Highlight", "Highlight Vibrant", "Canvas",
+)
+
 
 class ShowPalette(BaseModel):
     name: str = ""
@@ -25,6 +37,17 @@ class KeyMoment(BaseModel):
     at_ms: int
     kind: str = ""                           # accent | climax | lyric
     treatment: str = ""                      # the deliberate visual punctuation
+
+
+class SectionFabric(BaseModel):
+    """The brief's optional per-section fabric knobs (D3): the few CellRecipe fields with a
+    visible, nameable effect on the show. Every field is optional — "" / None means "code
+    chooses" (today's deterministic fallback weave), so an absent block realizes identically."""
+
+    carrier: str = ""                        # a CELLABLE effect type for the beat carrier (e.g. SingleStrand)
+    alternation: str = ""                    # chase | pingpong | all | sparse ("" = chase)
+    cell_beats: int | None = Field(default=None, ge=1, le=8)   # carrier cell length in beats
+    blend: str = ""                          # T_CHOICE_LayerMethod on the carrier cells ("" = code default)
 
 
 class SectionPlan(BaseModel):
@@ -59,6 +82,8 @@ class SectionPlan(BaseModel):
     follow_stem: str = ""                    # whose rhythm to ride (default the prominent stem)
     accent_effect: str = ""                  # placeable punctuation effect (default On)
     pulse_on: str = ""                       # "beat" | "onset" (default beat)
+    # -- fabric intent (claude-driven-orchestration D3; additive, None → code chooses) --
+    fabric: SectionFabric | None = None      # carrier / alternation / cell_beats / blend knobs
 
 
 class ShowPlan(BaseModel):

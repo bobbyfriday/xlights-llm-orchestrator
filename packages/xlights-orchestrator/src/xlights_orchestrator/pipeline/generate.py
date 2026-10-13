@@ -5,6 +5,12 @@ code here realizes it — energy-gated coverage, palette/brightness/speed settin
 ensemble bed / peak fill, the woven cell fabric, beat accents, curated triggers, climax
 flashes and feature-prop contrast. Pulled out of run_pipeline so the orchestration hub
 reads as a stage skeleton; caching stays with the caller.
+
+Two entry points share ONE downstream body (`realize_section_effects`):
+  * `realize_section` / `generate_instructions` — the LLM Generator designs the section.
+  * `realize_section_from_brief` / `generate_instructions_from_brief` — LLM-free
+    (claude-driven-orchestration D3): base rows synthesized from the brief's effect types,
+    the weave from `weave_from_brief` (the brief's `fabric` knobs over the fallback fabric).
 """
 
 from __future__ import annotations
@@ -47,6 +53,7 @@ from .state import State, require
 from .triggers import place_triggers
 from .semantic_groups import ACCENT_GROUPS, DEFAULT_VOCAB, HERO_GROUP
 from .weave import (
+    brief_carrier,
     canon_effect_type,
     carrier_covers,
     counter_rotate_stacks,
@@ -57,7 +64,9 @@ from .weave import (
     fallback_weave,
     label_seed,
     section_carrier,
+    weave_from_brief,
 )
+from ..agents.catalog import candidate_look_ids
 
 # Curated composite stacks rotated across the show's peak(s) — a rich, kaleidoscopic feature
 # look on the hero that one effect can't give (see weave.CURATED_COMPOSITES).
@@ -271,8 +280,6 @@ async def realize_section(st: State, si: int, *, agent,
     Every instruction is tagged with `si`."""
     plan = require(st.show_plan, "show_plan")
     section = plan.sections[si]
-    _peaks = peak_sections(plan)         # the show's payoff section(s)
-    bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
     motifs = {g: plan.group_motifs[g]
               for g in section.target_groups if g in plan.group_motifs}
     _gen_res = await run_agent(agent, generator_mod.render_input(
@@ -280,6 +287,58 @@ async def realize_section(st: State, si: int, *, agent,
         role="generator", attempts=3)
     telemetry.record("generator", _gen_res)
     out: SectionEffects = _gen_res.output
+    return realize_section_effects(st, si, out)
+
+
+def _brief_base_instructions(section, available_groups: list[str]) -> list[EffectInstruction]:
+    """The LLM-free stand-in for the Generator's base rows: one section-spanning instruction per
+    target group (brief order = Director priority, which `trim_coverage` keeps first), cycling the
+    section's effect vocabulary (`effect_family`, then `effect_types`) across the groups. Look =
+    the catalog's first candidate for the type; `render_style=""` so the per-effect fallback
+    (`resolve_buffer_style`) applies. Types with no catalog looks are skipped."""
+    types: list[str] = []
+    for raw in (section.effect_family, *(section.effect_types or [])):
+        t = canon_effect_type(raw)
+        if t and t not in types and candidate_look_ids(t):
+            types.append(t)
+    if not types:
+        return []
+    rows: list[EffectInstruction] = []
+    for g in (section.target_groups or []):
+        if available_groups and g not in available_groups:
+            continue
+        et = types[len(rows) % len(types)]
+        rows.append(EffectInstruction(
+            target=g, effect_type=et, look_id=candidate_look_ids(et)[0], render_style="",
+            start_ms=section.start_ms, end_ms=section.end_ms))
+    return rows
+
+
+def realize_section_from_brief(st: State, si: int) -> list[EffectInstruction]:
+    """`realize_section` WITHOUT the LLM (claude-driven-orchestration D3): the section's base rows
+    come from its effect vocabulary, the weave from `weave_from_brief` (the brief's `fabric` knobs
+    over the deterministic fallback), no LLM composites; then the identical downstream layers.
+    Deterministic: the same brief + analysis yields the same instructions."""
+    plan = require(st.show_plan, "show_plan")
+    section = plan.sections[si]
+    out = SectionEffects(instructions=_brief_base_instructions(section, st.available_groups),
+                         weave=None, composites=[])
+    return realize_section_effects(st, si, out, from_brief=True)
+
+
+def realize_section_effects(st: State, si: int, out: SectionEffects, *,
+                            from_brief: bool = False) -> list[EffectInstruction]:
+    """The shared downstream body: a section's designed effects (`out`) → energy-gated coverage,
+    palette/brightness/speed, bed or peak fill, the weave, phrase gesture, composite stacks, VU,
+    the final-occurrence layer, counter-rotation, hard caps, beat accents.
+
+    `from_brief` selects the weave source: the brief's `fabric` via `weave_from_brief` (a directed
+    carrier is kept, never rotated away) instead of the Generator's recipes-or-fallback (whose
+    plain carrier IS rotated by `diversify_carrier`). Everything else is byte-for-byte the same."""
+    plan = require(st.show_plan, "show_plan")
+    section = plan.sections[si]
+    _peaks = peak_sections(plan)         # the show's payoff section(s)
+    bpb = resolve_beats_per_bar(st.song_analysis, st.music_brief)   # the song's meter (default 4/4)
     _rm = st.music_brief.repetition_map if st.music_brief else None
     _si = effective_intensity(getattr(section, "intensity", 0.5), si, _rm)  # + escalation
     _label = section_identity(si, _rm)       # the section's musical identity (chorus/verse/…) or None
@@ -335,7 +394,11 @@ async def realize_section(st: State, si: int, *, agent,
     # WEAVE, per treatment: full weaves the whole fabric; gesture runs ONE carrier recipe on ≤2
     # groups (a single held motion); pulse/feature/rest withhold the fabric entirely.
     carrier = section_carrier(si, _label)   # keyed to the repetition identity (rhymes) else the index
-    if _layers["weave"] is True:
+    if from_brief:
+        carrier = brief_carrier(section, carrier)   # a valid directed `fabric.carrier` wins
+    if _layers["weave"] is True and from_brief:
+        weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
+    elif _layers["weave"] is True:
         weave_obj = getattr(out, "weave", None) or fallback_weave(section, st.available_groups,
                                                                   carrier=carrier)
         diversify_carrier(weave_obj, carrier)    # vary an LLM weave's default carrier too
@@ -444,9 +507,28 @@ async def generate_instructions(st: State, *, generator=None) -> list[EffectInst
     agent = generator or generator_mod.generator_agent()
     plan = require(st.show_plan, "show_plan")
     instrs: list[EffectInstruction] = []
-    _peaks = peak_sections(plan)         # the show's payoff section(s)
     for i in range(len(plan.sections)):
         instrs.extend(await realize_section(st, i, agent=agent))
+    return assemble_show(st, instrs)
+
+
+def generate_instructions_from_brief(st: State) -> list[EffectInstruction]:
+    """`generate_instructions` WITHOUT the LLM: every section via `realize_section_from_brief`,
+    then the same show-level layers (climax key moments, entrances, triggers, flashes,
+    feature-prop contrast, matrix narrative, finalize). Deterministic over the brief + analysis."""
+    plan = require(st.show_plan, "show_plan")
+    instrs: list[EffectInstruction] = []
+    for i in range(len(plan.sections)):
+        instrs.extend(realize_section_from_brief(st, i))
+    return assemble_show(st, instrs)
+
+
+def assemble_show(st: State, instrs: list[EffectInstruction]) -> list[EffectInstruction]:
+    """The show-level layers over the per-section rows (shared by both generation paths): synthesize
+    the peak's climax key moment, surface instrument entrances, curated triggers, climax flashes,
+    feature-prop contrast, the matrix narrative, then `finalize_effects`."""
+    plan = require(st.show_plan, "show_plan")
+    _peaks = peak_sections(plan)         # the show's payoff section(s)
     # guarantee the climax SIGNAL lands at the peak: a peak section with no climax/accent
     # key-moment inside it gets one synthesized at its downbeat (drives key_moment_flashes).
     for pi in _peaks:

@@ -14,10 +14,8 @@ The layout is FLAT and provider-independent — every stage artifact sits direct
       qa.json
       stills/<section>.png
       video_story.json          → video_script.json + .md
-      layout_review.json
 
-There is no model-routing namespace: the brief is authored in conversation, not by a routed
-model, so there is nothing to keep apart. Older caches carry `m-xxxxxxxx/` subdirs from the
+There is no model-routing namespace. Older caches carry `m-xxxxxxxx/` subdirs from the
 former per-routing namespace; those are simply never read (the shared `song_analysis.json` and
 targetable-groups probe at the song root are reused as before).
 """
@@ -50,11 +48,6 @@ def song_key(path: str) -> str:
     return cache_names.resolve(cache_root(), path, digest, legacy=(digest,))
 
 
-def cache_path(key: str, stage: str, *, models: bool = False) -> Path:
-    """Path for a per-song stage artifact: always the flat `<root>/<key>/<stage>.json`.
-
-    `models` is accepted for call-site compatibility and IGNORED — the former `models=True`
-    routing namespace (`<key>/m-xxxxxxxx/<stage>.json`) is gone; see the module docstring.
-    """
-    del models   # compatibility only; the layout is flat
+def cache_path(key: str, stage: str) -> Path:
+    """Path for a per-song stage artifact: the flat `<root>/<key>/<stage>.json`."""
     return cache_root() / key / f"{stage}.json"

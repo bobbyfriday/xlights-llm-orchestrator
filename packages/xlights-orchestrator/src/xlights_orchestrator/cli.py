@@ -17,10 +17,8 @@ stage calls a model API; `groups`, `apply`, and `finalize` talk to the running x
     video-plan     --plan-only: brief → media_plan.json (filmed vs procedural, before the story);
                    then video_story.json + media_plan.json → video_script.json + .md
     cache-rename   retrofit hash-named cache dirs to readable names
-    init-layout    onboard an xLights layout (unchanged)
-
-The legacy `run`, `regen`, `report`, `ab`, `edit-brief`, and `video-script` commands stay
-registered and working until PR 3 removes them.
+    init-layout    onboard an xLights layout: classify props → SEM_ groups + manifest
+                   (--dry-run writes layout_review.json for the unresolved props)
 """
 
 from __future__ import annotations
@@ -36,11 +34,8 @@ from pathlib import Path
 from xlights_core import XLightsClient
 
 from . import degradations
-from .config import has_llm_key, load_env
-from .pipeline import format_sections, regen_section, run_pipeline
+from .config import load_env
 from .pipeline.media import safe_name
-from .pipeline.run import _auto_checkpoint, _design_review, _interpret_review
-from .pipeline.state import require
 from .pipeline.stage_io import MissingInput
 
 log = logging.getLogger(__name__)
@@ -48,171 +43,6 @@ log = logging.getLogger(__name__)
 EXIT_MISSING = 2      # a prerequisite file is absent (the message names it and its stage)
 EXIT_FAILED = 1       # the stage ran and refused / failed (validation errors, xLights refusal)
 MEDIA_PLAN_NAME = "media_plan.json"
-
-
-# =============================================================================================
-# legacy commands (PR 3 removes these; untouched)
-# =============================================================================================
-
-def _live_surfaces(args):
-    """When attended + browser: build a real ProgressBus + CheckpointGate + started
-    LiveProgressServer and the browser checkpoint factories. Otherwise everything is inert
-    (NullProgressBus, no server, today's terminal/None checkpoints). ``--auto`` unchanged."""
-    from .progress import (
-        NullProgressBus, ProgressBus, CheckpointGate,
-        browser_interpret_review, browser_design_review,
-        browser_refine_checkpoint, browser_final_checkpoint,
-    )
-    live = not args.auto and not args.no_browser
-    if not live:
-        # attended-terminal (--no-browser) keeps the blocking prompts; --auto passes None.
-        checkpoints = dict(
-            progress=NullProgressBus(), final_checkpoint=None, server=None,
-            interpret_checkpoint=None if args.auto else _interpret_review,
-            design_checkpoint=None if args.auto else _design_review,
-            checkpoint=_auto_checkpoint if (args.refine and args.auto) else None,
-        )
-        return checkpoints
-    from .live_server import LiveProgressServer
-    bus = ProgressBus()
-    gate = CheckpointGate(bus)
-    server = LiveProgressServer(bus, gate, title=args.name or safe_name(args.song))
-    url = server.start(open_browser=True)
-    print(f"Live progress: {url}  (approve checkpoints in the browser)")
-    return dict(
-        progress=bus, server=server, url=url,
-        interpret_checkpoint=browser_interpret_review(gate),
-        design_checkpoint=browser_design_review(gate),
-        checkpoint=browser_refine_checkpoint(gate) if args.refine else None,
-        final_checkpoint=browser_final_checkpoint(gate),
-    )
-
-
-async def _run(args) -> None:
-    surfaces = _live_surfaces(args)
-    server = surfaces.pop("server", None)
-    surfaces.pop("url", None)
-    try:
-        async with XLightsClient() as client:
-            st = await run_pipeline(
-                args.song,
-                client=client,
-                save_as=None if args.no_save else (args.name or safe_name(args.song)),
-                use_cache=not args.no_cache,
-                refine=args.refine,
-                max_iterations=args.max_iterations,
-                log_revisions=not args.no_log,
-                timing_tracks=not args.no_timing_tracks,
-                **surfaces,
-            )
-    finally:
-        if server is not None:
-            server.stop()
-    rep = st.applied or {}
-    print(f"\nShowPlan: {len(require(st.show_plan, 'show_plan').sections)} sections")
-    print(f"placed: {len(rep.get('placed', []))}   skipped: {len(rep.get('skipped', []))}")
-    for p in rep.get("placed", [])[:25]:
-        print(f"  + {p['effect']:<14} → {p['target']}  ({p['start_ms']}-{p['end_ms']}ms, L{p['layer']})")
-    name = args.name or safe_name(args.song)
-    print(f"\nOpen '{name}' in xLights to play it with audio (File → Open Sequence).")
-
-
-async def _regen(args) -> None:
-    async with XLightsClient() as client:
-        st = await regen_section(
-            args.song, client=client, section_index=args.section, note=args.note or "",
-            redesign=args.redesign,
-            save_as=None if args.no_save else (args.name or safe_name(args.song)),
-        )
-    n = sum(1 for i in st.instructions if i.section_index == args.section)
-    print(f"\nRegenerated section {args.section}: {n} effects (other sections unchanged).")
-    name = args.name or safe_name(args.song)
-    print(f"Open '{name}' in xLights to play it with audio (File → Open Sequence).")
-
-
-async def _ab(args) -> None:
-    """Run a provider A/B: multiple routing arms × repeats over one fixture song, interleaved,
-    unattended. Strict multi-key preflight before any spend; results land in the shared revision
-    log + an ab_runs.json manifest, summarized as per-arm distributions."""
-    from .pipeline import ab as ab_mod
-    from .pipeline.groups import targetable_groups
-    from .pipeline.cache import cache_root
-
-    arms = [ab_mod.parse_arm(s) for s in args.arm]      # typos die here, before any spend
-    if len(arms) < 2:
-        raise SystemExit("xlo ab needs at least two --arm specs")
-    ab_mod.preflight_keys(arms)                          # every named provider's key present
-
-    async with XLightsClient() as client:
-        async def _warm(c):
-            await targetable_groups(c, cache_root=cache_root())
-        await ab_mod.run_ab(
-            args.song, arms, client=client, repeat=args.repeat,
-            name_prefix=args.name_prefix, max_iterations=args.max_iterations,
-            warm_probe=_warm)
-    from .pipeline.cache import song_key as _sk
-    summary = ab_mod.summarize_manifest(cache_root() / _sk(args.song) / "ab_runs.json")
-    print(ab_mod.render_ab_summary(summary))
-
-
-def _video_script(args) -> None:
-    from .pipeline.video import run_video_script
-    if not args.matrix_size:          # refuse before the key check / any spend
-        raise SystemExit("--matrix-size is required (e.g. 1024x768); the script will not guess "
-                         "the video matrix's resolution")
-    if not has_llm_key():
-        raise SystemExit("No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env")
-    try:
-        pinned = ([int(x) for x in args.filmed_sections.split(",") if x.strip()]
-                  if args.filmed_sections else None)
-        md = asyncio.run(run_video_script(args.song, matrix_size=args.matrix_size,
-                                          frame_ms=args.frame_ms, max_shot_s=args.max_shot_s,
-                                          veo_clips=0 if args.no_veo else args.veo_clips,
-                                          pinned=pinned))
-    except (ValueError, FileNotFoundError) as exc:
-        raise SystemExit(str(exc)) from exc
-    print(f"video script written: {md}\n                      {md.with_suffix('.json')}\n"
-          f"                      {md.with_name('media_plan.json')}")
-
-
-def _report(args) -> None:
-    """Deterministic offline cost/quality dashboard over the revision logs. No LLM, no xLights,
-    no network — and NO has_llm_key() gate."""
-    from . import reporting
-    from .pipeline.cache import cache_root, song_key
-
-    root = Path(args.cache_dir) / "orchestrator" if args.cache_dir else cache_root()
-    song = song_key(args.song) if args.song else None
-    if not reporting.discover_logs(root) and (song is None):
-        print(f"no revision logs found under {root}")
-        return
-    rep = reporting.build_report(root, song=song, reprice=args.reprice)
-    if not rep.runs:
-        print(f"no revision logs found under {root}")
-        return
-    if args.json:
-        print(rep.model_dump_json(indent=1))
-        return
-    if args.html is not None:
-        out = Path(args.html) if args.html else (root / "report.html")
-        out.write_text(reporting.render_html(rep))
-        print(f"wrote {out}")
-        return
-    print(reporting.render_text(rep), end="")
-
-
-def _edit_brief(args) -> None:
-    from .brief_editor import serve
-    from .pipeline.run import _cache_path, _song_key
-    if args.brief:
-        brief = Path(args.brief)
-    elif args.song:
-        brief = _cache_path(_song_key(args.song), "creative_brief")
-    else:
-        raise SystemExit("edit-brief needs --song or --brief")
-    if not brief.exists():
-        raise SystemExit(f"no creative brief at {brief} — run `xlo run` for this song first")
-    serve(brief, open_browser=not args.no_open)
 
 
 # =============================================================================================
@@ -517,7 +347,7 @@ def _stage_finalize(args) -> int:
     song_path = song_path_of(args.song, sa)
     name = _sequence_name(args, sa)
     st = State(song_path=song_path)
-    st.song_analysis, st.show_plan, st.music_brief = sa, plan, None
+    st.song_analysis, st.show_plan = sa, plan
     media, show_folder = asyncio.run(_finalize_live(
         st, name=name, song_path=song_path, fallback_show_folder=_show_folder(args, load_layout(song_dir)),
         timing_tracks=not args.no_timing_tracks))
@@ -528,15 +358,15 @@ def _stage_finalize(args) -> int:
     return 0
 
 
+# The Veo clip parameters the media planner budgets with (formerly `video.veo` in the deleted
+# models/config.yaml): clip length (s), how far a clip may be stretched, one Gemini project's
+# daily clip quota, the timezone that quota resets in, and the per-second price (None = unpriced).
+VEO_DEFAULTS = {"clip_s": 8.0, "max_stretch": 1.2, "daily_clips": 10,
+                "quota_reset_tz": "America/Los_Angeles", "per_second_usd": None}
+
+
 def _veo_defaults() -> dict:
-    """The Veo clip parameters: `models/config.yaml`'s `video.veo` while it exists, else the
-    planner's documented defaults (so PR 3 can drop the registry without touching this)."""
-    try:
-        from .models.registry import veo_config
-        return dict(veo_config())
-    except Exception as exc:  # noqa: BLE001 — no registry/config → the defaults
-        log.debug("veo config unavailable, using the planner defaults: %s", exc)
-        return {"clip_s": 8.0, "max_stretch": 1.2, "daily_clips": 10, "quota_reset_tz": "UTC"}
+    return dict(VEO_DEFAULTS)
 
 
 def _media_budget(args, veo: dict):
@@ -750,69 +580,14 @@ def _build_parser() -> argparse.ArgumentParser:
     il = sub.add_parser("init-layout",
                         help="onboard an xLights layout: classify props → SEM_ groups + manifest")
     il.add_argument("--show-folder", default=None, help="show folder (with xlights_rgbeffects.xml)")
-    il.add_argument("--dry-run", action="store_true", help="print the diff + manifest, write nothing")
+    il.add_argument("--dry-run", action="store_true",
+                    help="print the diff + manifest and write only layout_review.json (the unresolved "
+                         "props to classify into layout_overrides.json); the layout is not touched")
     il.add_argument("--yes", action="store_true", help="accept all review suggestions unattended")
     il.add_argument("--no-validate", action="store_true", help="skip the offline §7 validation")
-    il.add_argument("--no-llm", action="store_true", help="deterministic only (no LLM fallback)")
     il.add_argument("--invert-x", action="store_true", help="flip the x axis (inverted preview)")
     il.add_argument("--review-web", action="store_true", help="(reserved) browser review UX")
 
-    # -- legacy (PR 3 removes) ----------------------------------------------------------------
-    e = sub.add_parser("edit-brief", help="[legacy] open the creative brief in a browser form")
-    e.add_argument("--song", default=None, help="song whose cached brief to edit")
-    e.add_argument("--brief", default=None, help="path to a creative_brief.json (overrides --song)")
-    e.add_argument("--no-open", action="store_true", help="don't auto-open the browser")
-    r_ = sub.add_parser("run", help="[legacy] generate a sequence for a song via the agent pipeline")
-    r_.add_argument("--song", required=True, help="path to an audio file")
-    r_.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
-    r_.add_argument("--no-save", action="store_true", help="don't save (leave unsaved/open)")
-    r_.add_argument("--no-cache", action="store_true", help="ignore cached plan/instructions")
-    r_.add_argument("--refine", action="store_true", help="run the test→judge→refine loop")
-    r_.add_argument("--auto", action="store_true", help="unattended refine (no human checkpoints)")
-    r_.add_argument("--no-browser", action="store_true",
-                    help="attended run without the live browser surface (terminal checkpoints only)")
-    r_.add_argument("--max-iterations", type=int, default=3, help="hard cap on refine iterations")
-    r_.add_argument("--no-log", action="store_true", help="disable the per-iteration revision log")
-    r_.add_argument("--no-timing-tracks", action="store_true",
-                    help="don't add reference timing tracks (sections/beats/bars/onsets) to the .xsq")
-    g_ = sub.add_parser("regen", help="[legacy] regenerate ONE section of a generated show")
-    g_.add_argument("--song", required=True, help="path to the audio file (must have been `xlo run` first)")
-    g_.add_argument("--section", type=int, default=None, help="section index to regenerate (see --list)")
-    g_.add_argument("--list", action="store_true", help="list the show's sections (index, time, look) and exit")
-    g_.add_argument("--note", default=None, help="free-text fix to steer the regen (e.g. 'too busy, calm it down')")
-    g_.add_argument("--redesign", action="store_true",
-                    help="re-PLAN the section via the Director (change its groups/treatment/look), not just "
-                         "regenerate effects within the existing plan — use when the section itself is wrong")
-    g_.add_argument("--name", default=None, help="sequence name (default: derived from the song filename)")
-    g_.add_argument("--no-save", action="store_true", help="don't save (re-emit only, leave unsaved/open)")
-    rp = sub.add_parser("report", help="[legacy] offline cost & quality dashboard over the revision logs")
-    rp.add_argument("--song", default=None, help="limit to one song (path); default: all songs")
-    rp.add_argument("--cache-dir", default=None, help="cache dir (default: $XLO_CACHE_DIR or ./data)")
-    rp.add_argument("--html", nargs="?", const="", default=None,
-                    help="write a self-contained HTML page (optional PATH; default: <root>/report.html)")
-    rp.add_argument("--json", action="store_true", help="emit the Report as JSON")
-    rp.add_argument("--reprice", action="store_true", help="recompute cost from the current price table")
-    vs = sub.add_parser("video-script",
-                        help="[legacy] write a story-driven storyboard via the Videographer agent (one LLM call)")
-    vs.add_argument("--song", required=True, help="path to the audio file (must have been run before)")
-    vs.add_argument("--matrix-size", default=None,
-                    help="video matrix resolution, e.g. 1024x768 (required — never guessed)")
-    vs.add_argument("--frame-ms", type=int, default=50, help="sequence frame interval (default 50 → 20 fps)")
-    vs.add_argument("--max-shot-s", type=float, default=None,
-                    help="filmed clip length override: split FILMED shots longer than this on downbeats")
-    vs.add_argument("--veo-clips", type=int, default=None, metavar="N",
-                    help="campaign clip budget the story may assume will be filmed")
-    vs.add_argument("--no-veo", action="store_true", help="plan an all-procedural film (budget 0)")
-    vs.add_argument("--filmed-sections", default=None, metavar="I,J",
-                    help="section indexes to film first, e.g. 3,6 (then the budget is spent by value)")
-    ab = sub.add_parser("ab", help="[legacy] provider A/B: run one song through multiple routing arms")
-    ab.add_argument("--song", required=True, help="path to a (short) fixture audio file")
-    ab.add_argument("--arm", action="append", required=True, dest="arm",
-                    help="an arm spec: base_provider[+role=provider ...] (repeat ≥2)")
-    ab.add_argument("--repeat", type=int, default=1, help="repeats per arm (interleaved)")
-    ab.add_argument("--max-iterations", type=int, default=3, help="hard cap on refine iterations per run")
-    ab.add_argument("--name-prefix", default=None, help="sequence name prefix (default: from the song)")
-    ab.add_argument("--keep-sequences", action="store_true", help="don't clean up per-arm sequences")
     return ap
 
 
@@ -823,46 +598,15 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd in STAGES:
         _run_stage(args)
         return
-    if args.cmd == "report":            # offline, deterministic — NO has_llm_key() gate
-        _report(args)
-        return
-    if args.cmd == "cache-rename":      # offline file housekeeping — no key, no xLights
+    if args.cmd == "cache-rename":      # offline file housekeeping — no xLights
         from .pipeline import cache_rename
         dirs = [Path(d).expanduser() for d in (args.songs or [".", "mp3"])]
         print(cache_rename.run(dirs, do_apply=args.apply))
         return
-    if args.cmd == "edit-brief":
-        _edit_brief(args)
-        return
     if args.cmd == "init-layout":
-        # deliberately NO has_llm_key / no running-xLights requirement (it needs xLights CLOSED).
+        # no running-xLights requirement (it needs xLights CLOSED).
         from .pipeline.init_layout import run_init_layout
         raise SystemExit(asyncio.run(run_init_layout(args)))
-    if args.cmd == "run":
-        if not has_llm_key():
-            raise SystemExit(
-                "No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env"
-            )
-        asyncio.run(_run(args))
-    if args.cmd == "video-script":
-        _video_script(args)
-        return
-    if args.cmd == "ab":
-        asyncio.run(_ab(args))          # preflight inside _ab refuses before spend if a key is missing
-        return
-    if args.cmd == "regen":
-        if args.list or args.section is None:
-            try:
-                print(f"Sections for {args.song}:\n{format_sections(args.song)}")
-            except FileNotFoundError as exc:
-                raise SystemExit(str(exc))
-            return
-        if not has_llm_key():
-            raise SystemExit("No LLM key found. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env")
-        try:
-            asyncio.run(_regen(args))
-        except (FileNotFoundError, IndexError) as exc:
-            raise SystemExit(str(exc))
 
 
 if __name__ == "__main__":

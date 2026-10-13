@@ -1,22 +1,20 @@
 """F-C: place stock xLights **Text** effects on the matrix model as sparse narrative punctuation.
 
 The matrix is the show's storyteller (scene cookbook SC-08), yet the pipeline otherwise gives it
-only washes and composites — never a word. This deterministic pass (not LLM-driven — the panel
-already curated the song's lyric moments) emits a title card in the intro plus up to
-`MAX_TEXT_MOMENTS` featured lyric phrases, each snapped to its aligned lyric line so text never
-appears at a guessed time.
+only washes and composites — never a word. This deterministic pass emits up to
+`MAX_TEXT_MOMENTS` lyric phrases the brief hand-picks (`key_moments[]` of kind 'lyric' with a
+`text`), each snapped to its aligned lyric line so text never appears at a guessed time.
 
-Grounding by construction: only strings already present in the brief (`identity.title`/`.artist`,
-`featured_lyric_moments`) can ever appear — no section labels, no invented captions, no full
-captioning. Text is asset-bound (F-B), so the emitter places it from `direct_settings` built by
-`build_text_settings`, bypassing the mined catalog (Text is not in the LLM menu).
+Grounding by construction: only lyric lines the brief names AND the aligned lyrics contain can ever
+appear — no section labels, no invented captions, no full captioning. Text is asset-bound (F-B), so
+the emitter places it from `direct_settings` built by `build_text_settings`, bypassing the mined
+catalog.
 
 Coexistence with the matrix's focal duties: Text rides `on_top=True` with a `Max` layer blend over
 the section's lightest palette color, and concurrent matrix-targeted non-text effects are dimmed
 during each text span so glyphs stay legible over the kaleidoscope. Peak sections are excluded (the
 peak belongs to the composite payoff). Each instruction carries its owning `section_index` and an
-`X_MatrixText=1` marker so refine-loop / `xlo regen` splices replace this pass's output rather than
-stacking it.
+`X_MatrixText=1` marker so a re-run replaces this pass's output rather than stacking it.
 """
 
 from __future__ import annotations
@@ -37,8 +35,6 @@ log = logging.getLogger(__name__)
 # -- doctrine constants -------------------------------------------------------
 MATRIX_TEXT_MARKER = "X_MatrixText"      # extra_settings marker → this pass owns the instruction
 MIN_MATRIX_PX = 50                       # catalog rule #2: no media effects under ~50px resolution
-MIN_INTRO_MS = 8_000                     # skip the title card if the intro is shorter than this
-_MIN_TITLE_END_LEAD_MS = 500             # end the title card at least this long before section 1
 _FUZZY_MATCH_MIN = 0.5                   # token-overlap floor to accept a featured line's aligned span
 _DEFAULT_MATRIX_H = 50                   # assumed legible matrix height until F-E's manifest / a probe
                                          #   — at the readability floor; a probed sub-50 matrix refuses
@@ -55,7 +51,6 @@ class TextMoment:
     start_ms: int
     end_ms: int
     section_index: int
-    is_title: bool = False
 
 
 def find_matrix(model_names: list[str] | None) -> str | None:
@@ -98,20 +93,9 @@ def _section_at(sections, at_ms: int) -> int | None:
     return None
 
 
-def _title_text(brief) -> str:
-    idn = getattr(brief, "identity", None)
-    if not idn or not (idn.title or "").strip():
-        return ""
-    title = idn.title.strip()
-    artist = (idn.artist or "").strip()
-    # append the artist only if the combined line still fits static width (title card is static)
-    combined = f"{title} - {artist}" if artist else title
-    return combined if _sanitizable(combined) and len(combined) <= _FIT_CHARS * 2 else title
-
-
 def _aligned_lines(sa) -> list[tuple[str, int, int]]:
     """(text, start_ms, end_ms) for every aligned lyric line, from the untyped analysis lyrics."""
-    from ..song_description import _timed_lines
+    from ..lyrics import timed_lines as _timed_lines
     lyrics = getattr(sa, "lyrics", None)
     return [(t, a, b) for (t, a, b) in (_timed_lines(lyrics) if lyrics else []) if b > a]
 
@@ -120,7 +104,7 @@ def _snap_to_line(line_text: str, aligned: list[tuple[str, int, int]]) -> tuple[
     """Fuzzy-match a featured line to an aligned line; return its (start,end) span or None.
 
     Grounding rule D3: a featured moment with no aligned match is DROPPED — never shown at a
-    brief-supplied (guessed) time. Same token-overlap heuristic as `song_description`.
+    brief-supplied (guessed) time.
     """
     ftok = _norm(line_text)
     if not ftok or not aligned:
@@ -133,47 +117,23 @@ def _snap_to_line(line_text: str, aligned: list[tuple[str, int, int]]) -> tuple[
     return best if best and score >= _FUZZY_MATCH_MIN else None
 
 
-def _title_moment(brief, sections) -> TextMoment | None:
-    """Title card: identity.title (+ artist if it fits), intro only, static, ending before section 1.
-
-    Skipped when the intro is < `MIN_INTRO_MS`, the title is empty, or there are no sections.
-    """
-    if not sections:
-        return None
-    intro = sections[0]
-    if (intro.end_ms - intro.start_ms) < MIN_INTRO_MS:
-        return None
-    text = _title_text(brief)
-    if not text:
-        return None
-    end = max(intro.start_ms + 1, intro.end_ms - _MIN_TITLE_END_LEAD_MS)   # ≥ a lead before section 1
-    return TextMoment(text=text, start_ms=intro.start_ms, end_ms=end, section_index=0, is_title=True)
-
-
 def _lyric_key(km) -> str:
     """The caption a brief's `key_moments[]` entry of kind 'lyric' hand-picks via its `text`
-    field (the brief-only path's source of lyric captions, beside the MusicBrief's
-    `featured_lyric_moments`). "" for any other kind or an empty text."""
+    field. "" for any other kind or an empty text."""
     return (getattr(km, "text", "") or "").strip() if "lyric" in (getattr(km, "kind", "") or "").lower() else ""
 
 
-def select_text_moments(brief, sa, plan) -> list[TextMoment]:
+def select_text_moments(sa, plan) -> list[TextMoment]:
     """Deterministically choose the show's narrative Text moments (pure — no I/O, no LLM).
 
-    Priority + doctrine (D3): a title card in the intro, then featured lyric phrases cross-checked
-    against the aligned lines and snapped to the matched line span (unmatched → dropped). Caps:
-    ≤ `MAX_TEXT_MOMENTS` phrases, ≥ `TEXT_SPACING_MS` apart, ≤ one per section, none in the peak
-    section. Instrumental songs (no featured moments, no aligned lines) get the title card only.
+    Doctrine (D3): the brief's lyric key moments cross-checked against the aligned lines and
+    snapped to the matched line span (unmatched → dropped). Caps: ≤ `MAX_TEXT_MOMENTS` phrases,
+    ≥ `TEXT_SPACING_MS` apart, ≤ one per section, none in the peak section.
     """
     sections = list(getattr(plan, "sections", None) or [])
     out: list[TextMoment] = []
-    title = _title_moment(brief, sections)
-    if title is not None:
-        out.append(title)
-
     aligned = _aligned_lines(sa)
     peaks = peak_sections(plan)
-    # Director-chosen lyric captions (forward-compat) take precedence, then curated featured moments.
     # Each candidate is (line, brief_start_hint) — the hint only orders the scan; the placed time is
     # always the snapped aligned-line span, never the brief's (possibly drifted) timestamp.
     candidates: list[tuple[str, int]] = []
@@ -181,12 +141,8 @@ def select_text_moments(brief, sa, plan) -> list[TextMoment]:
         txt = _lyric_key(km)
         if txt and _sanitizable(txt):
             candidates.append((txt, km.at_ms))
-    for m in getattr(brief, "featured_lyric_moments", None) or []:
-        candidates.append((m.line, m.start_ms))
 
-    # the title card owns its (intro) section — a phrase must not double up there. Phrase spacing
-    # is measured phrase-to-phrase; the title is a separate class and doesn't consume the budget.
-    used_sections: set[int] = {title.section_index} if title is not None else set()
+    used_sections: set[int] = set()
     last_start = -TEXT_SPACING_MS
     placed = 0
     for line, _hint in sorted(candidates, key=lambda c: c[1]):
@@ -285,7 +241,7 @@ def place_matrix_text(st, matrix: str | None) -> list[EffectInstruction]:
         log.info("matrix text: matrix resolution %dpx < %dpx floor → skipped (catalog rule #2)",
                  matrix_h, MIN_MATRIX_PX)
         return []
-    moments = select_text_moments(st.music_brief, st.song_analysis, st.show_plan)
+    moments = select_text_moments(st.song_analysis, st.show_plan)
     if not moments:
         log.info("matrix text: no grounded text moments (instrumental / empty identity) → skipped")
         return []

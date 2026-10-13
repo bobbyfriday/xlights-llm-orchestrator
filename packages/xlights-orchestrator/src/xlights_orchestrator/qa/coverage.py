@@ -8,7 +8,7 @@ high-energy darkness is a defect.
 
 from __future__ import annotations
 
-from ..refine import Finding
+from .findings import Finding
 
 MIN_INTENSITY = 0.5        # only sections at/above this are scored (below = intentional restraint)
 EXPECTATION = 0.6          # a loud section should reach ~60% of the song's own peak, × intensity

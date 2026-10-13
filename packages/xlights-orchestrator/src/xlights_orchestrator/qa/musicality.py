@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ..refine import Finding
+from .findings import Finding
 from ..pipeline.effect_meta import MOTION_EFFECTS
 
 # -- repetition-rhyme ---------------------------------------------------------

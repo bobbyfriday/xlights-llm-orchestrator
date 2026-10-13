@@ -1,6 +1,6 @@
 """The media plan for the centerpiece film: which sections are FILMED (Veo) and which PROCEDURAL.
 
-Decided BEFORE the Videographer writes, from cached structure alone, by code — no LLM counts clips.
+Decided BEFORE the story is written (`xlo video-plan --plan-only`), from cached structure alone, by code.
 A beat written for Veo and downgraded to procedural loses its subject (people, faces, hands); a beat
 written for procedural films fine. So the plan comes first and the storyboard is written for it.
 

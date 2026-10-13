@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..refine import Finding
+from .findings import Finding
 
 SYNC_TOLERANCE_MS = 60   # ~1-2 frames at 20-50fps; explicit + tunable
 

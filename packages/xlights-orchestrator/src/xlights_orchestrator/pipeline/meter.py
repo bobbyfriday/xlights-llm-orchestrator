@@ -1,11 +1,8 @@
 """Resolve a song's beats-per-bar (the time-signature numerator).
 
 The QM bar-beat tracker runs at its default 4/4 (no bpb parameter is set), so the per-beat
-`bar_position` it stamps is a 4/4 grid regardless of the true meter. `brief=None` is the normal
-path: the meter comes from the analysis (`detect_beats_per_bar`) and falls back to 4/4. An
-explicit time-signature override is honoured when the object passed as `brief` carries one —
-`identity.time_signature` (a legacy `MusicBrief`) or a top-level `time_signature` attribute.
-Precedence: time-signature override > detected-from-beats > 4/4.
+`bar_position` it stamps is a 4/4 grid regardless of the true meter. The meter comes from the
+analysis (`detect_beats_per_bar`) and falls back to 4/4.
 """
 
 from __future__ import annotations
@@ -41,21 +38,6 @@ def detect_beats_per_bar(sa) -> int | None:
     return None
 
 
-def _time_signature_override(brief) -> str | None:
-    """A time-signature string from whatever was passed as `brief`, or None. Tolerates None, a
-    legacy `MusicBrief` (`identity.time_signature`), a `ShowPlan` (no such field → None), or any
-    object with a top-level `time_signature`."""
-    if brief is None:
-        return None
-    ident = getattr(brief, "identity", None)
-    ts = getattr(ident, "time_signature", None) if ident is not None else None
-    return ts or getattr(brief, "time_signature", None) or None
-
-
-def resolve_beats_per_bar(sa, brief=None) -> int:
-    """The song's beats-per-bar: time-signature override (if `brief` carries one) → meter detected
-    from the analysis → 4/4 default. `brief=None` is the normal, analysis-only path."""
-    bpb = parse_time_signature(_time_signature_override(brief))
-    if bpb:
-        return bpb
+def resolve_beats_per_bar(sa) -> int:
+    """The song's beats-per-bar: the meter detected from the analysis, else the 4/4 default."""
     return detect_beats_per_bar(sa) or DEFAULT_BEATS_PER_BAR

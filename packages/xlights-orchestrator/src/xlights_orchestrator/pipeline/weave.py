@@ -176,11 +176,8 @@ def carrier_covers(weave: SectionWeave | None, section: SectionPlan,
 # Rotate the cell-fabric carrier across sections so a show isn't wall-to-wall SingleStrand.
 # All are cell-able AND chase-family AND direction-supporting, with looks in the catalog.
 # Garlands dropped (4× its community share from deterministic rotation alone); SingleStrand
-# double-weighted (community's 28.5% workhorse). Garlands remains LLM-choosable.
+# double-weighted (community's 28.5% workhorse). Garlands remains choosable via `fabric.carrier`.
 CARRIER_ROTATION = ("SingleStrand", "Bars", "SingleStrand", "Wave")
-# "plain" carriers we rotate; a deliberately distinctive carrier the LLM chose (Spirals,
-# Pinwheel, Ripple, Butterfly, Meteors) is preserved — only the default chase/On gets varied.
-_ROTATABLE_CARRIERS = set(_CHASE_FAMILY) | {"On"}
 
 
 def label_seed(label: str) -> int:
@@ -203,21 +200,11 @@ def section_carrier(seed: int, label: str | None = None) -> str:
     return CARRIER_ROTATION[key % len(CARRIER_ROTATION)]
 
 
-def diversify_carrier(weave: SectionWeave | None, carrier: str) -> None:
-    """Swap each plain carrier recipe to `carrier` in place, so the beat-carrier varies per section.
-
-    A distinctive carrier the LLM picked (e.g. Spirals) is left alone; only the default chase/On
-    carrier is rotated. Clears look_id so the new type picks its own valid look."""
-    for r in (weave.cells if weave else []):
-        if r.role == "carrier" and r.effect_type in _ROTATABLE_CARRIERS and r.effect_type != carrier:
-            r.effect_type, r.look_id = carrier, ""
-
-
 def fallback_weave(section: SectionPlan, available_groups: list[str],
                    *, carrier: str = _FALLBACK_CARRIER) -> SectionWeave:
     """A deterministic default fabric: a chase carrier on the rhythm pool + a sparse texture from
-    the section's own effect vocabulary. Used when the LLM omits the weave — the fabric never
-    depends on perfect LLM output.
+    the section's own effect vocabulary — the base `weave_from_brief` overlays the brief's
+    `fabric` knobs on.
 
     NON-RHYTHMIC sections get NO synthesized fabric: a deliberately quiet/still section the brief
     asked for is not a dead section, and code must not inject a chase the brief didn't want."""

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..refine import Finding
+from .findings import Finding
 # Per-effect metadata (energy bands, duration classes, the motion-fabric set) lives in the
 # consolidated table (pipeline/effect_meta.py); re-exported here so QA callers keep the old names.
 # Catalog §2 energy bands (min, max) — only effects we can place; absent = unconstrained.

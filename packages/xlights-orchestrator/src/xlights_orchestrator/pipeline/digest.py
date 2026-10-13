@@ -20,6 +20,7 @@ from pathlib import Path
 
 from xlights_core.audio import SongAnalysis
 
+from ..lyrics import timed_lines as _timed_lines
 from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
 
@@ -55,32 +56,6 @@ def _sample(seq, n=ENERGY_SAMPLES):
 
 
 # -- facts ----------------------------------------------------------------------------
-
-def _timed_lines(lyrics: dict) -> list[tuple[str, int, int]]:
-    """Best-effort (text, start_ms, end_ms) from the untyped lyrics dict (ported from the old
-    `song_description._timed_lines`, which leaves with the MusicBrief)."""
-    out: list[tuple[str, int, int]] = []
-    if not isinstance(lyrics, dict):
-        return out
-
-    def _ms(v):
-        try:
-            v = float(v)
-        except (TypeError, ValueError):
-            return None
-        return int(v * 1000) if v < 10000 else int(v)   # seconds vs already-ms heuristic
-
-    lines = lyrics.get("lines") or lyrics.get("synced") or []
-    for ln in lines if isinstance(lines, list) else []:
-        if not isinstance(ln, dict):
-            continue
-        text = ln.get("text") or ln.get("line") or ln.get("words")
-        start = _ms(ln.get("start", ln.get("start_ms", ln.get("time"))))
-        end = _ms(ln.get("end", ln.get("end_ms")))
-        if isinstance(text, str) and start is not None:
-            out.append((text.strip(), start, end if end is not None else start + 2000))
-    return out
-
 
 def _section_energy(seg, points) -> float:
     a, b = seg.start * 1000, seg.end * 1000

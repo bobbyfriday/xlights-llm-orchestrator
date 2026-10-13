@@ -23,7 +23,7 @@ import logging
 
 import numpy as np
 
-from ..refine import Finding
+from .findings import Finding
 from .fseq_metrics import COVERAGE_EXPECT, COVERAGE_FAIL, _restrict, _section_groups
 
 log = logging.getLogger(__name__)

@@ -27,7 +27,7 @@ import os
 
 import numpy as np
 
-from ..refine import Finding
+from .findings import Finding
 
 log = logging.getLogger(__name__)
 

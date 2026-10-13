@@ -1,10 +1,10 @@
 """Deterministic QA — objective guardrails (sync, placement, rendered coverage) + advisory
 (variety).
 
-Pure functions, no xLights, no LLM. Only `objective_score` drives the refine loop's
-revert/stall gate; `advisory_score` + all findings inform the Judge and the human. Coverage
-needs rendered eyes (a frame `sampler`); without one it stays neutral and the objective is
-exactly the legacy sync+placement mean.
+Pure functions, no xLights, no LLM. `xlo qa` writes the report as qa.json; nothing gates on
+it — the findings are proposals for brief edits. Coverage needs rendered eyes (the `.fseq`
+series, or a frame `sampler`); without one it stays neutral and the objective is the
+sync+placement+rules mean.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..refine import QAReport
+from .findings import Finding, QAReport
 from . import coverage, fseq_metrics, musicality, placement, rules, sync, variety, visual
 
 
@@ -87,5 +87,5 @@ def _repetition_map(plan):
     return rm if isinstance(rm, dict) else None
 
 
-__all__ = ["evaluate", "write_qa", "coverage", "fseq_metrics", "musicality", "rules", "sync",
+__all__ = ["Finding", "QAReport", "evaluate", "write_qa", "coverage", "fseq_metrics", "musicality", "rules", "sync",
            "variety", "placement", "visual"]

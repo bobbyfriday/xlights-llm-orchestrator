@@ -15,6 +15,8 @@ from xlights_core.knowledge.value_curves import brightness_setting, motion_curve
 
 from ..agents.catalog import candidate_look_ids, placeable_effect_types
 from ..show_plan import (
+    BLEND_METHODS,
+    FABRIC_ALTERNATIONS,
     CellRecipe,
     CompositeLayer,
     CompositeRecipe,
@@ -234,6 +236,44 @@ def fallback_weave(section: SectionPlan, available_groups: list[str],
         cells.append(CellRecipe(effect_type=texture or "Ripple", role="texture", cell_beats=4,
                                 alternation="sparse", groups=tex_groups))
     return SectionWeave(cells=cells)
+
+
+def brief_carrier(section: SectionPlan, fallback: str) -> str:
+    """The carrier the brief's `fabric.carrier` directs — when it names a CELLABLE type with
+    catalog looks — else `fallback` (the rotated default). An unknown/non-cellable name is not an
+    error here (validate-brief reports it); realization simply keeps the deterministic choice."""
+    fabric = getattr(section, "fabric", None)
+    named = canon_effect_type(fabric.carrier) if fabric is not None and fabric.carrier else ""
+    if named and named in DURATION_CELLABLE and candidate_look_ids(named):
+        return named
+    return fallback
+
+
+def weave_from_brief(section: SectionPlan, available_groups: list[str],
+                     *, carrier: str = _FALLBACK_CARRIER) -> SectionWeave:
+    """The brief-directed fabric (claude-driven-orchestration D3): `fallback_weave`'s structure —
+    a beat carrier on the rhythm pool + a sparse texture from the section's effect types — with
+    the section's optional `fabric` fields applied to the CARRIER cell: `carrier` (a cellable
+    type), `alternation` (chase|pingpong|all|sparse), `cell_beats`, `blend` (a layer method).
+
+    Every field is optional and only a vocabulary value is honored; with no fabric block (or all
+    fields empty) the result is IDENTICAL to `fallback_weave(section, available_groups, carrier=)`.
+    The non-rhythmic rule holds: a still section gets no cells regardless of its fabric."""
+    carrier = brief_carrier(section, carrier)
+    weave = fallback_weave(section, available_groups, carrier=carrier)
+    fabric = getattr(section, "fabric", None)
+    if fabric is None:
+        return weave
+    for cell in weave.cells:
+        if cell.role != "carrier":
+            continue
+        if fabric.alternation in FABRIC_ALTERNATIONS:
+            cell.alternation = fabric.alternation
+        if fabric.cell_beats:
+            cell.cell_beats = fabric.cell_beats
+        if fabric.blend in BLEND_METHODS:
+            cell.blend = fabric.blend
+    return weave
 
 
 def _slot_targets(recipe: CellRecipe, slot: int, groups: list[str]) -> list[str]:

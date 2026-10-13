@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
 
 # The realization-layer provenance vocabulary for EffectInstruction.source (I7 attribution,
 # report-only; excluded from model_dump so cache/golden formats stay byte-identical).
 EFFECT_SOURCES = ("weave", "accents", "bed", "triggers", "flash", "generator", "vu", "composite")
+
+# The brief's fabric vocabulary (claude-driven-orchestration D3). Kept here, beside the contract,
+# so the schema (brief_schema) and the weaver (pipeline/weave) enumerate the SAME values.
+FABRIC_ALTERNATIONS = ("chase", "pingpong", "all", "sparse")   # CellRecipe.alternation
+# xLights `T_CHOICE_LayerMethod` values (the layer blend/mix types), community-corpus-ordered:
+# the ones our looks/composites actually carry first, then the rest of xLights' menu.
+BLEND_METHODS = (
+    "Normal", "Max", "Brightness", "Layered", "Average", "Additive", "Subtractive",
+    "1 is Mask", "1 is Unmask", "1 is True Unmask", "2 is Mask", "2 is Unmask", "2 is True Unmask",
+    "1 reveals 2", "2 reveals 1", "Effect 1", "Effect 2", "Shadow 1 on 2", "Shadow 2 on 1",
+    "Bottom-Top", "Left-Right", "Min", "Highlight", "Highlight Vibrant", "Canvas",
+)
 
 
 class ShowPalette(BaseModel):
@@ -27,11 +41,25 @@ class KeyMoment(BaseModel):
     treatment: str = ""                      # the deliberate visual punctuation
 
 
+class SectionFabric(BaseModel):
+    """The brief's optional per-section fabric knobs (D3): the few CellRecipe fields with a
+    visible, nameable effect on the show. Every field is optional — "" / None means "code
+    chooses" (today's deterministic fallback weave), so an absent block realizes identically."""
+
+    carrier: str = ""                        # a CELLABLE effect type for the beat carrier (e.g. SingleStrand)
+    alternation: str = ""                    # chase | pingpong | all | sparse ("" = chase)
+    cell_beats: int | None = Field(default=None, ge=1, le=8)   # carrier cell length in beats
+    blend: str = ""                          # T_CHOICE_LayerMethod on the carrier cells ("" = code default)
+
+
 class SectionPlan(BaseModel):
     """Per-section creative direction over prop groups (plain `look` + grounded direction)."""
 
     start_ms: int
     end_ms: int
+    label: str = ""                          # the section's musical label ("verse 1", "chorus", "bridge");
+                                             #   blank allowed. Recurring labels (chorus 1/2) rhyme: see
+                                             #   repetition_map_from_labels.
     target_groups: list[str] = Field(description="prop GROUP names to light in this section")
     effect_family: str = Field(description="an effect type to use (must be a placeable type)")
     intensity: float = Field(ge=0, le=1, description="0=calm .. 1=peak")
@@ -59,6 +87,30 @@ class SectionPlan(BaseModel):
     follow_stem: str = ""                    # whose rhythm to ride (default the prominent stem)
     accent_effect: str = ""                  # placeable punctuation effect (default On)
     pulse_on: str = ""                       # "beat" | "onset" (default beat)
+    # -- fabric intent (claude-driven-orchestration D3; additive, None → code chooses) --
+    fabric: SectionFabric | None = None      # carrier / alternation / cell_beats / blend knobs
+
+
+_LABEL_TAIL = re.compile(r"[\s\d#_-]+$")   # "chorus 2" / "verse-1" / "chorus #3" → the bare label
+
+
+def normalize_label(label: str) -> str:
+    """A section label's musical IDENTITY: lowercase, trimmed, trailing digits/separators dropped
+    ("Chorus 1" and "chorus 2" → "chorus"). "" for a blank label."""
+    return _LABEL_TAIL.sub("", (label or "").strip().lower()).strip()
+
+
+def repetition_map_from_labels(sections) -> dict[str, list[int]]:
+    """Derive the repetition map (identity → recurring section indices) from the sections' own
+    `label` values — the brief-driven stand-in for the MusicBrief's analyst-written map. Only
+    identities with ≥ 2 occurrences are kept (a one-off has no rhyme partner); blank labels are
+    ignored; key order follows first occurrence, so the result is deterministic."""
+    by_label: dict[str, list[int]] = {}
+    for i, sec in enumerate(sections or []):
+        key = normalize_label(getattr(sec, "label", "") or "")
+        if key:
+            by_label.setdefault(key, []).append(i)
+    return {k: v for k, v in by_label.items() if len(v) >= 2}
 
 
 class ShowPlan(BaseModel):

@@ -206,38 +206,69 @@ def _stage_realize(args) -> int:
     return 0
 
 
-async def _apply_live(instrs, *, duration_secs: int, render: bool, name: str) -> dict:
+async def _attach_audio(client, *, name: str, song_path: str, duration_s: float) -> bool:
+    """Make the just-saved Animation sequence a Media one and reopen it, so the sequence open in
+    xLights plays with the song. Apply creates it audio-less (`newSequence(mediaFile)` crashes
+    xLights); patching the saved `.xsq` offline and then `openSequence` loads the audio cleanly
+    (verified live 2026-10-13). Best-effort: False (noted as a degradation) on any miss."""
+    from .pipeline.media import patch_xsq_media, prepare_media, resolve_xsq
+    try:
+        show_folder = await client.get_show_folder()
+        media = prepare_media(song_path, show_folder)
+        xsq = resolve_xsq(name, show_folder)
+        if media is None or xsq is None:
+            degradations.note("apply:media", f"no staged song or saved .xsq for {name!r}", stage="apply")
+            return False
+        if not patch_xsq_media(xsq, media, duration_s):
+            return False
+        await client.close_sequence(force=True, quiet=True)
+        await client.open_sequence(str(xsq))
+        return True
+    except Exception as exc:  # noqa: BLE001 — audio is a convenience; the show is already saved
+        degradations.note("apply:media", exc, stage="apply")
+        return False
+
+
+async def _apply_live(instrs, *, duration_secs: int, render: bool, name: str,
+                      song_path: str = "", duration_s: float = 0.0) -> dict:
     from .effect_emitter import apply_instructions
     async with XLightsClient() as client:
         rep = await apply_instructions(client, instrs, duration_secs=duration_secs, render=render)
-        if render:                          # the .fseq exists only once the sequence is saved
-            await client.save_sequence(name)
-    rep["saved"] = bool(render)
+        # Always save (cheap; the .fseq exists only once a rendered sequence is saved), then
+        # re-open it with the song attached — a re-apply no longer leaves a silent sequence.
+        await client.save_sequence(name)
+        rep["audio"] = bool(song_path) and await _attach_audio(
+            client, name=name, song_path=song_path, duration_s=duration_s or duration_secs)
+    rep["saved"] = True
     return rep
 
 
 def _stage_apply(args) -> int:
     from xlights_core.editing import CleanSlateRequired
-    from .pipeline.stage_io import load_analysis, load_instructions, write_applied
+    from .pipeline.stage_io import load_analysis, load_instructions, song_path_of, write_applied
     song_dir = _song_dir(args)
     instrs = load_instructions(song_dir)
     sa = load_analysis(song_dir)
     name = _sequence_name(args, sa)
     dur = max(1, math.ceil(float(sa.duration_s or 0)))
     try:
-        rep = asyncio.run(_apply_live(instrs, duration_secs=dur, render=args.render, name=name))
+        rep = asyncio.run(_apply_live(instrs, duration_secs=dur, render=args.render, name=name,
+                                      song_path=song_path_of(getattr(args, "song", None), sa),
+                                      duration_s=float(sa.duration_s or 0)))
     except CleanSlateRequired as exc:
         _err(f"apply refused: {exc}")
         return EXIT_FAILED
     placed, skipped = rep.get("placed", []), rep.get("skipped", [])
     applied = {
         "sequence": name, "rendered": bool(rep.get("rendered")), "saved": bool(rep.get("saved")),
+        "audio": bool(rep.get("audio")),
         "counts": {"instructions": len(instrs), "placed": len(placed), "skipped": len(skipped)},
         "placed": placed, "skipped": skipped, "outcomes": rep.get("outcomes", []),
     }
     path = write_applied(song_dir, applied)
-    print(f"placed {len(placed)} · skipped {len(skipped)} of {len(instrs)} instructions"
-          + (f" · rendered + saved as '{name}'" if rep.get("saved") else " · not rendered"))
+    print(f"placed {len(placed)} · skipped {len(skipped)} of {len(instrs)} instructions · "
+          f"{'rendered + saved' if rep.get('rendered') else 'saved (not rendered)'} as '{name}' · "
+          f"audio: {'attached' if rep.get('audio') else 'not attached'}")
     reasons: dict[str, int] = {}
     for s in skipped:
         key = str(s.get("reason", "")).split(":")[0] or "unknown"

@@ -416,8 +416,10 @@ likely to see:
   render. Run `xlo apply --render`, then `xlo stills`. Use the same `--name` throughout if you
   named the sequence. Stills and coverage QA also need the `preview` extra and a known show folder
   (from `xlo groups`, or `--show-folder`).
-- **The sequence plays with no audio**: apply builds it without media on purpose (setting media
-  live hangs xLights); `xlo finalize` patches the audio in. Reopen the finalized `.xsq`.
+- **The sequence plays with no audio**: apply builds it without media on purpose (`newSequence`
+  with media hangs xLights), then saves it, patches the `.xsq` to Media offline and reopens it, so
+  it should open with the song (`applied.json` `audio: true`). When that step fails (song file
+  moved, no show folder) the show is still saved: reopen the `.xsq`, or run `xlo finalize`.
 - **Timing tracks / SEM_ groups missing**: both are written offline; reopen the sequence / restart
   xLights to load them.
 - **Stems skipped**: demucs isn't installed (the core package's `stems` extra) or it failed;

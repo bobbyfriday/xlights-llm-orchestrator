@@ -148,6 +148,9 @@ class _FakeClient:
     async def save_sequence(self, name=None):
         self.calls.append(("save", name))
 
+    async def open_sequence(self, seq):
+        self.calls.append(("open", seq))
+
 
 @pytest.fixture
 def fake_client(monkeypatch, tmp_path):
@@ -322,7 +325,7 @@ def test_apply_writes_applied_with_placed_and_skipped(realized, fake_client, mon
     assert code == 0
     instrs = json.loads((realized / INSTRUCTIONS_NAME).read_text())
     applied = json.loads((realized / APPLIED_NAME).read_text())
-    assert applied["sequence"] == "song" and applied["rendered"] is False and applied["saved"] is False
+    assert applied["sequence"] == "song" and applied["rendered"] is False and applied["saved"] is True
     outcomes = applied["outcomes"]
     assert [o["index"] for o in outcomes] == list(range(len(instrs)))      # one per instruction
     assert all(set(o) >= {"index", "placed", "reason", "layer", "target", "effect",
@@ -338,7 +341,8 @@ def test_apply_writes_applied_with_placed_and_skipped(realized, fake_client, mon
     assert f"placed {len(placed)} · skipped {len(skipped)} of {len(instrs)}" in out
     assert "skipped" in out and "XLightsTargetMissing" in out
     client = fake_client.instances[-1]
-    assert ("render",) not in client.calls and not any(c[0] == "save" for c in client.calls)
+    assert ("render",) not in client.calls and ("save", "song") in client.calls   # saved, not rendered
+    assert applied["audio"] is False and "audio: not attached" in out   # fixture song isn't on disk
 
 
 def test_apply_render_renders_and_saves(realized, fake_client, monkeypatch, capsys):
@@ -355,6 +359,30 @@ def test_apply_render_renders_and_saves(realized, fake_client, monkeypatch, caps
     client = fake_client.instances[-1]
     assert ("render",) in client.calls and ("save", "Show1") in client.calls
     assert "rendered + saved as 'Show1'" in out
+
+
+def test_apply_attaches_audio_and_reopens(realized, fake_client, monkeypatch, tmp_path, capsys):
+    """The saved Animation .xsq is patched to Media with the staged song, then re-opened."""
+    from xlights_orchestrator import effect_emitter
+    from xlights_orchestrator.pipeline import media as media_mod
+
+    async def ok(client, target, effect_type, look_id, **kw):
+        return "settings"
+    monkeypatch.setattr(effect_emitter, "place_preset", ok)
+    monkeypatch.setattr(media_mod, "SANDBOX_DATA", tmp_path / "no-sandbox")
+    song = tmp_path / "My Song.mp3"; song.write_bytes(b"ID3")
+    xsq = fake_client.show_folder / "Show1.xsq"
+    xsq.write_text("<xsequence><head><sequenceType>Animation</sequenceType></head></xsequence>")
+    sa_file = realized / "song_analysis.json"                 # --cache names the song via the analysis
+    sa = json.loads(sa_file.read_text()); sa["path"] = str(song); sa_file.write_text(json.dumps(sa))
+    code, out, _err = _main(["apply", "--cache", str(realized), "--name", "Show1"], capsys)
+    assert code == 0 and "audio: attached" in out
+    assert json.loads((realized / APPLIED_NAME).read_text())["audio"] is True
+    text = xsq.read_text()
+    assert "<sequenceType>Media</sequenceType>" in text
+    assert str(fake_client.show_folder / "My_Song.mp3") in text            # the staged, safe-named copy
+    calls = fake_client.instances[-1].calls
+    assert calls.index(("save", "Show1")) < calls.index(("open", str(xsq)))  # save → patch → reopen
 
 
 # -- qa ----------------------------------------------------------------------------------------

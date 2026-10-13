@@ -85,7 +85,7 @@ async def apply_instructions(
 ) -> dict[str, Any]:
     """Create a clean-slate ANIMATION sequence (replacing any open one) and additively place
     the instructions. Audio is NOT attached here — `newSequence(mediaFile)` crashes xLights
-    (LoadAudioData modal); the song is attached by an offline `.xsq` patch at finalize instead.
+    (LoadAudioData modal); `xlo apply` saves, patches the `.xsq` to Media offline and reopens it.
 
     Returns `{placed, skipped, rendered, outcomes}`: `placed`/`skipped` are the per-placement
     rows callers have always read (now each carrying its `index` into `instructions`);

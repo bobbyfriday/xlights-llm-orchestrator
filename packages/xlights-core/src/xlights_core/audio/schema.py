@@ -18,8 +18,10 @@ ANALYZER_VERSION = 2
 # Bump when the deterministic SEGMENTATION logic (structure.py) changes. A cached analysis with an
 # older stamp re-runs refinement in place from its already-cached lyrics + beats — no re-analysis,
 # no lyric re-alignment. v1: downbeat-aligned section boundaries (`_snap_downbeat`); pre-v1 caches
-# beat-snapped section starts, landing them ~1 beat before the bar line.
-STRUCTURE_VERSION = 1
+# beat-snapped section starts, landing them ~1 beat before the bar line. v2: bar lines re-checked
+# against chord changes + the drum stem (`bar_phase.rephase_bars`) before the re-snap — the
+# tracker holds one bar phase all song, so an odd bar left everything after it a beat off.
+STRUCTURE_VERSION = 2
 
 
 class TempoPoint(BaseModel):

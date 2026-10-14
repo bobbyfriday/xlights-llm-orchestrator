@@ -241,7 +241,8 @@ def ensure_structure(analysis: SongAnalysis) -> bool:
         return False
     lyr = getattr(analysis, "lyrics", None) or {}
     if lyr.get("sections"):
-        refine_segments_with_lyrics(analysis)   # re-snap marker cuts to downbeats + re-cap
+        refine_segments_with_lyrics(analysis)   # re-snap marker cuts to downbeats + re-cap,
+        cap_long_segments(analysis)             # as attach_lyrics does on a fresh analysis
     else:
         cap_long_segments(analysis)             # instrumental / marker-less: re-cap at seams
     analysis.structure_version = STRUCTURE_VERSION

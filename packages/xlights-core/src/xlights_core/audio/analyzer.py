@@ -85,7 +85,10 @@ class AudioAnalyzer:
             # Migrate-and-resave: re-derive segment boundaries in place when the cached
             # segmentation predates the current STRUCTURE_VERSION (e.g. pre-downbeat-alignment) —
             # cheap, from cached lyrics/beats, no re-analysis or lyric re-alignment.
+            from .schema import STRUCTURE_VERSION
             from .structure import ensure_structure
+            if (analysis.structure_version or 0) < STRUCTURE_VERSION:
+                self._rephase_bars(analysis, key)     # bar lines first: the re-snap reads them
             if ensure_structure(analysis):
                 changed = True
             if changed:
@@ -96,6 +99,7 @@ class AudioAnalyzer:
         analysis = fusion.build(str(path), y, sr)
         if stems:
             self._attach_stems(analysis, path, key)
+        self._rephase_bars(analysis, key)
         # A freshly built analysis is current-logic by construction — stamp it so a bare
         # analyze()/reload is stable (no spurious migration) and only genuinely older caches migrate.
         from .schema import STRUCTURE_VERSION
@@ -151,6 +155,26 @@ class AudioAnalyzer:
         except Exception as exc:  # noqa: BLE001 — cache write is best-effort
             log.debug("instrumental-refined analysis cache write skipped for %s: %s", key, exc)
         return True
+
+    def _rephase_bars(self, analysis: SongAnalysis, key: str) -> bool:
+        """Re-check the tracker's bar lines against chord changes and, when the drum stem is on
+        disk, its kick/snare accents (`bar_phase.rephase_bars`). Best-effort: False on failure."""
+        from .bar_phase import drum_evidence, rephase_bars
+        try:
+            times = [float(b.time) for b in (analysis.beats or [])]
+            drums = None
+            stem = next((self.cache_dir / key / "stems" / f"drums.{ext}" for ext in ("wav", "mp3")
+                         if (self.cache_dir / key / "stems" / f"drums.{ext}").exists()), None)
+            if stem is not None and times:
+                import librosa
+                y, _ = librosa.load(str(stem), sr=analysis.sample_rate, mono=True)
+                drums = drum_evidence(y, analysis.sample_rate, times)
+            return rephase_bars(analysis.beats or [],
+                                chord_times=[float(c.time) for c in (analysis.chords or [])],
+                                drum_accent=drums)
+        except Exception as exc:  # noqa: BLE001 — the tracker's labels stand
+            log.debug("bar re-check skipped: %s", exc)
+            return False
 
     def _refresh_section_instrumentation(self, analysis: SongAnalysis, key: str) -> None:
         """Recompute per-section instrument prevalence over the REFINED segments from the

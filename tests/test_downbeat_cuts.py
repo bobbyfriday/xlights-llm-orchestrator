@@ -159,3 +159,10 @@ def test_ensure_structure_instrumental_caps_and_stamps():
     assert ensure_structure(sa) is True
     assert len(sa.segments) > 1                             # capped
     assert sa.structure_version == STRUCTURE_VERSION
+
+
+def test_ensure_structure_recaps_long_lyric_sections():
+    # the 41–120 s chorus is far past the cap; a migrated lyric song re-caps like a fresh one
+    sa = _stale_lyric_sa()
+    assert ensure_structure(sa) is True
+    assert all(s.end - s.start <= 32.0 + 1e-6 for s in sa.segments)

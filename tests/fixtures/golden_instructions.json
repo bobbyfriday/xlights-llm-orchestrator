@@ -514,7 +514,7 @@
   "end_ms": 13000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "From Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -654,6 +654,7 @@
   "effect_type": "Galaxy",
   "end_ms": 24000,
   "extra_settings": {
+   "E_CHECKBOX_Galaxy_Reverse": "1",
    "T_CHOICE_LayerMethod": "Max",
    "T_CHOICE_Out_Transition_Type": "Dissolve",
    "T_SLIDER_Out_Transition_Adjust": "35",
@@ -764,7 +765,7 @@
   "end_ms": 14000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "From Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -845,7 +846,7 @@
   "end_ms": 15000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "To Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -951,7 +952,7 @@
   "end_ms": 16000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "To Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -1032,7 +1033,7 @@
   "end_ms": 17000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "From Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -1053,6 +1054,7 @@
   "end_ms": 18000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
+   "E_SLIDER_Ripple_Rotation": "20",
    "E_TEXTCTRL_Ripple_Cycles": "7.4",
    "T_CHOICE_LayerMethod": "Brightness"
   },
@@ -1139,7 +1141,7 @@
   "end_ms": 18000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "From Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -1220,7 +1222,7 @@
   "end_ms": 19000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "To Middle"
   },
   "knob_values": {},
   "layer": 0,
@@ -1301,7 +1303,7 @@
   "end_ms": 20000,
   "extra_settings": {
    "C_SLIDER_Brightness": "170",
-   "E_CHOICE_Chase_Type1": "Dual Bounce"
+   "E_CHOICE_Chase_Type1": "To Middle"
   },
   "knob_values": {},
   "layer": 0,

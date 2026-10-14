@@ -60,9 +60,11 @@ def test_derived_views_non_empty():
 
 
 def test_spirals_direction_knobs():
-    # Corpus-observed: 84 looks carry E_SLIDER_Spirals_Rotation, 16 negative → ltr=+20, rtl=-20
-    assert DIRECTION_KNOBS["Spirals"]["ltr"] == ("E_SLIDER_Spirals_Rotation", "20")
-    assert DIRECTION_KNOBS["Spirals"]["rtl"] == ("E_SLIDER_Spirals_Rotation", "-20")
+    # Spin is the SIGN of Movement (Rotation is the stripes' twist): the values are signs only
+    from xlights_orchestrator.pipeline.effect_meta import SIGNED_DIRECTION_KEYS
+    assert DIRECTION_KNOBS["Spirals"]["ltr"] == ("E_TEXTCTRL_Spirals_Movement", "1.0")
+    assert DIRECTION_KNOBS["Spirals"]["rtl"] == ("E_TEXTCTRL_Spirals_Movement", "-1.0")
+    assert "E_TEXTCTRL_Spirals_Movement" in SIGNED_DIRECTION_KEYS
 
 
 def test_ripple_direction_knobs():

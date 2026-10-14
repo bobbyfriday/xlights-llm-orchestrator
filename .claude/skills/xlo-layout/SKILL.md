@@ -29,13 +29,14 @@ group xLights accepted — the SEM_ groups below plus the user's own groups (e.g
 | `SEM_ALL` | every prop except singing faces and signs | whole-display beds, washes, flashes, the peak |
 | `SEM_ALL_LESS_FOCAL` | all minus the hero | a bed that leaves the hero clean (cookbook G0-ALL-LESS-HERO) |
 | `SEM_ALL_LESS_FOCAL_RHYTHM` | all minus hero, arches, minis, canes | a bed under a feature and a rhythm voice |
-| `SEM_FOCAL` | mega tree, matrix, any prop > ~15% of the display | the hero (melody, drops, showpieces) |
+| `SEM_FOCAL` | the mega tree (the matrixes when there is no tree), any other prop > ~15% of the display | the hero (melody, drops, showpieces) |
+| `SEM_CANVAS` | every matrix | the screens: canvas looks, text, media; a calmer echo of the hero |
 | `SEM_HOUSE` | outline + windows + icicles | the frame bed |
 | `SEM_OUTLINE`, `SEM_WINDOWS`, `SEM_ICICLES`, `SEM_PATH` | one role each | frame segments, outline chases, icicle drips |
 | `SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES` | rhythm families | the beat (the metric ring walks these) |
 | `SEM_*_LTR` | the same, in left-to-right order | sweeps that must traverse in order |
 | `SEM_SNOWFLAKES`, `SEM_SPINNERS` | sparkle / accent props | hits, sparkle, featured "snow" moments — dark otherwise |
-| `SEM_ACCENTS` | every non-focal, non-outline prop (arches, minis, canes, flakes, spinners) | a broad "everything but the house and hero" statement |
+| `SEM_ACCENTS` | every non-focal, non-outline, non-matrix prop (arches, minis, canes, flakes, spinners) | a broad "everything but the house and hero" statement |
 | `SEM_FLOODS` | floods / washes | atmosphere, lightning |
 | `SEM_BAND_ROOF` / `_MID` / `_GROUND` | vertical bands | zone beds (`SEM_BAND_GROUND` is the default bed under features) |
 | `SEM_SIDE_LEFT` / `_CENTER` / `_RIGHT` | horizontal thirds | call-and-response, spatial chases, the backbeat |

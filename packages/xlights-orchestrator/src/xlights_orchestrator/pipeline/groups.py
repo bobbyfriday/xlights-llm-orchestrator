@@ -79,7 +79,11 @@ async def _probe(client, names: list[str]) -> list[str]:
     accepts. Raises (→ caller falls back) on any non-`XLightsTargetMissing` error."""
     look = candidate_look_ids("On")[0]
     await client.close_sequence(force=True, quiet=True)
-    await client.new_sequence(duration_secs=10, frame_ms=50, force=True)
+    try:    # the same view apply opens, so a group missing from it is not called targetable
+        await client.new_sequence(duration_secs=10, frame_ms=50, force=True, view="SEM Master")
+    except Exception as exc:  # noqa: BLE001 — view not loaded → default view, as apply falls back
+        log.debug("targetable_groups: SEM Master view unavailable, probing the default: %s", exc)
+        await client.new_sequence(duration_secs=10, frame_ms=50, force=True)
     await asyncio.sleep(_SETTLE_SECS)        # elements populate (racy) — load-bearing
     ok: list[str] = []
     try:

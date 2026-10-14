@@ -66,6 +66,7 @@ from .effect_meta import (  # noqa: E402 — re-export DIRECTION_KNOBS (external
     DURATION_CELLABLE,
     EFFECT_META,
     NATIVE_BOUNCE as _NATIVE_BOUNCE,
+    SIGNED_DIRECTION_KEYS,
 )
 
 # Rotational effects: have an ltr/rtl spin-direction pair but are NOT linear chases.
@@ -76,7 +77,8 @@ ROTATIONAL_EFFECTS: frozenset[str] = frozenset(
     et for et, m in EFFECT_META.items()
     if "ltr" in m.directions and "rtl" in m.directions and not m.chase_family)
 
-_SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in"}
+# "vary" = a sweep whose direction `pipeline/motion.vary_directions` turns on the beat grid.
+_SWEEP_DIRECTIONS = {"ltr", "rtl", "bounce", "alternate", "center_out", "center_in", "vary"}
 _SWEEP_MIN_BEATS = 2                      # motion needs dwell time to track
 
 
@@ -106,7 +108,7 @@ def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, s
     within a bar so the gesture reads as phrasing, not jitter.
     """
     table = DIRECTION_KNOBS.get(effect_type)
-    if not table or not direction:
+    if not table or not direction or direction == "vary":    # "vary": the motion pass decides
         return {}
     # "alternate" ALWAYS flips the value per bar (counter-phase via the bar offset) — unlike
     # "bounce", it bypasses native bounce types so two staggered layers can weave.
@@ -118,6 +120,36 @@ def direction_setting(effect_type: str, direction: str, bar: int) -> dict[str, s
         direction = pair[bar % 2]
     kv = table.get(direction)
     return {kv[0]: kv[1]} if kv else {}
+
+
+def apply_direction(extra: dict[str, str], effect_type: str, direction: str, bar: int) -> bool:
+    """Write a direction into `extra` (in place); True when one was written.
+
+    Like `direction_setting`, except a SIGNED key (Spirals' Movement) keeps the speed already in
+    `extra` and only takes the direction's sign — a reversed spiral scrolls the other way at the
+    same pace, rather than snapping to the direction table's unit speed."""
+    kv = direction_setting(effect_type, direction, bar)
+    for key, val in kv.items():
+        if key in SIGNED_DIRECTION_KEYS:
+            try:
+                mag = abs(float(extra.get(key, val)))
+            except ValueError:
+                mag = abs(float(val))
+            val = f"{mag if float(val) >= 0 else -mag:.1f}"
+        extra[key] = val
+    return bool(kv)
+
+
+def has_direction(ins: EffectInstruction) -> bool:
+    """True when the instruction's direction was already chosen: a pass marked it `directed`, or
+    it carries its effect's (unsigned) direction key, or a value curve drives the signed key."""
+    if ins.directed:
+        return True
+    keys = {k for k, _ in (DIRECTION_KNOBS.get(ins.effect_type) or {}).values()}
+    if any(k in ins.extra_settings for k in keys - SIGNED_DIRECTION_KEYS):
+        return True
+    return any("E_VALUECURVE_" + k.split("_", 2)[2] in ins.extra_settings
+               for k in keys & SIGNED_DIRECTION_KEYS)
 
 
 def canon_effect_type(name: str) -> str:
@@ -211,7 +243,7 @@ def fallback_weave(section: SectionPlan, available_groups: list[str],
     if not section_is_rhythmic(section):
         return SectionWeave(cells=[])
     cells = [CellRecipe(effect_type=carrier, role="carrier", cell_beats=1,
-                        alternation="chase", direction="bounce",
+                        alternation="chase", direction="vary",
                         groups=rhythm_pool(section, available_groups))]
     texture = next((t for t in (canon_effect_type(x) for x in section.effect_types or [])
                     if t in DURATION_CELLABLE and t != carrier), None)
@@ -379,7 +411,7 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
     extra.update(brightness_setting(wash_brightness(intensity)))   # cells pop with the energy
     extra.update(motion_curve_setting(recipe.effect_type, recipe.motion_curve, intensity))
     bar = slot * max(1, recipe.cell_beats) // beats_per_bar        # bar index at the song's meter
-    extra.update(direction_setting(recipe.effect_type, recipe.direction, bar + phase))
+    directed = apply_direction(extra, recipe.effect_type, recipe.direction, bar + phase)
     _t = _canon_transition(recipe.transition)
     if _t:                                    # a VALID explicit recipe transition wins
         extra.update({"T_CHOICE_In_Transition_Type": _t,
@@ -418,7 +450,7 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
         target=target, effect_type=recipe.effect_type, look_id=look,
         palette_colors=colors,
         render_style=style, extra_settings=extra,
-        start_ms=start, end_ms=end)
+        start_ms=start, end_ms=end, directed=directed)
 
 
 def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
@@ -557,7 +589,7 @@ def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: f
             _sign = -1 if i % 2 == 1 else 1
             extra.update(motion_curve_setting(lyr.effect_type, lyr.motion_curve, intensity,
                                               sign=_sign))
-            extra.update(direction_setting(lyr.effect_type, _eff_dir[i], i))   # counter-phase per layer
+            directed = apply_direction(extra, lyr.effect_type, _eff_dir[i], i)   # counter-phase per layer
             if i > 0 and lyr.blend:                       # upper layers blend onto the stack below
                 extra["T_CHOICE_LayerMethod"] = lyr.blend
             colors = lyr.palette or effect_palette(section.palette, lyr.effect_type, i)
@@ -565,14 +597,14 @@ def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: f
                 target=g, effect_type=lyr.effect_type, look_id=look,
                 render_style="Per Model Default", layer=i,
                 start_ms=section.start_ms, end_ms=section.end_ms,
-                palette_colors=colors, extra_settings=extra))
+                palette_colors=colors, extra_settings=extra, directed=directed))
     return out
 
 
 def counter_rotate_stacks(instrs: list[EffectInstruction]) -> None:
     """Same-type rotational effects overlapping on the same target: alternate the spin of each
-    successive overlapping layer (2nd, 4th, … get rtl) via extra_settings, unless the instruction
-    already carries that effect's direction key. In-place; deterministic (list order); idempotent."""
+    successive overlapping layer (2nd, 4th, … get rtl) via extra_settings, unless the instruction's
+    direction is already chosen (`has_direction`). In-place; deterministic (list order); idempotent."""
     from collections import defaultdict
     by_target_type: dict[tuple[str, str], list[EffectInstruction]] = defaultdict(list)
     for ins in instrs:
@@ -582,9 +614,6 @@ def counter_rotate_stacks(instrs: list[EffectInstruction]) -> None:
         if len(stack) < 2:
             continue
         stack.sort(key=lambda i: (i.layer, i.start_ms))
-        dir_key = DIRECTION_KNOBS[et]["rtl"][0]
-        rtl_val = DIRECTION_KNOBS[et]["rtl"][1]
-        ltr_val = DIRECTION_KNOBS[et]["ltr"][1]
         flip_count = 0
         max_end = 0
         for ins in stack:
@@ -592,6 +621,7 @@ def counter_rotate_stacks(instrs: list[EffectInstruction]) -> None:
                 flip_count += 1
             else:
                 flip_count = 0           # non-overlapping: new sequence, reset counter
-            if dir_key not in ins.extra_settings:
-                ins.extra_settings[dir_key] = rtl_val if flip_count % 2 == 1 else ltr_val
+            if not has_direction(ins):
+                ins.directed = apply_direction(ins.extra_settings, et,
+                                               "rtl" if flip_count % 2 == 1 else "ltr", 0)
             max_end = max(max_end, ins.end_ms)

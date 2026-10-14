@@ -31,3 +31,17 @@ def test_sustained_and_short_hits_untouched():
     short = _ins("Shockwave", 0, 1000)                              # already ≤1 bar
     out = normalize_durations([spirals, short], _rhythm(120))
     assert out == [spirals, short]
+
+
+def test_cells_and_pulses_land_on_the_tracked_bar_lines():
+    # beats drift off the 120 BPM clock (510 ms apart, first at 300): cells follow the beats
+    beats = [300 + i * 510 for i in range(40)]
+    rhythm = {"beats_ms": beats, "beats_per_bar": 4, "tempo": 120}
+    spirals = _ins("Spirals", 0, 20000)
+    spirals.target = "SEM_ARCHES"                                   # not a bed row: it cells
+    cells = normalize_durations([spirals], rhythm)
+    assert [(c.start_ms, c.end_ms) for c in cells] == [
+        (0, 4380), (4380, 8460), (8460, 12540), (12540, 16620), (16620, 20000)]  # 300 = sliver
+    pulses = normalize_durations([_ins("Shockwave", 0, 20000)], rhythm)
+    assert [p.start_ms for p in pulses] == [0, 2340, 4380, 6420, 8460, 10500, 12540, 14580,
+                                            16620, 18660]

@@ -36,6 +36,7 @@ from .semantic_groups import (
     RHYTHM_GROUPS,
     RHYTHM_POOL,
     SEM_ALL,
+    SEM_CANVAS,
     SEM_HOUSE,
     SEM_SIDE_LEFT,
     SEM_SIDE_RIGHT,
@@ -229,7 +230,7 @@ def default_cast(archetypes, section, available_groups: list[str]) -> dict[str, 
     hero → `HERO_GROUP`; rhythm → the section's rhythm pool, else the first rhythm family; accent
     → the first `ACCENT_GROUPS`; all-less-hero → the subtractive group when the layout built one,
     else the first `BED_PREFERENCE` group that is not the hero; frame → outline, else house; canvas
-    → the group named like a matrix; sides → `SEM_SIDE_*`. Archetypes the layout cannot cast are
+    → `SEM_CANVAS`, else the group named like a matrix; sides → `SEM_SIDE_*`. Archetypes the layout cannot cast are
     left out (their rows are skipped)."""
     avail = list(available_groups or [])
 
@@ -239,7 +240,7 @@ def default_cast(archetypes, section, available_groups: list[str]) -> dict[str, 
     pool = rhythm_pool(section, avail) if section is not None else []
     rhythm = (pool[0] if pool else "") or first(*RHYTHM_POOL, *RHYTHM_GROUPS)
     less_hero = first(SEM_ALL_LESS_FOCAL) or first(*(g for g in BED_PREFERENCE if g != HERO_GROUP))
-    canvas = next((g for g in avail if "matrix" in g.lower()), "")
+    canvas = first(SEM_CANVAS) or next((g for g in avail if "matrix" in g.lower()), "")
     table = {
         "G0-ALL": first(SEM_ALL),
         "G0-ALL-LESS-HERO": less_hero,
@@ -302,4 +303,24 @@ def cast_scene(section, stack: list[StackRow], available_groups: list[str], *,
         if row.brightness is not None:
             ins.extra_settings.update(brightness_setting(row.brightness * 100.0))
         out.append(ins)
-    return out
+    echo = _canvas_echo(section, out, cast.get("G2-HERO", ""), family, avail)
+    return out + ([echo] if echo is not None else [])
+
+
+def _canvas_echo(section, rows: list[EffectInstruction], hero: str, family: str,
+                 avail: set[str]) -> EffectInstruction | None:
+    """The screens' share of a hero scene: when the section names `SEM_CANVAS` in its
+    `target_groups` and the cast stack put nothing on it (most scenes have no G2-CANVAS row), the
+    canvas gets ONE layer of the hero's feature effect, drawn per matrix — a calmer echo of the
+    hero rather than a copy of its whole stack, and never left dark under a hero-only scene."""
+    if SEM_CANVAS not in (getattr(section, "target_groups", None) or []) or \
+            (avail and SEM_CANVAS not in avail) or any(r.target == SEM_CANVAS for r in rows):
+        return None
+    hero_rows = [r for r in rows if r.target == hero and hero]
+    if not hero_rows:
+        return None
+    src = next((r for r in hero_rows if r.effect_type == family), hero_rows[0])
+    echo = src.model_copy(deep=True, update={"target": SEM_CANVAS, "layer": 0,
+                                              "render_style": "Per Model Default"})
+    echo.extra_settings.pop("T_CHOICE_LayerMethod", None)
+    return echo

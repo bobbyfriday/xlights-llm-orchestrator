@@ -196,7 +196,9 @@ worked section and the validate loop are in the **`xlo-brief` skill**
 - **Fabric**: `fabric: {carrier, alternation, cell_beats, blend}` designs the beat carrier, the
   cell weave that walks the rhythm props: what moves (a cellable effect such as SingleStrand, Bars,
   Wave), how it alternates across the pool (`chase`, `pingpong`, `all`, `sparse`), how many beats
-  each cell holds (1–8), and how it blends over the bed (`Max` by default). All four are optional;
+  each cell holds (1–8), and how it blends over the bed (`Max` by default). Two more knobs steer
+  every directional effect in the section: `direction_change` (`hold`, `phrase`, `bar`, `beat`;
+  blank = by energy) and `mirror` (right side moves opposite the left; on by default). All are optional;
   empty means code chooses. **An explicit `fabric.carrier` weaves even under `pulse` and
   `feature`** (`pulse` gets carrier + texture, `feature` the carrier alone), which those
   treatments otherwise withhold; leave `carrier` out to keep them fabric-free. `rest` never weaves.

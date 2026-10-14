@@ -14,6 +14,8 @@ EFFECT_SOURCES = ("weave", "accents", "bed", "triggers", "flash", "generator", "
 # The brief's fabric vocabulary (claude-driven-orchestration D3). Kept here, beside the contract,
 # so the schema (brief_schema) and the weaver (pipeline/weave) enumerate the SAME values.
 FABRIC_ALTERNATIONS = ("chase", "pingpong", "all", "sparse")   # CellRecipe.alternation
+# How often directional effects turn (pipeline/motion): one way all section, every phrase, bar, beat.
+DIRECTION_CHANGES = ("hold", "phrase", "bar", "beat")
 # xLights `T_CHOICE_LayerMethod` values (the layer blend/mix types), community-corpus-ordered:
 # the ones our looks/composites actually carry first, then the rest of xLights' menu.
 BLEND_METHODS = (
@@ -54,6 +56,8 @@ class SectionFabric(BaseModel):
     alternation: str = ""                    # chase | pingpong | all | sparse ("" = chase)
     cell_beats: int | None = Field(default=None, ge=1, le=8)   # carrier cell length in beats
     blend: str = ""                          # T_CHOICE_LayerMethod on the carrier cells ("" = code default)
+    direction_change: str = ""               # hold | phrase | bar | beat ("" = by energy; pipeline/motion)
+    mirror: bool | None = None               # right-hand groups move opposite the left (None = on)
 
 
 class SectionPlan(BaseModel):
@@ -154,6 +158,8 @@ class EffectInstruction(BaseModel):
                                        #   (weave/accents/bed/…); TRANSIENT — excluded from model_dump
                                        #   so the instructions cache/golden stay byte-identical. Surfaced
                                        #   only in the fabric-measurement report (per-type-per-source).
+    directed: bool = Field(default=False, exclude=True)   # TRANSIENT: a direction was set on purpose
+                                       #   (weave/composite/counter-rotation/motion) — later passes keep it.
 
 
 class CellRecipe(BaseModel):

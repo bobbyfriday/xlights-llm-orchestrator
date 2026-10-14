@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .show_plan import BLEND_METHODS, FABRIC_ALTERNATIONS, ShowPlan
+from .show_plan import BLEND_METHODS, DIRECTION_CHANGES, FABRIC_ALTERNATIONS, ShowPlan
 
 SCHEMA_NAME = "creative_brief.schema.json"
 
@@ -51,6 +51,7 @@ def build_brief_schema(*, groups: list[str], effect_types: list[str], scene_ids:
     _set_scalar_enum(fab, "carrier", [""] + list(cellable or []))
     _set_scalar_enum(fab, "alternation", [""] + list(FABRIC_ALTERNATIONS))
     _set_scalar_enum(fab, "blend", [""] + list(BLEND_METHODS))
+    _set_scalar_enum(fab, "direction_change", [""] + list(DIRECTION_CHANGES))
     # group fields → the live layout groups
     _set_array_enum(sp, "target_groups", groups)
     _set_array_enum(sp, "pulse_groups", groups)

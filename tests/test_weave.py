@@ -319,10 +319,11 @@ def test_expand_composite_stacks_layers_with_blend():
     assert all(i.effect_type == "Spirals" for i in ins)           # kaleidoscope = two counter-rotating Spirals
     assert ins[0].extra_settings.get("T_CHOICE_LayerMethod") is None      # base = Normal
     assert ins[1].extra_settings.get("T_CHOICE_LayerMethod") == "Max"      # upper blends Max
-    # counter-rotation: opposite E_SLIDER_Spirals_Rotation signs
-    rot0 = ins[0].extra_settings.get("E_SLIDER_Spirals_Rotation")
-    rot1 = ins[1].extra_settings.get("E_SLIDER_Spirals_Rotation")
-    assert rot0 and rot1 and int(rot0) * int(rot1) < 0   # opposite signs — real motion contrast
+    # counter-rotation: opposite Movement signs (the spin), each at the energy's speed
+    mv0 = float(ins[0].extra_settings["E_TEXTCTRL_Spirals_Movement"])
+    mv1 = float(ins[1].extra_settings["E_TEXTCTRL_Spirals_Movement"])
+    assert mv0 * mv1 < 0 and abs(mv0) == abs(mv1) > 1.0   # opposite spins, speed kept
+    assert ins[0].directed and ins[1].directed
     # layers differ by palette rotation so they COMBINE distinctly (not one hiding the other)
     assert ins[0].palette_colors != ins[1].palette_colors
     assert ins[0].start_ms == ins[1].start_ms                     # share the section span
@@ -403,8 +404,8 @@ def test_two_spirals_recipes_on_same_groups_get_ltr_rtl():
     out = expand_weave(_sec(), w, _rhythm(8), 0.8, GROUPS)
     spirals = [c for c in out if c.effect_type == "Spirals"]
     assert spirals
-    rotations = {c.extra_settings.get("E_SLIDER_Spirals_Rotation") for c in spirals}
-    assert "20" in rotations and "-20" in rotations   # both directions present
+    spins = {float(c.extra_settings["E_TEXTCTRL_Spirals_Movement"]) > 0 for c in spirals}
+    assert spins == {True, False}                     # both spins present
 
 
 def test_counter_rotate_stacks_flips_upper_overlapping():
@@ -415,8 +416,8 @@ def test_counter_rotate_stacks_flips_upper_overlapping():
     b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
                           start_ms=0, end_ms=8000, layer=1)
     counter_rotate_stacks([a, b])
-    assert a.extra_settings.get("E_SLIDER_Spirals_Rotation") == "20"
-    assert b.extra_settings.get("E_SLIDER_Spirals_Rotation") == "-20"
+    assert a.extra_settings.get("E_TEXTCTRL_Spirals_Movement") == "1.0"
+    assert b.extra_settings.get("E_TEXTCTRL_Spirals_Movement") == "-1.0"
 
 
 def test_counter_rotate_stacks_is_idempotent():
@@ -427,24 +428,25 @@ def test_counter_rotate_stacks_is_idempotent():
     b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
                           start_ms=0, end_ms=8000, layer=1)
     counter_rotate_stacks([a, b])
-    rot_a = a.extra_settings["E_SLIDER_Spirals_Rotation"]
-    rot_b = b.extra_settings["E_SLIDER_Spirals_Rotation"]
+    rot_a = a.extra_settings["E_TEXTCTRL_Spirals_Movement"]
+    rot_b = b.extra_settings["E_TEXTCTRL_Spirals_Movement"]
     counter_rotate_stacks([a, b])   # second call — should be no-op
-    assert a.extra_settings["E_SLIDER_Spirals_Rotation"] == rot_a
-    assert b.extra_settings["E_SLIDER_Spirals_Rotation"] == rot_b
+    assert a.extra_settings["E_TEXTCTRL_Spirals_Movement"] == rot_a
+    assert b.extra_settings["E_TEXTCTRL_Spirals_Movement"] == rot_b
 
 
 def test_counter_rotate_stacks_explicit_direction_survives():
-    """An instruction already carrying the direction key is not overwritten."""
+    """An already-directed instruction is not overwritten; the other keeps its own speed."""
     from xlights_orchestrator.show_plan import EffectInstruction
     a = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
-                          start_ms=0, end_ms=8000,
-                          extra_settings={"E_SLIDER_Spirals_Rotation": "80"})
+                          start_ms=0, end_ms=8000, directed=True,
+                          extra_settings={"E_TEXTCTRL_Spirals_Movement": "-2.0"})
     b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
-                          start_ms=0, end_ms=8000, layer=1)
+                          start_ms=0, end_ms=8000, layer=1,
+                          extra_settings={"E_TEXTCTRL_Spirals_Movement": "3.0"})
     counter_rotate_stacks([a, b])
-    assert a.extra_settings["E_SLIDER_Spirals_Rotation"] == "80"   # explicit wins
-    assert b.extra_settings["E_SLIDER_Spirals_Rotation"] == "-20"  # other gets rtl
+    assert a.extra_settings["E_TEXTCTRL_Spirals_Movement"] == "-2.0"   # explicit wins
+    assert b.extra_settings["E_TEXTCTRL_Spirals_Movement"] == "-3.0"   # rtl at its own speed
 
 
 def test_counter_rotate_stacks_non_overlapping_untouched():
@@ -455,8 +457,8 @@ def test_counter_rotate_stacks_non_overlapping_untouched():
     b = EffectInstruction(target="SEM_FOCAL", effect_type="Spirals", look_id="x",
                           start_ms=4000, end_ms=8000)
     counter_rotate_stacks([a, b])
-    assert a.extra_settings.get("E_SLIDER_Spirals_Rotation") == "20"  # ltr (first)
-    assert b.extra_settings.get("E_SLIDER_Spirals_Rotation") == "20"  # ltr (non-overlapping reset)
+    assert a.extra_settings.get("E_TEXTCTRL_Spirals_Movement") == "1.0"  # ltr (first)
+    assert b.extra_settings.get("E_TEXTCTRL_Spirals_Movement") == "1.0"  # ltr (non-overlapping reset)
 
 
 def test_cell_drops_invalid_transition_keeps_valid():

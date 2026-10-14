@@ -1,6 +1,6 @@
 ---
 name: xlo-brief
-description: How to author, validate and revise creative_brief.json — the single judgment artifact of an xLights show. Every ShowPlan / SectionPlan field in plain terms with its default and what code does with it; the treatment table (full|pulse|feature|gesture|rest) and how an explicit fabric carrier re-enables the weave under pulse/feature; the fabric knobs (carrier, alternation, cell_beats, blend); scene_id + scene_cast; label conventions; key moments (incl. lyric captions via text); song coverage and downbeat alignment; a complete worked section; the validate-fix loop over validation.json; presenting the brief in viewer language; applying review feedback by section or by time range (splitting a section). Load for /xlo:design, /xlo:realize, /xlo:review and whenever you edit a brief.
+description: How to author, validate and revise creative_brief.json — the single judgment artifact of an xLights show. Every ShowPlan / SectionPlan field in plain terms with its default and what code does with it; the treatment table (full|pulse|feature|gesture|rest) and how an explicit fabric carrier re-enables the weave under pulse/feature; the fabric knobs (carrier, alternation, cell_beats, blend, direction_change, mirror); scene_id + scene_cast; label conventions; key moments (incl. lyric captions via text); song coverage and downbeat alignment; a complete worked section; the validate-fix loop over validation.json; presenting the brief in viewer language; applying review feedback by section or by time range (splitting a section). Load for /xlo:design, /xlo:realize, /xlo:review and whenever you edit a brief.
 ---
 
 # xlo-brief
@@ -74,7 +74,7 @@ Craft lives in the companion skills: `xlo-sequencing` (effects, energy, palette)
 | `follow_stem` | the stem the hero prop follows (`vocab.json` `stems`) | `""` → the melodic stem with most onsets | the hero's onset layer |
 | `accent_effect` | the per-beat punctuation effect | `""` → `On` | the ring's accent cells |
 | `pulse_on` | `"beat"` or `"onset"` | `""` | validated; advisory today |
-| `fabric` | `{carrier, alternation, cell_beats, blend}` — see Fabric | `null` → code chooses | the beat carrier's design |
+| `fabric` | `{carrier, alternation, cell_beats, blend, direction_change, mirror}` — see Fabric | `null` → code chooses | the beat carrier's design; how often directional effects turn |
 
 ### Treatment → which layers appear
 
@@ -95,7 +95,7 @@ weave it (the other fabric knobs apply too; a carrier that is not cellable is a 
 A `fabric` with no `carrier` (or no `fabric` at all) leaves the table as written. When the carrier
 weaves, the beat accents drop their every-beat chase on the pool (the carrier is the beat).
 
-### Fabric: the beat carrier's four knobs
+### Fabric: the beat carrier's knobs, and how motion turns
 
 The fabric is the section's beat-synchronous cell weave: one **carrier** cell design alternating
 across the rhythm pool, plus one sparse **texture** cell from your `effect_types`. Code expands the
@@ -109,6 +109,14 @@ fabric at all, whatever `fabric` says. Treatments `pulse`, `feature`, `rest` wit
 | `alternation` | `chase` · `pingpong` · `all` · `sparse` | `""` → chase | which pool group each beat lights: in order and wrap; back and forth; every group at once (unison); one group every other beat with a breath between |
 | `cell_beats` | 1–8 | `null` → 1 | how long each cell holds: 1 = every beat, 2 = half-time feel, 4 = one per bar |
 | `blend` | an xLights layer method from `BLEND_METHODS` (`Max`, `Brightness`, `Normal`, `Average`, `Additive`, `1 is Mask`, `1 is Unmask`, `1 reveals 2`, …) | `""` → Max | how the carrier sits over the bed: Max keeps the brighter; Brightness modulates; masks/reveals let the bed show only inside the cell's shape |
+| `direction_change` | `hold` · `phrase` · `bar` · `beat` | `""` → by energy: the peak `bar`; quiet (gesture/rest or intensity < 0.35) `phrase`; else `bar` | how often EVERY directional effect in the section turns (Bars, Single Strand, Spirals, Pinwheel, Meteors, Fill, Wave…, not just the carrier): one way all section; flip each 4-bar phrase; flip each bar; flip each beat. Under `bar`/`beat` the kind of motion also changes each phrase (left/right → up/down → expand/compress) |
+| `mirror` | `true` · `false` | `null` → on | the right-hand groups (`SEM_SIDE_RIGHT`) move opposite the left, so the sides meet and part; `false` sends both the same way |
+
+Direction floors (`pipeline/motion.py`): a sweep never flips faster than every 2 beats; Meteors turn
+at most once a phrase; spins reverse on the cadence itself (every downbeat under `bar`), and stacked
+spins (SC-02) stay opposed; Fill/Fan pick one direction per placement. Spirals also change strand
+count, thickness and twist each phrase (ribbons ↔ candy cane). The hero runs one kind of motion ahead of the yard. Turns count
+from the section's start, so put the section on its real downbeat.
 
 The pool the carrier walks is `pulse_groups` when given, else the rhythm props among
 `target_groups` (`SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES`, `SEM_SIDE_*`). Omit the whole block

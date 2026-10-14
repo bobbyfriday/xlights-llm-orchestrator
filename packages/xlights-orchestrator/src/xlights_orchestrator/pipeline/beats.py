@@ -745,26 +745,51 @@ def _bar_ms(rhythm: dict) -> float:
     return bpb * 2000.0
 
 
+def _bar_starts(rhythm: dict) -> list[int]:
+    """The section's bar lines on the tracked beat grid (every `beats_per_bar`-th beat, counted
+    from the section's first beat); `[]` when too few beats were tracked to grid on."""
+    beats = sorted(rhythm.get("beats_ms") or [])
+    bpb = rhythm.get("beats_per_bar") or BEATS_PER_BAR
+    return beats[::bpb] if len(beats) > bpb else []
+
+
+def _grid_edges(start: int, end: int, step_ms: float, lines: list[int], every: int) -> list[int]:
+    """Cell edges for [start, end): every `every`-th bar line inside it when the beat grid is known
+    (cells land ON the bars, so later per-bar turns and pulses line up with the music), else a
+    plain `step_ms` clock grid from `start` (no beats tracked). A bar line within a quarter step of
+    either end is skipped, so no sliver cell (or doubled pulse) forms there."""
+    if lines:
+        margin = step_ms * 0.25
+        inner = [b for b in lines[::every] if start + margin < b < end - margin]
+    else:
+        inner, t = [], start + step_ms
+        while t < end:
+            inner.append(int(t))
+            t += step_ms
+    return [start, *inner, end]
+
+
 def normalize_durations(instructions: list, rhythm: dict) -> list:
     """Enforce duration classes (catalog §2.1 v0.3): a HIT-class effect spanning bars becomes
     per-bar short cells (the section PULSES with it instead of smearing one slow gesture); a
     PHRASE-class effect is clamped to ~8 bars; a CELL-ABLE motion effect left long is chopped
     into contiguous 2-bar cells (community medians: even Spirals/Wave run 0.3–0.9s) unless it
-    sits on a bed row (SEM_BAND_*/SEM_ALL — the explicit long-bed exception)."""
+    sits on a bed row (SEM_BAND_*/SEM_ALL — the explicit long-bed exception). Pulses and cell
+    edges sit on the tracked bar lines when the section has beats, else on a tempo clock grid."""
     from ..qa.rules import _BED_TARGET_PREFIXES, _BED_TARGETS   # bed-target sets stay beside the QA rules
     bar = _bar_ms(rhythm)
+    lines = _bar_starts(rhythm)
     out: list = []
     for ins in instructions:
         dur = ins.end_ms - ins.start_ms
         if ins.effect_type in DURATION_HIT and dur > 1.5 * bar:
             cell: float = int(min(HIT_CELL_MS, bar * 0.75))
-            t = float(ins.start_ms)
-            while t < ins.end_ms:
+            edges = _grid_edges(ins.start_ms, ins.end_ms, bar, lines, 1)
+            for t in edges[:-1]:                      # one pulse per bar
                 c = ins.model_copy(deep=True)
                 c.start_ms, c.end_ms = int(t), int(min(t + cell, ins.end_ms))
                 if c.end_ms > c.start_ms:
                     out.append(c)
-                t += bar                              # one pulse per bar
         elif ins.effect_type in DURATION_PHRASE and dur > PHRASE_BARS * bar:
             c = ins.model_copy(deep=True)
             c.end_ms = int(ins.start_ms + PHRASE_BARS * bar)
@@ -773,15 +798,11 @@ def normalize_durations(instructions: list, rhythm: dict) -> list:
               and not ins.target.startswith(_BED_TARGET_PREFIXES)
               and ins.target not in _BED_TARGETS):
             cell = CELL_BARS * bar                    # contiguous cells — motion, not pulses
-            t = float(ins.start_ms)
-            while t < ins.end_ms:
+            edges = _grid_edges(ins.start_ms, ins.end_ms, cell, lines, CELL_BARS)
+            for a, b in zip(edges, edges[1:]):
                 c = ins.model_copy(deep=True)
-                c.start_ms, c.end_ms = int(t), int(min(t + cell, ins.end_ms))
-                if c.end_ms - c.start_ms > cell * 0.25:   # trailing sliver merges by dropping
-                    out.append(c)
-                elif out and out[-1].effect_type == ins.effect_type:
-                    out[-1].end_ms = int(ins.end_ms)      # ...into the previous cell
-                t += cell
+                c.start_ms, c.end_ms = int(a), int(b)
+                out.append(c)
         else:
             out.append(ins)
     return out

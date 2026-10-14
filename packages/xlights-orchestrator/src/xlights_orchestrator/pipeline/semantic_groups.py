@@ -9,7 +9,8 @@ from __future__ import annotations
 
 # -- individual group names -------------------------------------------------
 SEM_ALL = "SEM_ALL"                  # the whole display
-SEM_FOCAL = "SEM_FOCAL"              # the hero / focal prop(s)
+SEM_FOCAL = "SEM_FOCAL"              # the hero / focal prop(s): the mega tree, else the matrixes
+SEM_CANVAS = "SEM_CANVAS"            # every matrix (the screens; G2-CANVAS)
 SEM_HOUSE = "SEM_HOUSE"              # the house outline
 SEM_BAND_GROUND = "SEM_BAND_GROUND"  # the ground-level band (a bed under the features)
 SEM_SIDE_LEFT = "SEM_SIDE_LEFT"

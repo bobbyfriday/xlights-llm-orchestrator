@@ -153,7 +153,15 @@
   "SEM_ALL_LESS_FOCAL": {
    "layout_mode": "minimalGrid",
    "members": [
+    "Tune To Matrix",
     "GE Flake I 3",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Left",
+    "Panel Matrix",
     "Ball Ornament",
     "Cactus",
     "Window - 2nd Floor Left - Bottom 1",
@@ -225,7 +233,15 @@
   "SEM_ALL_LESS_FOCAL_RHYTHM": {
    "layout_mode": "minimalGrid",
    "members": [
+    "Tune To Matrix",
     "GE Flake I 3",
+    "Pixel Matrix - 1 car - Right",
+    "Pixel Matrix - 1 car - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Left",
+    "Seed Matrix - 2nd Floor - Right Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Right",
+    "Seed Matrix - 2nd Floor - Left Window - Left",
+    "Panel Matrix",
     "Ball Ornament",
     "Cactus",
     "Window - 2nd Floor Left - Bottom 1",
@@ -414,7 +430,7 @@
    ],
    "ordered": true
   },
-  "SEM_FOCAL": {
+  "SEM_CANVAS": {
    "layout_mode": "minimalGrid",
    "members": [
     "Tune To Matrix",
@@ -424,7 +440,12 @@
     "Seed Matrix - 2nd Floor - Right Window - Right",
     "Seed Matrix - 2nd Floor - Left Window - Right",
     "Seed Matrix - 2nd Floor - Left Window - Left",
-    "Panel Matrix",
+    "Panel Matrix"
+   ]
+  },
+  "SEM_FOCAL": {
+   "layout_mode": "minimalGrid",
+   "members": [
     "Tree"
    ]
   },
@@ -692,7 +713,6 @@
  },
  "props": [
   {
-   "focal": true,
    "id": "Tune To Matrix",
    "nodes": 8192,
    "pos": {
@@ -719,7 +739,6 @@
    "sweep_order": 7
   },
   {
-   "focal": true,
    "id": "Pixel Matrix - 1 car - Right",
    "nodes": 576,
    "pos": {
@@ -732,7 +751,6 @@
    "role": "MATRIX"
   },
   {
-   "focal": true,
    "id": "Pixel Matrix - 1 car - Left",
    "nodes": 576,
    "pos": {
@@ -745,7 +763,6 @@
    "role": "MATRIX"
   },
   {
-   "focal": true,
    "id": "Seed Matrix - 2nd Floor - Right Window - Left",
    "nodes": 248,
    "pos": {
@@ -756,7 +773,6 @@
    "role": "MATRIX"
   },
   {
-   "focal": true,
    "id": "Seed Matrix - 2nd Floor - Right Window - Right",
    "mirror_of": "Seed Matrix - 2nd Floor - Left Window - Right",
    "nodes": 248,
@@ -769,7 +785,6 @@
    "role": "MATRIX"
   },
   {
-   "focal": true,
    "id": "Seed Matrix - 2nd Floor - Left Window - Right",
    "mirror_of": "Seed Matrix - 2nd Floor - Right Window - Right",
    "nodes": 248,
@@ -782,7 +797,6 @@
    "role": "MATRIX"
   },
   {
-   "focal": true,
    "id": "Seed Matrix - 2nd Floor - Left Window - Left",
    "nodes": 248,
    "pos": {
@@ -794,7 +808,6 @@
    "role": "MATRIX"
   },
   {
-   "focal": true,
    "id": "Panel Matrix",
    "nodes": 49152,
    "pos": {

@@ -84,12 +84,14 @@ EFFECT_META: dict[str, EffectMeta] = {
                     "rtl": ("E_CHOICE_Wave_Direction", "Right to Left")},
         energy_band=(2, 3), duration_class="cellable", chase_family=True),
     # -- other cell-able motion effects --------------------------------------------------------
-    # E_SLIDER_Spirals_Rotation: 84 corpus looks carry the key (66 positive, 16 negative);
-    # ±20 is the corpus mode. Negative = counter-clockwise (signed slider, corpus-observed).
+    # Spin = the SIGN of E_TEXTCTRL_Spirals_Movement (the travel speed, -20..20; negative scrolls
+    # the stripes the other way). E_SLIDER_Spirals_Rotation is the stripes' TWIST (slant), not
+    # their spin — it used to be mapped here, so "reversing" a spiral only re-slanted it. The
+    # values below are signs: `apply_direction` keeps the speed's magnitude (SIGNED_DIRECTION_KEYS).
     "Spirals": EffectMeta(
         speed=("E_TEXTCTRL_Spirals_Movement", 0.5, 4, "f1"),
-        directions={"ltr": ("E_SLIDER_Spirals_Rotation", "20"),
-                    "rtl": ("E_SLIDER_Spirals_Rotation", "-20")},
+        directions={"ltr": ("E_TEXTCTRL_Spirals_Movement", "1.0"),
+                    "rtl": ("E_TEXTCTRL_Spirals_Movement", "-1.0")},
         energy_band=(2, 5), duration_class="cellable"),
     "Pinwheel": EffectMeta(
         speed=("E_SLIDER_Pinwheel_Speed", 5, 20, "int"),
@@ -196,6 +198,9 @@ DURATION_CELLABLE: set[str] = {et for et, m in EFFECT_META.items() if m.duration
 MOTION_EFFECTS: set[str] = DURATION_CELLABLE | {"Fire", "Galaxy"}
 
 # capability flags (private-today sets in weave.py; no import-compat needed but consolidated here)
+# Direction keys whose value is a signed speed: a direction sets the sign, the speed the magnitude.
+SIGNED_DIRECTION_KEYS: frozenset[str] = frozenset({"E_TEXTCTRL_Spirals_Movement"})
+
 BED_EFFECTS: set[str] = {et for et, m in EFFECT_META.items() if m.bed_capable}
 NATIVE_BOUNCE: set[str] = {et for et, m in EFFECT_META.items() if m.native_bounce}
 CHASE_FAMILY: set[str] = {et for et, m in EFFECT_META.items() if m.chase_family}

@@ -77,13 +77,13 @@ def test_empty_direction_is_backcompat():
     assert all(c.target == "SEM_ARCHES" for c in out)            # no target changes, ever
 
 
-def test_fallback_weave_bounces():
+def test_fallback_weave_leaves_direction_to_the_motion_pass():
     w = fallback_weave(_sec(), GROUPS)
-    assert w.cells[0].direction == "bounce"
+    assert w.cells[0].direction == "vary"          # pipeline/motion turns it on the beat grid
     out = expand_weave(_sec(), w, _rhythm(8), 0.8, GROUPS)
     carriers = [c for c in out if c.effect_type == "SingleStrand"]
-    assert carriers and all(c.extra_settings.get("E_CHOICE_Chase_Type1") == "Dual Bounce"
-                            for c in carriers)
+    assert carriers and all("E_CHOICE_Chase_Type1" not in c.extra_settings for c in carriers)
+    assert all(c.render_style == "Default" for c in carriers)   # still a group-canvas sweep
 
 
 # -- beat-accent bounce --------------------------------------------------------

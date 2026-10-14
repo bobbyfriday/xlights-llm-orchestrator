@@ -11,7 +11,8 @@ Errors (block realization):
     after the last against the song duration)
   - group / effect / scene / stem / pulse_on / palette names outside the vocabulary
   - `fabric.carrier` not cellable, `fabric.alternation` unknown, `fabric.cell_beats` outside 1–8,
-    `fabric.blend` not a known layer method (`vocab.blends`)
+    `fabric.blend` not a known layer method (`vocab.blends`), `fabric.direction_change` not one of
+    hold|phrase|bar|beat, `fabric.mirror` not a boolean
   - a `scene_cast` value that is not a targetable group (or a non-object `scene_cast`)
 Warnings (reported, never block):
   - a section boundary not within tolerance of a downbeat (when downbeats are given)
@@ -32,7 +33,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
-from ..show_plan import ShowPlan
+from ..show_plan import DIRECTION_CHANGES, ShowPlan
 
 VALIDATION_NAME = "validation.json"
 
@@ -216,6 +217,7 @@ def _membership(sections: list, model_sections: list, vocab: dict, errors: list[
     pulse = _Membership("pulse_on value", PULSE_ON)
     cellable = _Membership("cellable effect type", vocab.get("cellable", []), match="effect", blank_ok=True)
     alternation = _Membership("alternation", ALTERNATIONS, blank_ok=True)
+    turns = _Membership("direction_change", DIRECTION_CHANGES, blank_ok=True)
     blends = (_Membership("layer blend method", vocab.get("blends", []), blank_ok=True)
               if vocab.get("blends") else None)
     colors = _Membership("named color", vocab.get("colors", []), match="color") if vocab.get("colors") else None
@@ -251,6 +253,12 @@ def _membership(sections: list, model_sections: list, vocab: dict, errors: list[
             cellable.check(fab["carrier"], f"{p}.fabric.carrier", errors)
         if "alternation" in fab and fab["alternation"] is not None:
             alternation.check(fab["alternation"], f"{p}.fabric.alternation", errors)
+        if "direction_change" in fab and fab["direction_change"] is not None:
+            turns.check(fab["direction_change"], f"{p}.fabric.direction_change", errors)
+        if "mirror" in fab and fab["mirror"] is not None and not isinstance(fab["mirror"], bool):
+            errors.append(Issue(path=f"{p}.fabric.mirror",
+                                message=f"mirror must be true, false or null, got {fab['mirror']!r}",
+                                allowed=["true", "false", "null"]))
         if blends is not None and "blend" in fab and fab["blend"] is not None:
             blends.check(fab["blend"], f"{p}.fabric.blend", errors)
         cb = fab.get("cell_beats")

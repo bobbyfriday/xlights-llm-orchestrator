@@ -49,6 +49,7 @@ from .beats import (
 )
 from .features import instrument_entrances
 from .meter import resolve_beats_per_bar
+from .motion import vary_directions
 from .scenes import cast_scene, parse_scene_stack
 from .state import State, require
 from .triggers import place_triggers
@@ -150,7 +151,7 @@ def _gesture_weave(section, available_groups: list[str], carrier: str):
         return None
     return SectionWeave(cells=[CellRecipe(
         effect_type=carrier, role="carrier", cell_beats=2, alternation="chase",
-        direction="bounce", groups=groups)])
+        direction="vary", groups=groups)])
 
 
 def _consecutive_bedless_run(plan, si: int, peaks: set[int], has_focal: bool) -> int:
@@ -484,6 +485,11 @@ def realize_section_effects(st: State, si: int, out: SectionEffects) -> list[Eff
             final_layer.section_index = si
             final_layer.source = "feature"    # provenance (report-only)
             kept.append(final_layer)
+    # DIRECTION VARIETY: directional effects turn on the section's beat grid (cadence by energy or
+    # `fabric.direction_change`; axis walks per phrase; right side mirrors) instead of one way.
+    kept = vary_directions(kept, section, rhythm, bar_ms=_bar_ms, intensity=_si,
+                           treatment=_treatment, is_peak=si in _peaks,
+                           seed=label_seed(_label) if _label else si)
     counter_rotate_stacks(kept)   # same-type rotational stacks on one target → alternating spin
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
     demote_offpeak_hits(kept, is_peak=(si in _peaks))  # off-peak: Strobe→Shockwave, cap Shimmer

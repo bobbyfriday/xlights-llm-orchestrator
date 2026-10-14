@@ -40,6 +40,11 @@ Cookbook stack tables name display **archetypes**, not groups. Two section field
   cast (`"G2-HERO→SEM_FOCAL; G2-RHYTHM→SEM_ARCHES; (no canvas in this layout)"`). Code never
   parses it.
 
+Screens under a hero scene: most scenes have no G2-CANVAS row, so the matrixes (`SEM_CANVAS`) get
+nothing from the cast. Name `SEM_CANVAS` in `target_groups` and code gives it ONE layer of the
+hero's feature effect, drawn per matrix (`scenes._canvas_echo`) — a calmer echo, not the hero's
+whole stack. Leave it out and the screens only take the beds.
+
 Every group you cast should also appear in `target_groups` (the coverage and rhythm layers read
 `target_groups`; the scene rows themselves are placed from `scene_cast`).
 
@@ -53,7 +58,7 @@ Every group you cast should also appear in `target_groups` (the coverage and rhy
 | G2-RHYTHM | the section's rhythm pool, first group (`pulse_groups`, else the rhythm props among `target_groups`), else `SEM_ARCHES` → `SEM_CANES` → `SEM_MINITREES` → `SEM_SIDE_*` | one of `SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES` |
 | G2-FRAME | `SEM_OUTLINE`, else `SEM_HOUSE` (outline + windows + icicles) | |
 | G2-ACCENT | `SEM_SNOWFLAKES`, else `SEM_SPINNERS` (not `SEM_ACCENTS`, which also holds the rhythm props) | |
-| G2-CANVAS | the group whose name contains "matrix" (e.g. `Matrixes`), else uncast | |
+| G2-CANVAS | `SEM_CANVAS`, else the group whose name contains "matrix" (e.g. `Matrixes`), else uncast | |
 | G9-STROBE-OVERLAY | never cast: code's climax flashes and `on_top` triggers play that role | |
 
 A row casts to **one** group. To spread G2-RHYTHM over arches + canes, cast it to one and name

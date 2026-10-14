@@ -382,15 +382,21 @@ def derive_spatial(props: list[Prop], *, invert_x: bool = False) -> SpatialSumma
     for p in kept:
         p.center_dist = ((p.x - focal_x) ** 2 + (p.y - focal_y) ** 2) ** 0.5
 
-    # (8) focal flags: MEGA_TREE, MATRIX, and any prop whose visual area exceeds ~15% of the display.
+    # (8) focal flags: the hero. The MEGA_TREE when there is one — matrixes then form their own
+    # canvas group (SEM_CANVAS) instead of crowding the hero: a display with a tree and eight
+    # matrixes made a nine-prop "hero" that doubled every hero look across the screens. With no
+    # mega tree the matrixes are the hero, as before. Plus any non-matrix prop whose visual area
+    # rivals the densest prop's.
     total_area = max(dx * dy, 1e-6)
+    hero_roles = ("MEGA_TREE",) if mega is not None else ("MATRIX",)
     for p in kept:
         area_frac = 0.0
         # scale-derived area is unavailable here (Prop carries no scale) → approximate by node
         # budget relative to the densest prop, which correlates with on-screen area for a layout.
         max_nodes = max((q.nodes for q in kept), default=1) or 1
         area_frac = p.nodes / max_nodes
-        p.focal = (p.role in ("MEGA_TREE", "MATRIX")) or (area_frac >= 0.85 and p.nodes >= 200)
+        big = p.role != "MATRIX" and area_frac >= 0.85 and p.nodes >= 200
+        p.focal = p.role in hero_roles or big
         _ = total_area  # (kept for parity with spec's area language; node budget is the proxy)
 
     return SpatialSummary(width_units=maxx - minx, focal_x=focal_x, symmetric=symmetric,

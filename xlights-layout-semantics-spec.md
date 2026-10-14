@@ -102,7 +102,7 @@ After classification, compute spatial attributes from world positions:
 3. **Sweep order.** Within each role that has multiple instances (`ARCH`, `MINI_TREE`, `CANE`, `WINDOW`, `SNOWFLAKE`, `SPINNER`), sort by normalized `x` and assign `sweep_order` 1..N.
 4. **Symmetry pairs.** Two models of the same role whose `x` positions are approximately mirrored around the display centerline (tolerance 0.05) and whose `y` positions match are a `mirror_pair`. Record both directions.
 5. **Center distance.** For each model, compute normalized Euclidean distance from the display's focal center (the `MEGA_TREE` if present, otherwise the bounding-box center). This enables radial wave choreography.
-6. **Focal flags.** Mark `MEGA_TREE`, `MATRIX`, and any prop occupying more than ~15% of the display's visual area as `focal: true`.
+6. **Focal flags.** Mark the hero `focal: true`: the `MEGA_TREE` when the display has one, otherwise every `MATRIX`; plus any non-matrix prop occupying more than ~15% of the display's visual area. Beside a mega tree, matrixes are not focal: they form `SEM_CANVAS` (§5.5), so a display with one tree and several screens gets one hero, not a crowd.
 
 ---
 
@@ -159,8 +159,9 @@ SEM_SIDE_RIGHT     models with x > 0.55
 
 ```
 SEM_ALL            every model except SINGING_FACE and SIGN
-SEM_FOCAL          all focal: true models (mega tree, matrix, large props)
-SEM_ACCENTS        all non-focal, non-outline props (arches, minis, canes, flakes, spinners)
+SEM_FOCAL          all focal: true models (the mega tree, else the matrixes; large props)
+SEM_CANVAS         every MATRIX (the screens: media, text, canvas looks; equals SEM_FOCAL when there is no mega tree)
+SEM_ACCENTS        all non-focal, non-outline, non-matrix props (arches, minis, canes, flakes, spinners)
 SEM_HOUSE          OUTLINE + WINDOW + ICICLES (the structure itself)
 SEM_YARD           everything in GROUND band except FLOODS
 ```

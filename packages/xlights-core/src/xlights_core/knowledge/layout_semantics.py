@@ -81,7 +81,11 @@ def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
     g["SEM_ALL_LESS_FOCAL"] = [n for n in g["SEM_ALL"] if n not in focal]
     g["SEM_ALL_LESS_FOCAL_RHYTHM"] = [n for n in g["SEM_ALL"] if n not in focal | rhythm]
     g["SEM_FOCAL"] = [p.name for p in props if p.focal]
-    g["SEM_ACCENTS"] = [p.name for p in props if not p.focal and p.role not in (("OUTLINE",) + _NON_ENSEMBLE)]
+    # the screens: every matrix (media, text, canvas looks) — the scene cookbook's G2-CANVAS.
+    # Beside a mega tree this is NOT the hero; with no tree it equals SEM_FOCAL.
+    g["SEM_CANVAS"] = [p.name for p in props if p.role == "MATRIX"]
+    g["SEM_ACCENTS"] = [p.name for p in props if not p.focal and p.role not in
+                        (("OUTLINE", "MATRIX") + _NON_ENSEMBLE)]
     g["SEM_HOUSE"] = [p.name for p in props if p.role in ("OUTLINE", "WINDOW", "ICICLES")]
     g["SEM_YARD"] = [p.name for p in props if p.band == "GROUND" and p.role != "FLOOD"
                      and p.role not in _NON_ENSEMBLE]
@@ -233,7 +237,7 @@ _ORDER_TIERS = (
                                 "SEM_YARD")),
     ("rhythm",  lambda n: n.startswith(("SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"))),
     ("other",   lambda n: True),                       # plain groups + individual models
-    ("focal",   lambda n: n == "SEM_FOCAL" or "matrix" in n.lower()),
+    ("focal",   lambda n: n in ("SEM_FOCAL", "SEM_CANVAS") or "matrix" in n.lower()),
     ("accent",  lambda n: n.startswith(("SEM_SNOWFLAKES", "SEM_SPINNERS")) or "star" in n.lower()),
 )
 

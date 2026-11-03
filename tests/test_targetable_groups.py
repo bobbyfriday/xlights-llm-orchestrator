@@ -113,3 +113,18 @@ def test_genuinely_empty_layout_returns_empty(tmp_path):
     # A SUCCESSFUL listing that is genuinely empty still returns [] normally (not a failure).
     c = _FakeClient([], targetable=[])
     assert run(G.targetable_groups(c, cache_root=tmp_path)) == []
+
+
+def test_empty_groups_follow_nested_groups_to_models(tmp_path):
+    from xlights_orchestrator.pipeline.groups import empty_groups
+    rgb = tmp_path / "xlights_rgbeffects.xml"
+    rgb.write_text(
+        '<xrgb><models><model name="Stone"/><model name="Cat"/></models><modelGroups>'
+        '<modelGroup name="Arches" models=""/>'                      # Christmas leftover
+        '<modelGroup name="SEM_STAKES" models="Stone"/>'
+        '<modelGroup name="SEM_YARD" models="SEM_STAKES,Cat"/>'      # nested: fine
+        '<modelGroup name="Ghosts" models="Spinners"/>'              # nested into an empty group
+        '<modelGroup name="Spinners" models=""/>'
+        '</modelGroups></xrgb>')
+    assert empty_groups(rgb) == {"Arches", "Ghosts", "Spinners"}
+    assert empty_groups(tmp_path / "missing.xml") == set()

@@ -99,3 +99,33 @@ async def _probe(client, names: list[str]) -> list[str]:
         except Exception as exc:  # noqa: BLE001 — cleanup only; the probe result already stands
             log.debug("targetable_groups: probe cleanup close failed: %s", exc)
     return ok
+
+
+def empty_groups(rgbeffects_path: "Path | str") -> set[str]:
+    """Group names that resolve to NO model, following nested groups. xLights lists them and
+    accepts effects on them (Christmas groups left in a Halloween layout: Arches, Candy Canes,
+    Spinners, Small Trees), so a brief can target them and light nothing; `xlo groups` drops
+    them from the vocabulary. Missing or unreadable file → an empty set (nothing dropped)."""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.parse(str(rgbeffects_path)).getroot()
+    except (OSError, ET.ParseError):
+        return set()
+    models_el = root.find("models")
+    model_names = {m.get("name", "") for m in (models_el.findall("model") if models_el is not None else [])}
+    mg = root.find("modelGroups")
+    members: dict[str, list[str]] = {}
+    for g in (mg.findall("modelGroup") if mg is not None else []):
+        name = g.get("name", "")
+        if name:
+            members[name] = [x.strip() for x in (g.get("models", "") or "").split(",") if x.strip()]
+
+    def has_model(name: str, seen: set[str]) -> bool:
+        if name in model_names:
+            return True
+        if name in members and name not in seen:
+            seen.add(name)
+            return any(has_model(child, seen) for child in members[name])
+        return False
+
+    return {name for name in members if not has_model(name, set())}

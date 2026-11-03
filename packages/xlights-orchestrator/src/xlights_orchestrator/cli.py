@@ -117,6 +117,12 @@ def _stage_groups(args) -> int:
     song_dir = _song_dir(args)
     sa = load_analysis(song_dir)            # the song's stems feed `follow_stem`
     groups, models, show_folder = asyncio.run(_groups_live(sa))
+    if show_folder:
+        from .pipeline.groups import empty_groups
+        empty = empty_groups(Path(show_folder) / "xlights_rgbeffects.xml") & set(groups)
+        if empty:
+            print(f"dropped {len(empty)} groups with no models: {', '.join(sorted(empty))}")
+            groups = [g for g in groups if g not in empty]
     vocab = build_vocab(groups=groups, effect_types=placeable_effect_types(),
                         cellable=sorted(DURATION_CELLABLE), scene_ids=scene_ids(),
                         stems=[f.stem for f in (getattr(sa, "stems", None) or [])],

@@ -92,6 +92,28 @@ def resolve_start_channel(start_str: str, controllers: dict[str, Controller]) ->
     return None if ctl is None else ctl.start + ch - 1
 
 
+def _parse_custom_compressed(s: str) -> tuple[list[list[int]], int, int]:
+    """xLights ≥ 2026 stores a Custom grid as `CustomModelCompressed`: "node,row,col;…" with only
+    the occupied cells. Expand it to the same (rows, width, height) the old format gives."""
+    cells: list[tuple[int, int, int]] = []
+    for entry in s.split(";"):
+        parts = [x.strip() for x in entry.split(",")]
+        if len(parts) < 3:
+            continue
+        try:
+            cells.append((int(parts[0]), int(parts[1]), int(parts[2])))
+        except ValueError:
+            continue
+    if not cells:
+        return [], 0, 0
+    height = max(r for _, r, _ in cells) + 1
+    width = max(c for _, _, c in cells) + 1
+    rows = [[0] * width for _ in range(height)]
+    for node, r, c in cells:
+        rows[r][c] = node
+    return rows, width, height
+
+
 def _parse_custom_model(s: str) -> tuple[list[list[int]], int, int]:
     rows = []
     width = 0
@@ -131,17 +153,24 @@ def parse_models(rgbeffects_path: str | Path,
             skipped += 1
             continue
         try:
-            p1 = int(m.attrib.get("parm1", 1))
-            p2 = int(m.attrib.get("parm2", 1))
-            p3 = int(m.attrib.get("parm3", 1))
+            # xLights 2026 renamed parm1/parm2 to NumStrings/NodesPerString; read both spellings.
+            p1 = int(m.attrib.get("parm1") or m.attrib.get("NumStrings") or 1)
+            p2 = int(m.attrib.get("parm2") or m.attrib.get("NodesPerString") or 1)
+            p3 = int(m.attrib.get("parm3") or 1)
         except ValueError:
             skipped += 1
             continue
 
         display_as = m.attrib.get("DisplayAs", "Single Line")
         if display_as == "Custom":
+            compressed = m.attrib.get("CustomModelCompressed", "")
             grid_str = m.attrib.get("CustomModel", "")
-            grid, gw, gh = _parse_custom_model(grid_str) if grid_str else ([], 0, 0)
+            if compressed:
+                grid, gw, gh = _parse_custom_compressed(compressed)
+            elif grid_str:
+                grid, gw, gh = _parse_custom_model(grid_str)
+            else:
+                grid, gw, gh = [], 0, 0
             n_pix = max((max(row) for row in grid if row), default=0)
         elif display_as == "Cube":
             n_pix, grid, gw, gh = p1 * p2 * p3, [], 0, 0

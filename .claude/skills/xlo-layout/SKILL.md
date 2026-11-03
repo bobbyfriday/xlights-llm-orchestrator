@@ -22,7 +22,9 @@ the orchestrator conductor `packages/xlights-orchestrator/src/xlights_orchestrat
 
 The targetable list for a song is `vocab.json` `groups` (written by `xlo groups`). It holds every
 group xLights accepted — the SEM_ groups below plus the user's own groups (e.g. `Matrixes`,
-`Small Tree Stars`). Prefer SEM_ names: the deterministic layers reason in them.
+`Small Tree Stars`) — minus any group that resolves to no model (a layout keeps last season's
+`Arches` or `Candy Canes` as empty groups; xLights still accepts effects on them, which light
+nothing). Prefer SEM_ names: the deterministic layers reason in them.
 
 | Group | Contains | Use it for |
 |---|---|---|

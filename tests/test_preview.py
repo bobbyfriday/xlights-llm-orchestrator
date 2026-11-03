@@ -205,3 +205,25 @@ def test_fseq_series_section_slice(tmp_path):
     sec = s.section_slice(0, 200)          # frames 0..3 (50ms step)
     assert sec["GA"]["lit"].shape[0] == 4
     assert set(sec) == {"GA", "GB", "GC", "GALL"}
+
+
+def test_parse_models_reads_compressed_custom_grids_and_renamed_string_params(tmp_path):
+    """xLights 2026 stores Custom grids as CustomModelCompressed ("node,row,col;…") and renamed
+    parm1/parm2 to NumStrings/NodesPerString; a Halloween layout of tombstones and cats parsed to
+    zero pixels, so stills and QA only ever saw the matrix."""
+    (tmp_path / "xlights_networks.xml").write_text(
+        '<Networks><Controller Name="C1" Type="Ethernet"><network NetworkType="E131" MaxChannels="512"/>'
+        '</Controller></Networks>')
+    (tmp_path / "xlights_rgbeffects.xml").write_text(
+        '<xrgb><models>'
+        '<model name="Stone" DisplayAs="Custom" StartChannel="!C1:1" PixelCount="3" '
+        'CustomModelCompressed="1,0,0;2,1,2;3,2,1" WorldPosX="0" WorldPosY="0" WorldPosZ="0" '
+        'ScaleX="1" ScaleY="1" ScaleZ="1"/>'
+        '<model name="Line" DisplayAs="Single Line" StartChannel="!C1:10" NumStrings="1" '
+        'NodesPerString="4" WorldPosX="0" WorldPosY="0" WorldPosZ="0" ScaleX="1" ScaleY="1" ScaleZ="1"/>'
+        '</models></xrgb>')
+    ctl = parse_controllers(tmp_path / "xlights_networks.xml")
+    by = {m.name: m for m in parse_models(tmp_path / "xlights_rgbeffects.xml", ctl)}
+    assert by["Stone"].n_pixels == 3 and (by["Stone"].custom_w, by["Stone"].custom_h) == (3, 3)
+    assert by["Stone"].custom_grid[1][2] == 2
+    assert by["Line"].n_pixels == 4

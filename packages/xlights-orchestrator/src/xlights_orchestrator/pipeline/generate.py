@@ -19,7 +19,10 @@ from ..show_plan import (
     SectionWeave,
     repetition_map_from_labels,
 )
-from .catalog import candidate_look_ids
+from .catalog import candidate_look_ids, pick_look
+from .effect_meta import DURATION_HIT
+from .hits import place_big_hit_rings
+from .stack import expand_stack, stack_has_role
 from .cookbook import load_guide
 from .phrasing import tail_fade_settings
 from xlights_core.audio import song_tail_envelope
@@ -296,9 +299,12 @@ def _brief_base_instructions(section, available_groups: list[str], *,
 
     Generic: one section-spanning instruction per target group (brief order = priority, which
     `trim_coverage` keeps first), cycling the section's effect vocabulary (`effect_family`,
-    then `effect_types`) across the groups. Look = the catalog's first candidate for the type;
+    then `effect_types`) across the groups. Look = `pick_look` (rotated among the most-used
+    neutral catalog looks, seeded by the label so recurring sections rhyme);
     `render_style=""` so the per-effect fallback (`resolve_buffer_style`) applies. Types with no
     catalog looks are skipped."""
+    if getattr(section, "stack", None):      # an authored stack IS the section's rows
+        return []
     scene_id = getattr(section, "scene_id", "") or ""
     if scene_id:
         stack = parse_scene_stack(scene_id)
@@ -313,12 +319,13 @@ def _brief_base_instructions(section, available_groups: list[str], *,
     if not types:
         return []
     rows: list[EffectInstruction] = []
+    _seed = label_seed(section.label) if getattr(section, "label", "") else 0
     for g in (section.target_groups or []):
         if available_groups and g not in available_groups:
             continue
         et = types[len(rows) % len(types)]
         rows.append(EffectInstruction(
-            target=g, effect_type=et, look_id=candidate_look_ids(et)[0], render_style="",
+            target=g, effect_type=et, look_id=pick_look(et, _seed + len(rows)), render_style="",
             start_ms=section.start_ms, end_ms=section.end_ms))
     return rows
 
@@ -369,133 +376,151 @@ def realize_section_effects(st: State, si: int, out: SectionEffects) -> list[Eff
     _shape = section_energy_shape(st.song_analysis, section)   # rising/falling/flat → phrase curves
     from .beats import _bar_ms as _bar_ms_fn
     _bar_ms = _bar_ms_fn(rhythm)
-    # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
-    # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
-    # a cast scene stack IS the coverage decision (the cookbook's rows, cast by the brief), so its
-    # rows bypass the energy gate; the generic rows are energy-gated.
-    _scene_rows = [i for i in out.instructions if i.source == "scene"]
-    kept = _scene_rows + trim_coverage([i for i in out.instructions if i.source != "scene"],
-                                       _si, _ordinal)   # energy-gated + occurrence bonus
-    # sparse treatments withhold coverage: gesture/rest touch ≤2 groups, feature spotlights one hero.
-    # rest's dim bed is one of its two groups, so it keeps a single base row (one brief row per
-    # target group would otherwise light 2 + the bed).
-    if _treatment in ("gesture", "rest"):
-        _budget = _GESTURE_MAX_GROUPS - (1 if _layers["bed"] else 0)
-        _keep = {i.target for i in kept[:_budget]}
-        kept = [i for i in kept if i.target in _keep]
-    for ins in kept:
-        ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
-    kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
-    for j, ins in enumerate(kept):
-        ins.section_index = si              # tag for per-section QA
-        ins.source = ins.source or "generator"   # provenance (I7; excluded from dump — report-only)
-        if section.palette and not ins.palette_colors:   # a row's explicit color (scene) wins
-            ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
-        # PHRASE DYNAMICS (Phase 3): a ≥2-bar bed/wash carries a brightness curve shaped by the
-        # section's own energy slice (rising swells, falling decays, flat holds); features/accents
-        # keep crisp constant levels. Supersedes the old ">15s energetic wash builds" special case.
-        # A scene row's cookbook level ("Color Wash 30–40%") is the level the curve shapes around.
-        _level = _scene_level(ins) if ins.source == "scene" else None
-        ins.extra_settings.update(_phrase_brightness(ins, _shape, _level or wash_b, _bar_ms))
-        ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
-    # BED, per treatment: full/pulse get the energy bed (or peak fill at the peak); feature/rest get
-    # a dim ≤2-group bed; gesture gets none — UNLESS the bed floor trips (>2 consecutive bedless
-    # sections would go dark), in which case a minimal bed is injected so the show never blacks out.
-    _bed_mode = _layers["bed"]
-    if _bed_mode == "" and _consecutive_bedless_run(st.show_plan, si, _peaks, _has_focal) > 2:
-        _bed_mode = "dim"                    # the hard floor: at most 2 consecutive bedless sections
-    if _bed_mode == "full":
-        bed = (peak_fill(section, _si, st.available_groups, kept) if si in _peaks
-               else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
-    elif _bed_mode == "dim":
-        bed = _dim_bed(section, st.available_groups, {k.target for k in kept}, _pal_offset)
-    else:
-        bed = None
-    if bed is not None:
-        bed.section_index = si
-        bed.source = "bed"
-        kept.append(bed)                 # occlusion order/blend handled by finalize_effects
-    # WEAVE, per treatment: full weaves the whole fabric; gesture runs ONE carrier recipe on ≤2
-    # groups (a single held motion); pulse/feature/rest withhold the fabric entirely — except when
-    # the section's `fabric.carrier` is explicit: pulse then weaves carrier + texture and feature
-    # the carrier cell alone (the brief asked for that motion; rest stays still).
-    carrier = section_carrier(si, _label)   # keyed to the repetition identity (rhymes) else the index
-    carrier = brief_carrier(section, carrier)   # a valid directed `fabric.carrier` wins
-    _explicit_weave = (_EXPLICIT_FABRIC_WEAVE.get(_treatment, "")
-                       if getattr(getattr(section, "fabric", None), "carrier", "") else "")
-    if _layers["weave"] is True:
-        weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
-    elif _explicit_weave:
-        weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
-        if _explicit_weave == "carrier":
-            weave_obj = SectionWeave(cells=[c for c in weave_obj.cells if c.role == "carrier"])
-    elif _layers["weave"] == "solo":
-        weave_obj = _gesture_weave(section, st.available_groups, carrier)
-    else:
+    # THE AUTHORED STACK (xlo-effects): the brief said exactly what each layer is. Code places it
+    # and steps aside — no energy gate, no synthesized bed/weave/composites/phrase/VU/final layer.
+    # Hit-class holds still pulse per bar (a 16-beat Shockwave is a smear, not a design).
+    _stack = list(getattr(section, "stack", None) or [])
+    if _stack:
+        kept = expand_stack(section, rhythm, st.available_groups,
+                            seed=label_seed(_label) if _label else si,
+                            pal_offset=_pal_offset, beats_per_bar=bpb)
+        _hits = [r for r in kept if r.effect_type in DURATION_HIT]
+        kept = [r for r in kept if r.effect_type not in DURATION_HIT] + normalize_durations(_hits, rhythm)
+        for ins in kept:
+            ins.section_index = si
+            ins.source = "stack"
         weave_obj = None
-    woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
-                         based_targets={k.target for k in kept},   # cells blend over washes
-                         bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference) if weave_obj else []
-    for ins in woven:
-        ins.section_index = si
-        ins.source = "weave"
-    kept.extend(woven)                          # the cell fabric
-    # PHRASE GESTURE (full/pulse): one bounded Morph/Curtain/Fill that enters at the 2nd bar and
-    # spans 4 bars — phrase-class effects that the weave cannot cell, rhymed across recurring labels.
-    if _layers.get("phrase"):
-        _phrase_seed = label_seed(_label) if _label else si
-        pg = place_phrase_gesture(section, rhythm, _si, st.available_groups,
-                                  seed=_phrase_seed, vocab=st.vocab or DEFAULT_VOCAB)
-        if pg is not None:
-            pg.section_index = si
-            pg.source = "phrase"
-            _based = {k.target for k in kept}
-            if pg.target in _based:
-                pg.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
-            kept.append(pg)
-    # composite stacks + VU: any designed multi-effect blended layers, the curated hero stack at
-    # the peak, and the music-reactive VU feature texture. Composites are extras-only (full); VU
-    # also fires for pulse sections (community uses it as an ordinary energetic texture, not a peak
-    # garnish — 6.2% pooled in the corpus).
-    if _layers["extras"]:
-        comp_recipes = list(getattr(out, "composites", None) or [])
-        if si in _peaks and HERO_GROUP in st.available_groups:
-            # the peak composite is keyed to the section's identity when it recurs (every chorus-peak
-            # gets the SAME curated stack), else to the index — same rhyme rule as the carrier.
-            comp_seed = label_seed(_label) if _label else si
-            cc = curated_composite(_PEAK_COMPOSITES[comp_seed % len(_PEAK_COMPOSITES)], [HERO_GROUP])
-            if cc is not None:
-                comp_recipes.append(cc)
-        for comp in comp_recipes:
-            for ins in expand_composite(comp, section, _si, st.available_groups):
-                ins.section_index = si
-                ins.source = "composite"      # provenance (report-only)
-                kept.append(ins)
-    if _layers["extras"] or _treatment == "pulse":
-        vu = place_vu_meter(section, st.available_groups, _si, seed=si)   # music-reactive feature
-        if vu is not None:
-            vu.section_index = si
-            vu.source = "vu"
-            kept.append(vu)
-    # the FINAL occurrence of a recurring label gains one extra layer: a sparkle-contrast pop on
-    # an accent prop group (when the layout has one), so the last chorus reads as the biggest.
-    if _is_final and _layers["feature"]:
-        final_layer = _final_occurrence_layer(section, _si, st.available_groups)
-        if final_layer is not None:
-            final_layer.section_index = si
-            final_layer.source = "feature"    # provenance (report-only)
-            kept.append(final_layer)
+    else:
+        # STRUCTURAL escalation: each later occurrence of a recurring label lights +1 more prop group
+        # (bounded by the section's own targets in coverage_cap) — the last chorus is visibly fuller.
+        # a cast scene stack IS the coverage decision (the cookbook's rows, cast by the brief), so its
+        # rows bypass the energy gate; the generic rows are energy-gated.
+        _scene_rows = [i for i in out.instructions if i.source == "scene"]
+        kept = _scene_rows + trim_coverage([i for i in out.instructions if i.source != "scene"],
+                                           _si, _ordinal)   # energy-gated + occurrence bonus
+        # sparse treatments withhold coverage: gesture/rest touch ≤2 groups, feature spotlights one hero.
+        # rest's dim bed is one of its two groups, so it keeps a single base row (one brief row per
+        # target group would otherwise light 2 + the bed).
+        if _treatment in ("gesture", "rest"):
+            _budget = _GESTURE_MAX_GROUPS - (1 if _layers["bed"] else 0)
+            _keep = {i.target for i in kept[:_budget]}
+            kept = [i for i in kept if i.target in _keep]
+        for ins in kept:
+            ins.effect_type = canon_effect_type(ins.effect_type)   # 'Single Strand' → placeable
+        kept = normalize_durations(kept, rhythm)      # hit effects pulse per bar, not smear
+        for j, ins in enumerate(kept):
+            ins.section_index = si              # tag for per-section QA
+            ins.source = ins.source or "generator"   # provenance (I7; excluded from dump — report-only)
+            if section.palette and not ins.palette_colors:   # a row's explicit color (scene) wins
+                ins.palette_colors = effect_palette(section.palette, ins.effect_type, j, _pal_offset)
+            # PHRASE DYNAMICS (Phase 3): a ≥2-bar bed/wash carries a brightness curve shaped by the
+            # section's own energy slice (rising swells, falling decays, flat holds); features/accents
+            # keep crisp constant levels. Supersedes the old ">15s energetic wash builds" special case.
+            # A scene row's cookbook level ("Color Wash 30–40%") is the level the curve shapes around.
+            _level = _scene_level(ins) if ins.source == "scene" else None
+            ins.extra_settings.update(_phrase_brightness(ins, _shape, _level or wash_b, _bar_ms))
+            ins.extra_settings.update(effect_speed_setting(ins.effect_type, _si))
+        # BED, per treatment: full/pulse get the energy bed (or peak fill at the peak); feature/rest get
+        # a dim ≤2-group bed; gesture gets none — UNLESS the bed floor trips (>2 consecutive bedless
+        # sections would go dark), in which case a minimal bed is injected so the show never blacks out.
+        _bed_mode = _layers["bed"]
+        if _bed_mode == "" and _consecutive_bedless_run(st.show_plan, si, _peaks, _has_focal) > 2:
+            _bed_mode = "dim"                    # the hard floor: at most 2 consecutive bedless sections
+        if _bed_mode == "full":
+            bed = (peak_fill(section, _si, st.available_groups, kept) if si in _peaks
+                   else ensemble_bed(section, _si, st.available_groups, {k.target for k in kept}))
+        elif _bed_mode == "dim":
+            bed = _dim_bed(section, st.available_groups, {k.target for k in kept}, _pal_offset)
+        else:
+            bed = None
+        if bed is not None:
+            bed.section_index = si
+            bed.source = "bed"
+            kept.append(bed)                 # occlusion order/blend handled by finalize_effects
+        # WEAVE, per treatment: full weaves the whole fabric; gesture runs ONE carrier recipe on ≤2
+        # groups (a single held motion); pulse/feature/rest withhold the fabric entirely — except when
+        # the section's `fabric.carrier` is explicit: pulse then weaves carrier + texture and feature
+        # the carrier cell alone (the brief asked for that motion; rest stays still).
+        carrier = section_carrier(si, _label)   # keyed to the repetition identity (rhymes) else the index
+        carrier = brief_carrier(section, carrier)   # a valid directed `fabric.carrier` wins
+        _explicit_weave = (_EXPLICIT_FABRIC_WEAVE.get(_treatment, "")
+                           if getattr(getattr(section, "fabric", None), "carrier", "") else "")
+        if _layers["weave"] is True:
+            weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
+        elif _explicit_weave:
+            weave_obj = weave_from_brief(section, st.available_groups, carrier=carrier)
+            if _explicit_weave == "carrier":
+                weave_obj = SectionWeave(cells=[c for c in weave_obj.cells if c.role == "carrier"])
+        elif _layers["weave"] == "solo":
+            weave_obj = _gesture_weave(section, st.available_groups, carrier)
+        else:
+            weave_obj = None
+        woven = expand_weave(section, weave_obj, rhythm, _si, st.available_groups,
+                             based_targets={k.target for k in kept},   # cells blend over washes
+                             bed_preference=(st.vocab or DEFAULT_VOCAB).bed_preference) if weave_obj else []
+        for ins in woven:
+            ins.section_index = si
+            ins.source = "weave"
+        kept.extend(woven)                          # the cell fabric
+        # PHRASE GESTURE (full/pulse): one bounded Morph/Curtain/Fill that enters at the 2nd bar and
+        # spans 4 bars — phrase-class effects that the weave cannot cell, rhymed across recurring labels.
+        if _layers.get("phrase"):
+            _phrase_seed = label_seed(_label) if _label else si
+            pg = place_phrase_gesture(section, rhythm, _si, st.available_groups,
+                                      seed=_phrase_seed, vocab=st.vocab or DEFAULT_VOCAB)
+            if pg is not None:
+                pg.section_index = si
+                pg.source = "phrase"
+                _based = {k.target for k in kept}
+                if pg.target in _based:
+                    pg.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
+                kept.append(pg)
+        # composite stacks + VU: any designed multi-effect blended layers, the curated hero stack at
+        # the peak, and the music-reactive VU feature texture. Composites are extras-only (full); VU
+        # also fires for pulse sections (community uses it as an ordinary energetic texture, not a peak
+        # garnish — 6.2% pooled in the corpus).
+        if _layers["extras"]:
+            comp_recipes = list(getattr(out, "composites", None) or [])
+            if si in _peaks and HERO_GROUP in st.available_groups:
+                # the peak composite is keyed to the section's identity when it recurs (every chorus-peak
+                # gets the SAME curated stack), else to the index — same rhyme rule as the carrier.
+                comp_seed = label_seed(_label) if _label else si
+                cc = curated_composite(_PEAK_COMPOSITES[comp_seed % len(_PEAK_COMPOSITES)], [HERO_GROUP])
+                if cc is not None:
+                    comp_recipes.append(cc)
+            for comp in comp_recipes:
+                for ins in expand_composite(comp, section, _si, st.available_groups):
+                    ins.section_index = si
+                    ins.source = "composite"      # provenance (report-only)
+                    kept.append(ins)
+        if _layers["extras"] or _treatment == "pulse":
+            vu = place_vu_meter(section, st.available_groups, _si, seed=si)   # music-reactive feature
+            if vu is not None:
+                vu.section_index = si
+                vu.source = "vu"
+                kept.append(vu)
+        # the FINAL occurrence of a recurring label gains one extra layer: a sparkle-contrast pop on
+        # an accent prop group (when the layout has one), so the last chorus reads as the biggest.
+        if _is_final and _layers["feature"]:
+            final_layer = _final_occurrence_layer(section, _si, st.available_groups)
+            if final_layer is not None:
+                final_layer.section_index = si
+                final_layer.source = "feature"    # provenance (report-only)
+                kept.append(final_layer)
     # DIRECTION VARIETY: directional effects turn on the section's beat grid (cadence by energy or
     # `fabric.direction_change`; axis walks per phrase; right side mirrors) instead of one way.
-    kept = vary_directions(kept, section, rhythm, bar_ms=_bar_ms, intensity=_si,
-                           treatment=_treatment, is_peak=si in _peaks,
-                           seed=label_seed(_label) if _label else si)
-    counter_rotate_stacks(kept)   # same-type rotational stacks on one target → alternating spin
+    if not _stack:                # an authored stack owns its directions, twins and cuts
+        kept = vary_directions(kept, section, rhythm, bar_ms=_bar_ms, intensity=_si,
+                               treatment=_treatment, is_peak=si in _peaks,
+                               seed=label_seed(_label) if _label else si)
+        counter_rotate_stacks(kept)   # same-type rotational stacks on one target → alternating spin
     clamp_hard_caps(kept, getattr(st.song_analysis, "tempo_overall", None))
     demote_offpeak_hits(kept, is_peak=(si in _peaks))  # off-peak: Strobe→Shockwave, cap Shimmer
     # ACCENTS, per treatment: full/pulse get the full beat layer, feature a sparse one, gesture/rest
     # none (the held breath stays still). A still (non-rhythmic) section never gets accents either.
     _accent_mode = _layers["accents"]
+    if _stack and stack_has_role(section, "accent"):
+        _accent_mode = "none"                # the stack brought its own punctuation
     if _accent_mode != "none" and section_is_rhythmic(section):
         accents = place_beat_accents(
             section, rhythm, st.available_groups,
@@ -511,6 +536,13 @@ def realize_section_effects(st: State, si: int, out: SectionEffects) -> list[Eff
         if ins.target in under:                 # a pulse ADDS over its base, not occludes
             ins.extra_settings.setdefault("T_CHOICE_LayerMethod", "Max")
     kept.extend(accents)
+    # BIG HITS: a slow whole-display ring on the strongest drum hits of an energetic section —
+    # the one gesture that propagates across the entire house. Rhythmic sections only; a stack
+    # that brought its own accent layer keeps the floor.
+    if _accent_mode != "none" and section_is_rhythmic(section):
+        for ins in place_big_hit_rings(section, rhythm, _si, st.available_groups):
+            ins.section_index = si
+            kept.append(ins)
     return kept
 
 
@@ -566,7 +598,7 @@ def assemble_show(st: State, instrs: list[EffectInstruction]) -> list[EffectInst
     # curated trigger effects (cookbook-defined; folds in the entrance feature as the
     # `instrument_entrance` trigger — replaces the old instrument_feature_layer call).
     _triggers = place_triggers(st.song_analysis, plan.sections, st.available_groups,
-                               load_guide("triggers"))
+                               load_guide("triggers"), off=plan.triggers_off)
     for ins in _triggers:
         ins.source = ins.source or "triggers"        # provenance (I7; report-only)
     instrs += _triggers

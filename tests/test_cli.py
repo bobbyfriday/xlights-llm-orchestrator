@@ -10,7 +10,7 @@ import pytest
 from xlights_orchestrator import cli
 
 STAGES = {"analyze", "groups", "validate-brief", "realize", "apply", "qa", "stills", "finalize",
-          "video-plan", "cache-rename", "init-layout"}
+          "video-plan", "cache-rename", "init-layout", "mine-effect"}
 
 
 def _subcommands() -> set[str]:

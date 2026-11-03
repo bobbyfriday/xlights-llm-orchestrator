@@ -89,3 +89,25 @@ CELL_BARS = 2                 # a CELL-ABLE motion effect left long is chopped i
 MOTION_SHARE_MIN = 0.40        # energetic sections below this motion-effect share advise a fabric regression (I7 lever)
 # community ≈ 7.5% flat-flash, ours ≈ 42% (2026-07-07); 0.30 is deliberately loose to avoid finding spam
 FLAT_FLASH_SHARE_MAX = 0.30    # energetic sections above this flat-flash share (On/Twinkle/Strobe/Shimmer/Lightning) get an advisory
+
+# -- big-hit rings: one slow Shockwave across the WHOLE display on the strongest drum hits ------
+# Rob, 2026-11-02: a fast whole-house ring "just flickered"; a big moment needs the ring to
+# propagate across the entire house. So: 2 beats long (bounded), a radius that keeps the ring in
+# frame for the whole span (Scale on; 285+ exits the buffer in the first third and reads as a
+# flash), fat and soft, white, on the N strongest drum onsets of an energetic section, never
+# closer than two bars apart, snapped to the nearest beat.
+BIG_HIT_MIN_INTENSITY = 0.6            # sections below this get no whole-house rings
+BIG_HIT_MIN_MAG = 0.7                  # an onset's normalized drum strength must reach this
+BIG_HIT_BEATS = 2                      # the ring's length in beats…
+BIG_HIT_MS_RANGE = (900, 2000)         # …bounded in ms (a slow song still propagates, not crawls)
+BIG_HIT_MIN_SPACING_BARS = 2           # at most one ring per two bars
+BIG_HIT_MAX_PER_SECTION = 6
+BIG_HIT_SNAP_MS = 120                  # snap an onset to a beat within this
+BIG_HIT_RING: dict[str, str] = {       # the ring's shape (overrides the look base)
+    "E_NOTEBOOK_Shockwave": "Position", "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+    "E_CHECKBOX_Shockwave_Scale": "1", "E_SLIDER_Shockwave_Accel": "0",
+    "E_SLIDER_Shockwave_CenterX": "50", "E_SLIDER_Shockwave_CenterY": "50",
+    "E_SLIDER_Shockwave_Cycles": "1", "E_SLIDER_Shockwave_Start_Radius": "1",
+    "E_SLIDER_Shockwave_End_Radius": "120", "E_SLIDER_Shockwave_Start_Width": "90",
+    "E_SLIDER_Shockwave_End_Width": "40",
+}

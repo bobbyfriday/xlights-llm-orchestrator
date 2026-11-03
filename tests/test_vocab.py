@@ -27,8 +27,8 @@ ARGS = dict(groups=["SEM_ALL", "SEM_ROOF", "SEM_ALL", ""],   # dup + blank dropp
 
 def test_build_vocab_keys_and_normalization():
     v = build_vocab(**ARGS)
-    assert tuple(v) == VOCAB_KEYS == ("groups", "effect_types", "cellable", "scene_ids", "stems",
-                                      "colors", "blends")
+    assert tuple(v) == VOCAB_KEYS == ("groups", "effect_types", "cellable", "scene_ids", "stems", "colors", "blends",
+              "looks", "transforms", "stack_roles")
     assert v["groups"] == ["SEM_ALL", "SEM_ROOF"]
     assert v["effect_types"] == ["On", "SingleStrand", "Twinkle"]
     assert v["cellable"] == ["SingleStrand"]

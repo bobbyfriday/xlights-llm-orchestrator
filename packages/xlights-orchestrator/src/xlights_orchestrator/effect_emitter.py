@@ -34,14 +34,48 @@ def _free_layer(occ: dict, target: str, start: int, end: int, start_layer: int) 
 
 
 def _top_layer(occ: dict, target: str, start: int, end: int) -> int:
-    """The layer ABOVE every effect overlapping [start,end] on `target`. Higher index renders on
-    top (verified live), so an on_top accent must sit above ALL overlappers — not just in the
-    lowest free gap, which `_free_layer` would put it UNDER a longer spanning layer."""
+    """The LOGICAL layer above every effect overlapping [start,end] on `target` (the pipeline's
+    convention: 0 is the bottom, higher is on top), so an on_top accent sits above ALL
+    overlappers — not just in the lowest free gap, which `_free_layer` would put it UNDER a
+    longer spanning layer. `_xlights_layers` turns logical layers into xLights indices."""
     top = -1
     for (tg, layer), spans in occ.items():
         if tg == target and any(not (end <= s or start >= e) for s, e in spans):
             top = max(top, layer)
     return top + 1
+
+
+def _logical_layers(instructions: list[EffectInstruction]) -> list[int | None]:
+    """Each instruction's LOGICAL layer (0 = bottom, higher renders on top), assigned in list
+    order by occupancy: an `on_top` row goes above every overlapper, any other row into the
+    lowest free gap at or above its requested `layer`. `None` where the row would exceed
+    `MAX_LAYERS` (the caller skips it). Pure; assumes every row places."""
+    occ: dict[tuple[str, int], list[tuple[int, int]]] = {}
+    out: list[int | None] = []
+    for ins in instructions:
+        if getattr(ins, "on_top", False):
+            layer = _top_layer(occ, ins.target, ins.start_ms, ins.end_ms)
+        else:
+            layer = _free_layer(occ, ins.target, ins.start_ms, ins.end_ms, ins.layer)
+            if layer >= MAX_LAYERS:
+                out.append(None)
+                continue
+        occ.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
+        out.append(layer)
+    return out
+
+
+def _xlights_layers(instructions: list[EffectInstruction], logical: list[int | None]) -> list[int | None]:
+    """Logical layers → xLights layer indices. xLights numbers layers from the TOP: its layer 1
+    (index 0 in `addEffect`) renders over index 1, and so on — verified live 2026-11-02 (red On
+    at index 0 covers blue at index 1; a mask at index 3 does nothing to index 2), and it is how
+    every community `.xsq` reads. So on each target the deepest logical layer becomes index 0 and
+    the bottom (logical 0) the highest index; relative order is preserved for every row."""
+    depth: dict[str, int] = {}
+    for ins, lg in zip(instructions, logical):
+        if lg is not None:
+            depth[ins.target] = max(depth.get(ins.target, 0), lg)
+    return [None if lg is None else depth[ins.target] - lg for ins, lg in zip(instructions, logical)]
 
 
 def clamp_layer_budget(instructions: list[EffectInstruction], max_layers: int = 4
@@ -53,16 +87,24 @@ def clamp_layer_budget(instructions: list[EffectInstruction], max_layers: int = 
     occ: dict[tuple[str, int], list[tuple[int, int]]] = {}
     kept: list[EffectInstruction] = []
     dropped = 0
-    for ins in instructions:
+    # An authored stack row (`source == "stack"`) is the designer's decision: it claims its
+    # layers before any synthesized row (accents, triggers, flashes) competes for them, so a
+    # twin or an overlay is never the row that gets trimmed. Output order is preserved.
+    order = sorted(range(len(instructions)),
+                   key=lambda i: (0 if getattr(instructions[i], "source", "") == "stack" else 1, i))
+    keep_idx: set[int] = set()
+    for i in order:
+        ins = instructions[i]
         if getattr(ins, "on_top", False):            # punch-through accents are never clamped
-            kept.append(ins)
+            keep_idx.add(i)
             continue
         layer = _free_layer(occ, ins.target, ins.start_ms, ins.end_ms, ins.layer)
         if layer >= max_layers:
             dropped += 1
             continue
         occ.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
-        kept.append(ins)
+        keep_idx.add(i)
+    kept = [instructions[i] for i in range(len(instructions)) if i in keep_idx]
     return kept, dropped
 
 
@@ -128,20 +170,18 @@ async def apply_instructions(
         _log.debug("emit: get_models prefetch failed, falling back to per-call fetch: %s", exc)
         known_targets = None
 
-    occupancy: dict[tuple[str, int], list[tuple[int, int]]] = {}
     placed: list[dict] = []
     skipped: list[dict] = []
     outcomes: list[dict] = []
+    # Layers are decided for the whole list first (logical: beds at 0, on_top accents above every
+    # overlapper), then flipped to xLights indices (0 = top) per target. The reported `layer` in
+    # applied.json is the xLights index — what the sequencer grid shows.
+    xl_layers = _xlights_layers(instructions, _logical_layers(instructions))
 
     for index, ins in enumerate(instructions):
-        # on_top accents punch through: placed ABOVE every overlapping layer (not in the lowest
-        # free gap, which would bury them under a longer spanning layer). Never budget-skipped.
-        if getattr(ins, "on_top", False):
-            layer = _top_layer(occupancy, ins.target, ins.start_ms, ins.end_ms)
-        else:
-            layer = _free_layer(occupancy, ins.target, ins.start_ms, ins.end_ms, ins.layer)
-        if layer >= MAX_LAYERS and not getattr(ins, "on_top", False):
-            reason = f"layer budget: would need layer {layer}"
+        layer = xl_layers[index]
+        if layer is None:
+            reason = f"layer budget: would need more than {MAX_LAYERS} layers"
             skipped.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                             "start_ms": ins.start_ms, "end_ms": ins.end_ms,
                             "section_index": ins.section_index, "reason": reason})
@@ -154,7 +194,6 @@ async def apply_instructions(
                 if not await client.add_effect(ins.target, ins.effect_type, settings,
                                                layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms):
                     raise PresetPlacementError("addEffect returned worked=false")
-                occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
                 placed.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                                "look": "", "layer": layer, "start_ms": ins.start_ms,
                                "end_ms": ins.end_ms, "section_index": ins.section_index})
@@ -190,7 +229,6 @@ async def apply_instructions(
                     layer=layer, start_ms=ins.start_ms, end_ms=ins.end_ms,
                     known_targets=known_targets,
                 )
-            occupancy.setdefault((ins.target, layer), []).append((ins.start_ms, ins.end_ms))
             placed.append({"index": index, "target": ins.target, "effect": ins.effect_type,
                            "look": ins.look_id, "layer": layer,
                            "start_ms": ins.start_ms, "end_ms": ins.end_ms,

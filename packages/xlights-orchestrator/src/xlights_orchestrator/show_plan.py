@@ -60,6 +60,46 @@ class SectionFabric(BaseModel):
     mirror: bool | None = None               # right-hand groups move opposite the left (None = on)
 
 
+STACK_ROLES = ("bed", "carrier", "feature", "overlay", "mask", "accent")
+STACK_TWINS = ("", "mirror", "counter", "flip", "color")
+STACK_DIRECTIONS = ("", "ltr", "rtl", "up", "down", "bounce", "alternate", "center_out", "center_in", "vary")
+STACK_ALTERNATIONS = ("", "all", "chase", "pingpong", "sparse")
+BUFFER_TRANSFORMS = ("", "None", "Rotate CC 90", "Rotate CW 90", "Rotate 180", "Flip Vertical",
+                     "Flip Horizontal", "Rotate CC 90 Flip Horizontal", "Rotate CW 90 Flip Horizontal")
+STACK_CELL_BEATS_RANGE = (0, 16)
+
+
+class StackLayer(BaseModel):
+    """One authored layer of a section's STACK (the xlo-effects skill's vocabulary): what the
+    designer decided, placed by code without the synthesized weave/composites in the way.
+
+    Layers are listed bottom → top. Each becomes one row per group (held for the section) or
+    one row per beat cell (`cell_beats` > 0), plus a second row for a `twin`."""
+
+    effect_type: str
+    role: str = "feature"                    # bed | carrier | feature | overlay | mask | accent
+    groups: list[str] = []                   # [] → the section's target_groups
+    look_id: str = ""                        # a catalog look (vocab `looks`); "" → the picker
+    knobs: dict[str, str] = {}               # knob values on the look (validated against it)
+    settings: dict[str, str] = {}            # extra settings verbatim: value curves, blur, sparkles,
+                                             #   transitions… (blend/transform/fades have fields)
+    direction: str = ""                      # ltr | rtl | up | down | bounce | alternate |
+                                             #   center_out | center_in | vary | "" (effect default)
+    blend: str = ""                          # T_CHOICE_LayerMethod over the layer below ("" = Normal)
+    transform: str = ""                      # B_CHOICE_BufferTransform ("" = none)
+    render_style: str = ""                   # buffer style; "" → the per-effect fallback
+    palette: list[str] = []                  # this layer's colors; [] → the section palette, rotated
+    cell_beats: int = Field(default=0, ge=0, le=16)   # 0 = hold the section; N = re-cut every N beats
+    alternation: str = ""                    # which groups a cell lights: all (default) | chase |
+                                             #   pingpong | sparse
+    twin: str = ""                           # "" | mirror (Rotate 180) | counter (direction reversed,
+                                             #   twist/rotation negated) | flip (Flip Horizontal) |
+                                             #   color (next palette rotation) → a second row above
+    fade_in: float = Field(default=0.0, ge=0, le=10)
+    fade_out: float = Field(default=0.0, ge=0, le=10)
+    brightness: float | None = Field(default=None, ge=0, le=4)   # 1.0 = normal
+
+
 class SectionPlan(BaseModel):
     """Per-section creative direction over prop groups (plain `look` + grounded direction)."""
 
@@ -100,6 +140,10 @@ class SectionPlan(BaseModel):
     pulse_on: str = ""                       # "beat" | "onset" (default beat)
     # -- fabric intent (claude-driven-orchestration D3; additive, None → code chooses) --
     fabric: SectionFabric | None = None      # carrier / alternation / cell_beats / blend knobs
+    # -- the authored stack (xlo-effects; additive, [] → code synthesizes as before) --
+    stack: list[StackLayer] = []             # bottom → top; replaces the weave, composites, phrase
+                                             #   gesture, VU and final layer for this section; beat
+                                             #   accents still run unless a layer's role is "accent"
 
 
 _LABEL_TAIL = re.compile(r"[\s\d#_-]+$")   # "chorus 2" / "verse-1" / "chorus #3" → the bare label
@@ -132,6 +176,8 @@ class ShowPlan(BaseModel):
     palette: ShowPalette | None = None
     group_motifs: dict[str, GroupMotif] = {}
     key_moments: list[KeyMoment] = []
+    triggers_off: list[str] = []             # cookbook trigger names (`## ` headings, any case) to
+                                             # skip for THIS song; the cookbook stays shared
 
 
 class EffectInstruction(BaseModel):

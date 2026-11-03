@@ -1,0 +1,119 @@
+{
+ "root": "/Users/rob/xlights",
+ "notes": "Community-authored, hand-sequenced .xsq only. Same song by different sharers = distinct sequences of one song. Byte-identical files are dropped at load time. Paths are relative to root; .xsqz/.zip packages are read in place (first .xsq member).",
+ "sequences": [
+  {
+   "path": "Light of Christmas.xsq",
+   "song": "Light Of Christmas",
+   "sequencer": "main",
+   "exemplary_for": [
+    "Spirals"
+   ]
+  },
+  {
+   "path": "Light Of Christmas XATW.xsq",
+   "song": "Light Of Christmas",
+   "sequencer": "XATW sharer A"
+  },
+  {
+   "path": "XATW Light Of Christmas.xsq",
+   "song": "Light Of Christmas",
+   "sequencer": "XATW sharer B"
+  },
+  {
+   "path": "Bill Jenkins/Light of Christmas.xsq",
+   "song": "Light Of Christmas",
+   "sequencer": "Bill Jenkins"
+  },
+  {
+   "path": "XATW Kid On Christmas Eliot Wisser.xsq",
+   "song": "Kid On Christmas",
+   "sequencer": "Eliot Wisser"
+  },
+  {
+   "path": "XATW Kid On Christmas Jeremy Poling.xsq",
+   "song": "Kid On Christmas",
+   "sequencer": "Jeremy Poling"
+  },
+  {
+   "path": "XATW Kid on Christmas Greg Colburn.xsq",
+   "song": "Kid On Christmas",
+   "sequencer": "Greg Colburn"
+  },
+  {
+   "path": "XATW Shut Up and Dance Tammy Ghee.xsq",
+   "song": "Shut Up and Dance",
+   "sequencer": "Tammy Ghee"
+  },
+  {
+   "path": "XATW Shut Up and Dance Bill Jenkins.xsq",
+   "song": "Shut Up and Dance",
+   "sequencer": "Bill Jenkins"
+  },
+  {
+   "path": "XATW Shut Up and Dance Jeremy Poling.xsq",
+   "song": "Shut Up and Dance",
+   "sequencer": "Jeremy Poling"
+  },
+  {
+   "path": "Danger Zone XATW.xsq",
+   "song": "Danger Zone",
+   "sequencer": "XATW"
+  },
+  {
+   "path": "XATW Danger Zone 2.xsq",
+   "song": "Danger Zone",
+   "sequencer": "XATW 2"
+  },
+  {
+   "path": "xlights around the world/XATW Sounding Joy R2.1 (1).xsqz",
+   "song": "Sounding Joy",
+   "sequencer": "XATW R2.1"
+  },
+  {
+   "path": "xlights around the world/Uptown Funk (Radio Edit) Updated 11.25 (1).xsqz",
+   "song": "Uptown Funk",
+   "sequencer": "Updated 11.25"
+  },
+  {
+   "path": "xlights around the world/Magic Updated 11.25-2.xsqz",
+   "song": "Magic",
+   "sequencer": "Updated 11.25"
+  },
+  {
+   "path": "xlights around the world/XATW Believer R2.1 (1).xsqz",
+   "song": "Believer",
+   "sequencer": "XATW R2.1"
+  },
+  {
+   "path": "Candy Cane Lane - Sia.xsq",
+   "song": "Candy Cane Lane",
+   "sequencer": "John Storms"
+  },
+  {
+   "path": "The Weeknd AG - Save Your Tears HD.xsq",
+   "song": "Save Your Tears",
+   "sequencer": "AG"
+  },
+  {
+   "path": "Carrie Underwood - Away In A Manger HD with Lyrics.xsq",
+   "song": "Away In A Manger",
+   "sequencer": ""
+  },
+  {
+   "path": "Idina Menzel - Christmas Just Ain't Christmas.xsq",
+   "song": "Christmas Just Ain't Christmas",
+   "sequencer": ""
+  },
+  {
+   "path": "Baby Shark with Jaws Intro - Pinkfong.xsq",
+   "song": "Baby Shark",
+   "sequencer": "John Storms"
+  },
+  {
+   "path": "1984 - Van Halen.xsq",
+   "song": "1984",
+   "sequencer": "John Storms"
+  }
+ ]
+}

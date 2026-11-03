@@ -18,12 +18,14 @@ import json
 from pathlib import Path
 
 from ..brief_schema import SCHEMA_NAME, build_brief_schema
-from ..show_plan import BLEND_METHODS
+from ..show_plan import BLEND_METHODS, BUFFER_TRANSFORMS, STACK_ROLES
 
 VOCAB_NAME = "vocab.json"
 
 # The keys of vocab.json, in the order they are written.
-VOCAB_KEYS = ("groups", "effect_types", "cellable", "scene_ids", "stems", "colors", "blends")
+VOCAB_KEYS = ("groups", "effect_types", "cellable", "scene_ids", "stems", "colors", "blends",
+              "looks", "transforms", "stack_roles")
+_DICT_KEYS = ("looks",)                       # effect type → ranked look ids (the stack's look_id menu)
 
 
 def _dedupe(values) -> list[str]:
@@ -39,7 +41,8 @@ def _dedupe(values) -> list[str]:
 
 
 def build_vocab(*, groups, effect_types, cellable, scene_ids, stems, colors,
-                blends=BLEND_METHODS) -> dict:
+                blends=BLEND_METHODS, looks=None, transforms=BUFFER_TRANSFORMS,
+                stack_roles=STACK_ROLES) -> dict:
     """Assemble the vocabulary dict. Order is preserved for groups (the layout's own order is
     meaningful to a reader) and blends (xLights' menu order); the type/scene/stem/color lists
     are sorted for a stable file. `cellable` is intersected with `effect_types` — a carrier
@@ -54,6 +57,9 @@ def build_vocab(*, groups, effect_types, cellable, scene_ids, stems, colors,
         "stems": _dedupe(stems),
         "colors": _dedupe(colors),
         "blends": _dedupe(blends),
+        "looks": {t: _dedupe(v) for t, v in sorted((looks or {}).items()) if t in placeable},
+        "transforms": _dedupe(transforms),
+        "stack_roles": _dedupe(stack_roles),
     }
 
 
@@ -62,7 +68,8 @@ def write_vocab(song_dir, vocab: dict) -> Path:
     out = Path(song_dir)
     out.mkdir(parents=True, exist_ok=True)
     path = out / VOCAB_NAME
-    path.write_text(json.dumps({k: list(vocab.get(k, [])) for k in VOCAB_KEYS}, indent=1))
+    path.write_text(json.dumps({k: (dict(vocab.get(k) or {}) if k in _DICT_KEYS
+                                    else list(vocab.get(k, []))) for k in VOCAB_KEYS}, indent=1))
     return path
 
 
@@ -71,7 +78,8 @@ def load_vocab(song_dir) -> dict:
     can run against an older file; a missing file raises `FileNotFoundError` (the caller names
     the prerequisite: run `xlo groups`)."""
     data = json.loads((Path(song_dir) / VOCAB_NAME).read_text())
-    return {k: list(data.get(k, [])) for k in VOCAB_KEYS}
+    return {k: (dict(data.get(k) or {}) if k in _DICT_KEYS else list(data.get(k, [])))
+            for k in VOCAB_KEYS}
 
 
 def schema_from_vocab(vocab: dict) -> dict:

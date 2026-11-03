@@ -8,7 +8,9 @@ The cookbook (`xlights-scene-cookbook.md`) writes every scene against display AR
 `SectionPlan.scene_cast` (`{archetype: group}`); when it leaves that empty, `default_cast` maps
 each archetype by role through the SEM_ vocabulary (`semantic_groups`). Both are deterministic.
 
-Conventions (see the cookbook §1 Scene Schema): cookbook `L1` is the TOP layer → `layer 0`; a
+Conventions (see the cookbook §1 Scene Schema): cookbook `L1` is the TOP layer; `StackRow.layer`
+keeps it as 0 = top, and `cast_scene` turns that into the pipeline's LOGICAL layer (0 = bottom,
+higher on top; the emitter flips to xLights indices), so an `L2` bed lands under an `L1` feature; a
 blank Layer cell means a single layer; a blank Row cell carries the archetype (and render style)
 of the row above; Blend is an xLights `T_CHOICE_LayerMethod` (`Normal` → unset); a brightness in
 the Effect cell ("30–40%", "25%") becomes a constant `C_SLIDER_Brightness` (range → midpoint);
@@ -285,7 +287,14 @@ def cast_scene(section, stack: list[StackRow], available_groups: list[str], *,
     family = canon_effect_type(getattr(section, "effect_family", "") or "")
     palette = list(getattr(section, "palette", None) or [])
     out: list[EffectInstruction] = []
-    for row in _castable_rows(stack):
+    rows = _castable_rows(stack)
+    # per TARGET: the deepest cookbook L-number landing on it → its L1 row is the logical top
+    deepest: dict[str, int] = {}
+    for row in rows:
+        tgt = cast.get(row.archetype, "")
+        if tgt:
+            deepest[tgt] = max(deepest.get(tgt, 0), row.layer)
+    for row in rows:
         target = cast.get(row.archetype, "")
         if row.archetype in _NO_CAST or not target or (avail and target not in avail):
             continue
@@ -294,7 +303,7 @@ def cast_scene(section, stack: list[StackRow], available_groups: list[str], *,
         if not looks:
             continue
         ins = EffectInstruction(
-            target=target, effect_type=et, look_id=looks[0], layer=row.layer,
+            target=target, effect_type=et, look_id=looks[0], layer=deepest[target] - row.layer,
             render_style=row.render_style,
             palette_colors=effect_palette(palette, et, len(out), pal_offset) if palette else [],
             start_ms=section.start_ms, end_ms=section.end_ms, source="scene")

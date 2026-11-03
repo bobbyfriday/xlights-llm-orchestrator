@@ -351,6 +351,112 @@ def _warnings(sections: list, downbeats_ms: list[int] | None, tol: int) -> list[
 
 # ---------------------------------------------------------------- entry points
 
+_SETTINGS_KEY = re.compile(r"^[A-Z]_[A-Za-z0-9_]+$")
+_SETTINGS_RESERVED = {"T_CHOICE_LayerMethod": "blend", "B_CHOICE_BufferTransform": "transform",
+                      "B_CHOICE_BufferStyle": "render_style", "T_TEXTCTRL_Fadein": "fade_in",
+                      "T_TEXTCTRL_Fadeout": "fade_out"}
+
+
+def _stack_checks(sections: list, vocab: dict, errors: list[Issue]) -> None:
+    """The authored `stack` layers: every name from the vocab, every look a real catalog look,
+    every knob a knob of that look within its observed range, settings keys well-formed."""
+    from xlights_core.knowledge import KnobValueError, get_library, validate_knob_value
+    from ..show_plan import (BUFFER_TRANSFORMS, STACK_ALTERNATIONS, STACK_CELL_BEATS_RANGE,
+                             STACK_DIRECTIONS, STACK_ROLES, STACK_TWINS)
+    from .weave import canon_effect_type
+    groups = _Membership("targetable group", vocab.get("groups", []))
+    effects = _Membership("placeable effect type", vocab.get("effect_types", []), match="effect")
+    roles = _Membership("stack role", vocab.get("stack_roles") or list(STACK_ROLES))
+    blends = _Membership("layer blend method", vocab.get("blends", []), blank_ok=True) if vocab.get("blends") else None
+    transforms = _Membership("buffer transform", vocab.get("transforms") or list(BUFFER_TRANSFORMS), blank_ok=True)
+    directions = _Membership("direction", list(STACK_DIRECTIONS), blank_ok=True)
+    alternations = _Membership("alternation", list(STACK_ALTERNATIONS), blank_ok=True)
+    twins = _Membership("twin", list(STACK_TWINS), blank_ok=True)
+    colors = _Membership("named color", vocab.get("colors", []), match="color") if vocab.get("colors") else None
+    looks_vocab = vocab.get("looks") or {}
+    lib = get_library()
+    for i, sec in enumerate(sections):
+        stack = sec.get("stack") if isinstance(sec, dict) else None
+        if stack is None:
+            continue
+        if not isinstance(stack, list):
+            errors.append(Issue(path=f"sections[{i}].stack", message="stack must be a list of layers"))
+            continue
+        for j, lyr in enumerate(stack):
+            p = f"sections[{i}].stack[{j}]"
+            if not isinstance(lyr, dict):
+                errors.append(Issue(path=p, message="a stack layer must be an object"))
+                continue
+            effects.check(lyr.get("effect_type"), f"{p}.effect_type", errors)
+            groups.check_list(lyr.get("groups"), f"{p}.groups", errors)
+            if "role" in lyr:
+                roles.check(lyr.get("role"), f"{p}.role", errors)
+            if blends is not None and lyr.get("blend") is not None:
+                blends.check(lyr.get("blend"), f"{p}.blend", errors)
+            if lyr.get("transform") is not None:
+                transforms.check(lyr.get("transform"), f"{p}.transform", errors)
+            if lyr.get("direction") is not None:
+                directions.check(lyr.get("direction"), f"{p}.direction", errors)
+            if lyr.get("alternation") is not None:
+                alternations.check(lyr.get("alternation"), f"{p}.alternation", errors)
+            if lyr.get("twin") is not None:
+                twins.check(lyr.get("twin"), f"{p}.twin", errors)
+            if colors is not None:
+                colors.check_list(lyr.get("palette"), f"{p}.palette", errors)
+            cb = lyr.get("cell_beats")
+            if cb is not None:
+                lo, hi = STACK_CELL_BEATS_RANGE
+                if isinstance(cb, bool) or not isinstance(cb, int) or not lo <= cb <= hi:
+                    errors.append(Issue(path=f"{p}.cell_beats",
+                                        message=f"cell_beats must be an integer {lo}–{hi}, got {cb!r}",
+                                        allowed=[str(n) for n in range(lo, hi + 1)]))
+            # the look and its knobs: against the committed catalog (hermetic)
+            et = canon_effect_type(str(lyr.get("effect_type") or ""))
+            look_id = lyr.get("look_id") or ""
+            menu = list(looks_vocab.get(et) or [])
+            if look_id:
+                try:
+                    look = lib.get_look(et, look_id)
+                except KeyError:
+                    errors.append(Issue(path=f"{p}.look_id", message=f"no catalog look {look_id!r} for {et}",
+                                        allowed=_cap(menu or [lk.look_id for lk in lib.get_looks(et)])))
+                    look = None
+            else:
+                look = None
+            knobs = lyr.get("knobs")
+            if knobs:
+                if not isinstance(knobs, dict):
+                    errors.append(Issue(path=f"{p}.knobs", message="knobs must be an object of key → value"))
+                elif look is None:
+                    errors.append(Issue(path=f"{p}.knobs", message="knobs need a look_id to apply to"))
+                else:
+                    by_key = {k.key: k for k in look.knobs}
+                    for key, val in knobs.items():
+                        if key not in by_key:
+                            errors.append(Issue(path=f"{p}.knobs.{key}",
+                                                message=f"{key} is not a knob of {look_id} (frozen or unknown)",
+                                                allowed=_cap(sorted(by_key))))
+                            continue
+                        try:
+                            validate_knob_value(by_key[key], str(val))
+                        except KnobValueError as exc:
+                            k = by_key[key]
+                            rng = ([f"{k.min:g}…{k.max:g}"] if k.numeric and k.min is not None else _cap(k.options or []))
+                            errors.append(Issue(path=f"{p}.knobs.{key}", message=str(exc), allowed=rng))
+            settings = lyr.get("settings")
+            if settings:
+                if not isinstance(settings, dict):
+                    errors.append(Issue(path=f"{p}.settings", message="settings must be an object of key → value"))
+                else:
+                    for key in settings:
+                        if key in _SETTINGS_RESERVED:
+                            errors.append(Issue(path=f"{p}.settings.{key}",
+                                                message=f"use the layer's `{_SETTINGS_RESERVED[key]}` field instead of {key}"))
+                        elif not _SETTINGS_KEY.match(str(key)):
+                            errors.append(Issue(path=f"{p}.settings.{key}",
+                                                message="settings keys look like E_SLIDER_Spirals_Count / B_SLIDER_Blur / C_SLIDER_SparkleFrequency"))
+
+
 def validate_brief(brief_json: dict | str, vocab: dict, *, duration_ms: int,
                    downbeats_ms: list[int] | None = None, tolerance_ms: int = 500) -> ValidationResult:
     """Validate a brief (a dict or JSON text) against the song dir's vocab. Never raises on a
@@ -379,9 +485,24 @@ def validate_brief(brief_json: dict | str, vocab: dict, *, duration_ms: int,
 
     _coverage(sections, duration_ms, tolerance_ms, errors)
     _membership(sections, model_sections, vocab, errors)
+    _stack_checks(sections, vocab, errors)
     _show_palette(brief, vocab, errors)
-    warnings = _warnings(sections, downbeats_ms, tolerance_ms) + _scene_cast_warnings(sections)
+    warnings = (_warnings(sections, downbeats_ms, tolerance_ms) + _scene_cast_warnings(sections)
+                + _triggers_off_warnings(brief))
     return ValidationResult(ok=not errors, errors=errors, warnings=warnings)
+
+
+def _triggers_off_warnings(brief: dict) -> list[Issue]:
+    """A `triggers_off` name that matches no cookbook trigger silently does nothing — say so."""
+    names = brief.get("triggers_off") or []
+    if not names:
+        return []
+    from .cookbook import load_guide
+    from .triggers import parse_cookbook
+    known = {sp.name.strip().casefold(): sp.name for sp in parse_cookbook(load_guide("triggers"))}
+    return [Issue(path=f"triggers_off[{i}]",
+                  message=f"no cookbook trigger named {n!r}; known: {', '.join(sorted(known.values()))}")
+            for i, n in enumerate(names) if isinstance(n, str) and n.strip().casefold() not in known]
 
 
 def write_validation(song_dir, result: ValidationResult) -> Path:

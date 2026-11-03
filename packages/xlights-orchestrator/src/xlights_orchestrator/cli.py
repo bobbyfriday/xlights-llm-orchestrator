@@ -109,7 +109,7 @@ async def _groups_live(sa) -> tuple[list[str], list[str], str | None]:
 
 def _stage_groups(args) -> int:
     from xlights_core.knowledge.colors import NAMED_COLORS
-    from .pipeline.catalog import placeable_effect_types
+    from .pipeline.catalog import look_ids_by_type, placeable_effect_types
     from .pipeline.cookbook import scene_ids
     from .pipeline.effect_meta import DURATION_CELLABLE
     from .pipeline.stage_io import load_analysis, write_layout
@@ -120,7 +120,7 @@ def _stage_groups(args) -> int:
     vocab = build_vocab(groups=groups, effect_types=placeable_effect_types(),
                         cellable=sorted(DURATION_CELLABLE), scene_ids=scene_ids(),
                         stems=[f.stem for f in (getattr(sa, "stems", None) or [])],
-                        colors=list(NAMED_COLORS))
+                        colors=list(NAMED_COLORS), looks=look_ids_by_type())
     vocab_path, schema_path = write_vocab_and_schema(song_dir, vocab)
     layout_path = write_layout(song_dir, show_folder=show_folder, models=models)
     print(f"vocab: {len(vocab['groups'])} targetable groups · {len(vocab['effect_types'])} placeable "
@@ -190,8 +190,12 @@ def _stage_realize(args) -> int:
     rgb = Path(show_folder) / "xlights_rgbeffects.xml" if show_folder else None
     if rgb is not None and rgb.exists():     # singing faces lip-sync to the vocals (deterministic)
         from .pipeline.faces import place_faces
-        faces = place_faces(sa, rgb)
-        instrs = list(instrs) + faces
+        faces = place_faces(sa, rgb, song_dir=song_dir)
+        sung = {f.target for f in faces}      # the face sings the lyric: no caption on top of it
+        instrs = [i for i in instrs if not (i.effect_type == "Text" and i.target in sung)] + faces
+    from .pipeline.matrix_video import place_matrix_video     # the song's film on its video matrix
+    video = place_matrix_video(song_dir, int(round(float(sa.duration_s or 0) * 1000)))
+    instrs = list(instrs) + video
     instrs, dropped = clamp_layer_budget(instrs)    # catalog rule #10: ≤4 layers
     path = write_instructions(song_dir, instrs)
     per: dict[int | None, int] = {}
@@ -352,7 +356,7 @@ def _stage_stills(args) -> int:
 
 
 async def _finalize_live(st, *, name: str, song_path: str, fallback_show_folder: str | None,
-                         timing_tracks: bool):
+                         timing_tracks: bool, song_dir=None):
     from .pipeline.finalize import finalize_sequence
     from .pipeline.media import prepare_media
     async with XLightsClient() as client:
@@ -365,7 +369,8 @@ async def _finalize_live(st, *, name: str, song_path: str, fallback_show_folder:
         media = prepare_media(song_path, show_folder)
         await finalize_sequence(st, client=client, save_as=name, media=media,
                                 show_folder=show_folder,
-                                duration_s=st.song_analysis.duration_s, timing_tracks=timing_tracks)
+                                duration_s=st.song_analysis.duration_s, timing_tracks=timing_tracks,
+                                song_dir=song_dir)
     return media, show_folder
 
 
@@ -381,7 +386,7 @@ def _stage_finalize(args) -> int:
     st.song_analysis, st.show_plan = sa, plan
     media, show_folder = asyncio.run(_finalize_live(
         st, name=name, song_path=song_path, fallback_show_folder=_show_folder(args, load_layout(song_dir)),
-        timing_tracks=not args.no_timing_tracks))
+        timing_tracks=not args.no_timing_tracks, song_dir=song_dir))
     print(f"saved '{name}' · audio: {'attached' if media else 'not staged'} · "
           f"timing tracks: {'off' if args.no_timing_tracks else 'on'} · "
           f"show folder: {show_folder or 'unknown'}")
@@ -497,10 +502,33 @@ def _stage_video_plan(args) -> int:
     m = vs.media
     inherited = len({sh.section_index for sh in vs.shots if sh.inherited})
     print(f"video plan: {len(vs.shots)} shots · {m.filmed_sections} filmed / {m.procedural_sections} "
-          f"procedural sections · {m.clips_planned} Veo clip(s) of {m.campaign_clips}"
+          f"procedural sections" + (f" / {m.photo_sections} photo + overlay" if m.photo_sections else "")
+          + f" · {m.clips_planned} Veo clip(s) of {m.campaign_clips}"
           + (f" · {inherited} inherited beat(s)" if inherited else "")
           if m else f"video plan: {len(vs.shots)} shots")
     print(f"wrote {VIDEO_SCRIPT_NAME}, video_script.md, {MEDIA_PLAN_NAME} → {song_dir}")
+    return 0
+
+
+def _mine_effect(args) -> int:
+    import datetime as _dt
+    import json as _json
+    from xlights_core.knowledge import effect_miner as em
+    manifest = em.load_manifest(args.manifest or em.DEFAULT_MANIFEST, root=args.root)
+    if not manifest.entries:
+        _err(f"no corpus sequences found under {manifest.root} (missing: {len(manifest.missing)})")
+        return EXIT_MISSING
+    facts = em.mine_effect(args.effect_type, manifest, mined_on=_dt.date.today().isoformat())
+    if args.json:
+        Path(args.json).write_text(_json.dumps(em.facts_to_json(facts), indent=0), encoding="utf-8")
+    if args.write:
+        out = em.write_effect_file(Path(args.skill_dir) / f"{args.effect_type}.md", facts)
+        print(f"{facts.effect_type}: {len(facts.placements)} placements / {len(facts.pairs)} pairs from "
+              f"{facts.files_with} of {facts.n_sequences} sequences ({facts.n_songs} songs) → {out}")
+    else:
+        print(em.render_facts(facts), end="")
+    for m in manifest.missing:
+        _err(f"manifest entry missing on disk: {m}")
     return 0
 
 
@@ -627,6 +655,18 @@ def _build_parser() -> argparse.ArgumentParser:
     il.add_argument("--invert-x", action="store_true", help="flip the x axis (inverted preview)")
     il.add_argument("--review-web", action="store_true", help="(reserved) browser review UX")
 
+    me = sub.add_parser("mine-effect",
+                        help="mine one effect type from the community corpus → the Corpus facts block "
+                             "of .claude/skills/xlo-effects/effects/<Type>.md (offline, no xLights)")
+    me.add_argument("effect_type", help='xLights effect name, e.g. Spirals or "Color Wash"')
+    me.add_argument("--manifest", default=None, help="corpus manifest (default: the committed one)")
+    me.add_argument("--root", default=None, help="override the manifest's corpus root folder")
+    me.add_argument("--write", action="store_true",
+                    help="splice the block into the effect file (default: print it)")
+    me.add_argument("--skill-dir", default=".claude/skills/xlo-effects/effects",
+                    help="where the effect files live (with --write)")
+    me.add_argument("--json", default=None, metavar="PATH", help="also dump the raw placements/pairs")
+
     return ap
 
 
@@ -642,6 +682,8 @@ def main(argv: list[str] | None = None) -> None:
         dirs = [Path(d).expanduser() for d in (args.songs or [".", "mp3"])]
         print(cache_rename.run(dirs, do_apply=args.apply))
         return
+    if args.cmd == "mine-effect":       # offline corpus mining — no xLights
+        raise SystemExit(_mine_effect(args))
     if args.cmd == "init-layout":
         # no running-xLights requirement (it needs xLights CLOSED).
         from .pipeline.init_layout import run_init_layout

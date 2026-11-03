@@ -13,7 +13,7 @@ import logging
 from xlights_core.knowledge.colors import contrast_anchors
 from xlights_core.knowledge.value_curves import brightness_setting, motion_curve_setting
 
-from .catalog import candidate_look_ids, placeable_effect_types
+from .catalog import candidate_look_ids, pick_look, placeable_effect_types, ranked_look_ids
 from ..show_plan import (
     BLEND_METHODS,
     FABRIC_ALTERNATIONS,
@@ -377,13 +377,14 @@ def _effective_direction(recipe: CellRecipe) -> str:
     if recipe.direction:
         return recipe.direction
     table = DIRECTION_KNOBS.get(recipe.effect_type)
-    looks = candidate_look_ids(recipe.effect_type)
+    looks = ranked_look_ids(recipe.effect_type)       # any named catalog look, else the picker's
     if not table or "ltr" not in table or not looks:
         return ""
     from xlights_core.knowledge.preset_library import get_library
     try:
         look = get_library().get_look(
-            recipe.effect_type, recipe.look_id if recipe.look_id in looks else looks[0])
+            recipe.effect_type,
+            recipe.look_id if recipe.look_id in looks else pick_look(recipe.effect_type))
     except Exception as exc:  # noqa: BLE001 — LTR direction detection is cosmetic
         log.debug("weave: LTR direction detection failed for %s: %s", recipe.effect_type, exc)
         return ""
@@ -403,9 +404,9 @@ def _cell(recipe: CellRecipe, section: SectionPlan, target: str, slot: int,
           start: int, end: int, intensity: float, blended: bool,
           anchors: tuple[str, str] | None = None, phase: int = 0,
           beats_per_bar: int = _BEATS_PER_BAR,
-          phrasing: str = "staccato") -> EffectInstruction:
-    looks = candidate_look_ids(recipe.effect_type)
-    look = recipe.look_id if recipe.look_id in looks else looks[0]
+          phrasing: str = "staccato", seed: int = 0) -> EffectInstruction:
+    looks = ranked_look_ids(recipe.effect_type)       # ANY catalog look may be named explicitly
+    look = recipe.look_id if recipe.look_id in looks else pick_look(recipe.effect_type, seed)
     palette = recipe.palette or section.palette
     extra = dict(effect_speed_setting(recipe.effect_type, intensity))
     extra.update(brightness_setting(wash_brightness(intensity)))   # cells pop with the energy
@@ -469,6 +470,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
     bpb = rhythm.get("beats_per_bar") or _BEATS_PER_BAR    # the song's meter, threaded into cells
     phrasing = resolve_phrasing(section.phrasing, intensity)   # directed, else inferred from energy
     recipes, bed, phases = _valid_recipes(weave, section, available_groups)
+    _seed = label_seed(section.label) if getattr(section, "label", "") else 0   # looks rhyme per label
     if phrasing == "legato":                  # legato lengthens short cells so the soft edge reads
         for r in recipes:
             r.cell_beats = max(r.cell_beats, LEGATO_CELL_BEATS_FLOOR)
@@ -479,7 +481,7 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
                  [g for g in bed_preference if g in available_groups][:1]
         for g in groups[:1]:                  # ONE spanning bed (the long-bed exception)
             ins = _cell(bed, section, g, 0, section.start_ms, section.end_ms,
-                        intensity, blended=False)
+                        intensity, blended=False, seed=_seed)
             ins.extra_settings["C_SLIDER_Brightness"] = BED_BRIGHTNESS
             if phrasing == "legato":          # a gentle, capped entrance/exit (linear, not a melt)
                 bed_fade = f"{LEGATO_BED_FADE_S:g}"
@@ -511,12 +513,12 @@ def expand_weave(section: SectionPlan, weave: SectionWeave | None, rhythm: dict,
         total = sum(len(c) for c in per_recipe)
         budget = max(0, cell_budget(intensity, section.end_ms - section.start_ms) - len(out))
         factor = budget / total if total > budget else 1.0
-        for r, cells in zip(recipes, per_recipe):
+        for ri, (r, cells) in enumerate(zip(recipes, per_recipe)):
             kept = _downsample(cells, max(1, round(len(cells) * factor))) if factor < 1 else cells
             for slot, t, end, tgt, blended in kept:
                 out.append(_cell(r, section, tgt, slot, t, end, intensity, blended,
                                  anchors=anchors, phase=phases.get(id(r), 0), beats_per_bar=bpb,
-                                 phrasing=phrasing))
+                                 phrasing=phrasing, seed=_seed + 1 + ri))
     return out
 
 
@@ -578,12 +580,13 @@ def expand_composite(recipe: CompositeRecipe, section: SectionPlan, intensity: f
             else:
                 _eff_dir[i] = "rtl"
     out: list[EffectInstruction] = []
+    _seed = label_seed(section.label) if getattr(section, "label", "") else 0
     for g in groups:
         for i, lyr in enumerate(layers):
-            looks = candidate_look_ids(lyr.effect_type)
+            looks = ranked_look_ids(lyr.effect_type)
             if not looks:
                 continue
-            look = lyr.look_id if lyr.look_id in looks else looks[0]
+            look = lyr.look_id if lyr.look_id in looks else pick_look(lyr.effect_type, _seed + i)
             extra = dict(effect_speed_setting(lyr.effect_type, intensity))
             # Odd-indexed layers in a stack get sign=-1 so spin curves counter-phase too.
             _sign = -1 if i % 2 == 1 else 1

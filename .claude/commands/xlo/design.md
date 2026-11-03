@@ -12,7 +12,8 @@ conversation (the song dir `/xlo:analyze` printed). If neither is known, ask whi
 
 **Load the skills first**, by name with the Skill tool: `xlo-brief` (the file and the loop),
 `xlo-sequencing` (effects, energy, palette; read the effects catalog in full as it says),
-`xlo-scenes` (scenes, `scene_cast`, the trigger layer), `xlo-layout` (what the groups are). Follow
+`xlo-effects` (open `effects/<Type>.md` for every effect type you choose; design from an anchor and
+permute), `xlo-scenes` (scenes, `scene_cast`, the trigger layer), `xlo-layout` (what the groups are). Follow
 them; this command only orders the work.
 
 **Steps**

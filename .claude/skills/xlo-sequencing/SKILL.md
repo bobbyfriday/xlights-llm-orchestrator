@@ -15,6 +15,7 @@ them from memory — open the file for the decision at hand.
 | Effect vocabulary: what an effect looks like, which props it suits, its energy band, how long it may run | `xlights-effects-catalog.md` | §2 quick-reference table + §2.1 duration classes; §3–§10 per-effect entries; **§11 placement decision rules** (apply in order) |
 | Rhythm, phrasing, dynamics philosophy; music → effect → prop mapping; song-structure playbook; color strategy; common mistakes | `xlights-sequencing-guide.md` | §1 core philosophy; §2 musical taxonomy; §3 prop roles; §4 mapping matrix; §5 notes per prop type; §6 structure playbook; §7 color; §9 mistakes |
 | Render styles (group canvas vs per-model), layer order, blend modes, phrasing → soft edges, which effects sit low (beds) vs high (accents), what pairs with what | `xlights-layering-rendering-guide.md` | §2 render directions; §4 blend modes; §5 phrasing/soft edges; §6 render styles; §9 recipes; **§9b per-effect layering roles** |
+| How a chosen effect should actually look, move, stack and breathe: dials, anchors to permute from, twin layers, blend semantics, value-curve shapes, exemplars | the `xlo-effects` skill, `effects/<Type>.md` | |
 | Named multi-prop scenes and curated triggers | see the `xlo-scenes` skill | |
 
 Read the catalog in full during `/xlo:design`; dip into the other two by section.
@@ -68,7 +69,7 @@ Palette (per section, 3–5 named colors from `vocab.json` `colors`):
 - Multi-color effects (Plasma, Spirals, Bars) need 3+ colors to render.
 - Holiday songs: red + green + white primaries with 1–2 accents (gold, cool white, ice blue) unless
   the mood clearly calls for something else. White flashes are a spice, not a bed.
-- Feature props pop: when a section centers on `SEM_SNOWFLAKES` / `SEM_SPINNERS`, make them the
+- Feature props pop: when a section centers on `SEM_SNOWFLAKES` / `SEM_SPINNERS` / `SEM_CHARACTERS`, make them the
   bright light-colored focal over a different-hued bed on a broad group. A featured section is
   never near-black.
 

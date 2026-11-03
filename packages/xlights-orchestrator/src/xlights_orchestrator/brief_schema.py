@@ -12,7 +12,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .show_plan import BLEND_METHODS, DIRECTION_CHANGES, FABRIC_ALTERNATIONS, ShowPlan
+from .show_plan import (
+    BLEND_METHODS, BUFFER_TRANSFORMS, DIRECTION_CHANGES, FABRIC_ALTERNATIONS, STACK_ALTERNATIONS,
+    STACK_DIRECTIONS, STACK_ROLES, STACK_TWINS, ShowPlan,
+)
 
 SCHEMA_NAME = "creative_brief.schema.json"
 
@@ -52,6 +55,17 @@ def build_brief_schema(*, groups: list[str], effect_types: list[str], scene_ids:
     _set_scalar_enum(fab, "alternation", [""] + list(FABRIC_ALTERNATIONS))
     _set_scalar_enum(fab, "blend", [""] + list(BLEND_METHODS))
     _set_scalar_enum(fab, "direction_change", [""] + list(DIRECTION_CHANGES))
+    # the authored stack (xlo-effects): roles, blends, transforms, directions, twins, groups, colors
+    stk = defs.get("StackLayer", {}).get("properties", {})
+    _set_scalar_enum(stk, "effect_type", effect_types)
+    _set_scalar_enum(stk, "role", list(STACK_ROLES))
+    _set_scalar_enum(stk, "blend", [""] + list(BLEND_METHODS))
+    _set_scalar_enum(stk, "transform", list(BUFFER_TRANSFORMS))
+    _set_scalar_enum(stk, "direction", list(STACK_DIRECTIONS))
+    _set_scalar_enum(stk, "alternation", list(STACK_ALTERNATIONS))
+    _set_scalar_enum(stk, "twin", list(STACK_TWINS))
+    _set_array_enum(stk, "groups", groups)
+    _set_array_enum(stk, "palette", colors)
     # group fields → the live layout groups
     _set_array_enum(sp, "target_groups", groups)
     _set_array_enum(sp, "pulse_groups", groups)

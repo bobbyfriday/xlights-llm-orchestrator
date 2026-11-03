@@ -1,0 +1,90 @@
+---
+name: xlo-effects
+description: How to use each xLights effect well — one file per effect under effects/, mined from the community corpus and hand-tuned. Each file gives the effect's identity and stack role, thematic fit, the dials and what moving each one does, anchor settings to permute from (never the only options), layering recipes with blend semantics, value-curve shapes with exact strings, prop fit and render style, timing habits, cited exemplar moments from the best community sequences, anti-patterns, and what code can realize today. Load during /xlo:design and /xlo:review for every effect type a section names, and whenever you decide how a chosen effect should actually look, move, stack or breathe.
+---
+
+# xlo-effects
+
+The craft of individual effects, one file each, in `effects/<Type>.md`. This index is deliberately
+short: read the file for the effect you are about to use, not this page.
+
+## How to use these files
+
+1. Pick the section's effect types with `xlo-sequencing` (which family fits the moment).
+2. Open `effects/<Type>.md` for each chosen type **before** deciding how it looks. Read the whole
+   file the first time it comes up in a show; afterwards go straight to the section you need.
+3. Design from an **anchor**, then permute. Anchors are starting points mined from the pros, not a
+   menu. The expected move is: take an anchor, change one or two dials for this section, give the
+   twin layer its own difference, choose the value-curve shape for the phrase, pick the bed.
+4. Think in **stacks**, not single effects. Every file says what the effect sits over, what sits
+   over it, and which blend makes that work. A lone effect on a group canvas is the samey look.
+5. Cite the exemplar you are leaning on in the section's `rationale` ("twin thin spirals over a
+   Butterfly bed, Kid On Christmas 0:00–0:13") so a reviewer can look at the source.
+
+## Stack roles (the vocabulary every file uses)
+
+| Role | What it is | Typical layer |
+|---|---|---|
+| **bed** | the long, soft layer everything else sits on (Ripple, Morph, Butterfly, Color Wash, a slow thick Spirals) | bottom |
+| **carrier** | the rhythmic layer cut on the beat grid (1–2 beat cells, chases, ticks) | middle |
+| **feature** | the identity of the section on the hero (a twin Spirals, a Pinwheel) | middle/top |
+| **overlay** | a layer that only makes sense with something beneath it (Warp, Shader, Kaleidoscope, VU Meter on top) | top |
+| **mask** | a shape whose blend reveals or hides the layer below (Shape + "1 is Mask", SingleStrand + "2 is Unmask") | top |
+| **accent** | a short hit (Shockwave, Meteors, a white flash) | top, punch-through |
+
+xLights composites **bottom → top**. In the `.xsq` the first `EffectLayer` is the TOP layer, and
+the automation API's layer index 0 is that top layer (verified live 2026-11-02). Inside the
+pipeline every layer number is LOGICAL (0 = bottom) and the emitter flips to xLights indices at
+placement, so write stacks bottom → top and never think in indices. With
+the `Normal` blend, black pixels in an upper layer are transparent, so the bed shows through the
+gaps of a striped effect. `Brightness` uses the upper layer as a brightness envelope on the bed.
+`Layered`, `2 reveals 1`, `1 is Mask`/`Unmask` are the reveal tools. See each file's recipes.
+
+## Files
+
+| Effect | Status |
+|---|---|
+| [Spirals](effects/Spirals.md) | mined 2026-11-02 (20 of 22 sequences, 2,068 placements); craft written — the twin on the tree |
+| [SingleStrand](effects/SingleStrand.md) | mined (20 seq, 13,636); craft written — the outline/arch/cane comet |
+| [Shockwave](effects/Shockwave.md) | mined (20 seq, 11,114); craft written — the beat pop and the yard ring |
+| [Pinwheel](effects/Pinwheel.md) | mined (21 seq, 2,586); craft written — the counter-rotating pair |
+| [Bars](effects/Bars.md) | mined (16 seq, 1,115); craft written — beat bar, clap, sweep, texture mask |
+| [Morph](effects/Morph.md) | mined (10 seq, 1,693); craft written — the wipe |
+| [Color Wash](effects/Color%20Wash.md) | mined (12 seq, 1,260); craft written — flood pulse and matrix pool |
+| [Ripple](effects/Ripple.md) | mined (12 seq, 951); craft written — the beat ring and the ring mask |
+| [Warp](effects/Warp.md) | mined (7 seq, 212); craft written — the mirror overlay |
+| everything else | not yet written — run `xlo mine-effect "<Type>" --write`, then fill the craft skeleton; until then fall back to `xlights-effects-catalog.md` §3–§10 |
+
+The corpus itself, with the duplicate check, is in [corpus.md](corpus.md).
+
+Three readings the corpus overturned, worth knowing before you trust the old catalog: Ripple is
+a one-beat ring and a mask, not an ambient bed; Color Wash is mostly a flood-light pulse; Warp
+is an overlay that needs `Canvas` on and something beneath it. And one idiom runs through every
+file: the **twin**, two layers of the same effect differing by direction, transform or color.
+
+`effects/_TEMPLATE.md` is the shape every file follows. The **Corpus facts** block is generated:
+
+```bash
+uv run xlo mine-effect "<Type>" --write
+```
+
+reads the corpus named by `xlights_core/knowledge/corpus_manifest.json` (see [corpus.md](corpus.md)),
+mines every placement of that type with its stack context, and splices the block into
+`effects/<Type>.md`, creating the file with an empty craft skeleton when it does not exist. The
+**Craft** block is hand-written and survives re-mining. Edit craft, never facts. Without `--write`
+the block prints to stdout; `--json <path>` dumps the raw placements and pairs for ad-hoc analysis.
+
+## How a file's knowledge reaches the show
+
+A section's `stack` (the `xlo-brief` skill documents every field) carries what these files
+teach: each layer names the effect, a catalog look (`vocab.json` `looks`), its knobs, raw
+settings such as the value-curve strings printed here, blend, transform, direction, palette,
+`cell_beats` for the beat grid, and a `twin` (mirror / counter / flip / color). Code places the
+stack as written and withholds its synthesized weave, composites, phrase gesture, VU and final
+layer for that section; beat accents still run unless a layer's role is `accent`.
+
+Where a section has no stack, code still synthesizes as before, but its looks now come from a
+picker that rotates among the most-used neutral catalog looks per section instead of taking the
+first look in file order, and the catalog itself is mined from the corpus manifest, so the looks
+these files cite are placeable by id. A look that bakes in a blend or a mask (the "designed"
+looks such as `Spirals#99`) is never a default pick; name it in a stack layer on purpose.

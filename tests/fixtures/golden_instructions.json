@@ -8,7 +8,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#27",
   "on_top": false,
   "palette_colors": [
    "#FF0000",
@@ -29,7 +29,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00",
@@ -74,7 +74,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -106,7 +106,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -138,7 +138,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -161,7 +161,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -193,7 +193,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -225,7 +225,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -248,7 +248,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -280,7 +280,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -303,7 +303,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -326,7 +326,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -358,7 +358,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -379,7 +379,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#144",
   "on_top": false,
   "palette_colors": [
    "Blue",
@@ -403,7 +403,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -435,7 +435,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -467,7 +467,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#00FF00"
@@ -497,7 +497,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -510,6 +510,37 @@
  },
  {
   "direct_settings": "",
+  "effect_type": "Shockwave",
+  "end_ms": 13000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "120",
+   "E_SLIDER_Shockwave_End_Width": "40",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "90",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#10",
+  "on_top": true,
+  "palette_colors": [
+   "white"
+  ],
+  "palette_id": null,
+  "render_style": "Per Preview",
+  "section_index": 1,
+  "start_ms": 12000,
+  "target": "SEM_ALL"
+ },
+ {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 13000,
   "extra_settings": {
@@ -518,7 +549,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#0000FF"
@@ -541,7 +572,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Ripple#0",
+  "look_id": "Ripple#47",
   "on_top": false,
   "palette_colors": [
    "#0000FF",
@@ -566,7 +597,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#58",
   "on_top": false,
   "palette_colors": [
    "#0000FF",
@@ -588,7 +619,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "#0000FF",
@@ -610,7 +641,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "VU Meter#1",
+  "look_id": "VU Meter#40",
   "on_top": false,
   "palette_colors": [
    "Blue",
@@ -634,7 +665,7 @@
   },
   "knob_values": {},
   "layer": 1,
-  "look_id": "Butterfly#0",
+  "look_id": "Butterfly#26",
   "on_top": false,
   "palette_colors": [
    "#FF0000",
@@ -662,7 +693,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Galaxy#0",
+  "look_id": "Galaxy#3",
   "on_top": false,
   "palette_colors": [
    "#0000FF",
@@ -687,7 +718,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#27",
   "on_top": false,
   "palette_colors": [
    "#FF0000",
@@ -718,7 +749,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -748,7 +779,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -769,7 +800,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -799,7 +830,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -829,7 +860,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -850,7 +881,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#0000FF"
@@ -871,7 +902,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Morph#1",
+  "look_id": "Morph#23",
   "on_top": false,
   "palette_colors": [
    "#0000FF",
@@ -905,7 +936,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -935,7 +966,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -956,7 +987,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -986,7 +1017,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1016,7 +1047,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1029,6 +1060,37 @@
  },
  {
   "direct_settings": "",
+  "effect_type": "Shockwave",
+  "end_ms": 17000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "120",
+   "E_SLIDER_Shockwave_End_Width": "40",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "90",
+   "T_CHOICE_LayerMethod": "Max"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#10",
+  "on_top": true,
+  "palette_colors": [
+   "white"
+  ],
+  "palette_id": null,
+  "render_style": "Per Preview",
+  "section_index": 1,
+  "start_ms": 16000,
+  "target": "SEM_ALL"
+ },
+ {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 17000,
   "extra_settings": {
@@ -1037,7 +1099,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#0000FF"
@@ -1060,7 +1122,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Ripple#0",
+  "look_id": "Ripple#47",
   "on_top": false,
   "palette_colors": [
    "#7070FF",
@@ -1094,7 +1156,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1124,7 +1186,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1145,7 +1207,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1175,7 +1237,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1205,7 +1267,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1226,7 +1288,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#0000FF"
@@ -1256,7 +1318,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1286,7 +1348,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1307,7 +1369,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1337,7 +1399,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1350,6 +1412,38 @@
  },
  {
   "direct_settings": "",
+  "effect_type": "Shockwave",
+  "end_ms": 21000,
+  "extra_settings": {
+   "E_CHECKBOX_Shockwave_Blend_Edges": "1",
+   "E_CHECKBOX_Shockwave_Scale": "1",
+   "E_NOTEBOOK_Shockwave": "Position",
+   "E_SLIDER_Shockwave_Accel": "0",
+   "E_SLIDER_Shockwave_CenterX": "50",
+   "E_SLIDER_Shockwave_CenterY": "50",
+   "E_SLIDER_Shockwave_Cycles": "1",
+   "E_SLIDER_Shockwave_End_Radius": "120",
+   "E_SLIDER_Shockwave_End_Width": "40",
+   "E_SLIDER_Shockwave_Start_Radius": "1",
+   "E_SLIDER_Shockwave_Start_Width": "90",
+   "T_CHOICE_LayerMethod": "Max",
+   "T_TEXTCTRL_Fadeout": "1"
+  },
+  "knob_values": {},
+  "layer": 0,
+  "look_id": "Shockwave#10",
+  "on_top": true,
+  "palette_colors": [
+   "white"
+  ],
+  "palette_id": null,
+  "render_style": "Per Preview",
+  "section_index": 1,
+  "start_ms": 20000,
+  "target": "SEM_ALL"
+ },
+ {
+  "direct_settings": "",
   "effect_type": "SingleStrand",
   "end_ms": 21000,
   "extra_settings": {
@@ -1359,7 +1453,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#0000FF"
@@ -1383,7 +1477,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Ripple#0",
+  "look_id": "Ripple#47",
   "on_top": false,
   "palette_colors": [
    "#0000A3",
@@ -1418,7 +1512,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1440,7 +1534,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1471,7 +1565,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1493,7 +1587,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#0000FF"
@@ -1524,7 +1618,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1546,7 +1640,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "SingleStrand#0",
+  "look_id": "SingleStrand#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1577,7 +1671,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": false,
   "palette_colors": [
    "#FF0000"
@@ -1608,7 +1702,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#FFA6A6"
@@ -1639,7 +1733,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#A6FFA6"
@@ -1670,7 +1764,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#FFA6A6"
@@ -1701,7 +1795,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#A6FFA6"
@@ -1722,7 +1816,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#0",
+  "look_id": "On#50",
   "on_top": false,
   "palette_colors": [
    "white"
@@ -1753,7 +1847,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#FFA6A6"
@@ -1784,7 +1878,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#A6FFA6"
@@ -1815,7 +1909,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#FFA6A6"
@@ -1846,7 +1940,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#A6FFA6"
@@ -1877,7 +1971,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#FFA6A6"
@@ -1908,7 +2002,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#A6FFA6"
@@ -1939,7 +2033,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#FFA6A6"
@@ -1970,7 +2064,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "Shockwave#0",
+  "look_id": "Shockwave#41",
   "on_top": true,
   "palette_colors": [
    "#A6FFA6"

@@ -344,3 +344,12 @@ def test_fabric_blend_unchecked_without_a_blends_vocab():
     b = _clean()
     b["sections"][0]["fabric"] = {"blend": "Whatever"}
     assert validate_brief(b, vocab, duration_ms=DURATION).ok
+
+
+def test_unknown_triggers_off_name_warns_and_known_one_is_quiet():
+    brief = _clean()
+    brief["triggers_off"] = ["Piano Note Chase", "No Such Trigger"]
+    r = _run(brief)
+    assert r.ok
+    msgs = [w.message for w in r.warnings if w.path.startswith("triggers_off")]
+    assert len(msgs) == 1 and "No Such Trigger" in msgs[0] and "Piano Note Chase" in msgs[0]

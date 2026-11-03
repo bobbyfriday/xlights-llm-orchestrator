@@ -49,6 +49,7 @@ Craft lives in the companion skills: `xlo-sequencing` (effects, energy, palette)
 | `palette` | `{name, colors[], mapping}`: the show's named colors and how color follows the song | `null` | `colors` are validated; video-plan uses them as the film's color world |
 | `group_motifs` | `{"<group>": {role, style, color}}`: each group's job across the show | `{}` | no (coherence notes for you) |
 | `key_moments` | `[{at_ms, kind, treatment, text}]` — see Key moments | `[]` | yes |
+| `triggers_off` | cookbook trigger names (`xlights-trigger-cookbook.md` `## ` headings, any case) to skip for THIS song, e.g. `["Drum Shockwaves on Accents"]` | `[]` | yes: those triggers place nothing; the cookbook stays shared. An unknown name warns. Use it for atmospheric songs where note-by-note pops fight the mood, or when a stem's onsets are bleed |
 
 ## Section fields (`SectionPlan`)
 
@@ -75,6 +76,7 @@ Craft lives in the companion skills: `xlo-sequencing` (effects, energy, palette)
 | `accent_effect` | the per-beat punctuation effect | `""` → `On` | the ring's accent cells |
 | `pulse_on` | `"beat"` or `"onset"` | `""` | validated; advisory today |
 | `fabric` | `{carrier, alternation, cell_beats, blend, direction_change, mirror}` — see Fabric | `null` → code chooses | the beat carrier's design; how often directional effects turn |
+| `stack` | a list of authored layers, bottom → top — see Stack | `[]` → code synthesizes | the section's exact effects: code places them and withholds its own weave, composites, phrase gesture, VU and final layer |
 
 ### Treatment → which layers appear
 
@@ -119,9 +121,63 @@ count, thickness and twist each phrase (ribbons ↔ candy cane). The hero runs o
 from the section's start, so put the section on its real downbeat.
 
 The pool the carrier walks is `pulse_groups` when given, else the rhythm props among
-`target_groups` (`SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES`, `SEM_SIDE_*`). Omit the whole block
+`target_groups` (`SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES`, `SEM_STAKES`, `SEM_SIDE_*`). Omit the whole block
 (or leave fields `""`/`null`) and the section realizes exactly as the deterministic fallback —
 and, under `pulse` / `feature`, with no fabric at all. Set `carrier` to get the weave there.
+
+### Stack: the authored layers (xlo-effects)
+
+When you have read the effect files (`xlo-effects`) and know exactly what a section should be,
+say it as a `stack` instead of leaving it to the fabric. Each layer is one effect on one or more
+groups; the list runs bottom → top (code maps that onto xLights, whose layer 1 is the top). Code places the layers as written and **withholds** its
+synthesized weave, composites, phrase gesture, VU and final-occurrence layer for that section.
+The beat accents still run unless a layer's `role` is `accent`, and so does the big-moment ring
+(a slow whole-display Shockwave on the strongest drum hits of a section at intensity ≥ 0.6,
+`pipeline/hits.py`); triggers and key moments still run. No energy gate: the groups you name
+are the groups that light.
+
+| Field | Meaning | Default |
+|---|---|---|
+| `effect_type` | a placeable type from `vocab.json` | required |
+| `role` | `bed` · `carrier` · `feature` · `overlay` · `mask` · `accent` (the stack vocabulary; `accent` silences the code accents) | `feature` |
+| `groups` | the groups this layer lights | the section's `target_groups` |
+| `look_id` | a catalog look from `vocab.json` `looks[effect_type]` (the effect file's anchors name them) | `""` → the picker rotates among the most-used neutral looks |
+| `knobs` | knob values on that look, e.g. `{"E_SLIDER_Spirals_Rotation": "20"}`; validated against the look's observed range | `{}` |
+| `settings` | raw settings verbatim: value curves (`E_VALUECURVE_…` strings from the effect file), `B_SLIDER_Blur`, `C_SLIDER_SparkleFrequency`, transitions | `{}` |
+| `direction` | `ltr` · `rtl` · `up` · `down` · `bounce` · `alternate` · `center_out` · `center_in` · `vary` | `""` (the look's own) |
+| `blend` | `T_CHOICE_LayerMethod` over the layer below: `Max`, `Brightness`, `Layered`, `1 is True Unmask`, `2 reveals 1`… | `""` = Normal |
+| `transform` | `Rotate 180` · `Rotate CW 90` · `Rotate CC 90` · `Flip Horizontal` · `Flip Vertical` | `""` |
+| `render_style` | buffer style (`Per Model Default`, `Per Preview`, `Default`…) | `""` → the per-effect fallback |
+| `palette` | this layer's colors (named colors) | `[]` → the section palette, rotated per layer |
+| `cell_beats` | `0` holds the section; `N` re-cuts the layer every N beats on the beat grid | `0` |
+| `alternation` | which groups a cell lights: `all` · `chase` · `pingpong` · `sparse` | `all` |
+| `twin` | a second row one layer above: `mirror` (Rotate 180, or Flip Horizontal when the base has a transform) · `counter` (direction reversed, a set Rotation/Twist knob negated) · `flip` · `color` (next palette rotation) | `""` |
+| `fade_in` / `fade_out` | seconds | `0` |
+| `brightness` | `1.0` = normal, `0.5` dim, up to `4` | unset |
+
+Blend, transform, fades and buffer style have fields; putting their keys in `settings` is a
+validation error. Hit-class effects (Shockwave, Strobe, Lightning) held longer than a bar are
+still cut per bar; give them `cell_beats` to choose the cut yourself.
+
+A chorus written from the Spirals file:
+
+```json
+"stack": [
+  {"effect_type": "Ripple", "role": "bed", "groups": ["SEM_FOCAL"], "look_id": "Ripple#47",
+   "knobs": {"Ripple_Thickness": "3"}, "cell_beats": 1, "palette": ["white"]},
+  {"effect_type": "Spirals", "role": "feature", "groups": ["SEM_FOCAL"], "look_id": "Spirals#57",
+   "knobs": {"E_SLIDER_Spirals_Rotation": "20", "E_SLIDER_Spirals_Thickness": "50"},
+   "direction": "ltr", "twin": "mirror", "fade_in": 0.25, "fade_out": 0.25},
+  {"effect_type": "Shockwave", "role": "carrier", "groups": ["SEM_ARCHES", "SEM_CANES"],
+   "look_id": "Shockwave#28", "knobs": {"Shockwave_End_Radius": "0", "Shockwave_End_Width": "0",
+   "Shockwave_Start_Width": "100"}, "cell_beats": 1, "palette": ["white"]},
+  {"effect_type": "Warp", "role": "overlay", "groups": ["SEM_FOCAL"], "look_id": "Warp#27"}
+]
+```
+
+A section may carry a `stack` and still name `effect_family`, `palette`, `pulse_groups` and the
+rest; the stack only replaces the synthesized layers. Validation names every bad field with
+its allowed values (`validation.json`), including a knob outside its look's observed range.
 
 ### Labels
 
@@ -149,12 +205,18 @@ the lines from `analysis_digest.md`; no comma or `=` in `text`. Any other `kind`
 Code adds a `climax` at the peak section's downbeat when you give none inside it, and an
 `entrance` per detected instrument entrance. `treatment` is free text for the reader.
 
+A singing character on a matrix is not a brief field: drop `{"target": "Panel Matrix", "face":
+"Slimer"}` into the song dir as `matrix_face.json` (the face must be one of that model's face
+definitions in the layout; image faces need their PNGs where xLights can read them). Realize
+then lip-syncs it over the vocal span and drops the captions on that matrix — the face sings
+the lyric. It reads the `Faces` timing track, which `xlo finalize` writes.
+
 ### Coverage and boundaries (validator errors vs warnings)
 
 Errors (block realize): sections not ordered by `start_ms`; first section starting more than
 500 ms after 0; a gap or overlap > 500 ms between neighbours; last section ending more than
 500 ms before or after the song's duration; `end_ms` ≤ `start_ms`; any name outside the
-vocabulary; `intensity` outside 0–1; `fabric.carrier` not cellable; `cell_beats` outside 1–8.
+vocabulary; `intensity` outside 0–1; `fabric.carrier` not cellable; `cell_beats` outside 1–8; a `stack` layer naming an unknown look, a knob the look froze or a value outside its observed range, or a reserved key in `settings`.
 Warnings (ok stays true): a boundary more than 500 ms from a downbeat (the message names the
 nearest one — move to it); a section longer than 32 s (split it so the look can evolve); the same
 `effect_family` as the previous section.

@@ -79,7 +79,9 @@ def test_emitter_skips_and_bumps_layer(monkeypatch):
     c = _FakeWriteClient()
     rep = run(apply_instructions(c, instrs, duration_secs=10, settle_secs=0))
     assert len(rep["placed"]) == 2 and len(rep["skipped"]) == 1
-    assert calls[0][1] == 0 and calls[1][1] == 1  # second bumped to layer 1
+    # logical: the first row is the bottom, the overlapping second is bumped above it; xLights
+    # numbers from the top, so the second lands on index 0 and the first on index 1
+    assert calls[0][1] == 1 and calls[1][1] == 0
     assert c.rendered
 
 

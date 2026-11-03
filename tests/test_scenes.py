@@ -84,9 +84,10 @@ def test_cast_with_explicit_scene_cast():
                    scene_cast={"G0-ALL-LESS-HERO": "SEM_BAND_GROUND", "G2-HERO": "SEM_FOCAL",
                                "G2-RHYTHM": "SEM_CANES"})
     rows = cast_scene(sec, parse_scene_stack("SC-01"), GROUPS)
+    # logical layers (0 = bottom): the cookbook's L3 wash is the hero's floor, its L1 sparkle the top
     assert [(r.target, r.effect_type, r.layer) for r in rows] == [
         ("SEM_BAND_GROUND", "Color Wash", 0),
-        ("SEM_FOCAL", "Color Wash", 2), ("SEM_FOCAL", "Bars", 1), ("SEM_FOCAL", "Twinkle", 0),
+        ("SEM_FOCAL", "Color Wash", 0), ("SEM_FOCAL", "Bars", 1), ("SEM_FOCAL", "Twinkle", 2),
         ("SEM_CANES", "SingleStrand", 0)]
     assert all(r.source == "scene" and r.look_id for r in rows)
     assert all(r.start_ms == 12000 and r.end_ms == 24000 for r in rows)
@@ -153,17 +154,17 @@ def test_realized_section_carries_the_layered_stack_with_the_blend_on_the_right_
     # the long cellable rows (Bars, SingleStrand) into contiguous 2-bar cells that tile the section
     stack = sorted({(r.target, r.layer, r.effect_type) for r in scene})
     assert stack == [("SEM_ARCHES", 0, "SingleStrand"), ("SEM_BAND_GROUND", 0, "Color Wash"),
-                     ("SEM_FOCAL", 0, "Twinkle"), ("SEM_FOCAL", 1, "Bars"),
-                     ("SEM_FOCAL", 2, "Color Wash")]
+                     ("SEM_FOCAL", 0, "Color Wash"), ("SEM_FOCAL", 1, "Bars"),
+                     ("SEM_FOCAL", 2, "Twinkle")]          # logical: L3 wash at the bottom, L1 sparkle on top
     bars = sorted((r for r in scene if r.effect_type == "Bars"), key=lambda r: r.start_ms)
     assert bars[0].start_ms == 12000 and bars[-1].end_ms == 24000
     assert all(a.end_ms == b.start_ms for a, b in zip(bars, bars[1:]))
     focal = {(r.layer, r.effect_type): r for r in scene if r.target == "SEM_FOCAL"}
-    assert focal[(0, "Twinkle")].extra_settings["T_CHOICE_LayerMethod"] == "Max"   # L1 → layer 0
+    assert focal[(2, "Twinkle")].extra_settings["T_CHOICE_LayerMethod"] == "Max"   # L1 → the top
     assert "T_CHOICE_LayerMethod" not in focal[(1, "Bars")].extra_settings
-    assert "T_CHOICE_LayerMethod" not in focal[(2, "Color Wash")].extra_settings
+    assert "T_CHOICE_LayerMethod" not in focal[(0, "Color Wash")].extra_settings
     # the cookbook level survives the phrase-dynamics pass (flat energy → a constant level)
-    assert focal[(2, "Color Wash")].extra_settings["C_SLIDER_Brightness"] == "25"
+    assert focal[(0, "Color Wash")].extra_settings["C_SLIDER_Brightness"] == "25"
     bed = next(r for r in scene if r.target == "SEM_BAND_GROUND")
     assert bed.extra_settings["C_SLIDER_Brightness"] == "35"
     # no generic base row was synthesized (the stack REPLACED it) and the code bed stood down,

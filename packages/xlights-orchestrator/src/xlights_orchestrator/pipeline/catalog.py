@@ -36,11 +36,29 @@ _NEUTRAL_BY_KEY: dict[str, frozenset[str]] = {
     "T_CHOICE_LayerMethod": frozenset({"", "Normal"}),
     "B_CUSTOM_SubBuffer": frozenset({"", "0.00x0.00x100.00x100.00x0.00x0.00"}),
     "X_Effect_Locked": frozenset({""}),
+    # A baked buffer transform is a sequencer's answer to THEIR prop's orientation (Danger
+    # Zone's star pops are all Rotate CC 90); on ours it is arbitrary. A stack names it on purpose.
+    "B_CHOICE_BufferTransform": frozenset({"", "None"}),
     # On with Cycles > 1 pulses and Shimmer flickers: fine when a brief asks, never as the
     # default bed (effect_meta gives On no speed row for the same reason).
     "E_TEXTCTRL_On_Cycles": frozenset({"", "1", "1.0", "1.00"}),
     "E_CHECKBOX_On_Shimmer": frozenset({"", "0"}),
+    # Compositing nodes and designed exits: an Off with Canvas on and a layer selection is a
+    # blend node in its author's stack; a wipe-out is a gesture.
+    "T_CHECKBOX_Canvas": frozenset({"", "0"}),
+    "T_LayersSelected": frozenset({""}),
+    "T_CHOICE_In_Transition_Type": frozenset({"", "None"}),
+    "T_CHOICE_Out_Transition_Type": frozenset({"", "None"}),
 }
+
+
+def _look_value(look, key: str) -> str | None:
+    if key in look.frozen_base:
+        return look.frozen_base[key]
+    for knob in look.knobs:
+        if knob.key == key:
+            return knob.default or ""
+    return None
 
 
 def placeable_effect_types() -> list[str]:
@@ -66,15 +84,26 @@ def candidate_look_ids(effect_type: str, *, limit: int = 12) -> list[str]:
     return list(ranked_look_ids(effect_type)[:limit])
 
 
-def _neutral(look) -> bool:
-    for key, neutral in _NEUTRAL_BY_KEY.items():
-        if key in look.frozen_base and look.frozen_base[key] not in neutral:
+def _neutral(look, keys: dict[str, frozenset[str]] = _NEUTRAL_BY_KEY) -> bool:
+    for key, allowed in keys.items():
+        if key in look.frozen_base and look.frozen_base[key] not in allowed:
             return False
     for knob in look.knobs:
-        allowed = _NEUTRAL_BY_KEY.get(knob.key)
-        if allowed is not None and (knob.default or "") not in allowed:
+        knob_allowed = keys.get(knob.key)
+        if knob_allowed is not None and (knob.default or "") not in knob_allowed:
             return False
     return True
+
+
+def _informative_keys(looks) -> dict[str, frozenset[str]]:
+    """The neutrality keys that actually vary across a type's looks. Where every look of a
+    type carries the same value (Warp and Kaleidoscope all need `Canvas` on), the key says
+    nothing about design and is ignored for that type."""
+    out: dict[str, frozenset[str]] = {}
+    for key, allowed in _NEUTRAL_BY_KEY.items():
+        if len({_look_value(lk, key) for lk in looks}) > 1:
+            out[key] = allowed
+    return out
 
 
 @lru_cache(maxsize=None)
@@ -83,7 +112,8 @@ def pick_pool(effect_type: str) -> tuple[str, ...]:
     ranked look when none is neutral; empty for an unknown type)."""
     lib = get_library()
     ranked = [lib.get_look(effect_type, lid) for lid in ranked_look_ids(effect_type)]
-    neutral = [lk.look_id for lk in ranked if _neutral(lk)]
+    keys = _informative_keys(ranked)
+    neutral = [lk.look_id for lk in ranked if _neutral(lk, keys)]
     pool = neutral or [lk.look_id for lk in ranked]
     return tuple(pool[:PICK_POOL])
 

@@ -46,3 +46,20 @@ def test_synthesized_meter_is_bound_to_our_beats_track():
     assert vu is not None
     # Community looks bind `Timing Event …` meters to their author's track name; ours has Beats.
     assert vu.extra_settings[VU_TIMING_TRACK_KEY] == VU_DEFAULT_TIMING_TRACK == "Beats"
+
+
+def test_fill_phrase_gesture_always_carries_its_position_curve():
+    from xlights_core.knowledge.preset_library import get_library
+    from xlights_orchestrator.pipeline.beats import PHRASE_ROTATION, place_phrase_gesture
+    lib = get_library()
+    rhythm = {"tempo": 120.0, "beats_per_bar": 4}
+    sec = SectionPlan(start_ms=0, end_ms=40000, intensity=0.8, target_groups=["SEM_ARCHES"],
+                      effect_family="On", palette=["Red", "Green"])
+    fills = []
+    for seed in range(40):
+        g = place_phrase_gesture(sec, rhythm, 0.8, WIDE, seed=seed)
+        if g is not None and g.effect_type == "Fill":
+            fills.append(g.look_id)
+    assert fills, f"no Fill gesture in 40 seeds (rotation {PHRASE_ROTATION})"
+    for lid in set(fills):
+        assert "Active=TRUE" in lib.get_look("Fill", lid).frozen_base.get("E_VALUECURVE_Fill_Position", ""), lid

@@ -35,7 +35,6 @@ Share · breadth per value; `curved` = that key has an active value curve instea
 |---|---|
 | `Blend_Edges` (checkbox) | 1: 99% · 9 seq / 5 songs — 0: 1% · 2 seq / 2 songs — range 0…1 |
 | `Reverse` (checkbox) | 0: 82% · 9 seq / 5 songs — 1: 18% · 3 seq / 2 songs — range 0…1 |
-| `E_NOTEBOOK_Fan` | Position: 58% · 6 seq / 4 songs — Options: 25% · 6 seq / 3 songs — Blades: 17% · 4 seq / 4 songs |
 | `Accel` (slider) | 0: 100% · 9 seq / 5 songs — 1: 0% · 1 seq / 1 song — range 0…1 |
 | `Blade_Angle` (slider) | **curved 4% · 2 seq / 2 songs** — 90: 83% · 8 seq / 5 songs — 0: 11% · 2 seq / 2 songs — 360: 1% · 1 seq / 1 song — -2: 0% · 1 seq / 1 song — range -2…360 |
 | `Blade_Width` (slider) | 100: 85% · 9 seq / 5 songs — 50: 10% · 1 seq / 1 song — 36: 3% · 1 seq / 1 song — 80: 1% · 1 seq / 1 song — 85: 1% · 1 seq / 1 song — range 36…100 |

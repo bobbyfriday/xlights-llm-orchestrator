@@ -59,4 +59,22 @@ def test_on_pool_never_pulses_or_shimmers():
             if k.key == "E_CHECKBOX_On_Shimmer":
                 assert (k.default or "0") == "0", lid
     assert "On#9" not in catalog.pick_pool("On")
+
+
+def test_pool_never_bakes_a_buffer_transform():
+    # Danger Zone's star pops are all `Rotate CC 90` for THEIR prop; a default pick stays upright.
+    for et in catalog.placeable_effect_types():
+        for lid in catalog.pick_pool(et):
+            assert lib.get_look(et, lid).frozen_base.get("B_CHOICE_BufferTransform", "None") == "None", lid
     assert "On#27" not in catalog.pick_pool("On")
+
+
+def test_pool_skips_compositing_nodes_and_designed_exits_but_keeps_canvas_overlays():
+    # Off#15 is an Off with Canvas on (a blend node in Magic's stack); Off#10 wipes out.
+    assert "Off#15" not in catalog.pick_pool("Off")
+    assert "Off#10" not in catalog.pick_pool("Off")
+    # Every Warp / Kaleidoscope look needs Canvas on: the key is uninformative there, so the
+    # overlays still have a pool, and the Brightness-blend Kaleidoscope stays out of it.
+    assert len(catalog.pick_pool("Warp")) == catalog.PICK_POOL
+    assert catalog.pick_pool("Kaleidoscope")
+    assert "Kaleidoscope#5" not in catalog.pick_pool("Kaleidoscope")

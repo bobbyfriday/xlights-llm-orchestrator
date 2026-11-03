@@ -644,6 +644,10 @@ VU_MIN_INTENSITY = 0.55     # only energetic sections get the meter — it's a f
 # wide groups whose buffer reads VU bars/levels well (prefer a horizontal band, fall back broader)
 VU_GROUP_PREFERENCE = ("SEM_BAND_GROUND", "SEM_HOUSE", "SEM_ALL")
 VU_TIMING_TRACK_KEY = "E_CHOICE_VUMeter_TimingTrack"
+# Effects whose community looks bind a timing track by the AUTHOR's track name; the emitter
+# rebinds the key to our Beats track unless the row names a track finalize writes.
+TIMING_TRACK_KEYS: dict[str, str] = {"VU Meter": VU_TIMING_TRACK_KEY,
+                                     "Fireworks": "E_CHOICE_FIRETIMINGTRACK"}
 VU_DEFAULT_TIMING_TRACK = "Beats"                       # written by `xlo finalize` (pipeline/timing.py)
 # The timing tracks finalize can write (pipeline/timing.py); a VU Meter bound to any other name
 # fires on nothing. Per-stem onset tracks are named "Onsets (<stem>)".
@@ -683,6 +687,12 @@ def place_vu_meter(section: SectionPlan, available_groups: list[str], intensity:
 
 # -- Phrase gesture: a single traveling phrase-class effect that enters at the section's 2nd bar --
 PHRASE_ROTATION = ("Morph", "Curtain", "Fill")   # community staples the weave cannot cell
+_GESTURE_NEEDS_CURVE = {"Fill": "E_VALUECURVE_Fill_Position"}
+
+
+def _has_active_curve(effect_type: str, look_id: str, key: str) -> bool:
+    from xlights_core.knowledge.preset_library import get_library
+    return "Active=TRUE" in get_library().get_look(effect_type, look_id).frozen_base.get(key, "")
 PHRASE_MIN_BARS = 6      # skip when the section is too short to accommodate a 4-bar gesture
 PHRASE_GESTURE_BARS = 4  # the span of the gesture (community-style: enters, then exits by section end)
 PHRASE_MIN_INTENSITY = 0.4
@@ -722,6 +732,9 @@ def place_phrase_gesture(section: SectionPlan, rhythm: dict, intensity: float,
     if effect is None:
         return None
     looks = candidate_look_ids(effect)
+    if effect in _GESTURE_NEEDS_CURVE:
+        # Fill IS its Position curve (every corpus placement is curved); a static Fill is an On.
+        looks = [lid for lid in looks if _has_active_curve(effect, lid, _GESTURE_NEEDS_CURVE[effect])]
     if not looks:
         return None
     v = vocab or DEFAULT_VOCAB

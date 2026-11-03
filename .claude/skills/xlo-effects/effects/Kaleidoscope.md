@@ -28,7 +28,6 @@ Share · breadth per value; `curved` = that key has an active value curve instea
 | `Size` (slider) | 32: 37% · 1 seq / 1 song — 47: 14% · 1 seq / 1 song — 25: 11% · 1 seq / 1 song — 100: 11% · 2 seq / 2 songs — 23: 9% · 1 seq / 1 song — 86: 9% · 1 seq / 1 song — 33: 9% · 1 seq / 1 song — range 23…100 |
 | `X` (slider) | 50: 100% · 5 seq / 4 songs |
 | `Y` (slider) | 50: 91% · 5 seq / 4 songs — 0: 9% · 1 seq / 1 song — range 0…50 |
-| `E_TEXTCTRL1` | The warp effect distorts the pixels in the layers below it. The Canvas option in Layer Blending must be enabled for it to work.: 60% · 3 seq / 2 songs — The Kaleidoscope effect distorts the pixels in the layers below it. The Canvas option in Layer Blending must be enabled for it to work.: 40% · 2 seq / 2 songs |
 | `T_CHOICE_LayerMethod` | <absent>: 89% · 4 seq / 4 songs — Brightness: 11% · 1 seq / 1 song |
 | `T_TEXTCTRL_Fadein` | <absent>: 80% · 4 seq / 4 songs — 0.25: 14% · 1 seq / 1 song — 0.75: 6% · 1 seq / 1 song — range 0.25…0.75 |
 | `T_TEXTCTRL_Fadeout` | <absent>: 69% · 3 seq / 3 songs — 0.25: 23% · 2 seq / 2 songs — 4.00: 6% · 1 seq / 1 song — 5: 3% · 1 seq / 1 song — range 0.25…5 |
@@ -205,5 +204,5 @@ held for a section and re-cut at the section, never per beat. Fades 0 or 0.25; a
   nothing places it as an overlay. Write it as the top `stack` layer with `role: "overlay"` and
   `look_id: "Kaleidoscope#0"` over the Pinwheel / Bars / Spirals layers of the same stack; the
   layer clamp counts it as one of four.
-- The miner records `E_TEXTCTRL1` (the panel's help text, which still says "warp" in older
-  builds) as a dial, and `#7` carries it as a knob; ignore it.
+- The catalog look `#7` carries `E_TEXTCTRL1` (the panel's help text, which still says "warp"
+  in older builds) as a knob; it is panel chrome, not a dial. Leave it at its default.

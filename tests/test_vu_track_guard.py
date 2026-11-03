@@ -33,16 +33,18 @@ def _row(effect_type, look_id, **extra):
 def test_emitter_binds_vu_meter_to_beats_unless_the_row_names_one_of_ours(monkeypatch):
     seen = []
     async def fake_place(client, target, effect_type, look_id, **kw):
-        seen.append(kw["extra_settings"].get(VU_TIMING_TRACK_KEY))
+        seen.append(kw["extra_settings"].get(VU_TIMING_TRACK_KEY)
+                    or kw["extra_settings"].get("E_CHOICE_FIRETIMINGTRACK"))
         return "ok"
     monkeypatch.setattr("xlights_orchestrator.effect_emitter.place_preset", fake_place)
     rows = [_row("VU Meter", "VU Meter#68"),                                   # frozen 'Beat Count'
             _row("VU Meter", "VU Meter#45", **{VU_TIMING_TRACK_KEY: "Onsets"}),  # a stack's choice
             _row("VU Meter", "VU Meter#45", **{VU_TIMING_TRACK_KEY: "Drums"}),   # not ours
             _row("VU Meter", "VU Meter#45", **{VU_TIMING_TRACK_KEY: "Onsets (drums)"}),  # per-stem
+            _row("Fireworks", "Fireworks#1"),                                  # timed bursts
             _row("Bars", "Bars#1")]
     asyncio.run(apply_instructions(_Client(), rows, duration_secs=10, settle_secs=0))
-    assert seen == ["Beats", "Onsets", "Beats", "Onsets (drums)", None]
+    assert seen == ["Beats", "Onsets", "Beats", "Onsets (drums)", "Beats", None]
 
 
 def test_place_preset_strips_the_sequencers_editor_lock():

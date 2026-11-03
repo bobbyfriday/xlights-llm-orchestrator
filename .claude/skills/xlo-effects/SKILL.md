@@ -65,7 +65,21 @@ gaps of a striped effect. `Brightness` uses the upper layer as a brightness enve
 | [Meteors](effects/Meteors.md) | mined (15 seq, 115); craft written — rain, rising music sparks, and the corner-explosion twin; black in the palette is the density dial |
 | [Kaleidoscope](effects/Kaleidoscope.md) | mined (5 seq, 35 — thin); craft written — the overlay (Canvas on) that tiles the layers beneath into a mandala on the matrix |
 | [Fire](effects/Fire.md) | mined (4 seq, 8 — thin); craft written — the flame bed; mostly labelled xLights behaviour plus the Halloween brief |
-| everything else | not yet written — run `xlo mine-effect "<Type>" --write`, then fill the craft skeleton; until then fall back to `xlights-effects-catalog.md` §3–§10 |
+| [Off](effects/Off.md) | mined (11 seq, 429); craft written — the blank layer: a placeholder beneath a `2 is Unmask` On, a 1–2 beat kill on one prop, a `Max` gate; never the way to say silence |
+| [Fill](effects/Fill.md) | mined (4 seq, 295 — thin); craft written — the line-prop fill from one end on a `Fill_Position` curve, 100% curved, 2–4 beat cells |
+| [Garlands](effects/Garlands.md) | mined (10 seq, 129); craft written — four crossing swags netting the tree under chases, or a 1-beat per-model house hit |
+| [Marquee](effects/Marquee.md) | mined (7 seq, 129 — thin); craft written — the sign chase: a 1-pixel band round the roofline, Reverse flipped every 8 beats; a matrix frame around the hero |
+| [Pictures](effects/Pictures.md) | mined (6 seq, 137); craft written — a photo or GIF on the matrix telling the lyric, scrolled, mirrored or held; asset-bound, not placeable yet |
+| [Snowflakes](effects/Snowflakes.md) | mined (11 seq, 73); craft written — falling flakes held a phrase on tree, matrix and house, twinned by Type, never curved |
+| [Galaxy](effects/Galaxy.md) | mined (9 seq, 64); craft written — one spiral arm that blooms or collapses over Duration; a 3–12 beat house or star feature, twinned by palette or Reverse+Flip |
+| [Lightning](effects/Lightning.md) | mined (2 seq, 33 — thin); craft written — three bolts at once re-cut every half second through a stinger; never a bed |
+| [Circles](effects/Circles.md) | mined (6 seq, 27 — thin); craft written — drifting discs for 2 beats at section heads, a new colour pair each time |
+| [Plasma](effects/Plasma.md) | mined (4 seq, 23 — thin); craft written — the texture bed with black in the palette, 8–40 beats under Spirals, Warp or video; the `2 reveals 1` layer over a Fan pair |
+| [Shimmer](effects/Shimmer.md) | mined (2 seq, 16 — thin); craft written — the whole prop blinking in palette bands, a phrase apart, never on the beat |
+| [Fireworks](effects/Fireworks.md) | mined (2 seq, 9 — thin); craft written — a 1-beat Beats-triggered burst with a Shockwave over it, or a 3-beat Gravity finale over Bars |
+| [Liquid](effects/Liquid.md) | mined (2 seq, 8 — thin); craft written — the particle fluid sim: cyan rain on the matrix under a film; render-heavy |
+| [Strobe](effects/Strobe.md) | mined (1 seq, 3 — effectively absent); craft is xLights behaviour plus our house rule: peak payoff only, once, ≤ 1 bar |
+| Faces, Video, Text, Moving Head, DMX, Tree, Sketch, Snowstorm, Tendril | not written — asset-bound or hardware types placed by code (`pipeline/faces.py`, `pipeline/matrix_video.py`, `matrix_text`), or one-off corpus curiosities; fall back to `xlights-effects-catalog.md` §3–§10 — run `xlo mine-effect "<Type>" --write`, then fill the craft skeleton; until then fall back to `xlights-effects-catalog.md` §3–§10 |
 
 The corpus itself, with the duplicate check, is in [corpus.md](corpus.md).
 

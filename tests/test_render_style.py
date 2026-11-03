@@ -18,3 +18,9 @@ def test_fallback_never_sparse_default_for_fill():
     # an unknown effect falls back to per-model fill, never the unset sparse default
     assert fallback_style("SomeNewEffect") == "Per Model Default"
     assert resolve_buffer_style("", "Butterfly") in KNOWN_STYLES
+
+
+def test_corpus_buffer_styles_are_known():
+    # The effect files recommend these; an unknown spelling would silently fall back.
+    for style in ("Overlay - Scaled", "Overlay - Centered", "Horizontal Per Model/Strand", "Vertical Stack"):
+        assert resolve_buffer_style(style, "Ripple") == style

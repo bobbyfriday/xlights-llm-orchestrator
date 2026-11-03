@@ -306,6 +306,12 @@ def _share(n: int, total: int) -> str:
     return f"{100 * n / total:.0f}%" if total else "0%"
 
 
+# Keys xLights saves for the effect panel's own widgets, not the effect: the open notebook tab
+# (`E_NOTEBOOK_Fan`, `E_NOTEBOOK1`) and unnamed static text (`E_TEXTCTRL1`, Kaleidoscope's help
+# line). They are not dials and never make a facts row.
+_PANEL_CHROME = re.compile(r"^E_NOTEBOOK(_|\d*$)|^E_TEXTCTRL\d+$")
+
+
 def _short_key(k: str, effect_type: str) -> str:
     for pre in ("E_SLIDER_", "E_TEXTCTRL_", "E_CHECKBOX_", "E_CHOICE_", "E_VALUECURVE_"):
         if k.startswith(pre):
@@ -374,7 +380,8 @@ def render_facts(f: EffectFacts, *, top_n: int = 8) -> str:
     w("")
     w("| Key | Values |")
     w("|---|---|")
-    e_keys = sorted({k for p in P for k in p.settings if k.startswith("E_") and "VALUECURVE" not in k})
+    e_keys = sorted({k for p in P for k in p.settings
+                     if k.startswith("E_") and "VALUECURVE" not in k and not _PANEL_CHROME.match(k)})
     for key in e_keys + [k for k in _CONTEXT_KEYS if any(k in p.settings for p in P)]:
         vc_key = key.replace("E_SLIDER_", "E_VALUECURVE_").replace("E_TEXTCTRL_", "E_VALUECURVE_")
         curved = [p for p in P if _is_active_vc(p.settings.get(vc_key, ""))] if key.startswith("E_") else []

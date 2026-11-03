@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..show_plan import EffectInstruction
@@ -248,7 +249,7 @@ def _sung_lines(lyrics) -> list[tuple[str, int, int]]:
 
 
 def _duet_spans(lines: list[tuple[str, int, int]], face: str, hook: str,
-                shouts: list[tuple[int, int]] = (), lead_ms: int = 0) -> list[tuple[str, int, int]]:
+                shouts: Sequence[tuple[int, int]] = (), lead_ms: int = 0) -> list[tuple[str, int, int]]:
     """Hand each sung line to `face` or `hook`; merge runs into tiled spans.
 
     A shout (an answer the lyric doesn't transcribe) goes to `hook`, and the line it answers to

@@ -45,3 +45,18 @@ def test_look_ids_by_type_covers_every_placeable_type():
     by = catalog.look_ids_by_type()
     assert set(by) == set(catalog.placeable_effect_types())
     assert all(v for v in by.values())
+
+
+def test_on_pool_never_pulses_or_shimmers():
+    # On#9 (Cycles 2) and On#27 (Shimmer) are designed looks: a default bed must hold steady.
+    for lid in catalog.pick_pool("On"):
+        lk = lib.get_look("On", lid)
+        assert lk.frozen_base.get("E_TEXTCTRL_On_Cycles", "1") in {"1", "1.0", "1.00"}, lid
+        assert lk.frozen_base.get("E_CHECKBOX_On_Shimmer", "0") == "0", lid
+        for k in lk.knobs:
+            if k.key == "E_TEXTCTRL_On_Cycles":
+                assert (k.default or "1") in {"1", "1.0", "1.00"}, lid
+            if k.key == "E_CHECKBOX_On_Shimmer":
+                assert (k.default or "0") == "0", lid
+    assert "On#9" not in catalog.pick_pool("On")
+    assert "On#27" not in catalog.pick_pool("On")

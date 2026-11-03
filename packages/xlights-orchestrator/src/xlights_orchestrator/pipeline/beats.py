@@ -643,6 +643,15 @@ def feature_prop_contrast(instructions: list[EffectInstruction], section: Sectio
 VU_MIN_INTENSITY = 0.55     # only energetic sections get the meter — it's a feature texture, not a bed
 # wide groups whose buffer reads VU bars/levels well (prefer a horizontal band, fall back broader)
 VU_GROUP_PREFERENCE = ("SEM_BAND_GROUND", "SEM_HOUSE", "SEM_ALL")
+VU_TIMING_TRACK_KEY = "E_CHOICE_VUMeter_TimingTrack"
+VU_DEFAULT_TIMING_TRACK = "Beats"                       # written by `xlo finalize` (pipeline/timing.py)
+# The timing tracks finalize can write (pipeline/timing.py); a VU Meter bound to any other name
+# fires on nothing. Per-stem onset tracks are named "Onsets (<stem>)".
+OUR_TIMING_TRACKS = frozenset({"Sections", "Beats", "Bars", "Onsets", "Chords", "Lyrics"})
+
+
+def is_our_timing_track(name: str | None) -> bool:
+    return bool(name) and (name in OUR_TIMING_TRACKS or str(name).startswith("Onsets ("))
 
 
 def place_vu_meter(section: SectionPlan, available_groups: list[str], intensity: float,
@@ -664,6 +673,11 @@ def place_vu_meter(section: SectionPlan, available_groups: list[str], intensity:
         target=target, effect_type="VU Meter", look_id=looks[seed % len(looks)],
         render_style="Per Preview",                         # bars span the group as one gesture
         palette_colors=(getattr(section, "palette", None) or [])[:3],
+        # Every community VU Meter look is a `Timing Event …` type bound to ITS sequencer's track
+        # name (Timings, Beats 256bpm, Drum Beats …), which no sequence of ours has: unbound, the
+        # meter fires on nothing. Our finalize step writes a Beats track; the emitter enforces the
+        # same for any VU Meter row whose track is not one of ours.
+        extra_settings={VU_TIMING_TRACK_KEY: VU_DEFAULT_TIMING_TRACK},
         start_ms=section.start_ms, end_ms=section.end_ms)
 
 

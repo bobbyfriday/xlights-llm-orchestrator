@@ -53,13 +53,27 @@ gaps of a striped effect. `Brightness` uses the upper layer as a brightness enve
 | [Color Wash](effects/Color%20Wash.md) | mined (12 seq, 1,260); craft written — flood pulse and matrix pool |
 | [Ripple](effects/Ripple.md) | mined (12 seq, 951); craft written — the beat ring and the ring mask |
 | [Warp](effects/Warp.md) | mined (7 seq, 212); craft written — the mirror overlay |
+| [On](effects/On.md) | mined 2026-11-03 (22 seq, 5,580); craft written — the flat fill: one-beat color pops, the flood flash, the house bed, and the `2 is Unmask` stamp through a shape beneath |
+| [VU Meter](effects/VU%20Meter.md) | mined (12 seq, 1,674); craft written — 95% `Timing Event …` types firing on a timing track: the beat cutter and the `2 is True Unmask` stamp, not an audio meter |
+| [Shader](effects/Shader.md) | mined (11 seq, 880); craft written — a `.fs` texture kept under an On/VU/Bars stamp; asset-bound, not placeable from the catalog yet |
+| [Curtain](effects/Curtain.md) | mined (10 seq, 742); craft written — the one-beat open-then-close twitch, the black close/open over a stack, the slow house close |
+| [Shape](effects/Shape.md) | mined (12 seq, 621); craft written — a one-beat star popping somewhere new every beat over a Spirals twin; ornament scatters on the house |
+| [Wave](effects/Wave.md) | mined (15 seq, 408); craft written — the travelling sine line, twinned L→R against R→L, and the `True Unmask` wave window |
+| [Twinkle](effects/Twinkle.md) | mined (17 seq, 381); craft written — a two-beat white pop every couple of bars, or the quiet bed at Count 2–6; never per-beat |
+| [Butterfly](effects/Butterfly.md) | mined (14 seq, 292); craft written — the organic bed held a phrase on lines and trees, with hits layered beneath it |
+| [Fan](effects/Fan.md) | mined (9 seq, 275); craft written — the per-flake propeller, three stacked wheels on the tree, the corner sunburst at a section head |
+| [Meteors](effects/Meteors.md) | mined (15 seq, 115); craft written — rain, rising music sparks, and the corner-explosion twin; black in the palette is the density dial |
+| [Kaleidoscope](effects/Kaleidoscope.md) | mined (5 seq, 35 — thin); craft written — the overlay (Canvas on) that tiles the layers beneath into a mandala on the matrix |
+| [Fire](effects/Fire.md) | mined (4 seq, 8 — thin); craft written — the flame bed; mostly labelled xLights behaviour plus the Halloween brief |
 | everything else | not yet written — run `xlo mine-effect "<Type>" --write`, then fill the craft skeleton; until then fall back to `xlights-effects-catalog.md` §3–§10 |
 
 The corpus itself, with the duplicate check, is in [corpus.md](corpus.md).
 
-Three readings the corpus overturned, worth knowing before you trust the old catalog: Ripple is
-a one-beat ring and a mask, not an ambient bed; Color Wash is mostly a flood-light pulse; Warp
-is an overlay that needs `Canvas` on and something beneath it. And one idiom runs through every
+Readings the corpus overturned, worth knowing before you trust the old catalog: Ripple is a
+one-beat ring and a mask, not an ambient bed; Color Wash is mostly a flood-light pulse; Warp and
+Kaleidoscope are overlays that need `Canvas` on and something beneath them; VU Meter is a
+timing-track event stamp, not an audio meter; Twinkle is a phrase-pickup pop, not a per-beat
+sparkle; Shape is a per-beat star pop over a twin, not a mask. And one idiom runs through every
 file: the **twin**, two layers of the same effect differing by direction, transform or color.
 
 `effects/_TEMPLATE.md` is the shape every file follows. The **Corpus facts** block is generated:

@@ -38,3 +38,11 @@ def test_look_rotates_by_seed():
     a = place_vu_meter(_sec(intensity=0.9), WIDE, 0.9, seed=0)
     b = place_vu_meter(_sec(intensity=0.9), WIDE, 0.9, seed=1)
     assert a.look_id != b.look_id                    # different sections get different looks
+
+
+def test_synthesized_meter_is_bound_to_our_beats_track():
+    from xlights_orchestrator.pipeline.beats import VU_DEFAULT_TIMING_TRACK, VU_TIMING_TRACK_KEY
+    vu = place_vu_meter(_sec(intensity=0.9), WIDE, 0.9)
+    assert vu is not None
+    # Community looks bind `Timing Event …` meters to their author's track name; ours has Beats.
+    assert vu.extra_settings[VU_TIMING_TRACK_KEY] == VU_DEFAULT_TIMING_TRACK == "Beats"

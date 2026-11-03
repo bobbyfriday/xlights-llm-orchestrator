@@ -20,7 +20,9 @@ from .knowledge.settings import parse_settings, serialize_settings
 # Settings keys REMOVED from current xLights but still carried by mined looks (authored in
 # older versions). Stripped at assembly — they were already non-functional; shipping them only
 # makes the editor log `ApplySetting: Unable to find` on every effect selection.
-DROP_KEYS = {"E_CHECKBOX_Chase_3dFade1"}
+# `X_Effect_Locked` is a sequencer's editor lock frozen into ~70 community looks: placed as-is it
+# locks OUR effect against editing in xLights, which is never what a generated show wants.
+DROP_KEYS = {"E_CHECKBOX_Chase_3dFade1", "X_Effect_Locked"}
 
 log = logging.getLogger(__name__)
 

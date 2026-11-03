@@ -239,9 +239,11 @@ def test_shout_edges_come_from_the_fine_vocal_envelope():
     from xlights_orchestrator.pipeline.faces import shout_spans
     from xlights_orchestrator.pipeline.timing import TimingMark
     env = [0.0] * 200                            # 10 s at 50 ms
-    for i in range(41, 45): env[i] = 0.3         # the tail of "call" (2.05-2.25 s): weaker
+    for i in range(41, 45):                      # the tail of "call" (2.05-2.25 s): weaker
+        env[i] = 0.3
     for a, b in ((50, 57), (59, 63), (65, 72)):  # "ghost - bus - ters" at 2.5-3.6 s
-        for i in range(a, b): env[i] = 0.9
+        for i in range(a, b):
+            env[i] = 0.9
     words = [TimingMark("CALL", 1500, 2000), TimingMark("NEXT", 6000, 6500)]
     sa = SimpleNamespace(stems=[])
     assert shout_spans(sa, words, "call", envelope=env) == [(2500, 3600)]

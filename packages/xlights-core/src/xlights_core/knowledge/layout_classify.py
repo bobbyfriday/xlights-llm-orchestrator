@@ -86,14 +86,14 @@ def _node_count(display_as: str, m: ET.Element) -> int:
     def _pint(*keys: str, d: int = 1) -> int:
         for k in keys:
             try:
-                return int(m.get(k))
+                return int(m.get(k) or "")
             except (TypeError, ValueError):
                 continue
         return d
     if display_as == "Custom":
         compressed = m.get("CustomModelCompressed", "") or ""
         if compressed:
-            cells = (entry.split(",", 1)[0] for entry in compressed.split(";"))
+            cells = [entry.split(",", 1)[0] for entry in compressed.split(";")]
         else:
             cells = (m.get("CustomModel", "") or "").replace(";", ",").split(",")
         best = 0

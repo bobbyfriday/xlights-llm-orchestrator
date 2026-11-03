@@ -248,7 +248,7 @@ def load_xtiming(path: str | Path, name: str = "Faces") -> TimingTrack | None:
         marks: list[TimingMark] = []
         for e in el.findall("Effect"):
             try:
-                s, en = round(float(e.get("starttime"))), round(float(e.get("endtime")))
+                s, en = round(float(e.get("starttime") or "")), round(float(e.get("endtime") or ""))
             except (TypeError, ValueError):
                 continue
             if marks:

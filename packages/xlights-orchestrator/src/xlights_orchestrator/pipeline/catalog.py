@@ -30,9 +30,17 @@ KNOWN_REJECTED_TYPES: set[str] = {"Text", "Moving Head"}
 
 PICK_POOL = 6                     # rotate among this many of the most-used neutral looks
 # A look carrying one of these in its frozen base, or as a knob whose default is not neutral,
-# is a *designed* look (a blend, a mask, a quadrant, a locked preset), never a default pick.
-_NON_NEUTRAL_KEYS = ("T_CHOICE_LayerMethod", "B_CUSTOM_SubBuffer", "X_Effect_Locked")
-_NEUTRAL_VALUES = {"", "Normal", "0.00x0.00x100.00x100.00x0.00x0.00"}
+# is a *designed* look (a blend, a mask, a quadrant, a locked preset, a pulsing or shimmering
+# On), never a default pick. Key → the values that still count as neutral.
+_NEUTRAL_BY_KEY: dict[str, frozenset[str]] = {
+    "T_CHOICE_LayerMethod": frozenset({"", "Normal"}),
+    "B_CUSTOM_SubBuffer": frozenset({"", "0.00x0.00x100.00x100.00x0.00x0.00"}),
+    "X_Effect_Locked": frozenset({""}),
+    # On with Cycles > 1 pulses and Shimmer flickers: fine when a brief asks, never as the
+    # default bed (effect_meta gives On no speed row for the same reason).
+    "E_TEXTCTRL_On_Cycles": frozenset({"", "1", "1.0", "1.00"}),
+    "E_CHECKBOX_On_Shimmer": frozenset({"", "0"}),
+}
 
 
 def placeable_effect_types() -> list[str]:
@@ -59,11 +67,12 @@ def candidate_look_ids(effect_type: str, *, limit: int = 12) -> list[str]:
 
 
 def _neutral(look) -> bool:
-    for key in _NON_NEUTRAL_KEYS:
-        if key in look.frozen_base and look.frozen_base[key] not in _NEUTRAL_VALUES:
+    for key, neutral in _NEUTRAL_BY_KEY.items():
+        if key in look.frozen_base and look.frozen_base[key] not in neutral:
             return False
     for knob in look.knobs:
-        if knob.key in _NON_NEUTRAL_KEYS and (knob.default or "") not in _NEUTRAL_VALUES:
+        allowed = _NEUTRAL_BY_KEY.get(knob.key)
+        if allowed is not None and (knob.default or "") not in allowed:
             return False
     return True
 

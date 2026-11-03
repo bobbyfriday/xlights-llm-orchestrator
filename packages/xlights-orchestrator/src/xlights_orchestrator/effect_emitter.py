@@ -10,6 +10,7 @@ from xlights_core import XLightsClient, XLightsResponseError, XLightsTargetMissi
 from xlights_core.editing import CleanSlateRequired, PresetPlacementError, place_direct, place_preset
 from xlights_core.knowledge.validators import KnobValueError
 
+from .pipeline.beats import VU_DEFAULT_TIMING_TRACK, VU_TIMING_TRACK_KEY, is_our_timing_track
 from .pipeline.render_style import resolve_buffer_style
 
 from .show_plan import EffectInstruction
@@ -209,6 +210,11 @@ async def apply_instructions(
         # LLM's render style if valid, else a fallback — never the sparse unset default.
         extra = dict(ins.extra_settings)
         extra["B_CHOICE_BufferStyle"] = resolve_buffer_style(ins.render_style, ins.effect_type)
+        if ins.effect_type == "VU Meter" and not is_our_timing_track(extra.get(VU_TIMING_TRACK_KEY)):
+            # Community looks bind `Timing Event …` meters to their author's track name, which no
+            # sequence of ours has; unbound, the meter fires on nothing. Bind it to our Beats
+            # track unless the row already names one finalize writes.
+            extra[VU_TIMING_TRACK_KEY] = VU_DEFAULT_TIMING_TRACK
         try:
             if getattr(ins, "direct_settings", ""):
                 # F-B asset-bound path: settings built in code (Text/Faces), catalog bypassed.

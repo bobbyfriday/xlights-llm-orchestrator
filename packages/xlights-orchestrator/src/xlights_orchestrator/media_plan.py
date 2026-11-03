@@ -301,9 +301,17 @@ def procedural_brief(shot: Shot, palette: list[str], c: ScriptConstraints) -> st
             f"({dur:.2f} s), {c.width}×{c.height}, opaque, no text. No people, faces, hands or animals.")
 
 
+def _handoff_medium(medium: str) -> ShotMedium:
+    if medium == "filmed":
+        return "filmed"
+    if medium == "photo":
+        return "photo"
+    return "procedural"
+
+
 def build_handoff(shots: list[Shot], palette: list[str], c: ScriptConstraints) -> list[ShotHandoff]:
     return [ShotHandoff(shot_index=sh.index, section_index=sh.section_index, part=sh.part,
-                        medium=sh.medium if sh.medium in ("filmed", "photo") else "procedural",
+                        medium=_handoff_medium(sh.medium),
                         asset=sh.asset,
                         start_ms=sh.start_ms, end_ms=sh.end_ms, frames=sh.frames,
                         veo_prompt=veo_prompt(sh, c) if sh.medium == "filmed" else "",

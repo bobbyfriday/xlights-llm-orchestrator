@@ -8,7 +8,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#27",
+  "look_id": "On#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000",
@@ -597,7 +597,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#58",
+  "look_id": "On#2",
   "on_top": false,
   "palette_colors": [
    "#0000FF",
@@ -636,6 +636,7 @@
   "effect_type": "VU Meter",
   "end_ms": 24000,
   "extra_settings": {
+   "E_CHOICE_VUMeter_TimingTrack": "Beats",
    "T_CHOICE_LayerMethod": "Max",
    "T_TEXTCTRL_Fadeout": "4"
   },
@@ -718,7 +719,7 @@
   },
   "knob_values": {},
   "layer": 0,
-  "look_id": "On#27",
+  "look_id": "On#32",
   "on_top": false,
   "palette_colors": [
    "#FF0000",

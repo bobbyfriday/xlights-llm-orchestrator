@@ -322,7 +322,10 @@ _TERM_RE = re.compile(r"\b(" + "|".join(re.escape(t) for t in sorted(PERSON_TERM
 def _lint_photo(b: Beat) -> list[str]:
     """A photo plate shows a place or object (no people or animals, same as procedural), names its
     subject and overlay, and once a file or source is given, carries a reusable licence."""
-    ph, i, out = b.photo, b.section_index, []
+    out: list[str] = []
+    ph, i = b.photo, b.section_index
+    if ph is None:
+        return out
     if not ph.subject.strip():
         out.append(f"the photo for section {i} has no subject — say what the photo shows")
     if not ph.overlay.strip():
@@ -518,7 +521,7 @@ def render_markdown(vs: VideoScript) -> str:
         if sh.lyrics:
             L.append("**Lyrics over this shot:** " + " / ".join(f"“{t}”" for t in sh.lyrics))
         L.append("")
-    plates = {}
+    plates: dict[int, Beat] = {}
     for sh in vs.shots:
         if sh.beat.photo is not None:
             plates.setdefault(sh.section_index, sh.beat)
@@ -527,10 +530,12 @@ def render_markdown(vs: VideoScript) -> str:
               "Free-to-reuse images only (CC0, public domain, CC BY with credit, Unsplash, Pexels): "
               "never film stills or images of unknown licence.", ""]
         for i, b in plates.items():
-            ph = b.photo
-            src = f" · <{ph.source_url}>" if ph.source_url else ""
-            lic = " · ".join(x for x in (ph.license, ph.credit) if x) or "licence not yet recorded"
-            L.append(f"- **{b.title}** (section {i}): {ph.subject} — "
-                     + (f"`{ph.file}`" if ph.file else "still to find") + f"{src} · {lic}")
+            plate = b.photo
+            if plate is None:
+                continue
+            src = f" · <{plate.source_url}>" if plate.source_url else ""
+            lic = " · ".join(x for x in (plate.license, plate.credit) if x) or "licence not yet recorded"
+            L.append(f"- **{b.title}** (section {i}): {plate.subject} — "
+                     + (f"`{plate.file}`" if plate.file else "still to find") + f"{src} · {lic}")
         L.append("")
     return "\n".join(L)

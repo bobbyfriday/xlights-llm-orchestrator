@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .layout_semantics import Prop
+from .layout_semantics import Prop, is_null_model
 
 # -- spec §3 step 1: DisplayAs direct map (confidence 1.0) ---------------------------------------
 DISPLAYAS_ROLE: dict[str, str] = {
@@ -52,13 +52,21 @@ NAME_HEURISTICS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("sign", "tune"), "SIGN"),
     (("drive", "walk", "path", "fence", "yard line"), "PATH"),
     (("flake",), "SNOWFLAKE"),
+    (("tomb", "grave", "headstone", "megastone", "stake"), "STAKE"),
+    (("black cat", "ghost", "skull", "skeleton", "witch", "reaper", "spider", "pumpkin",
+      "gingerbread", "snowman", "reindeer", "santa"), "CHARACTER"),
 )
 
-# The 16 canonical roles (spec §2) — the LLM fallback enum and validation draw from this list.
+# The 18 canonical roles (spec §2) — the LLM fallback enum and validation draw from this list.
 CANONICAL_ROLES = (
     "MEGA_TREE", "MINI_TREE", "ARCH", "CANE", "ICICLES", "STAR", "SPINNER", "MATRIX",
-    "WINDOW", "OUTLINE", "FLOOD", "SINGING_FACE", "SIGN", "PATH", "SNOWFLAKE", "CUSTOM_PROP",
+    "WINDOW", "OUTLINE", "FLOOD", "SINGING_FACE", "SIGN", "PATH", "SNOWFLAKE", "STAKE",
+    "CHARACTER", "CUSTOM_PROP",
 )
+
+# spec §3 step 3b: a Custom figure with eye submodels is a CHARACTER (cats, ghosts, gingerbread
+# men…) whatever its name — the submodels are what make it expressive.
+_CHARACTER_SUBMODEL = "eye"
 
 
 @dataclass
@@ -73,16 +81,23 @@ class ClassifyResult:
 # ------------------------------------------------------------------------------------------------
 def _node_count(display_as: str, m: ET.Element) -> int:
     """Pixel count, mirroring preview/layout.py:141-149 (Custom → grid max; Cube → p1·p2·p3;
-    else p1·p2)."""
-    def _pint(k: str, d: int = 1) -> int:
-        try:
-            return int(m.get(k, d))
-        except (TypeError, ValueError):
-            return d
+    else p1·p2). xLights 2026 renamed parm1/parm2 to NumStrings/NodesPerString and stores a
+    Custom grid as CustomModelCompressed ("node,row,col;…"); both spellings are read."""
+    def _pint(*keys: str, d: int = 1) -> int:
+        for k in keys:
+            try:
+                return int(m.get(k))
+            except (TypeError, ValueError):
+                continue
+        return d
     if display_as == "Custom":
-        grid = m.get("CustomModel", "") or ""
+        compressed = m.get("CustomModelCompressed", "") or ""
+        if compressed:
+            cells = (entry.split(",", 1)[0] for entry in compressed.split(";"))
+        else:
+            cells = (m.get("CustomModel", "") or "").replace(";", ",").split(",")
         best = 0
-        for cell in grid.replace(";", ",").split(","):
+        for cell in cells:
             cell = cell.strip()
             if cell:
                 try:
@@ -90,9 +105,11 @@ def _node_count(display_as: str, m: ET.Element) -> int:
                 except ValueError:
                     pass
         return best
+    p1 = _pint("parm1", "NumStrings")
+    p2 = _pint("parm2", "NodesPerString")
     if display_as == "Cube":
-        return _pint("parm1") * _pint("parm2") * _pint("parm3")
-    return _pint("parm1") * _pint("parm2")
+        return p1 * p2 * _pint("parm3", "StrandsPerString")
+    return p1 * p2
 
 
 def parse_props(rgb_path: str | Path, *, layout_group: str = "Default") -> list[Prop]:
@@ -171,6 +188,11 @@ def classify(props: list[Prop]) -> ClassifyResult:
         props[i].confidence = conf
         resolved.add(i)
 
+    # step 0 — a null/placeholder model is in no group (spec §5.6) → nothing to review
+    for i, p in enumerate(props):
+        if is_null_model(p.name):
+            _set(i, "CUSTOM_PROP", 1.0)
+
     # step 1 — DisplayAs direct map
     for i, p in enumerate(props):
         role = DISPLAYAS_ROLE.get(p.display_as)
@@ -191,6 +213,13 @@ def classify(props: list[Prop]) -> ClassifyResult:
         role = _name_role(p.name)
         if role:
             _set(i, role, 0.9)
+
+    # step 3b — a Custom figure with eye submodels is a CHARACTER
+    for i, p in enumerate(props):
+        if i in resolved:
+            continue
+        if p.display_as == "Custom" and any(_CHARACTER_SUBMODEL in s.lower() for s in p.submodels):
+            _set(i, "CHARACTER", 0.85)
 
     # step 4 — group-name hints (inherit the role the user group's name matches)
     for i, p in enumerate(props):
@@ -222,15 +251,23 @@ def apply_overrides(result: ClassifyResult, overrides: dict[str, dict]) -> Class
 
     Applied AFTER steps 1–4 and BEFORE the LLM step: a divergence from the convergence golden is
     fixed by the classifier or an explicit override, never by weakening the diff. An overridden
-    prop is confidence 1.0 (a human decision) and leaves the review/unresolved queue."""
+    prop is confidence 1.0 (a human decision) and leaves the review/unresolved queue. Besides
+    `role`, an override may set `exclude: true` (in no SEM_ group at all — a video matrix) and
+    `focal: true|false` (pins the hero; once any prop pins `focal: true` the pins decide it)."""
     if not overrides:
         return result
     for p in result.props:
         ov = overrides.get(p.name)
-        if ov and ov.get("role") in CANONICAL_ROLES:
+        if not ov:
+            continue
+        if ov.get("role") in CANONICAL_ROLES:
             p.role = ov["role"]
-            p.confidence = 1.0
             p.res = capability(p.role, p.nodes, p.string_type)
+        if "exclude" in ov:
+            p.exclude = bool(ov["exclude"])
+        if "focal" in ov:
+            p.focal_pinned = bool(ov["focal"])
+        p.confidence = 1.0
     result.unresolved = [p for p in result.unresolved if p.name not in overrides]
     return result
 
@@ -265,7 +302,7 @@ def capability(role: str, nodes: int, string_type: str = "") -> str:
         return "2D_RADIAL"
     if role in ("OUTLINE", "PATH"):
         return "LINEAR_HIGH" if nodes >= LINEAR_HIGH_NODES else "LINEAR_LOW"
-    if role in ("ARCH", "CANE", "ICICLES", "SNOWFLAKE", "WINDOW", "MINI_TREE"):
+    if role in ("ARCH", "CANE", "ICICLES", "SNOWFLAKE", "WINDOW", "MINI_TREE", "STAKE", "CHARACTER"):
         return "LINEAR_LOW"
     if role == "SINGING_FACE":
         return "SPECIAL"
@@ -282,10 +319,11 @@ def capability(role: str, nodes: int, string_type: str = "") -> str:
 # ------------------------------------------------------------------------------------------------
 # derive_spatial — spec §4: exclude outliers FIRST, then normalize (decision 5)
 # ------------------------------------------------------------------------------------------------
-_ORDERED_ROLES = ("ARCH", "MINI_TREE", "CANE", "WINDOW", "SNOWFLAKE", "SPINNER")
+_ORDERED_ROLES = ("ARCH", "MINI_TREE", "CANE", "WINDOW", "SNOWFLAKE", "SPINNER", "STAKE", "CHARACTER")
 MIRROR_X_TOL = 0.05
 MIRROR_Y_TOL = 0.05
 FOCAL_AREA_FRACTION = 0.15      # a prop whose visual area exceeds ~15% of the display is focal
+DOMINANT_MATRIX_RATIO = 4.0     # with no tree, a matrix this many × the next one's nodes is the hero alone
 
 
 @dataclass
@@ -301,14 +339,18 @@ def derive_spatial(props: list[Prop], *, invert_x: bool = False) -> SpatialSumma
 
     Order (spec §4/§8): outlier exclusion FIRST (a parked model must not stretch normalization),
     then normalize, bands/sides, sweep order, mirror pairs, center distance, focal flags."""
-    live = [p for p in props if p.nodes > 0]
-    excluded = [p for p in props if p.nodes <= 0]
+    # null placeholders are in no group (spec §5.6) and often parked far off-screen — they must
+    # not stretch the normalization either.
+    live = [p for p in props if p.nodes > 0 and not is_null_model(p.name) and not p.exclude]
+    excluded = [p for p in props if p not in live]
 
     if not live:
         return SpatialSummary(width_units=0.0, focal_x=0.5, symmetric=False, excluded=list(props))
 
-    # (1) outlier exclusion — a model > 2× the display span outside the main bbox is parked.
+    # (1) outlier exclusion — a model > 2× the display span outside the main bbox (on either
+    # axis) is parked.
     xs = sorted(p.wx for p in live)
+    ys = sorted(p.wy for p in live)
     # A robust "core" span that trims the extreme(s) so one parked model can't define the span:
     # the inter-decile range for a big layout, else the range with the single min/max dropped.
     def _core_span(vals: list[float]) -> float:
@@ -320,18 +362,22 @@ def derive_spatial(props: list[Prop], *, invert_x: bool = False) -> SpatialSumma
         else:
             core = vals
         return max((core[-1] - core[0]) if core else 0.0, 1e-6)
+    # the display WIDTH is the yardstick on both axes (spec §8): a yard row sharing one height
+    # has no vertical span of its own to measure against.
     span_x = _core_span(xs)
     # median-based center for outlier distance
     cx = xs[len(xs) // 2]
+    cy = ys[len(ys) // 2]
     kept: list[Prop] = []
     for p in live:
-        if abs(p.wx - cx) > 2.0 * span_x and len(live) > 3:
+        parked = abs(p.wx - cx) > 2.0 * span_x or abs(p.wy - cy) > 2.0 * span_x
+        if parked and len(live) > 3:
             excluded.append(p)
         else:
             kept.append(p)
     if not kept:                                   # everything looked like an outlier → keep all
         kept = live
-        excluded = [p for p in props if p.nodes <= 0]
+        excluded = [p for p in props if p not in live]
 
     # (2) normalize x/y over the kept bbox; ground→top; invert_x flips x.
     minx = min(p.wx for p in kept)
@@ -385,10 +431,14 @@ def derive_spatial(props: list[Prop], *, invert_x: bool = False) -> SpatialSumma
     # (8) focal flags: the hero. The MEGA_TREE when there is one — matrixes then form their own
     # canvas group (SEM_CANVAS) instead of crowding the hero: a display with a tree and eight
     # matrixes made a nine-prop "hero" that doubled every hero look across the screens. With no
-    # mega tree the matrixes are the hero, as before. Plus any non-matrix prop whose visual area
-    # rivals the densest prop's.
+    # mega tree the matrixes are the hero, as before — unless one matrix dwarfs the rest (a video
+    # panel beside low-res window screens), which is then the hero alone. Plus any non-matrix
+    # prop whose visual area rivals the densest prop's.
     total_area = max(dx * dy, 1e-6)
     hero_roles = ("MEGA_TREE",) if mega is not None else ("MATRIX",)
+    matrixes = sorted((p for p in kept if p.role == "MATRIX"), key=lambda q: -q.nodes)
+    dominant = (mega is None and len(matrixes) > 1
+                and matrixes[0].nodes >= DOMINANT_MATRIX_RATIO * max(matrixes[1].nodes, 1))
     for p in kept:
         area_frac = 0.0
         # scale-derived area is unavailable here (Prop carries no scale) → approximate by node
@@ -396,7 +446,11 @@ def derive_spatial(props: list[Prop], *, invert_x: bool = False) -> SpatialSumma
         max_nodes = max((q.nodes for q in kept), default=1) or 1
         area_frac = p.nodes / max_nodes
         big = p.role != "MATRIX" and area_frac >= 0.85 and p.nodes >= 200
-        p.focal = p.role in hero_roles or big
+        hero = p is matrixes[0] if dominant and p.role == "MATRIX" else p.role in hero_roles
+        p.focal = hero or big
+    if any(p.focal_pinned for p in kept):            # a hand-named hero wins outright
+        for p in kept:
+            p.focal = bool(p.focal_pinned)
         _ = total_area  # (kept for parity with spec's area language; node budget is the proxy)
 
     return SpatialSummary(width_units=maxx - minx, focal_x=focal_x, symmetric=symmetric,

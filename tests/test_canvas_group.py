@@ -34,6 +34,17 @@ def test_without_a_tree_the_matrixes_are_the_hero():
     assert g["SEM_FOCAL"] == g["SEM_CANVAS"] == ["Matrix 0", "Matrix 1", "Matrix 2"]
 
 
+def test_without_a_tree_a_dominant_matrix_is_the_hero_alone():
+    ps = _props(with_tree=False)
+    ps.append(Prop(name="Video Panel", display_as="Matrix", role="MATRIX", res="2D_SURFACE",
+                   nodes=49152, wx=150.0, wy=0.0))
+    derive_spatial(ps)
+    g = build_sem_groups(ps)
+    assert g["SEM_FOCAL"] == ["Video Panel"]
+    assert g["SEM_CANVAS"] == ["Matrix 0", "Matrix 1", "Matrix 2"]
+    assert set(g["SEM_CANVAS"]) <= set(g["SEM_ALL_LESS_FOCAL"])
+
+
 def test_canvas_renders_with_the_focal_tier():
     order = canonical_order(["SEM_CANVAS", "SEM_ALL", "SEM_ARCHES", "SEM_SNOWFLAKES"])
     assert order == ["SEM_ALL", "SEM_ARCHES", "SEM_CANVAS", "SEM_SNOWFLAKES"]
@@ -62,3 +73,32 @@ def test_hero_scene_echoes_one_layer_on_the_canvas():
     quiet = sec.model_copy(update={"target_groups": ["SEM_FOCAL"]})
     assert not [r for r in cast_scene(quiet, parse_scene_stack("SC-02"), groups)
                 if r.target == "SEM_CANVAS"]                    # opt-in via target_groups
+
+
+def test_stakes_are_a_rhythm_family_and_characters_are_accents():
+    ps = [Prop(name=f"Tombstone {i}", display_as="Custom", role="STAKE", nodes=100,
+               wx=100.0 * (3 - i), wy=0.0) for i in range(3)]
+    ps += [Prop(name="Cat Left", display_as="Custom", role="CHARACTER", nodes=75, wx=0.0, wy=300.0),
+           Prop(name="Cat Right", display_as="Custom", role="CHARACTER", nodes=75, wx=300.0, wy=300.0),
+           Prop(name="Roof", display_as="Single Line", role="OUTLINE", nodes=200, wx=150.0, wy=400.0)]
+    derive_spatial(ps)
+    g = build_sem_groups(ps)
+    assert g["SEM_STAKES_LTR"] == ["Tombstone 2", "Tombstone 1", "Tombstone 0"]   # left to right
+    assert not set(g["SEM_STAKES"]) & set(g["SEM_ALL_LESS_FOCAL_RHYTHM"])
+    assert set(g["SEM_CHARACTERS"]) == {"Cat Left", "Cat Right"} <= set(g["SEM_ACCENTS"])
+    assert canonical_order(["SEM_CHARACTERS", "SEM_STAKES", "SEM_ALL"]) == \
+        ["SEM_ALL", "SEM_STAKES", "SEM_CHARACTERS"]
+
+
+def test_override_excludes_a_video_matrix_and_pins_the_hero():
+    from xlights_core.knowledge.layout_classify import ClassifyResult, apply_overrides
+    ps = _props(with_tree=False)
+    ps.append(Prop(name="Video Panel", display_as="Matrix", role="MATRIX", res="2D_SURFACE",
+                   nodes=49152, wx=150.0, wy=0.0))
+    apply_overrides(ClassifyResult(props=ps), {"Video Panel": {"exclude": True},
+                                               "Matrix 0": {"focal": True}, "Matrix 1": {"focal": True}})
+    derive_spatial(ps)
+    g = build_sem_groups(ps)
+    assert not any("Video Panel" in members for members in g.values())   # nothing paints the video
+    assert g["SEM_FOCAL"] == ["Matrix 0", "Matrix 1"]
+    assert g["SEM_CANVAS"] == ["Matrix 2"]

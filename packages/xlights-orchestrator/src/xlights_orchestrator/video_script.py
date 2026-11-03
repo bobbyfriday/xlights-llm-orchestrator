@@ -21,6 +21,29 @@ from pydantic import BaseModel, Field, ValidationError
 
 # -- video_story.json (no time fields: a timestamp is unrepresentable) ---------
 
+# Licences a photo plate may carry: free to reuse in a public show without asking. Matched
+# case-insensitively as a prefix ("CC BY 4.0" passes on "cc by"). Film stills, stock under a paid
+# licence and "found on Google" are deliberately absent.
+PHOTO_LICENSES = ("cc0", "public domain", "pd", "cc by", "cc by-sa", "unsplash", "pexels",
+                  "pixabay", "nasa", "own photo")
+
+
+class PhotoPlate(BaseModel):
+    """A real photograph under a procedural overlay: the third look between Veo film and pure code.
+    Optional per beat — a beat without one stays as planned. Free (no Veo clips), any length."""
+    subject: str = Field(description="what the photo shows — also the search for finding one "
+                                     "(a place or object, no people or animals)")
+    move: str = Field(default="slow push-in",
+                      description="the camera move over the still (push-in, pan, parallax drift)")
+    overlay: str = Field(description="the procedural layers composited over it, in the procedural "
+                                     "vocabulary (fog, embers, falling leaves, candle flicker, a "
+                                     "breathing colour wash)")
+    file: str = Field(default="", description="the local image once found; blank = still to find")
+    source_url: str = Field(default="", description="where it came from")
+    license: str = Field(default="", description="its licence (CC0, public domain, CC BY, Unsplash…)")
+    credit: str = Field(default="", description="the author/attribution line the licence asks for")
+
+
 class Beat(BaseModel):
     section_index: int = Field(description="index of the section this beat covers (given in the input)")
     title: str = Field(description="a short name for this story beat")
@@ -35,6 +58,10 @@ class Beat(BaseModel):
         default="",
         description="FILMED beats only: one sentence saying how this beat looks rendered procedurally "
                     "(snow, light, geometry, silhouettes of objects — no people, faces, hands or animals)")
+    photo: PhotoPlate | None = Field(
+        default=None,
+        description="optional: render this beat as a real photo under a procedural overlay instead "
+                    "of pure procedural (on a filmed beat it is the stand-in's plate)")
 
 
 class VideoStory(BaseModel):
@@ -72,7 +99,8 @@ class Shot(BaseModel):
     energy: float = 0.0
     inherited: bool = False          # the story gave no beat for this section; previous beat held
     lyrics: list[str] = []
-    medium: str = "filmed"           # "filmed" (Veo) | "procedural" (code); pre-plan scripts were all filmed
+    medium: str = "filmed"           # "filmed" (Veo) | "procedural" (code) | "photo" (a photo plate
+                                     # under a procedural overlay); pre-plan scripts were all filmed
     asset: str = ""                  # media-plan asset id this shot renders (shared by repeated sections)
     clips: int = 0                   # Veo clips the asset needs (0 for procedural)
     promote_rank: int | None = None  # order in which filmed assets get rendered as quota allows
@@ -84,6 +112,7 @@ class MediaSummary(BaseModel):
     campaign_clips: int
     filmed_sections: int
     procedural_sections: int
+    photo_sections: int = 0          # procedural sections the story upgraded to a photo plate
     assets_filmed: int
     clips_planned: int
     veo_seconds: float
@@ -183,7 +212,7 @@ def split_long_shots(shots: list[Shot], *, max_shot_s: float | None, downbeats_m
 
     Each cut aims at an even share of the remaining span and takes the nearest downbeat inside the
     window that still respects the maximum; with no downbeat available it cuts at the even point.
-    Identity when `max_shot_s` is None. Procedural shots are never split — they render any length,
+    Identity when `max_shot_s` is None. Procedural and photo shots are never split — they render any length,
     frame-exact — so the maximum is a filmed clip length. Shot indexes are renumbered; call
     `assign_lyrics` after so each lyric line lands in the part it starts in.
     """
@@ -194,7 +223,7 @@ def split_long_shots(shots: list[Shot], *, max_shot_s: float | None, downbeats_m
         raise ValueError(f"bad --max-shot-s {max_shot_s}")
     out: list[Shot] = []
     for sh in shots:
-        if sh.medium == "procedural" or sh.end_ms - sh.start_ms <= max_ms:
+        if sh.medium != "filmed" or sh.end_ms - sh.start_ms <= max_ms:
             out.append(sh)
             continue
         cuts, cur = [], sh.start_ms
@@ -290,15 +319,43 @@ _TERM_RE = re.compile(r"\b(" + "|".join(re.escape(t) for t in sorted(PERSON_TERM
                       + r")\b", re.IGNORECASE)
 
 
+def _lint_photo(b: Beat) -> list[str]:
+    """A photo plate shows a place or object (no people or animals, same as procedural), names its
+    subject and overlay, and once a file or source is given, carries a reusable licence."""
+    ph, i, out = b.photo, b.section_index, []
+    if not ph.subject.strip():
+        out.append(f"the photo for section {i} has no subject — say what the photo shows")
+    if not ph.overlay.strip():
+        out.append(f"the photo for section {i} has no overlay — name the procedural layers over it")
+    hit = _TERM_RE.search(f"{ph.subject} {ph.overlay}")
+    if hit:
+        out.append(f"the photo for section {i} depicts '{hit.group(0)}' — a photo plate shows places "
+                   f"and objects only (no people, faces, hands or animals)")
+    if (ph.file.strip() or ph.source_url.strip()):
+        lic = ph.license.strip().casefold()
+        if not lic:
+            out.append(f"the photo for section {i} has a file/source but no licence — record it "
+                       f"(CC0, public domain, CC BY, Unsplash, Pexels…)")
+        elif not any(lic.startswith(ok) for ok in PHOTO_LICENSES):
+            out.append(f"the photo for section {i} is licensed {ph.license!r}, which isn't free to "
+                       f"reuse — pick one under {', '.join(PHOTO_LICENSES)}")
+        elif lic.startswith("cc by") and not ph.credit.strip():
+            out.append(f"the photo for section {i} is {ph.license} — add the credit line it requires")
+    return out
+
+
 def lint_media(story: VideoStory, media: Mapping[int, str]) -> list[str]:
     """Violations of the medium contract, as messages the story's author can act on: procedural
     beats' imagery/action and EVERY stand-in must be free of PERSON_TERMS; filmed beats need a
-    stand-in. `media` maps section index → "filmed" | "procedural" (the media plan)."""
+    stand-in; a photo plate (any beat) must show no people and carry a reusable licence once
+    sourced. `media` maps section index → "filmed" | "procedural" (the media plan)."""
     problems: list[str] = []
     for b in story.beats:
         med = media.get(b.section_index)
         if med is None:
             continue
+        if b.photo is not None:
+            problems += _lint_photo(b)
         if med == "procedural":
             hit = _TERM_RE.search(f"{b.imagery} {b.action}")
             if hit:
@@ -387,12 +444,19 @@ def plan_story(story: VideoStory, *, song: str, sections: list[tuple[int, int]],
     shots = resolve_beats(story, sections, frame_ms=frame_ms, labels=labels,
                           energies=energies, lyrics=lyrics)
     apply_media(shots, media)
+    for sh in shots:                         # the story's choice, inside the plan's procedural budget
+        if sh.medium == "procedural" and sh.beat.photo is not None:
+            sh.medium = "photo"
     shots = split_long_shots(shots, max_shot_s=max_shot_s or budget.effective_clip_s,
                              downbeats_ms=list(downbeats_ms), frame_ms=frame_ms)
     assign_lyrics(shots, lyrics)
     media.handoff = build_handoff(shots, list(palette or []), constraints)
+    ms = summary(media)
+    photos = len({sh.section_index for sh in shots if sh.medium == "photo"})
+    ms = ms.model_copy(update={"photo_sections": photos,
+                               "procedural_sections": ms.procedural_sections - photos})
     vs = VideoScript(song=song, source=source, logline=story.logline, motifs=list(story.motifs),
-                     constraints=constraints, shots=shots, media=summary(media))
+                     constraints=constraints, shots=shots, media=ms)
     return vs, media
 
 
@@ -419,7 +483,8 @@ def render_markdown(vs: VideoScript) -> str:
         est = "unpriced" if m.est_usd is None else f"~${m.est_usd:.2f}"
         L += ["", "## Media", "",
               f"- **{m.filmed_sections} filmed** section(s) in {m.assets_filmed} asset(s) · "
-              f"**{m.procedural_sections} procedural**",
+              f"**{m.procedural_sections} procedural**"
+              + (f" · **{m.photo_sections} photo + overlay**" if m.photo_sections else ""),
               f"- Veo: {m.clips_planned} clip(s) of the {m.campaign_clips}-clip campaign budget · "
               f"{m.veo_seconds:g} s · {est}",
               f"- Today: {m.ledger_remaining} clip(s) left in the daily quota → "
@@ -439,6 +504,11 @@ def render_markdown(vs: VideoScript) -> str:
               f"**Camera:** {b.camera}  ", f"**Light:** {b.lighting}"]
         if sh.medium == "filmed" and b.procedural_stand_in:
             L.append(f"**Procedural stand-in:** {b.procedural_stand_in}  ")
+        if b.photo is not None:
+            ph = b.photo
+            L.append(f"**Photo plate:** {ph.subject} ({ph.move}) · "
+                     + (f"`{ph.file}`" if ph.file else "*still to find*") + "  ")
+            L.append(f"**Overlay:** {ph.overlay}  ")
         if b.motifs:
             L.append(f"**Motifs:** {', '.join(b.motifs)}  ")
         if b.continuity:
@@ -447,5 +517,20 @@ def render_markdown(vs: VideoScript) -> str:
             L.append(f"**Draws on:** {b.draws_on}  ")
         if sh.lyrics:
             L.append("**Lyrics over this shot:** " + " / ".join(f"“{t}”" for t in sh.lyrics))
+        L.append("")
+    plates = {}
+    for sh in vs.shots:
+        if sh.beat.photo is not None:
+            plates.setdefault(sh.section_index, sh.beat)
+    if plates:
+        L += ["## Photo plates", "",
+              "Free-to-reuse images only (CC0, public domain, CC BY with credit, Unsplash, Pexels): "
+              "never film stills or images of unknown licence.", ""]
+        for i, b in plates.items():
+            ph = b.photo
+            src = f" · <{ph.source_url}>" if ph.source_url else ""
+            lic = " · ".join(x for x in (ph.license, ph.credit) if x) or "licence not yet recorded"
+            L.append(f"- **{b.title}** (section {i}): {ph.subject} — "
+                     + (f"`{ph.file}`" if ph.file else "still to find") + f"{src} · {lic}")
         L.append("")
     return "\n".join(L)

@@ -12,7 +12,7 @@ the orchestrator conductor `packages/xlights-orchestrator/src/xlights_orchestrat
 
 | Decision | Read |
 |---|---|
-| The 16 canonical roles and their capability classes | spec §2 |
+| The 18 canonical roles and their capability classes | spec §2 |
 | How a prop gets its role (DisplayAs → node count → name heuristics → user-group hints) | spec §3 |
 | Bands, sides, sweep order, mirror pairs, focal flags | spec §4 |
 | Every SEM_ group and what it contains | spec §5 |
@@ -29,21 +29,23 @@ group xLights accepted — the SEM_ groups below plus the user's own groups (e.g
 | `SEM_ALL` | every prop except singing faces and signs | whole-display beds, washes, flashes, the peak |
 | `SEM_ALL_LESS_FOCAL` | all minus the hero | a bed that leaves the hero clean (cookbook G0-ALL-LESS-HERO) |
 | `SEM_ALL_LESS_FOCAL_RHYTHM` | all minus hero, arches, minis, canes | a bed under a feature and a rhythm voice |
-| `SEM_FOCAL` | the mega tree (the matrixes when there is no tree), any other prop > ~15% of the display | the hero (melody, drops, showpieces) |
-| `SEM_CANVAS` | every matrix | the screens: canvas looks, text, media; a calmer echo of the hero |
+| `SEM_FOCAL` | the mega tree; with no tree, the matrixes — or the one matrix that dwarfs the rest (≥4× the next); any other prop > ~15% of the display | the hero (melody, drops, showpieces) |
+| `SEM_CANVAS` | every matrix that is not the hero (all of them when they all are) | the screens: canvas looks, text, media; a calmer echo of the hero |
 | `SEM_HOUSE` | outline + windows + icicles | the frame bed |
 | `SEM_OUTLINE`, `SEM_WINDOWS`, `SEM_ICICLES`, `SEM_PATH` | one role each | frame segments, outline chases, icicle drips |
-| `SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES` | rhythm families | the beat (the metric ring walks these) |
+| `SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES`, `SEM_STAKES` | rhythm families (stakes = tombstones, peace stakes, any yard row) | the beat (the metric ring walks these) |
 | `SEM_*_LTR` | the same, in left-to-right order | sweeps that must traverse in order |
 | `SEM_SNOWFLAKES`, `SEM_SPINNERS` | sparkle / accent props | hits, sparkle, featured "snow" moments — dark otherwise |
-| `SEM_ACCENTS` | every non-focal, non-outline, non-matrix prop (arches, minis, canes, flakes, spinners) | a broad "everything but the house and hero" statement |
+| `SEM_CHARACTERS` | figures with eye submodels (cats, ghosts, gingerbread men) | accents and featured moments — eyes/mouth/tail submodels for a wink, a look, a hit |
+| `SEM_ACCENTS` | every non-focal, non-outline, non-matrix prop (arches, minis, canes, stakes, flakes, spinners, characters) | a broad "everything but the house and hero" statement |
 | `SEM_FLOODS` | floods / washes | atmosphere, lightning |
 | `SEM_BAND_ROOF` / `_MID` / `_GROUND` | vertical bands | zone beds (`SEM_BAND_GROUND` is the default bed under features) |
 | `SEM_SIDE_LEFT` / `_CENTER` / `_RIGHT` | horizontal thirds | call-and-response, spatial chases, the backbeat |
 | `SEM_YARD` | ground band minus floods | yard-wide statements |
 
 Roles that code relies on: hero = `SEM_FOCAL`; bed = `SEM_BAND_GROUND` then `SEM_ALL`; rhythm
-ring = arches → canes → minis → snowflakes; sparkle = snowflakes + spinners; whole-house hits =
+ring = arches → canes → minis → snowflakes, ranked with stakes by the manifest; sparkle = snowflakes +
+spinners + characters; whole-house hits =
 `SEM_ALL` / `SEM_HOUSE` (`pipeline/semantic_groups.py`). A layout missing a family simply
 disables that sublayer.
 
@@ -75,9 +77,10 @@ media. Radial effects want `2D_RADIAL`; chases want `LINEAR_*`; floods (`POINT`)
    below). A rare name-only entry has no parsed model behind it.
 2. For each unresolved prop pick ONE role from the closed enum — `MEGA_TREE`, `MINI_TREE`, `ARCH`,
    `CANE`, `ICICLES`, `STAR`, `SPINNER`, `MATRIX`, `WINDOW`, `OUTLINE`, `FLOOD`, `SINGING_FACE`,
-   `SIGN`, `PATH`, `SNOWFLAKE`, `CUSTOM_PROP`. Use the name and the user-group names as the
+   `SIGN`, `PATH`, `SNOWFLAKE`, `STAKE`, `CHARACTER`, `CUSTOM_PROP`. Use the name and the user-group names as the
    strongest clues; use node count + DisplayAs for geometry (a big dense Custom grid is a `MATRIX`;
-   a small point cluster is a `CUSTOM_PROP`; a Custom with face submodels is a `SINGING_FACE`).
+   a small point cluster is a `CUSTOM_PROP`; a Custom with face submodels is a `SINGING_FACE`; a figure with eye submodels is a `CHARACTER`;
+   a repeated yard stake in a row is a `STAKE`).
    When unsure, keep `CUSTOM_PROP` — never invent a specific role you can't justify. Ask the
    user about anything ambiguous; they know their yard.
 3. Write the decisions to `<show folder>/layout_overrides.json` (read by

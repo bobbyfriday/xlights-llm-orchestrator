@@ -44,20 +44,25 @@ class Prop:
     mirror_of: str | None = None
     string_type: str = ""
     submodels: list[str] = field(default_factory=list)
+    # layout_overrides.json: `exclude` keeps the prop out of every SEM_ group (a video matrix the
+    # light show must never paint over); `focal_pinned` names the hero by hand.
+    exclude: bool = False
+    focal_pinned: bool | None = None
 
 
 _ROLE_GROUP = {"OUTLINE": "SEM_OUTLINE", "WINDOW": "SEM_WINDOWS", "ARCH": "SEM_ARCHES",
                "MINI_TREE": "SEM_MINITREES", "CANE": "SEM_CANES", "ICICLES": "SEM_ICICLES",
                "FLOOD": "SEM_FLOODS", "SNOWFLAKE": "SEM_SNOWFLAKES", "SPINNER": "SEM_SPINNERS",
-               "PATH": "SEM_PATH"}
+               "PATH": "SEM_PATH", "STAKE": "SEM_STAKES", "CHARACTER": "SEM_CHARACTERS"}
 _NON_ENSEMBLE = ("SINGING_FACE", "SIGN")          # excluded from ensemble groups (spec §5.5)
 
 
 def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
     """The SEM_ group plan (name -> member model names), spec §5.
-    Null/placeholder models (name contains 'null') are excluded from every group."""
+    Null/placeholder models (name contains 'null') and overridden `exclude` props are excluded
+    from every group."""
     from collections import defaultdict
-    props = [p for p in props if not is_null_model(p.name)]     # spec §5.6: no placeholder models
+    props = [p for p in props if not is_null_model(p.name) and not p.exclude]   # spec §5.6
     byrole: dict[str, list[Prop]] = defaultdict(list)
     for p in props:
         byrole[p.role].append(p)
@@ -65,7 +70,7 @@ def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
     for role, gname in _ROLE_GROUP.items():                         # §5.1 role groups
         if byrole.get(role):
             g[gname] = [p.name for p in byrole[role]]
-    for role in ("ARCH", "MINI_TREE", "CANE"):                      # §5.2 ordered LTR
+    for role in ("ARCH", "MINI_TREE", "CANE", "STAKE"):             # §5.2 ordered LTR
         ordered = sorted((p for p in byrole.get(role, []) if p.sweep_order), key=lambda q: q.sweep_order or 0)
         if len(ordered) > 1:
             g[f"{_ROLE_GROUP[role]}_LTR"] = [p.name for p in ordered]
@@ -77,13 +82,15 @@ def build_sem_groups(props: list[Prop]) -> dict[str, list[str]]:
     # Subtractive ensembles (scene cookbook §2): the bed goes on ALL-LESS-* so the featured
     # prop never receives it — no blending arithmetic, no bed ghosting through the feature.
     focal = {p.name for p in props if p.focal}
-    rhythm = {p.name for p in props if p.role in ("ARCH", "CANE", "MINI_TREE")}
+    rhythm = {p.name for p in props if p.role in ("ARCH", "CANE", "MINI_TREE", "STAKE")}
     g["SEM_ALL_LESS_FOCAL"] = [n for n in g["SEM_ALL"] if n not in focal]
     g["SEM_ALL_LESS_FOCAL_RHYTHM"] = [n for n in g["SEM_ALL"] if n not in focal | rhythm]
     g["SEM_FOCAL"] = [p.name for p in props if p.focal]
-    # the screens: every matrix (media, text, canvas looks) — the scene cookbook's G2-CANVAS.
-    # Beside a mega tree this is NOT the hero; with no tree it equals SEM_FOCAL.
-    g["SEM_CANVAS"] = [p.name for p in props if p.role == "MATRIX"]
+    # the screens (media, text, canvas looks) — the scene cookbook's G2-CANVAS: the matrixes that
+    # are NOT the hero (beside a mega tree, or beside one dominant video panel); when every
+    # matrix is the hero it equals SEM_FOCAL.
+    matrixes = [p for p in props if p.role == "MATRIX"]
+    g["SEM_CANVAS"] = [p.name for p in matrixes if not p.focal] or [p.name for p in matrixes]
     g["SEM_ACCENTS"] = [p.name for p in props if not p.focal and p.role not in
                         (("OUTLINE", "MATRIX") + _NON_ENSEMBLE)]
     g["SEM_HOUSE"] = [p.name for p in props if p.role in ("OUTLINE", "WINDOW", "ICICLES")]
@@ -235,10 +242,11 @@ _ORDER_TIERS = (
     ("bed",     lambda n: n.startswith(("SEM_BAND_", "SEM_SIDE_"))),    # zone beds, under features
     ("frame",   lambda n: n in ("SEM_OUTLINE", "SEM_WINDOWS", "SEM_ICICLES", "SEM_PATH", "SEM_HOUSE",
                                 "SEM_YARD")),
-    ("rhythm",  lambda n: n.startswith(("SEM_ARCHES", "SEM_CANES", "SEM_MINITREES"))),
+    ("rhythm",  lambda n: n.startswith(("SEM_ARCHES", "SEM_CANES", "SEM_MINITREES", "SEM_STAKES"))),
     ("other",   lambda n: True),                       # plain groups + individual models
     ("focal",   lambda n: n in ("SEM_FOCAL", "SEM_CANVAS") or "matrix" in n.lower()),
-    ("accent",  lambda n: n.startswith(("SEM_SNOWFLAKES", "SEM_SPINNERS")) or "star" in n.lower()),
+    ("accent",  lambda n: n.startswith(("SEM_SNOWFLAKES", "SEM_SPINNERS", "SEM_CHARACTERS"))
+                or "star" in n.lower()),
 )
 
 

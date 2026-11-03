@@ -16,6 +16,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from .layout_classify import ClassifyResult, SpatialSummary
+from .layout_semantics import is_null_model
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +75,8 @@ def build_manifest(result: ClassifyResult, summary: SpatialSummary,
                    generated: str | None = None) -> LayoutManifest:
     """Assemble a manifest from a classify result + spatial summary + the SEM_ group plan.
 
-    ``review`` collects every prop below 0.8 confidence and every excluded outlier (spec §7.4)."""
+    ``review`` collects every prop below 0.8 confidence and every excluded outlier (spec §7.4);
+    a null placeholder is excluded by design, never a question."""
     modes = modes or {}
     prop_recs = [
         PropRecord(id=p.name, role=p.role, res=p.res, nodes=p.nodes,
@@ -89,7 +91,8 @@ def build_manifest(result: ClassifyResult, summary: SpatialSummary,
         for name, members in groups.items()
     }
     review_names = sorted({p.name for p in result.props if p.confidence < 0.8}
-                          | {p.name for p in summary.excluded})
+                          | {p.name for p in summary.excluded
+                             if not is_null_model(p.name) and not p.exclude})
     return LayoutManifest(
         version=MANIFEST_VERSION,
         generated=datetime.now(timezone.utc).isoformat() if generated is None else generated,

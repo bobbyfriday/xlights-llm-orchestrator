@@ -32,7 +32,7 @@ section.
    enum). (A rare entry with only a `name` has no parsed model behind it.) Classify each
    into ONE role from the skill's closed enum
    (`MEGA_TREE`, `MINI_TREE`, `ARCH`, `CANE`, `ICICLES`, `STAR`, `SPINNER`, `MATRIX`, `WINDOW`,
-   `OUTLINE`, `FLOOD`, `SINGING_FACE`, `SIGN`, `PATH`, `SNOWFLAKE`, `CUSTOM_PROP`): the name and the
+   `OUTLINE`, `FLOOD`, `SINGING_FACE`, `SIGN`, `PATH`, `SNOWFLAKE`, `STAKE`, `CHARACTER`, `CUSTOM_PROP`): the name and the
    user's group names first, node count and DisplayAs for geometry. Keep `CUSTOM_PROP` when unsure.
    Ask the user about the props you can't justify, all in one question; they know their yard.
 

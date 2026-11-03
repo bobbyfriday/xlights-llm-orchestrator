@@ -32,7 +32,9 @@ Load the `xlo-video` skill with the Skill tool and follow it for the story rules
    object for any character), and exactly one beat per brief section by `section_index`. No time
    fields, no on-screen words. Honor the plan: filmed sections may show people and real places;
    procedural sections use only the procedural vocabulary (no people, faces, hands, animals). Give
-   every beat a `procedural_stand_in`. Sections with the same label share imagery and action.
+   every beat a `procedural_stand_in`. Where a real place or object would carry a procedural beat better
+   than drawn shapes, add a `photo` plate (a free-to-reuse photo under a procedural overlay; see
+   the skill). Use it on a few beats, not all, and only with licences the skill allows. Sections with the same label share imagery and action.
 
 4. Plan the story. The matrix resolution is never guessed: if the user hasn't given it, ask ("what
    is the video matrix's resolution, e.g. 1024x768?") and wait.
@@ -45,5 +47,6 @@ Load the `xlo-video` skill with the Skill tool and follow it for the story rules
 
 5. Read `<song dir>/video_script.md` and present the storyboard in viewer terms: the logline and
    motifs; per shot its time range in m:ss, its medium, and what we see in a line; then the
-   summary (filmed vs procedural sections, clips planned against the budget). Offer to revise any
+   summary (filmed vs procedural vs photo sections, clips planned against the budget), and any
+   photo plates still to find. Offer to revise any
    beat; a revision is an edit to `video_story.json` and step 4 again.

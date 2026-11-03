@@ -9,6 +9,7 @@ import pytest
 from xlights_orchestrator.pipeline.video import parse_size
 from xlights_orchestrator.video_script import (
     Beat,
+    PhotoPlate,
     Shot,
     VideographerOut,
     VideoScript,
@@ -17,6 +18,8 @@ from xlights_orchestrator.video_script import (
     constraints_for,
     lint_media,
     lyric_lines,
+    plan_story,
+    render_markdown,
     resolve_beats,
     split_long_shots,
 )
@@ -199,3 +202,53 @@ def test_pre_plan_script_json_still_loads():
     vs = VideoScript.model_validate(old)
     assert vs.media is None and vs.shots[0].medium == "filmed" and vs.shots[0].promote_rank is None
     assert isinstance(vs.shots[0], Shot)
+
+
+# -- photo plates (a real photo under a procedural overlay) ---------------------------------
+
+def _plate(**kw) -> PhotoPlate:
+    return PhotoPlate(**({"subject": "a porch at night in fog", "overlay": "drifting fog, candle flicker"} | kw))
+
+
+def test_lint_accepts_an_unsourced_plate_and_a_licensed_one():
+    media = {0: "procedural", 1: "filmed", 2: "procedural"}
+    assert lint_media(_beats({0: {"photo": _plate()}}), media) == []          # still to find
+    sourced = _plate(file="porch.jpg", source_url="https://commons.wikimedia.org/x", license="CC0")
+    assert lint_media(_beats({2: {"photo": sourced}}), media) == []
+
+
+@pytest.mark.parametrize("kw, needle", [
+    ({"subject": "a woman on a porch"}, "'woman'"),
+    ({"overlay": ""}, "no overlay"),
+    ({"file": "still.jpg"}, "no licence"),
+    ({"file": "still.jpg", "license": "All rights reserved"}, "isn't free to reuse"),
+    ({"file": "p.jpg", "license": "CC BY 4.0"}, "credit line"),
+])
+def test_lint_flags_bad_plates(kw, needle):
+    msgs = lint_media(_beats({0: {"photo": _plate(**kw)}}), {0: "procedural", 1: "filmed", 2: "procedural"})
+    assert any(needle in m for m in msgs), msgs
+
+
+def test_plan_story_turns_procedural_plate_beats_into_photo_shots():
+    from xlights_orchestrator.media_plan import MediaBudget
+    story = _beats({0: {"photo": _plate(file="porch.jpg", license="public domain")}})
+    vs, media = plan_story(story, song="s", sections=SECTIONS, labels=["intro", "verse", "outro"],
+                           energies=[0.2, 0.9, 0.1], lyrics=[], downbeats_ms=[], width=256, height=192,
+                           budget=MediaBudget(campaign_clips=0))           # all procedural
+    assert [sh.medium for sh in vs.shots] == ["photo", "procedural", "procedural"]
+    assert vs.media.photo_sections == 1 and vs.media.procedural_sections == 2
+    h = media.handoff[0]
+    assert h.medium == "photo" and h.photo.file == "porch.jpg" and "porch.jpg" in h.procedural_brief
+    md = render_markdown(vs)
+    assert "1 photo + overlay" in md and "## Photo plates" in md and "public domain" in md
+
+
+def test_a_plate_on_a_filmed_beat_stays_filmed():
+    from xlights_orchestrator.media_plan import MediaBudget
+    story = _beats({1: {"photo": _plate()}})
+    vs, media = plan_story(story, song="s", sections=SECTIONS, labels=["intro", "verse", "outro"],
+                           energies=[0.2, 0.9, 0.1], lyrics=[], downbeats_ms=[], width=256, height=192,
+                           budget=MediaBudget(campaign_clips=10, pinned=[1]))
+    sh = next(s for s in vs.shots if s.section_index == 1)
+    assert sh.medium == "filmed" and vs.media.photo_sections == 0
+    assert media.handoff[sh.index].photo is not None                      # the stand-in's plate

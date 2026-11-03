@@ -26,7 +26,7 @@ ROLE_COLORS: dict[str, tuple[int, int, int]] = {
     "SPINNER": (200, 0, 255), "MATRIX": (255, 255, 255), "WINDOW": (0, 90, 255),
     "OUTLINE": (255, 0, 200), "FLOOD": (120, 120, 120), "SINGING_FACE": (255, 200, 200),
     "SIGN": (180, 255, 0), "PATH": (0, 255, 180), "SNOWFLAKE": (200, 220, 255),
-    "CUSTOM_PROP": (100, 100, 100),
+    "STAKE": (140, 70, 0), "CHARACTER": (255, 90, 90), "CUSTOM_PROP": (100, 100, 100),
 }
 _FALLBACK_COLOR = (255, 255, 255)
 

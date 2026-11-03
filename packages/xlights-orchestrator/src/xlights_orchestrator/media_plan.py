@@ -19,9 +19,10 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .video_script import MediaSummary, ScriptConstraints, Shot
+from .video_script import MediaSummary, PhotoPlate, ScriptConstraints, Shot
 
 Medium = Literal["filmed", "procedural"]
+ShotMedium = Literal["filmed", "procedural", "photo"]     # "photo": the story's plate on a procedural section
 
 # Value-score weights (one place; the Markdown shows each section's score so a bad pick is visible).
 W_CLIMAX = 3.0
@@ -67,13 +68,14 @@ class ShotHandoff(BaseModel):
     shot_index: int
     section_index: int
     part: int | None = None
-    medium: Medium
+    medium: ShotMedium
     asset: str
     start_ms: int
     end_ms: int
     frames: int
     veo_prompt: str = ""              # filmed shots
     procedural_brief: str             # every shot: the beat (procedural) or its stand-in (filmed)
+    photo: PhotoPlate | None = None   # photo shots (and filmed shots whose stand-in has a plate)
 
 
 class MediaPlan(BaseModel):
@@ -288,6 +290,11 @@ def procedural_brief(shot: Shot, palette: list[str], c: ScriptConstraints) -> st
         what = b.procedural_stand_in.rstrip(".") + "."
     else:
         what = f"{b.imagery.rstrip('.')}. {b.action.rstrip('.')}."
+    if b.photo is not None:
+        ph = b.photo
+        plate = f"`{ph.file}`" if ph.file else f"a free-to-reuse photo of {ph.subject.rstrip('.')}"
+        what = (f"Over {plate}, {ph.move.rstrip('.')}: {ph.overlay.rstrip('.')}. "
+                f"({what.rstrip('.')}.)")
     dur = (shot.end_ms - shot.start_ms) / 1000
     pal = f" Palette: {', '.join(palette)}." if palette else ""
     return (f"{what} Light: {b.lighting.rstrip('.')}.{pal} Render {shot.frames} frames at {c.fps:g} fps "
@@ -296,8 +303,9 @@ def procedural_brief(shot: Shot, palette: list[str], c: ScriptConstraints) -> st
 
 def build_handoff(shots: list[Shot], palette: list[str], c: ScriptConstraints) -> list[ShotHandoff]:
     return [ShotHandoff(shot_index=sh.index, section_index=sh.section_index, part=sh.part,
-                        medium="filmed" if sh.medium == "filmed" else "procedural", asset=sh.asset,
+                        medium=sh.medium if sh.medium in ("filmed", "photo") else "procedural",
+                        asset=sh.asset,
                         start_ms=sh.start_ms, end_ms=sh.end_ms, frames=sh.frames,
                         veo_prompt=veo_prompt(sh, c) if sh.medium == "filmed" else "",
-                        procedural_brief=procedural_brief(sh, palette, c))
+                        procedural_brief=procedural_brief(sh, palette, c), photo=sh.beat.photo)
             for sh in shots]

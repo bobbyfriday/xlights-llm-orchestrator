@@ -28,7 +28,7 @@ Do not parse `.xsq` sequence files for this task. Layout semantics are sequence-
 
 ## 2. Role taxonomy
 
-Every model must be assigned exactly one role from this closed enum. Do not invent new roles; use `CUSTOM_PROP` as the catch-all.
+Every model must be assigned exactly one role from this closed enum of 18. Do not invent new roles; use `CUSTOM_PROP` as the catch-all.
 
 | Role | Description | Typical model types |
 |---|---|---|
@@ -47,6 +47,8 @@ Every model must be assigned exactly one role from this closed enum. Do not inve
 | `SINGING_FACE` | Singing faces / talking props | Custom with face submodels |
 | `SIGN` | Tune-to signs, text props | Matrix, Custom |
 | `PATH` | Driveway, walkway, fence lines along the ground | Single Line, Poly Line |
+| `STAKE` | Repeated yard stakes in a row: tombstones, peace stakes (a rhythm family like arches) | Custom |
+| `CHARACTER` | Figures with expressive submodels (eyes, tail): cats, ghosts, gingerbread men | Custom with eye submodels |
 | `CUSTOM_PROP` | Anything unclassifiable | Custom |
 
 ### Capability tags (derived from role + geometry)
@@ -56,7 +58,7 @@ Assign each model a resolution class. This gates which effects are legal on it:
 - `2D_SURFACE`: matrices, high-density custom grids. Supports pictures, text, video, shader-style effects.
 - `2D_RADIAL`: mega trees, spinners, stars. Supports spirals, radial waves, pinwheels.
 - `LINEAR_HIGH`: outlines and paths with 100+ nodes. Supports smooth chases, wipes, bars.
-- `LINEAR_LOW`: arches, canes, icicle segments under ~100 nodes. Supports simple chases, fills, bounces.
+- `LINEAR_LOW`: arches, canes, stakes, characters, icicle segments under ~100 nodes. Supports simple chases, fills, bounces.
 - `POINT`: floods and single-color props. Color washes and intensity only.
 - `SPECIAL`: singing faces. Excluded from general choreography; driven by dedicated face tracks only.
 
@@ -79,6 +81,10 @@ Run these steps in order. Each step only classifies models not yet resolved by a
 - `sign`, `tune` → `SIGN`
 - `drive`, `walk`, `path`, `fence`, `yard line` → `PATH`
 - `flake` → `SNOWFLAKE`
+- `tomb`, `grave`, `headstone`, `megastone`, `stake` → `STAKE`
+- `black cat`, `ghost`, `skull`, `skeleton`, `witch`, `reaper`, `spider`, `pumpkin`, `gingerbread`, `snowman`, `reindeer`, `santa` → `CHARACTER`
+
+**Step 3b: Character submodels.** A remaining `Custom` model with a submodel whose name contains `eye` → `CHARACTER`. Null placeholders (name contains `null`) resolve before step 1 and are never reviewed.
 
 **Step 4: Existing group hints.** If an unclassified model belongs to a user group whose name matches a heuristic (e.g. group "All Outline"), inherit that role.
 
@@ -99,10 +105,10 @@ After classification, compute spatial attributes from world positions:
 
 1. **Normalize.** Compute the bounding box of all models. Express each model's position as `x` in `[0, 1]` left to right and `y` in `[0, 1]` ground to top, from the audience's viewpoint (the default xLights house preview orientation).
 2. **Vertical bands.** Assign each model `GROUND`, `MID`, or `ROOF` by thresholding normalized `y` (suggested cuts at 0.33 and 0.66, adjusted if the outline models clearly define a roofline).
-3. **Sweep order.** Within each role that has multiple instances (`ARCH`, `MINI_TREE`, `CANE`, `WINDOW`, `SNOWFLAKE`, `SPINNER`), sort by normalized `x` and assign `sweep_order` 1..N.
+3. **Sweep order.** Within each role that has multiple instances (`ARCH`, `MINI_TREE`, `CANE`, `WINDOW`, `SNOWFLAKE`, `SPINNER`, `STAKE`, `CHARACTER`), sort by normalized `x` and assign `sweep_order` 1..N.
 4. **Symmetry pairs.** Two models of the same role whose `x` positions are approximately mirrored around the display centerline (tolerance 0.05) and whose `y` positions match are a `mirror_pair`. Record both directions.
 5. **Center distance.** For each model, compute normalized Euclidean distance from the display's focal center (the `MEGA_TREE` if present, otherwise the bounding-box center). This enables radial wave choreography.
-6. **Focal flags.** Mark the hero `focal: true`: the `MEGA_TREE` when the display has one, otherwise every `MATRIX`; plus any non-matrix prop occupying more than ~15% of the display's visual area. Beside a mega tree, matrixes are not focal: they form `SEM_CANVAS` (§5.5), so a display with one tree and several screens gets one hero, not a crowd.
+6. **Focal flags.** Mark the hero `focal: true`: the `MEGA_TREE` when the display has one, otherwise every `MATRIX` — unless one matrix has ≥4× the nodes of the next (a video panel beside low-res window screens), which is then the hero alone; plus any non-matrix prop occupying more than ~15% of the display's visual area. Beside a mega tree, matrixes are not focal: they form `SEM_CANVAS` (§5.5), so a display with one tree and several screens gets one hero, not a crowd.
 
 ---
 
@@ -123,6 +129,8 @@ SEM_FLOODS         all FLOOD models
 SEM_SNOWFLAKES     all SNOWFLAKE models
 SEM_SPINNERS       all SPINNER models
 SEM_PATH           all PATH models
+SEM_STAKES         all STAKE models
+SEM_CHARACTERS     all CHARACTER models
 ```
 
 Single-instance roles (`MEGA_TREE`, `MATRIX`, `STAR`, `SIGN`) do not need a group; the planner addresses the model directly. If multiples exist, create the group.
@@ -135,6 +143,7 @@ For each multi-instance role, also create a left-to-right ordered group. In xLig
 SEM_ARCHES_LTR     arches in sweep order 1..N
 SEM_MINITREES_LTR  mini trees in sweep order 1..N
 SEM_CANES_LTR      canes in sweep order 1..N
+SEM_STAKES_LTR     stakes in sweep order 1..N
 ```
 
 Right-to-left variants are unnecessary; the compiler reverses direction via effect parameters.
@@ -160,8 +169,8 @@ SEM_SIDE_RIGHT     models with x > 0.55
 ```
 SEM_ALL            every model except SINGING_FACE and SIGN
 SEM_FOCAL          all focal: true models (the mega tree, else the matrixes; large props)
-SEM_CANVAS         every MATRIX (the screens: media, text, canvas looks; equals SEM_FOCAL when there is no mega tree)
-SEM_ACCENTS        all non-focal, non-outline, non-matrix props (arches, minis, canes, flakes, spinners)
+SEM_CANVAS         every non-focal MATRIX (the screens: media, text, canvas looks); every MATRIX when all of them are the hero
+SEM_ACCENTS        all non-focal, non-outline, non-matrix props (arches, minis, canes, stakes, flakes, spinners, characters)
 SEM_HOUSE          OUTLINE + WINDOW + ICICLES (the structure itself)
 SEM_YARD           everything in GROUND band except FLOODS
 ```
@@ -249,6 +258,6 @@ Classification errors poison every downstream sequencing decision, so validate b
 - **Multiple previews / layout groups.** Process only the default preview unless instructed otherwise. Props assigned to other layout groups are excluded from `SEM_ALL`.
 - **DMX models** (moving heads, projectors). Classify as `CUSTOM_PROP`, exclude from all `SEM_` groups. They need dedicated handling.
 - **Whole-house mesh / pixel curtain.** A very large Custom model covering the house is a `MATRIX` functionally. Classify by node density and area, not by name.
-- **Duplicate or stale models.** Models with zero channels or positioned far outside the main bounding box (> 2x display width) are likely parked or abandoned. Exclude them and list them in `review`.
+- **Duplicate or stale models.** Models with zero channels or positioned far outside the main bounding box (> 2x display width, on either axis) are likely parked or abandoned. Null placeholders are always left out of normalization. Exclude them and list them in `review`.
 - **Inverted or rotated previews.** If the user's preview is mirrored (some are, depending on how they photographed the house), all left/right semantics invert. The sweep test in Section 7 is the guard.
 - **Single-color (non-RGB) strings.** Classify normally but tag `res: POINT` capability override, since color choreography does not apply.

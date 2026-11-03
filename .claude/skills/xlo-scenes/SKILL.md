@@ -55,9 +55,9 @@ Every group you cast should also appear in `target_groups` (the coverage and rhy
 | G0-ALL-LESS-HERO-RHYTHM | `SEM_ALL_LESS_FOCAL_RHYTHM`, else as G0-ALL-LESS-HERO | |
 | G1-LEFT / G1-RIGHT | `SEM_SIDE_LEFT` / `SEM_SIDE_RIGHT` | |
 | G2-HERO | `SEM_FOCAL` | |
-| G2-RHYTHM | the section's rhythm pool, first group (`pulse_groups`, else the rhythm props among `target_groups`), else `SEM_ARCHES` → `SEM_CANES` → `SEM_MINITREES` → `SEM_SIDE_*` | one of `SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES` |
+| G2-RHYTHM | the section's rhythm pool, first group (`pulse_groups`, else the rhythm props among `target_groups`), else `SEM_ARCHES` → `SEM_CANES` → `SEM_MINITREES` → `SEM_STAKES` → `SEM_SIDE_*` | one of `SEM_ARCHES`, `SEM_CANES`, `SEM_MINITREES` |
 | G2-FRAME | `SEM_OUTLINE`, else `SEM_HOUSE` (outline + windows + icicles) | |
-| G2-ACCENT | `SEM_SNOWFLAKES`, else `SEM_SPINNERS` (not `SEM_ACCENTS`, which also holds the rhythm props) | |
+| G2-ACCENT | `SEM_SNOWFLAKES`, else `SEM_SPINNERS`, else `SEM_CHARACTERS` (not `SEM_ACCENTS`, which also holds the rhythm props) | |
 | G2-CANVAS | `SEM_CANVAS`, else the group whose name contains "matrix" (e.g. `Matrixes`), else uncast | |
 | G9-STROBE-OVERLAY | never cast: code's climax flashes and `on_top` triggers play that role | |
 
@@ -113,7 +113,7 @@ What the brief's rhythmic-intent fields do (`pipeline/beats.py`):
 
 - `pulse_groups` — the groups that walk the **metric ring** (one prop family per beat of the bar).
   Default ring: `SEM_ARCHES` → `SEM_CANES` → `SEM_MINITREES` → `SEM_SNOWFLAKES`, filtered to what
-  exists. Name 2–4 groups to override; prefer `SEM_ARCHES` or the `SEM_SIDE_*` spatial chase.
+  exists; the layout manifest ranks in other families it has (e.g. `SEM_STAKES`). Name 2–4 groups to override; prefer `SEM_ARCHES` or the `SEM_SIDE_*` spatial chase.
   Naming any `pulse_groups` also makes a quiet section rhythmic (it opts into the beat layer and
   the fabric), so leave it empty for a still section.
 - `follow_stem` — whose onsets the **hero** (`SEM_FOCAL`) follows. Default: the section's

@@ -253,3 +253,15 @@ def test_piano_trigger_rotates_groups_per_note():
     assert all(o.target in rhythm for o in out)
     assert len({o.target for o in out}) >= 2                      # walks across groups
     assert all(o.on_top and o.effect_type == "On" for o in out)
+
+
+def test_triggers_off_skips_named_triggers_for_this_song_only():
+    cookbook = ("## Drum Pops\n- detector: drum_onsets\n- effect: Shockwave\n- sections: any\n"
+                "- select: all\n- density: per_onset\n\n"
+                "## Keep Me\n- detector: drum_onsets\n- effect: On\n- sections: any\n"
+                "- select: all\n- density: per_onset\n")
+    sa = _sa(drums_onsets=[0.5, 1.5], drums_arc=[(0.5, 0.8), (1.5, 0.8)])
+    both = T.place_triggers(sa, [_sec(0)], AVAIL, cookbook)
+    assert {o.effect_type for o in both} == {"Shockwave", "On"}
+    kept = T.place_triggers(sa, [_sec(0)], AVAIL, cookbook, off=["  drum POPS "])
+    assert {o.effect_type for o in kept} == {"On"}

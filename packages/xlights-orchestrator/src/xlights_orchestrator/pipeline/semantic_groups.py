@@ -21,11 +21,13 @@ SEM_CANES = "SEM_CANES"
 SEM_MINITREES = "SEM_MINITREES"
 SEM_SNOWFLAKES = "SEM_SNOWFLAKES"
 SEM_SPINNERS = "SEM_SPINNERS"
+SEM_STAKES = "SEM_STAKES"            # yard stakes in a row (tombstones, peace stakes): a rhythm family
+SEM_CHARACTERS = "SEM_CHARACTERS"    # figures with eyes (cats, ghosts, gingerbread men): accents
 
 # -- role groupings the layers target ---------------------------------------
 RHYTHM_GROUPS = (SEM_SIDE_LEFT, SEM_SIDE_CENTER, SEM_SIDE_RIGHT)  # beat chase sweeps L→C→R
-RHYTHM_POOL = (SEM_ARCHES, SEM_CANES, SEM_MINITREES)             # call-and-response rhythm cells
-ACCENT_GROUPS = (SEM_SNOWFLAKES, SEM_SPINNERS)                   # sparkle props: fire on hits, dark otherwise
+RHYTHM_POOL = (SEM_ARCHES, SEM_CANES, SEM_MINITREES, SEM_STAKES)  # call-and-response rhythm cells
+ACCENT_GROUPS = (SEM_SNOWFLAKES, SEM_SPINNERS, SEM_CHARACTERS)   # sparkle props: fire on hits, dark otherwise
 HERO_GROUP = SEM_FOCAL                                           # the hero onset layer rides this
 FULL_DISPLAY = SEM_ALL                                          # flashes hit the whole display
 WHOLE_HOUSE_GROUPS = (SEM_ALL, SEM_HOUSE)                        # trigger targets for house-wide hits
@@ -79,11 +81,12 @@ DEFAULT_VOCAB = ChoreoVocabulary()
 # The role → SEM_ role-group name map (mirrors knowledge/layout_semantics._ROLE_GROUP), so the
 # derivation can name the groups a manifest's roles imply without importing xlights-core here.
 _ROLE_TO_GROUP = {"ARCH": SEM_ARCHES, "CANE": SEM_CANES, "MINI_TREE": SEM_MINITREES,
-                  "SNOWFLAKE": SEM_SNOWFLAKES, "SPINNER": SEM_SPINNERS}
+                  "SNOWFLAKE": SEM_SNOWFLAKES, "SPINNER": SEM_SPINNERS, "STAKE": SEM_STAKES,
+                  "CHARACTER": SEM_CHARACTERS}
 _GROUP_TO_ROLE = {v: k for k, v in _ROLE_TO_GROUP.items()}
 # The rhythm-cell families the metric ring may walk across (true accent/chase props, NOT frames
 # like OUTLINE/WINDOW which read as a bed, not a beat).
-_RHYTHM_FAMILY_ROLES = ("ARCH", "CANE", "MINI_TREE", "SNOWFLAKE", "SPINNER")
+_RHYTHM_FAMILY_ROLES = ("ARCH", "CANE", "MINI_TREE", "SNOWFLAKE", "SPINNER", "STAKE")
 
 
 def derive_vocabulary(manifest) -> ChoreoVocabulary:
@@ -150,7 +153,8 @@ def derive_vocabulary(manifest) -> ChoreoVocabulary:
     hero = SEM_FOCAL if any(getattr(p, "focal", False) for p in props) else HERO_GROUP
 
     # accent groups present as roles (fall back to the constant pair)
-    accent = tuple(g for r, g in (("SNOWFLAKE", SEM_SNOWFLAKES), ("SPINNER", SEM_SPINNERS))
+    accent = tuple(g for r, g in (("SNOWFLAKE", SEM_SNOWFLAKES), ("SPINNER", SEM_SPINNERS),
+                                  ("CHARACTER", SEM_CHARACTERS))
                    if by_role.get(r)) or ACCENT_GROUPS
 
     return ChoreoVocabulary(metric_ring=ring, backbeat_preference=backbeat, bed_preference=bed_pref,

@@ -68,6 +68,43 @@ which from energy, hooks and the clip budget — after you write. So:
 - Repeated sections with the same label (a returning chorus) share one filmed shot: give them the
   same imagery and action; camera and light may vary.
 
+## The third look: a real photo under a procedural overlay (optional)
+
+A procedural beat can be upgraded to a **photo plate**: a real photograph with a slow camera move
+over it and procedural layers composited on top (fog, embers, falling leaves, candle flicker, a
+breathing colour wash). On a low-res matrix it often reads better than pure procedural, and it
+costs no Veo clips. Use it **sometimes, not everywhere**: where a real place or object carries the
+beat (a fogged porch, an open doorway, a moonlit street). Keep pure procedural where the motion
+is the point (rhythmic flicker, stillness, abstract colour).
+
+- Add `photo` to the beat: `subject` (what the photo shows, which is also the search), `move`,
+  `overlay` (procedural vocabulary), and once found, `file` (a local path), `source_url`,
+  `license` and `credit`. A plate with only `subject` + `overlay` is fine at story time; the
+  storyboard marks it *still to find*.
+- **Licences: free to reuse only.** CC0, public domain, CC BY / CC BY-SA (with `credit`),
+  Unsplash, Pexels, Pixabay, NASA, or the user's own photo (`video_script.py:PHOTO_LICENSES`).
+  Never film stills, screenshots, or images of unknown licence, even when the song is a film theme.
+  The planner refuses a sourced plate with no licence or with a licence not on the list.
+- A plate shows **places and objects**: the planner lints `subject` + `overlay` with the same
+  people/animal word list as procedural beats.
+- On a procedural section the shot becomes `photo`. On a filmed section the plate is the stand-in's
+  backdrop (used until the Veo clip exists); the shot stays filmed.
+- When you source images, put each in the show folder (xLights and the renderer must be able to
+  read it) and record the source and licence in the beat. Search Wikimedia Commons, Unsplash or
+  Pexels, and check the licence on the image's own page.
+
+```json
+"photo": {
+  "subject": "a wooden front porch at night, the door ajar with warm light spilling out",
+  "move": "slow push-in toward the door",
+  "overlay": "leaves blowing across the boards, a porch light flickering, orange wash breathing",
+  "file": "",
+  "source_url": "",
+  "license": "",
+  "credit": ""
+}
+```
+
 ## The file: `video_story.json`
 
 Write it into the song's cache dir next to `creative_brief.json`.
@@ -95,7 +132,7 @@ Write it into the song's cache dir next to `creative_brief.json`.
 
 Beat fields (all strings unless noted): `section_index` (int), `title`, `imagery`, `action`,
 `camera`, `lighting`, `motifs` (list of strings, drawn from the top-level `motifs`), `continuity`,
-`draws_on`, `procedural_stand_in`. The first beat for an index wins; out-of-range indexes are
+`draws_on`, `procedural_stand_in`, and optional `photo` (above). The first beat for an index wins; out-of-range indexes are
 dropped; a section with no beat inherits the previous one and is flagged — give every section its
 own beat.
 

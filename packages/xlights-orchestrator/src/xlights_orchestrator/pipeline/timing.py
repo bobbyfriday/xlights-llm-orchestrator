@@ -226,12 +226,66 @@ def _phoneme_track(sa, end_ms, name: str = "Faces") -> TimingTrack | None:
     return TimingTrack(name, layers=[phrases, word_marks, phoneme_marks])
 
 
-def build_timing_tracks(sa, *, sections=None, onset_stems=None) -> list[TimingTrack]:
+FACES_XTIMING_NAME = "faces.xtiming"   # per-song hand-made lyric track (xLights export)
+
+
+def load_xtiming(path: str | Path, name: str = "Faces") -> TimingTrack | None:
+    """A hand-made lyric timing track (an xLights `.xtiming` export) as the `name` track.
+
+    Keeps every layer as authored (phrases / words / phonemes), rounds times to whole ms and trims
+    a mark that starts before its predecessor ends, so xLights never sees overlapping marks.
+    Best-effort: an unreadable file returns None and the generated track is used instead.
+    """
+    try:
+        timing = ET.parse(path).getroot().find("timing")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read %s: %s; using the generated lyric track", path, exc)
+        return None
+    if timing is None:
+        return None
+    layers: list[list[TimingMark]] = []
+    for el in timing.findall("EffectLayer"):
+        marks: list[TimingMark] = []
+        for e in el.findall("Effect"):
+            try:
+                s, en = round(float(e.get("starttime"))), round(float(e.get("endtime")))
+            except (TypeError, ValueError):
+                continue
+            if marks:
+                s = max(s, marks[-1].end_ms)
+            if en > s:
+                marks.append(TimingMark(e.get("label") or "", s, en))
+        layers.append(marks)
+    track = TimingTrack(name, layers=layers)
+    return track if track.has_marks() else None
+
+
+def xtiming_lines(track: TimingTrack, *, gap_ms: int = 700) -> list[tuple[str, int, int]]:
+    """(text, start, end) lines from the track's word layer, split where the singer pauses.
+
+    Uses the second layer (words) of a phrases/words/phonemes track and skips breath marks
+    (`BREATH*`). Hand-made tracks often carry the whole lyric as one phrase, so lines come from
+    the gaps between words rather than the phrase layer.
+    """
+    layers = track.layer_list()
+    words = [m for m in (layers[1] if len(layers) > 1 else layers[0]) if not m.label.endswith("*")]
+    lines: list[list[TimingMark]] = []
+    for w in words:
+        if lines and w.start_ms - lines[-1][-1].end_ms < gap_ms:
+            lines[-1].append(w)
+        else:
+            lines.append([w])
+    return [(" ".join(w.label for w in ln), ln[0].start_ms, ln[-1].end_ms) for ln in lines]
+
+
+def build_timing_tracks(sa, *, sections=None, onset_stems=None,
+                        faces_track: TimingTrack | None = None) -> list[TimingTrack]:
     """Assemble all reference tracks from the analysis + sections (skips any with no data).
 
     The section track comes from `sections` (the creative brief's `SectionPlan`s, labelled by
     `label` or index); everything else — beat/bar grid at the detected meter, onsets, chords,
-    lyrics, phonemes — from the analysis alone.
+    lyrics, phonemes — from the analysis alone. A ready `faces_track` (a hand-made lyric track,
+    see `faces.song_faces_track`) replaces the generated phoneme track.
     """
     end_ms = int(getattr(sa, "duration_s", 0) * 1000) or None
     bpb = resolve_beats_per_bar(sa)        # label/stride the beat+bar grid at the real meter
@@ -246,7 +300,7 @@ def build_timing_tracks(sa, *, sections=None, onset_stems=None) -> list[TimingTr
         *onset_tracks,
         _chord_track(sa, end_ms),
         _lyric_track(sa, end_ms),
-        _phoneme_track(sa, end_ms),               # phrases/words/phonemes for the Faces effect
+        faces_track or _phoneme_track(sa, end_ms),  # phrases/words/phonemes for the Faces effect
     ]
     return [t for t in candidates if t and t.has_marks()]
 

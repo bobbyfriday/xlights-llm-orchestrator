@@ -354,10 +354,12 @@ def _int(s: str) -> int | None:
 
 # -- entry point ---------------------------------------------------------------
 
-def place_triggers(sa, sections, available_groups: list[str], cookbook_text: str
-                   ) -> list[EffectInstruction]:
-    """Parse the cookbook + place all enabled triggers. Empty/absent cookbook → []."""
-    specs = parse_cookbook(cookbook_text)
+def place_triggers(sa, sections, available_groups: list[str], cookbook_text: str,
+                   off: list[str] | None = None) -> list[EffectInstruction]:
+    """Parse the cookbook + place all enabled triggers. Empty/absent cookbook → []. `off` names
+    triggers to skip for this song (the brief's `triggers_off`, matched case-insensitively)."""
+    skip = {n.strip().casefold() for n in (off or [])}
+    specs = [sp for sp in parse_cookbook(cookbook_text) if sp.name.strip().casefold() not in skip]
     if not specs:
         return []
     return realize_triggers(specs, sa, sections, available_groups)

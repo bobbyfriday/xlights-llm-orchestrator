@@ -78,12 +78,47 @@ def test_sole_small_tree_is_mega():
     ("Roof Line", "OUTLINE"), ("Gutter", "OUTLINE"), ("Garage Door Frame", "OUTLINE"),
     ("Front Window", "WINDOW"), ("Flood 1", "FLOOD"), ("Up Light", "FLOOD"),
     ("Singing Tree", "SINGING_FACE"), ("Tune To Sign", "SIGN"), ("Driveway", "PATH"),
-    ("Big Flake", "SNOWFLAKE"),
+    ("Big Flake", "SNOWFLAKE"), ("Boscoyo Megastone RIP-2", "STAKE"), ("Peace Stakes - Left", "STAKE"),
+    ("Boscoyo Black Cat Left", "CHARACTER"), ("Gingerbread Man-1", "CHARACTER"),
 ])
 def test_name_heuristics(name, role):
     p = Prop(name=name, display_as="Single Line", nodes=20)
     res = classify([p])
     assert res.props[0].role == role and res.props[0].confidence == 0.9
+
+
+def test_custom_with_eye_submodels_is_a_character():
+    p = Prop(name="Yard Critter", display_as="Custom", nodes=75, submodels=["Body", "Left Eye", "Tail"])
+    res = classify([p])
+    assert res.props[0].role == "CHARACTER" and res.props[0].confidence == 0.85
+
+
+def test_null_placeholder_needs_no_review():
+    res = classify([Prop(name="Null 7", display_as="Single Line", nodes=7)])
+    assert res.props[0].confidence == 1.0 and not res.unresolved
+
+
+def test_parse_props_reads_the_2026_attribute_names(tmp_path):
+    xml = tmp_path / "rgb.xml"
+    xml.write_text(
+        '<xrgb><models>'
+        '<model name="Panel" DisplayAs="Matrix" NumStrings="192" NodesPerString="256" />'
+        '<model name="Door Top" DisplayAs="Single Line" NumStrings="1" NodesPerString="13" />'
+        '<model name="Cat" DisplayAs="Custom" CustomModelCompressed="2,0,1;1,0,0;75,3,2" />'
+        '</models></xrgb>')
+    by = _by_name(parse_props(xml))
+    assert (by["Panel"].nodes, by["Door Top"].nodes, by["Cat"].nodes) == (49152, 13, 75)
+
+
+def test_spatial_vertically_parked_null_does_not_squash_bands():
+    props = [Prop(name=f"Arch {i}", display_as="Arches", role="ARCH", nodes=50, wx=100.0 * i, wy=0.0)
+             for i in range(5)]
+    props += [Prop(name="Roof Line", display_as="Single Line", role="OUTLINE", nodes=200, wx=200.0, wy=400.0),
+              Prop(name="Null 7", display_as="Single Line", nodes=7, wx=200.0, wy=1083.0)]
+    summary = derive_spatial(props)
+    by = _by_name(props)
+    assert "Null 7" in {p.name for p in summary.excluded}
+    assert by["Roof Line"].band == "ROOF"
 
 
 def test_group_hint_inheritance():

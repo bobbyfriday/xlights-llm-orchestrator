@@ -76,4 +76,5 @@ def test_real_layout_manifest_reproduces_todays_constants():
     assert vocab.bed_preference == DEFAULT_VOCAB.bed_preference
     assert vocab.peak_broad == DEFAULT_VOCAB.peak_broad
     assert vocab.hero_group == DEFAULT_VOCAB.hero_group
-    assert vocab.accent_groups == DEFAULT_VOCAB.accent_groups
+    # no characters in this layout → the accents are today's sparkle pair, in constant order
+    assert vocab.accent_groups == tuple(g for g in DEFAULT_VOCAB.accent_groups if g in plan)

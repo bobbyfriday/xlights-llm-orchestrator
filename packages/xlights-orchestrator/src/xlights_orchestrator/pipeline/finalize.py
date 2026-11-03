@@ -13,13 +13,14 @@ from xlights_core.knowledge.layout_semantics import patch_xsq_render_order
 
 from .media import patch_xsq_media, resolve_xsq
 from .state import State
+from .faces import song_faces_track
 from .timing import build_timing_tracks, patch_xsq_timing_tracks
 
 log = logging.getLogger(__name__)
 
 
 async def finalize_sequence(st: State, *, client, save_as: str, media, show_folder,
-                            duration_s: float, timing_tracks: bool) -> None:
+                            duration_s: float, timing_tracks: bool, song_dir=None) -> None:
     await client.save_sequence(save_as)
     if media is None and not timing_tracks:
         return
@@ -34,7 +35,8 @@ async def finalize_sequence(st: State, *, client, save_as: str, media, show_fold
                  stage="finalize", level=logging.DEBUG)
         if xsq and timing_tracks:             # reference grid for hand-editing (best-effort)
             tracks = build_timing_tracks(
-                st.song_analysis, sections=st.show_plan.sections if st.show_plan else None)
+                st.song_analysis, sections=st.show_plan.sections if st.show_plan else None,
+                faces_track=song_faces_track(song_dir, st.song_analysis)[0] if song_dir else None)
             if patch_xsq_timing_tracks(xsq, tracks):
                 log.info("added %d reference timing tracks to %s", len(tracks), xsq)
     except Exception as exc:  # noqa: BLE001 — patch is best-effort, never fails the run
